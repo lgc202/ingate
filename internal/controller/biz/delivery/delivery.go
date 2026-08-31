@@ -11,17 +11,17 @@ import (
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
 )
 
-// Publisher 将完整 Envoy 配置发布到数据面配置通道
+// Publisher 将完整 Envoy 配置发布到数据面配置通道。
 //
-// Delivery 只关心版本是否已发布，Snapshot Cache 等 xDS 实现细节由 server 层承担
+// Delivery 只关心版本是否已发布，Snapshot Cache 等 xDS 实现细节由 server 层承担。
 type Publisher interface {
 	Publish(context.Context, string, compiler.EnvoyConfig) error
 	HasVersion(string) bool
 }
 
-// Delivery 串行管理 Candidate、Active 和 ACK/NACK
+// Delivery 串行管理 Candidate、Active 和 ACK/NACK。
 //
-// Start 运行后，Submit、HandleXDSEvent 和 Status 可被多个 goroutine 并发调用
+// Start 运行后，Submit、HandleXDSEvent 和 Status 可被多个 goroutine 并发调用。
 type Delivery struct {
 	publisher Publisher
 	options   Options
@@ -31,7 +31,10 @@ type Delivery struct {
 	started  chan struct{}
 	done     chan struct{}
 	running  atomic.Bool
-	cancel   context.CancelFunc
+
+	lifecycleMu sync.Mutex
+	cancel      context.CancelFunc
+	stopping    bool
 
 	statusMu sync.RWMutex
 	status   Status
@@ -39,7 +42,7 @@ type Delivery struct {
 	state deliveryState
 }
 
-// New 创建尚未运行的 Delivery
+// New 创建尚未运行的 Delivery。
 func New(publisher Publisher, options Options) (*Delivery, error) {
 	options, err := normalizeOptions(options)
 	if err != nil {
@@ -59,16 +62,22 @@ func New(publisher Publisher, options Options) (*Delivery, error) {
 	}, nil
 }
 
-// Start 执行唯一的 Delivery 命令循环
+// Start 执行唯一的 Delivery 命令循环。
 //
-// Kratos 在独立 goroutine 中调用 Start，并在停止时调用 Stop
+// Kratos 在独立 goroutine 中调用 Start，并在停止时调用 Stop。
 func (d *Delivery) Start(ctx context.Context) error {
 	if !d.running.CompareAndSwap(false, true) {
 		return ErrAlreadyRunning
 	}
 	runCtx, cancel := context.WithCancel(ctx)
-	d.cancel = cancel
 	defer cancel()
+	d.lifecycleMu.Lock()
+	d.cancel = cancel
+	stopping := d.stopping
+	d.lifecycleMu.Unlock()
+	if stopping {
+		cancel()
+	}
 
 	close(d.started)
 	defer close(d.done)
@@ -96,27 +105,26 @@ func (d *Delivery) Start(ctx context.Context) error {
 	}
 }
 
-// Stop 停止配置发布循环并等待正在处理的命令退出
+// Stop 停止配置发布循环并等待正在处理的命令退出。
 func (d *Delivery) Stop(ctx context.Context) error {
-	select {
-	case <-d.started:
-	case <-d.done:
+	d.lifecycleMu.Lock()
+	d.stopping = true
+	cancel := d.cancel
+	d.lifecycleMu.Unlock()
+	if cancel == nil {
 		return nil
-	case <-ctx.Done():
-		return ctx.Err()
 	}
-
-	d.cancel()
+	cancel()
 
 	select {
 	case <-d.done:
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("stop configuration delivery: %w", ctx.Err())
 	}
 }
 
-// Ready 返回配置发布循环是否正在运行
+// Ready 返回配置发布循环是否正在运行。
 func (d *Delivery) Ready() bool {
 	select {
 	case <-d.started:
@@ -131,7 +139,7 @@ func (d *Delivery) Ready() bool {
 	}
 }
 
-// Submit 发布一个通过编译的完整 Envoy 配置
+// Submit 发布一个通过编译的完整 Envoy 配置。
 func (d *Delivery) Submit(ctx context.Context, result compiler.Result) error {
 	hasErrors := result.HasErrors()
 	cleanResult := compiler.Result{
@@ -149,25 +157,26 @@ func (d *Delivery) Submit(ctx context.Context, result compiler.Result) error {
 	})
 }
 
-// CancelCandidate 取消尚未成为 Active 的配置，并恢复当前 Active 或空 Baseline
+// CancelCandidate 取消尚未成为 Active 的配置，并恢复当前 Active 或空 Baseline。
 func (d *Delivery) CancelCandidate(ctx context.Context) error {
 	return d.call(ctx, command{kind: commandCancelCandidate})
 }
 
-// HandleXDSEvent 将一个 xDS stream 或 ACK/NACK 事件同步交给 Delivery
+// HandleXDSEvent 将一个 xDS stream 或 ACK/NACK 事件同步交给 Delivery。
 //
-// NACK 的排队和回滚总时间受 NACKRollbackTimeout 限制，超时错误应由 xDS 用于关闭 stream
+// xDS 流断开不能撤销已经确认的 NACK；调用方等待和内部回退分别受
+// NACKRollbackTimeout 限制，进程停止仍会立即取消回退。
 func (d *Delivery) HandleXDSEvent(ctx context.Context, event XDSEvent) error {
 	if event.Kind != EventNACK {
 		return d.call(ctx, command{kind: commandXDSEvent, event: event})
 	}
 
-	rollbackCtx, cancel := context.WithTimeout(ctx, d.options.NACKRollbackTimeout)
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.options.NACKRollbackTimeout)
 	defer cancel()
 	return d.call(rollbackCtx, command{kind: commandXDSEvent, event: event})
 }
 
-// Status 返回当前发布状态的独立快照
+// Status 返回当前发布状态的独立快照。
 func (d *Delivery) Status() Status {
 	d.statusMu.RLock()
 	status := d.status
@@ -175,9 +184,10 @@ func (d *Delivery) Status() Status {
 	return status.clone()
 }
 
-// Changes 返回 Delivery 声明式状态变化通知
+// Changes 返回 Delivery 声明式状态变化通知。
 //
-// 通知通道容量为 1 且不会关闭，消费者应结合自身 context 退出并在收到通知后读取最新 Status
+// 通知通道容量为 1 且不会关闭，消费者应结合自身 context 退出，
+// 并在收到通知后读取最新 Status。
 func (d *Delivery) Changes() <-chan struct{} {
 	return d.changes
 }
@@ -200,8 +210,15 @@ func (d *Delivery) executeCommand(runCtx context.Context, command command) error
 
 	commandErr := commandCtx.Err()
 	isNACK := command.kind == commandXDSEvent && command.event.Kind == EventNACK
-	if commandErr != nil && !isNACK {
-		return commandErr
+	if commandErr != nil {
+		if !isNACK {
+			return commandErr
+		}
+		// 调用方等待超时后仍必须撤回已被 Envoy 拒绝的 Candidate；
+		// 新期限只约束内部安全回退，进程停止仍会立即取消它。
+		rollbackCtx, cancel := context.WithTimeout(runCtx, d.options.NACKRollbackTimeout)
+		defer cancel()
+		return d.handleCommand(rollbackCtx, command)
 	}
 	return d.handleCommand(commandCtx, command)
 }
@@ -300,8 +317,9 @@ func (d *Delivery) handleCommand(ctx context.Context, command command) error {
 	case commandXDSEvent:
 		return d.handleXDSEvent(ctx, command.event)
 	case commandACKTimeout:
-		d.handleACKTimeout(command.version, command.sequence)
-		return nil
+		rollbackCtx, cancel := context.WithTimeout(ctx, d.options.NACKRollbackTimeout)
+		defer cancel()
+		return d.handleACKTimeout(rollbackCtx, command.version, command.sequence)
 	default:
 		return fmt.Errorf("unknown delivery command %d", command.kind)
 	}

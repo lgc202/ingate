@@ -46,4 +46,5 @@ for logical_name in "${PERSISTENT_VOLUMES[@]}"; do
 done
 
 tar -czf "$ARCHIVE" -C "$STAGING" ingate-backup
+chmod 600 "$ARCHIVE"
 echo "Backup created: $ARCHIVE"

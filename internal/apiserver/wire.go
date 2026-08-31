@@ -15,9 +15,10 @@ import (
 func wireApp(
 	*conf.Server,
 	*conf.Server_HTTP,
+	*conf.Server_Authentication,
 	*conf.Data_Etcd,
 	*slog.Logger,
 	serviceInstanceID,
 ) (*kratos.App, error) {
-	panic(wire.Build(server.New, newKratosApp))
+	panic(wire.Build(server.ProviderSet, newKratosApp))
 }

@@ -10,247 +10,404 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
 
-// RouteService 提供路由管理接口
+// RouteService 提供路由管理接口。
 service RouteService {
+  // ListRoutes 分页查询 Route。
   rpc ListRoutes(ListRoutesRequest) returns (ListRoutesResponse) {
     option (google.api.http) = {get: "/api/v1/routes"};
   }
+  // GetRoute 查询指定 Route。
   rpc GetRoute(GetRouteRequest) returns (Route) {
     option (google.api.http) = {get: "/api/v1/routes/{id}"};
   }
+  // CreateRoute 创建 Route。
   rpc CreateRoute(CreateRouteRequest) returns (Route) {
     option (google.api.http) = {
       post: "/api/v1/routes"
       body: "*"
     };
   }
+  // UpdateRoute 使用资源版本完整替换 Route 配置。
   rpc UpdateRoute(UpdateRouteRequest) returns (Route) {
     option (google.api.http) = {
       put: "/api/v1/routes/{id}"
       body: "*"
     };
   }
+  // DeleteRoute 使用资源版本删除 Route。
   rpc DeleteRoute(DeleteRouteRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {delete: "/api/v1/routes/{id}"};
   }
 }
 
+// RoutePathMatchType 定义请求路径的匹配方式。
 enum RoutePathMatchType {
+  // ROUTE_PATH_MATCH_TYPE_UNSPECIFIED 表示未选择路径匹配方式。
   ROUTE_PATH_MATCH_TYPE_UNSPECIFIED = 0;
-  ROUTE_PATH_MATCH_PREFIX = 1;
-  ROUTE_PATH_MATCH_EXACT = 2;
+  // ROUTE_PATH_MATCH_TYPE_PREFIX 按路径前缀匹配。
+  ROUTE_PATH_MATCH_TYPE_PREFIX = 1;
+  // ROUTE_PATH_MATCH_TYPE_EXACT 按完整路径匹配。
+  ROUTE_PATH_MATCH_TYPE_EXACT = 2;
 }
 
+// HTTPMethod 定义 Route 支持匹配的 HTTP 方法。
 enum HTTPMethod {
+  // HTTP_METHOD_UNSPECIFIED 表示未指定 HTTP 方法。
   HTTP_METHOD_UNSPECIFIED = 0;
+  // HTTP_METHOD_GET 表示 GET。
   HTTP_METHOD_GET = 1;
+  // HTTP_METHOD_HEAD 表示 HEAD。
   HTTP_METHOD_HEAD = 2;
+  // HTTP_METHOD_POST 表示 POST。
   HTTP_METHOD_POST = 3;
+  // HTTP_METHOD_PUT 表示 PUT。
   HTTP_METHOD_PUT = 4;
+  // HTTP_METHOD_PATCH 表示 PATCH。
   HTTP_METHOD_PATCH = 5;
+  // HTTP_METHOD_DELETE 表示 DELETE。
   HTTP_METHOD_DELETE = 6;
+  // HTTP_METHOD_OPTIONS 表示 OPTIONS。
   HTTP_METHOD_OPTIONS = 7;
 }
 
+// HostRewriteMode 定义转发请求使用的 Host。
 enum HostRewriteMode {
+  // HOST_REWRITE_MODE_UNSPECIFIED 表示未指定 Host 行为。
   HOST_REWRITE_MODE_UNSPECIFIED = 0;
-  HOST_REWRITE_MODE_SERVICE_ADDRESS = 1;
+  // HOST_REWRITE_MODE_SERVICE_HOST 使用实际选中 Service 端点的主机名。
+  HOST_REWRITE_MODE_SERVICE_HOST = 1;
+  // HOST_REWRITE_MODE_PRESERVE 保留客户端请求的 Host。
   HOST_REWRITE_MODE_PRESERVE = 2;
+  // HOST_REWRITE_MODE_CUSTOM 使用用户指定的固定主机名。
   HOST_REWRITE_MODE_CUSTOM = 3;
 }
 
+// RouteAccessMode 定义 Route 是否要求调用方身份。
 enum RouteAccessMode {
+  // ROUTE_ACCESS_MODE_UNSPECIFIED 表示未选择访问方式。
   ROUTE_ACCESS_MODE_UNSPECIFIED = 0;
-  ROUTE_ACCESS_PUBLIC = 1;
-  ROUTE_ACCESS_CALLER = 2;
+  // ROUTE_ACCESS_MODE_PUBLIC 表示公开访问。
+  ROUTE_ACCESS_MODE_PUBLIC = 1;
+  // ROUTE_ACCESS_MODE_CALLER 表示必须使用已授权 Caller 的访问密钥。
+  ROUTE_ACCESS_MODE_CALLER = 2;
 }
 
+// RouteType 定义 Route 列表支持的产品类型。
 enum RouteType {
+  // ROUTE_TYPE_UNSPECIFIED 表示不限制 Route 类型。
   ROUTE_TYPE_UNSPECIFIED = 0;
+  // ROUTE_TYPE_API 表示普通 HTTP API Route。
   ROUTE_TYPE_API = 1;
+  // ROUTE_TYPE_AI 表示 AI Route。
   ROUTE_TYPE_AI = 2;
 }
 
+// RoutePathMatch 定义一条必填的请求路径条件。
 message RoutePathMatch {
-  RoutePathMatchType type = 1;
-  string value = 2 [(buf.validate.field).string.min_len = 1];
+  // type 选择完整路径或路径前缀匹配。
+  RoutePathMatchType type = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // value 是不含查询参数和片段的绝对请求路径。
+  string value = 2 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 4096
+  }];
 }
 
+// HeaderMatch 定义一条不区分名称大小写的 Header 精确匹配条件。
 message HeaderMatch {
-  string name = 1 [(buf.validate.field).string.min_len = 1];
-  string value = 2 [(buf.validate.field).string.min_len = 1];
+  // name 是普通 HTTP Header 名称。
+  string name = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
+  // value 是需要完整匹配的非空 Header 值。
+  string value = 2 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 8192
+  }];
 }
 
+// RouteMatch 定义必须同时满足的请求匹配条件。
 message RouteMatch {
+  // path 是每个请求都必须满足的路径条件。
   RoutePathMatch path = 1 [(buf.validate.field).required = true];
-  repeated HTTPMethod methods = 2;
-  repeated HeaderMatch headers = 3;
+  // methods 为空时匹配所有方法，多个值之间是 OR 关系。
+  repeated HTTPMethod methods = 2 [(buf.validate.field).repeated.max_items = 7];
+  // headers 中的条件必须全部满足。
+  repeated HeaderMatch headers = 3 [(buf.validate.field).repeated.max_items = 32];
 }
 
-message RouteUpstream {
-  string upstream_id = 1 [
-    json_name = "upstreamID",
+// ServiceTarget 定义普通 Route 的一个目标 Service 及其相对权重。
+message ServiceTarget {
+  // service_id 引用目标 Service 的资源 ID。
+  string service_id = 1 [
+    json_name = "serviceID",
     (buf.validate.field).string.uuid = true
   ];
+  // weight 是多个目标 Service 之间的相对流量权重。
   uint32 weight = 2 [(buf.validate.field).uint32 = {
     gte: 1
     lte: 1000
   }];
 }
 
+// AIModelTarget 定义一个模型 Service 上的实际模型线路。
 message AIModelTarget {
-  string upstream_id = 1 [
-    json_name = "upstreamID",
+  // service_id 引用模型 Service 的资源 ID。
+  string service_id = 1 [
+    json_name = "serviceID",
     (buf.validate.field).string.uuid = true
   ];
-  string model = 2 [(buf.validate.field).string.min_len = 1];
+  // model 是发送给模型 Service 的实际模型名。
+  string model = 2 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
+  // weight 是同一客户端模型下各线路的相对流量权重。
   uint32 weight = 3 [(buf.validate.field).uint32 = {
     gte: 1
     lte: 1000
   }];
 }
 
+// AIModel 把客户端使用的稳定模型名映射到一个或多个实际模型线路。
 message AIModel {
-  string name = 1 [(buf.validate.field).string.min_len = 1];
-  repeated AIModelTarget targets = 2 [(buf.validate.field).repeated.min_items = 1];
+  // name 是客户端请求体中使用的稳定模型名。
+  string name = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
+  // targets 是可承载该客户端模型的实际线路。
+  repeated AIModelTarget targets = 2 [(buf.validate.field).repeated = {
+    min_items: 1
+    max_items: 16
+  }];
 }
 
-// AIRoute 把调用方使用的稳定模型名映射到一个或多个模型服务线路
+// AIRoute 把调用方使用的稳定模型名映射到一个或多个模型服务线路。
 message AIRoute {
-  repeated AIModel models = 1 [(buf.validate.field).repeated.min_items = 1];
+  // models 是当前 Route 对客户端发布的模型集合。
+  repeated AIModel models = 1 [(buf.validate.field).repeated = {
+    min_items: 1
+    max_items: 64
+  }];
 }
 
+// ServiceForwarding 把普通 HTTP 请求转发到一个或多个 Service。
+message ServiceForwarding {
+  // targets 是接收普通 HTTP 请求的目标 Service。
+  repeated ServiceTarget targets = 1 [(buf.validate.field).repeated = {
+    min_items: 1
+    max_items: 16
+  }];
+}
+
+// RouteForwarding 表达互斥的普通 HTTP 与 AI 转发方式。
+message RouteForwarding {
+  oneof kind {
+    option (buf.validate.oneof).required = true;
+    // service 表示普通 HTTP Service 转发。
+    ServiceForwarding service = 1;
+    // ai 表示 AI 模型线路转发。
+    AIRoute ai = 2;
+  }
+}
+
+// HeaderValue 定义一个待写入的 Header 名值对。
 message HeaderValue {
-  string name = 1 [(buf.validate.field).string.min_len = 1];
-  string value = 2 [(buf.validate.field).string.min_len = 1];
+  // name 是普通 HTTP Header 名称。
+  string name = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
+  // value 是待写入的非空 Header 值。
+  string value = 2 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 8192
+  }];
 }
 
+// HeaderModifier 定义互斥的 Header 覆盖、追加和删除动作。
 message HeaderModifier {
-  repeated HeaderValue set = 1;
-  repeated HeaderValue add = 2;
-  repeated string remove = 3;
+  // set 覆盖同名 Header 的现有值，不存在时创建。
+  repeated HeaderValue set = 1 [(buf.validate.field).repeated.max_items = 64];
+  // add 在同名 Header 的现有值之后追加值，不存在时创建。
+  repeated HeaderValue add = 2 [(buf.validate.field).repeated.max_items = 64];
+  // remove 删除指定 Header。
+  repeated string remove = 3 [(buf.validate.field).repeated = {
+    max_items: 64
+    items: {
+      string: {
+        min_bytes: 1
+        max_bytes: 256
+      }
+    }
+  }];
 }
 
+// HostRewrite 定义转发请求使用的 Host。
 message HostRewrite {
-  HostRewriteMode mode = 1 [(buf.validate.field).enum.defined_only = true];
-  string hostname = 2;
+  // mode 选择端点主机名、原始请求 Host 或固定主机名。
+  HostRewriteMode mode = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // hostname 仅在 CUSTOM 模式下使用，且不包含端口。
+  string hostname = 2 [(buf.validate.field).string.max_bytes = 253];
 }
 
+// RouteTimeout 定义 Route 的请求总超时。
 message RouteTimeout {
+  // request_millis 是从接收请求到返回响应的总超时毫秒数。
   uint32 request_millis = 1 [(buf.validate.field).uint32 = {
     gte: 100
     lte: 300000
   }];
 }
 
+// RouteRetry 定义 Route 的失败重试行为。
 message RouteRetry {
+  // attempts 是首次服务调用失败后允许的最大重试次数。
   uint32 attempts = 1 [(buf.validate.field).uint32 = {
     gte: 1
     lte: 5
   }];
+  // per_try_timeout_millis 是每次服务调用尝试（含首次）的超时毫秒数。
   uint32 per_try_timeout_millis = 2 [(buf.validate.field).uint32 = {
     gte: 100
     lte: 60000
   }];
 }
 
-message Route {
-  string id = 1;
-  string name = 2;
-  bool enabled = 3;
-  repeated string gateway_ids = 4 [json_name = "gatewayIDs"];
-  repeated string hostnames = 5;
-  RouteMatch match = 6;
-  repeated RouteUpstream upstreams = 7;
-  HeaderModifier request_header_modifier = 8;
-  HeaderModifier response_header_modifier = 9;
-  RouteTimeout timeout = 10;
-  RouteRetry retry = 11;
-  ResourceState state = 12;
-  string message = 13;
-  int64 version = 14;
-  google.protobuf.Timestamp created_at = 15;
-  google.protobuf.Timestamp updated_at = 16;
-  HostRewrite host_rewrite = 17;
-  AIRoute ai = 18;
-  RouteAccessMode access_mode = 19;
-}
-
-message ListRoutesRequest {
-  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
-  string cursor = 2;
-  string query = 3;
-  RouteType type = 4 [(buf.validate.field).enum.defined_only = true];
-  optional bool enabled = 5;
-  ResourceState state = 6 [(buf.validate.field).enum.defined_only = true];
-}
-
-message ListRoutesResponse {
-  repeated Route routes = 1;
-  string next_cursor = 2;
-}
-
-message GetRouteRequest {
-  string id = 1 [(buf.validate.field).string.uuid = true];
-}
-
-message CreateRouteRequest {
-  string name = 1 [(buf.validate.field).string.min_len = 1];
-  optional bool enabled = 2 [(buf.validate.field).required = true];
+// RouteConfig 定义 Route 的匹配、访问和转发配置。
+message RouteConfig {
+  // enabled 决定 Route 是否参与编译和下发。
+  optional bool enabled = 1 [(buf.validate.field).required = true];
+  // access_mode 决定请求是否需要 Caller 访问密钥。
+  RouteAccessMode access_mode = 2 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // gateway_ids 是承载当前 Route 的 Gateway 资源 ID。
   repeated string gateway_ids = 3 [
     json_name = "gatewayIDs",
     (buf.validate.field).repeated = {
       min_items: 1
+      max_items: 16
       items: {
         string: {uuid: true}
       }
     }
   ];
-  repeated string hostnames = 4;
+  // hostnames 为空时继承 Gateway 的 Host 范围，多个值之间是 OR 关系。
+  repeated string hostnames = 4 [(buf.validate.field).repeated = {
+    max_items: 64
+    items: {
+      string: {
+        min_bytes: 1
+        max_bytes: 253
+      }
+    }
+  }];
+  // match 定义请求匹配条件。
   RouteMatch match = 5 [(buf.validate.field).required = true];
-  repeated RouteUpstream upstreams = 6;
-  HeaderModifier request_header_modifier = 7;
-  HeaderModifier response_header_modifier = 8;
-  RouteTimeout timeout = 9;
-  RouteRetry retry = 10;
-  HostRewrite host_rewrite = 11;
-  AIRoute ai = 12;
-  RouteAccessMode access_mode = 13 [(buf.validate.field).enum = {
-    defined_only: true
-    not_in: [0]
-  }];
+  // forwarding 定义普通 Service 或 AI 模型线路转发。
+  RouteForwarding forwarding = 6 [(buf.validate.field).required = true];
+  // 省略时使用实际选中的 Service 端点主机名。
+  HostRewrite host_rewrite = 7;
+  // request_header_modifier 在请求转发到 Service 前修改 Header。
+  HeaderModifier request_header_modifier = 8;
+  // response_header_modifier 在 Service 响应返回客户端前修改 Header。
+  HeaderModifier response_header_modifier = 9;
+  // 省略时请求总超时为 30 秒。
+  RouteTimeout timeout = 10;
+  // retry 省略时不重试失败的服务调用。
+  RouteRetry retry = 11;
 }
 
+// Route 是 Console 使用的 Route 产品视图。
+message Route {
+  // id 是不可变的资源 ID。
+  string id = 1;
+  // name 是用户可编辑的展示名称。
+  string name = 2;
+  // config 是完整 Route 配置。
+  RouteConfig config = 3;
+  // state 是当前生效状态。
+  ResourceState state = 4;
+  // message 是可以直接向用户展示的状态说明。
+  string message = 5;
+  // version 是更新和删除时必须原样提交的配置版本。
+  int64 version = 6;
+  // created_at 是资源创建时间。
+  google.protobuf.Timestamp created_at = 7;
+  // updated_at 是最近一次配置变更时间。
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+// ListRoutesRequest 定义 Route 列表的分页和筛选条件。
+message ListRoutesRequest {
+  // limit 是期望返回的最大条目数，零使用服务端默认值。
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  // cursor 是上一页返回的不透明游标。
+  string cursor = 2;
+  // query 按展示名称、域名和路径进行模糊搜索。
+  string query = 3;
+  // type 按产品类型筛选 Route。
+  RouteType type = 4 [(buf.validate.field).enum.defined_only = true];
+  // enabled 按启用状态筛选 Route。
+  optional bool enabled = 5;
+  // state 按当前生效状态筛选 Route。
+  ResourceState state = 6 [(buf.validate.field).enum.defined_only = true];
+}
+
+// ListRoutesResponse 返回一页 Route 和后续游标。
+message ListRoutesResponse {
+  // routes 是当前页的 Route。
+  repeated Route routes = 1;
+  // next_cursor 为空时表示没有下一页。
+  string next_cursor = 2;
+}
+
+// GetRouteRequest 指定要查询的 Route。
+message GetRouteRequest {
+  // id 是 Route 资源 ID。
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+// CreateRouteRequest 提交一份完整 Route 配置。
+message CreateRouteRequest {
+  // name 是用户可编辑的展示名称。
+  string name = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
+  // config 是待创建的完整 Route 配置。
+  RouteConfig config = 2 [(buf.validate.field).required = true];
+}
+
+// UpdateRouteRequest 使用已读取的版本完整替换 Route 配置。
 message UpdateRouteRequest {
+  // id 是 Route 资源 ID。
   string id = 1 [(buf.validate.field).string.uuid = true];
+  // version 是读取 Route 时获得的配置版本。
   int64 version = 2 [(buf.validate.field).int64.gt = 0];
-  string name = 3 [(buf.validate.field).string.min_len = 1];
-  optional bool enabled = 4 [(buf.validate.field).required = true];
-  repeated string gateway_ids = 5 [
-    json_name = "gatewayIDs",
-    (buf.validate.field).repeated = {
-      min_items: 1
-      items: {
-        string: {uuid: true}
-      }
-    }
-  ];
-  repeated string hostnames = 6;
-  RouteMatch match = 7 [(buf.validate.field).required = true];
-  repeated RouteUpstream upstreams = 8;
-  HeaderModifier request_header_modifier = 9;
-  HeaderModifier response_header_modifier = 10;
-  RouteTimeout timeout = 11;
-  RouteRetry retry = 12;
-  HostRewrite host_rewrite = 13;
-  AIRoute ai = 14;
-  RouteAccessMode access_mode = 15 [(buf.validate.field).enum = {
-    defined_only: true
-    not_in: [0]
+  // name 是用户可编辑的展示名称。
+  string name = 3 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
   }];
+  // config 是替换后的完整 Route 配置。
+  RouteConfig config = 4 [(buf.validate.field).required = true];
 }
 
+// DeleteRouteRequest 使用已读取的版本删除 Route。
 message DeleteRouteRequest {
+  // id 是 Route 资源 ID。
   string id = 1 [(buf.validate.field).string.uuid = true];
+  // version 是读取 Route 时获得的配置版本。
   int64 version = 2 [(buf.validate.field).int64.gt = 0];
 }

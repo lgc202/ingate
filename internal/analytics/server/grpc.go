@@ -10,12 +10,12 @@ import (
 	aiusageservice "github.com/lgc202/ingate/internal/analytics/service/aiusage"
 	requestservice "github.com/lgc202/ingate/internal/analytics/service/request"
 	trafficservice "github.com/lgc202/ingate/internal/analytics/service/traffic"
-	"github.com/lgc202/ingate/internal/pkg/tlsx"
+	"github.com/lgc202/ingate/internal/pkg/tlsconfig"
 )
 
-// NewGRPCServer 创建供 Admin API 查询请求明细、流量分析和 AI 用量的 gRPC 服务
+// NewGRPCServer 创建供 Admin API 查询请求明细、流量分析和 AI 用量的 gRPC 服务。
 //
-// Analytics 不直接向控制台浏览器开放，资源名称和前端响应组装由 Admin API 负责
+// Analytics 不直接向控制台浏览器开放，资源名称和前端响应组装由 Admin API 负责。
 func NewGRPCServer(
 	config *conf.Server,
 	aiUsageService *aiusageservice.Service,
@@ -29,7 +29,7 @@ func NewGRPCServer(
 		kratosgrpc.Timeout(grpcConfig.GetTimeout().AsDuration()),
 	}
 	tlsSettings := grpcConfig.GetTls()
-	tlsConfig, err := tlsx.NewServer(tlsx.ServerConfig{
+	tlsConfig, err := tlsconfig.NewServer(tlsconfig.ServerConfig{
 		Enabled:         tlsSettings.GetEnabled(),
 		CertificateFile: tlsSettings.GetCertFile(),
 		PrivateKeyFile:  tlsSettings.GetKeyFile(),

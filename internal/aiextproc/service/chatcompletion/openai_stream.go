@@ -2,23 +2,27 @@ package chatcompletion
 
 import (
 	"bytes"
+	"errors"
+
+	"github.com/tidwall/gjson"
 )
 
-// OpenAIStream 只缓存尚未结束的 SSE 行，避免把流式响应整体缓冲
+// OpenAIStream 只缓存尚未结束的 SSE 行，避免把流式响应整体缓冲。
 type OpenAIStream struct {
 	buffer      []byte
 	clientModel string
 	metadata    ResponseMetadata
+	finished    bool
 }
 
-// NewOpenAIStream 创建一条 OpenAI 兼容响应流的转换状态
-// clientModel 是 AI Route 对外发布的稳定模型名，响应不能泄漏 Service 使用的真实模型名
+// NewOpenAIStream 创建一条 OpenAI 兼容响应流的转换状态。
+// clientModel 是 AI Route 对外发布的稳定模型名，响应不能泄漏 Service 使用的真实模型名。
 func NewOpenAIStream(clientModel string) *OpenAIStream {
 	return &OpenAIStream{clientModel: clientModel}
 }
 
-// Convert 增量读取 OpenAI SSE，提取运行信息并恢复客户端模型名
-// ExtProc chunk 与 SSE 行没有边界关系，因此不完整行必须留到下一个 chunk 再处理
+// Convert 增量读取 OpenAI SSE，提取运行信息并恢复客户端模型名。
+// ExtProc chunk 与 SSE 行没有边界关系，因此不完整行必须留到下一个 chunk 再处理。
 func (s *OpenAIStream) Convert(chunk []byte, endOfStream bool) ([]byte, ResponseMetadata, bool, error) {
 	s.buffer = append(s.buffer, chunk...)
 	var converted []byte
@@ -38,6 +42,9 @@ func (s *OpenAIStream) Convert(chunk []byte, endOfStream bool) ([]byte, Response
 		converted = append(converted, '\n')
 		metadataChanged = changed || metadataChanged
 	}
+	if len(s.buffer) > maxPendingSSEBytes {
+		return nil, ResponseMetadata{}, false, errors.New("OpenAI stream event exceeds the size limit")
+	}
 	if endOfStream && len(s.buffer) > 0 {
 		output, changed, err := s.convertLine(s.buffer)
 		if err != nil {
@@ -46,6 +53,14 @@ func (s *OpenAIStream) Convert(chunk []byte, endOfStream bool) ([]byte, Response
 		converted = append(converted, output...)
 		metadataChanged = changed || metadataChanged
 		s.buffer = nil
+	}
+	if endOfStream {
+		// 兼容没有发送 [DONE]、直接结束 HTTP Body 的 OpenAI 实现。
+		s.finished = true
+		if s.metadata.Usage.Found && !s.metadata.Usage.Final {
+			s.metadata.Usage.Final = true
+			metadataChanged = true
+		}
 	}
 	return converted, s.metadata, metadataChanged, nil
 }
@@ -61,11 +76,32 @@ func (s *OpenAIStream) convertLine(line []byte) ([]byte, bool, error) {
 	}
 	payload := bytes.TrimSpace(line[len("data:"):])
 	if bytes.Equal(payload, []byte("[DONE]")) {
+		if s.finished {
+			return nil, false, errors.New("OpenAI stream contains multiple completion events")
+		}
+		s.finished = true
+		if carriageReturn {
+			line = append(line, '\r')
+		}
+		if s.metadata.Usage.Found && !s.metadata.Usage.Final {
+			s.metadata.Usage.Final = true
+			return line, true, nil
+		}
 		return line, false, nil
 	}
+	if s.finished {
+		return nil, false, errors.New("OpenAI stream contains data after completion")
+	}
+	if !gjson.ValidBytes(payload) {
+		return nil, false, errors.New("OpenAI stream data must be valid JSON")
+	}
 
-	// OpenAI SSE 的 data 内容与非流式响应复用相同的 model、choices 和 usage 路径
+	// OpenAI SSE 的 data 内容与非流式响应复用相同的 model、choices 和 usage 路径。
 	metadata, changed := ObserveOpenAIResponse(payload)
+	if metadata.Usage.Found {
+		// 中间事件可能携带累计 usage，只有 [DONE] 或 HTTP Body 结束才能用于最终结算。
+		metadata.Usage.Final = false
+	}
 	if changed {
 		mergeResponseMetadata(&s.metadata, metadata)
 	}

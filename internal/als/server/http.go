@@ -14,7 +14,7 @@ import (
 	"github.com/lgc202/ingate/internal/als/conf"
 )
 
-// NewHTTPServer 创建健康检查、就绪检查和 Prometheus 指标服务
+// NewHTTPServer 创建健康检查、就绪检查和 Prometheus 指标服务。
 func NewHTTPServer(
 	serverConfig *conf.Server,
 	kafkaConfig *conf.Data_Kafka,
@@ -34,7 +34,7 @@ func NewHTTPServer(
 }
 
 func health(response http.ResponseWriter, _ *http.Request) {
-	writeJSON(response, http.StatusOK, map[string]any{"status": "ok"})
+	writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func ready(
@@ -45,17 +45,17 @@ func ready(
 	return func(response http.ResponseWriter, request *http.Request) {
 		ctx, cancel := context.WithTimeout(request.Context(), kafkaConfig.GetReadinessTimeout().AsDuration())
 		defer cancel()
-		status := recorder.DeliveryStatus()
+		deliveryStatus := recorder.DeliveryStatus()
 		kafkaErr := recorder.CheckKafka(ctx)
-		queueFull := status.PendingBytes >= queueConfig.GetMaxBytes()
-		canQueue := status.QueueWritable && !queueFull
-		canWriteKafka := kafkaErr == nil && !status.Spooling
+		queueFull := deliveryStatus.PendingBytes >= queueConfig.GetMaxBytes()
+		canQueue := deliveryStatus.QueueWritable && !queueFull
+		canWriteKafka := kafkaErr == nil && !deliveryStatus.Spooling
 		if !canWriteKafka && !canQueue {
 			writeJSON(response, http.StatusServiceUnavailable, map[string]any{
 				"status":          "unavailable",
 				"delivery":        "none",
-				"pending_records": status.PendingRecords,
-				"pending_bytes":   status.PendingBytes,
+				"pending_records": deliveryStatus.PendingRecords,
+				"pending_bytes":   deliveryStatus.PendingBytes,
 			})
 			return
 		}
@@ -67,8 +67,8 @@ func ready(
 		writeJSON(response, http.StatusOK, map[string]any{
 			"status":          "ready",
 			"delivery":        delivery,
-			"pending_records": status.PendingRecords,
-			"pending_bytes":   status.PendingBytes,
+			"pending_records": deliveryStatus.PendingRecords,
+			"pending_bytes":   deliveryStatus.PendingBytes,
 		})
 	}
 }
@@ -151,8 +151,9 @@ func boolMetric(value bool) float64 {
 	return 0
 }
 
-func writeJSON(response http.ResponseWriter, status int, value any) {
+func writeJSON(response http.ResponseWriter, statusCode int, value any) {
 	response.Header().Set("Content-Type", "application/json")
-	response.WriteHeader(status)
+	response.WriteHeader(statusCode)
+	// 响应头已经发出，客户端断开导致的编码错误无法再转换为另一份 HTTP 响应。
 	_ = json.NewEncoder(response).Encode(value)
 }

@@ -637,10 +637,11 @@ var File_admin_v1_mock_response_policy_proto protoreflect.FileDescriptor
 
 const file_admin_v1_mock_response_policy_proto_rawDesc = "" +
 	"\n" +
-	"#admin/v1/mock_response_policy.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"G\n" +
-	"\x12MockResponseHeader\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value\"\x82\x04\n" +
+	"#admin/v1/mock_response_policy.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"T\n" +
+	"\x12MockResponseHeader\x12\x1e\n" +
+	"\x04name\x18\x01 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01(\x80\x02R\x04name\x12\x1e\n" +
+	"\x05value\x18\x02 \x01(\tB\b\xbaH\x05r\x03(\x80@R\x05value\"\x82\x04\n" +
 	"\x12MockResponsePolicy\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -672,26 +673,30 @@ const file_admin_v1_mock_response_policy_proto_rawDesc = "" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
 	"nextCursor\"8\n" +
 	"\x1cGetMockResponsePolicyRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xb2\x02\n" +
-	"\x1fCreateMockResponsePolicyRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12:\n" +
-	"\atargets\x18\x02 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12,\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xcd\x02\n" +
+	"\x1fCreateMockResponsePolicyRequest\x12\x1e\n" +
+	"\x04name\x18\x01 \x01(\tB\n" +
+	"\xbaH\ar\x05 \x01(\x80\x02R\x04name\x12E\n" +
+	"\atargets\x18\x02 \x03(\v2 .ingate.admin.v1.PolicyTargetRefB\t\xbaH\x06\x92\x01\x03\x10\x80\x02R\atargets\x12,\n" +
 	"\vstatus_code\x18\x03 \x01(\x05B\v\xbaH\b\x1a\x06\x18\xd7\x04(\xc8\x01R\n" +
-	"statusCode\x12*\n" +
-	"\fcontent_type\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\vcontentType\x12=\n" +
-	"\aheaders\x18\x05 \x03(\v2#.ingate.admin.v1.MockResponseHeaderR\aheaders\x12\x1d\n" +
-	"\x04body\x18\x06 \x01(\tB\t\xbaH\x06r\x04\x18\x80\x80@R\x04body\"\xa2\x03\n" +
+	"statusCode\x12-\n" +
+	"\fcontent_type\x18\x04 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01(\x80\bR\vcontentType\x12G\n" +
+	"\aheaders\x18\x05 \x03(\v2#.ingate.admin.v1.MockResponseHeaderB\b\xbaH\x05\x92\x01\x02\x10@R\aheaders\x12\x1d\n" +
+	"\x04body\x18\x06 \x01(\tB\t\xbaH\x06r\x04(\x80\x80@R\x04body\"\xbd\x03\n" +
 	"\x1fUpdateMockResponsePolicyRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12!\n" +
-	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\x12\x1b\n" +
-	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12%\n" +
-	"\aenabled\x18\x04 \x01(\bB\x06\xbaH\x03\xc8\x01\x01H\x00R\aenabled\x88\x01\x01\x12:\n" +
-	"\atargets\x18\x05 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12,\n" +
+	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\x12\x1e\n" +
+	"\x04name\x18\x03 \x01(\tB\n" +
+	"\xbaH\ar\x05 \x01(\x80\x02R\x04name\x12%\n" +
+	"\aenabled\x18\x04 \x01(\bB\x06\xbaH\x03\xc8\x01\x01H\x00R\aenabled\x88\x01\x01\x12E\n" +
+	"\atargets\x18\x05 \x03(\v2 .ingate.admin.v1.PolicyTargetRefB\t\xbaH\x06\x92\x01\x03\x10\x80\x02R\atargets\x12,\n" +
 	"\vstatus_code\x18\x06 \x01(\x05B\v\xbaH\b\x1a\x06\x18\xd7\x04(\xc8\x01R\n" +
-	"statusCode\x12*\n" +
-	"\fcontent_type\x18\a \x01(\tB\a\xbaH\x04r\x02\x10\x01R\vcontentType\x12=\n" +
-	"\aheaders\x18\b \x03(\v2#.ingate.admin.v1.MockResponseHeaderR\aheaders\x12\x1d\n" +
-	"\x04body\x18\t \x01(\tB\t\xbaH\x06r\x04\x18\x80\x80@R\x04bodyB\n" +
+	"statusCode\x12-\n" +
+	"\fcontent_type\x18\a \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01(\x80\bR\vcontentType\x12G\n" +
+	"\aheaders\x18\b \x03(\v2#.ingate.admin.v1.MockResponseHeaderB\b\xbaH\x05\x92\x01\x02\x10@R\aheaders\x12\x1d\n" +
+	"\x04body\x18\t \x01(\tB\t\xbaH\x06r\x04(\x80\x80@R\x04bodyB\n" +
 	"\n" +
 	"\b_enabled\"^\n" +
 	"\x1fDeleteMockResponsePolicyRequest\x12\x18\n" +

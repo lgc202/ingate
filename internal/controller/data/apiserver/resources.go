@@ -1,4 +1,4 @@
-// Package apiserver 通过声明式 API 为 Controller 提供资源事实和状态持久化
+// Package apiserver 通过声明式 API 为 Controller 提供资源事实和状态持久化。
 package apiserver
 
 import (
@@ -8,6 +8,7 @@ import (
 	"slices"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
@@ -17,7 +18,7 @@ import (
 	gatewaylisters "github.com/lgc202/ingate/internal/pkg/generated/listers/gateway/v1"
 )
 
-// ResourceWatcher 管理声明式资源 informer 及其只读本地缓存
+// ResourceWatcher 管理声明式资源 informer 及其只读本地缓存。
 type ResourceWatcher struct {
 	factory informers.SharedInformerFactory
 	changes chan struct{}
@@ -33,7 +34,7 @@ type ResourceWatcher struct {
 	wasmPlugins                  gatewaylisters.WasmPluginLister
 }
 
-// NewResourceWatcher 创建全配置域资源监听器
+// NewResourceWatcher 创建全配置域资源监听器。
 func NewResourceWatcher(
 	client clientset.Interface,
 	resyncPeriod time.Duration,
@@ -79,7 +80,7 @@ func NewResourceWatcher(
 	return resources, nil
 }
 
-// Start 启动 informer 并等待首次缓存同步
+// Start 启动 informer 并等待首次缓存同步。
 func (w *ResourceWatcher) Start(ctx context.Context) error {
 	w.factory.Start(ctx.Done())
 	for resourceType, synced := range w.factory.WaitForCacheSync(ctx.Done()) {
@@ -94,119 +95,95 @@ func (w *ResourceWatcher) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop 等待 informer 内部 goroutine 退出
+// Stop 等待 informer 内部 goroutine 退出。
 func (w *ResourceWatcher) Stop() {
 	w.factory.Shutdown()
 }
 
-// Changes 返回期望配置变化通知，重复事件会在消费前合并
+// Changes 返回期望配置变化通知，重复事件会在消费前合并。
 func (w *ResourceWatcher) Changes() <-chan struct{} {
 	return w.changes
 }
 
-// List 返回深拷贝且顺序稳定的资源集合，避免编译过程修改 informer 共享对象
+// List 返回深拷贝且顺序稳定的资源集合，避免编译过程修改 informer 共享对象。
 func (w *ResourceWatcher) List() (compiler.Resources, error) {
-	gateways, err := w.gateways.List(labels.Everything())
+	gateways, err := listResourceCopies("Gateways", w.gateways.List, (*gatewayv1.Gateway).DeepCopy)
 	if err != nil {
-		return compiler.Resources{}, fmt.Errorf("list Gateways: %w", err)
+		return compiler.Resources{}, err
 	}
-	certificates, err := w.certificates.List(labels.Everything())
+	certificates, err := listResourceCopies(
+		"Certificates", w.certificates.List, (*gatewayv1.Certificate).DeepCopy,
+	)
 	if err != nil {
-		return compiler.Resources{}, fmt.Errorf("list Certificates: %w", err)
+		return compiler.Resources{}, err
 	}
-	routes, err := w.routes.List(labels.Everything())
+	routes, err := listResourceCopies("Routes", w.routes.List, (*gatewayv1.Route).DeepCopy)
 	if err != nil {
-		return compiler.Resources{}, fmt.Errorf("list Routes: %w", err)
+		return compiler.Resources{}, err
 	}
-	upstreams, err := w.upstreams.List(labels.Everything())
+	upstreams, err := listResourceCopies("Upstreams", w.upstreams.List, (*gatewayv1.Upstream).DeepCopy)
 	if err != nil {
-		return compiler.Resources{}, fmt.Errorf("list Upstreams: %w", err)
+		return compiler.Resources{}, err
 	}
-	rateLimitPolicies, err := w.rateLimitPolicies.List(labels.Everything())
+	rateLimitPolicies, err := listResourceCopies(
+		"RateLimitPolicies", w.rateLimitPolicies.List, (*gatewayv1.RateLimitPolicy).DeepCopy,
+	)
 	if err != nil {
-		return compiler.Resources{}, fmt.Errorf("list RateLimitPolicies: %w", err)
+		return compiler.Resources{}, err
 	}
-	ipRestrictionPolicies, err := w.ipRestrictionPolicies.List(labels.Everything())
+	ipRestrictionPolicies, err := listResourceCopies(
+		"IPRestrictionPolicies", w.ipRestrictionPolicies.List, (*gatewayv1.IPRestrictionPolicy).DeepCopy,
+	)
 	if err != nil {
-		return compiler.Resources{}, fmt.Errorf("list IPRestrictionPolicies: %w", err)
+		return compiler.Resources{}, err
 	}
-	headerTransformationPolicies, err := w.headerTransformationPolicies.List(labels.Everything())
+	headerTransformationPolicies, err := listResourceCopies(
+		"HeaderTransformationPolicies",
+		w.headerTransformationPolicies.List,
+		(*gatewayv1.HeaderTransformationPolicy).DeepCopy,
+	)
 	if err != nil {
-		return compiler.Resources{}, fmt.Errorf("list HeaderTransformationPolicies: %w", err)
+		return compiler.Resources{}, err
 	}
-	mockResponsePolicies, err := w.mockResponsePolicies.List(labels.Everything())
+	mockResponsePolicies, err := listResourceCopies(
+		"MockResponsePolicies", w.mockResponsePolicies.List, (*gatewayv1.MockResponsePolicy).DeepCopy,
+	)
 	if err != nil {
-		return compiler.Resources{}, fmt.Errorf("list MockResponsePolicies: %w", err)
+		return compiler.Resources{}, err
 	}
-	wasmPlugins, err := w.wasmPlugins.List(labels.Everything())
+	wasmPlugins, err := listResourceCopies("WasmPlugins", w.wasmPlugins.List, (*gatewayv1.WasmPlugin).DeepCopy)
 	if err != nil {
-		return compiler.Resources{}, fmt.Errorf("list WasmPlugins: %w", err)
+		return compiler.Resources{}, err
 	}
-	resources := compiler.Resources{
-		Gateways:                     make([]*gatewayv1.Gateway, 0, len(gateways)),
-		Certificates:                 make([]*gatewayv1.Certificate, 0, len(certificates)),
-		Routes:                       make([]*gatewayv1.Route, 0, len(routes)),
-		Upstreams:                    make([]*gatewayv1.Upstream, 0, len(upstreams)),
-		RateLimitPolicies:            make([]*gatewayv1.RateLimitPolicy, 0, len(rateLimitPolicies)),
-		IPRestrictionPolicies:        make([]*gatewayv1.IPRestrictionPolicy, 0, len(ipRestrictionPolicies)),
-		HeaderTransformationPolicies: make([]*gatewayv1.HeaderTransformationPolicy, 0, len(headerTransformationPolicies)),
-		MockResponsePolicies:         make([]*gatewayv1.MockResponsePolicy, 0, len(mockResponsePolicies)),
-		WasmPlugins:                  make([]*gatewayv1.WasmPlugin, 0, len(wasmPlugins)),
-	}
-	for _, resource := range gateways {
-		resources.Gateways = append(resources.Gateways, resource.DeepCopy())
-	}
-	for _, resource := range certificates {
-		resources.Certificates = append(resources.Certificates, resource.DeepCopy())
-	}
-	for _, resource := range routes {
-		resources.Routes = append(resources.Routes, resource.DeepCopy())
-	}
-	for _, resource := range upstreams {
-		resources.Upstreams = append(resources.Upstreams, resource.DeepCopy())
-	}
-	for _, resource := range rateLimitPolicies {
-		resources.RateLimitPolicies = append(resources.RateLimitPolicies, resource.DeepCopy())
-	}
-	for _, resource := range ipRestrictionPolicies {
-		resources.IPRestrictionPolicies = append(resources.IPRestrictionPolicies, resource.DeepCopy())
-	}
-	for _, resource := range headerTransformationPolicies {
-		resources.HeaderTransformationPolicies = append(resources.HeaderTransformationPolicies, resource.DeepCopy())
-	}
-	for _, resource := range mockResponsePolicies {
-		resources.MockResponsePolicies = append(resources.MockResponsePolicies, resource.DeepCopy())
-	}
-	for _, resource := range wasmPlugins {
-		resources.WasmPlugins = append(resources.WasmPlugins, resource.DeepCopy())
+	return compiler.Resources{
+		Gateways:                     gateways,
+		Certificates:                 certificates,
+		Routes:                       routes,
+		Upstreams:                    upstreams,
+		RateLimitPolicies:            rateLimitPolicies,
+		IPRestrictionPolicies:        ipRestrictionPolicies,
+		HeaderTransformationPolicies: headerTransformationPolicies,
+		MockResponsePolicies:         mockResponsePolicies,
+		WasmPlugins:                  wasmPlugins,
+	}, nil
+}
+
+func listResourceCopies[T metav1.Object](
+	resourceType string,
+	list func(labels.Selector) ([]T, error),
+	deepCopy func(T) T,
+) ([]T, error) {
+	shared, err := list(labels.Everything())
+	if err != nil {
+		return nil, fmt.Errorf("list %s: %w", resourceType, err)
 	}
 
-	slices.SortFunc(resources.Gateways, func(a, b *gatewayv1.Gateway) int {
-		return cmp.Compare(a.Name, b.Name)
-	})
-	slices.SortFunc(resources.Certificates, func(a, b *gatewayv1.Certificate) int {
-		return cmp.Compare(a.Name, b.Name)
-	})
-	slices.SortFunc(resources.Routes, func(a, b *gatewayv1.Route) int {
-		return cmp.Compare(a.Name, b.Name)
-	})
-	slices.SortFunc(resources.Upstreams, func(a, b *gatewayv1.Upstream) int {
-		return cmp.Compare(a.Name, b.Name)
-	})
-	slices.SortFunc(resources.RateLimitPolicies, func(a, b *gatewayv1.RateLimitPolicy) int {
-		return cmp.Compare(a.Name, b.Name)
-	})
-	slices.SortFunc(resources.IPRestrictionPolicies, func(a, b *gatewayv1.IPRestrictionPolicy) int {
-		return cmp.Compare(a.Name, b.Name)
-	})
-	slices.SortFunc(resources.HeaderTransformationPolicies, func(a, b *gatewayv1.HeaderTransformationPolicy) int {
-		return cmp.Compare(a.Name, b.Name)
-	})
-	slices.SortFunc(resources.MockResponsePolicies, func(a, b *gatewayv1.MockResponsePolicy) int {
-		return cmp.Compare(a.Name, b.Name)
-	})
-	slices.SortFunc(resources.WasmPlugins, func(a, b *gatewayv1.WasmPlugin) int {
-		return cmp.Compare(a.Name, b.Name)
+	resources := make([]T, len(shared))
+	for i, resource := range shared {
+		resources[i] = deepCopy(resource)
+	}
+	slices.SortFunc(resources, func(a, b T) int {
+		return cmp.Compare(a.GetName(), b.GetName())
 	})
 	return resources, nil
 }

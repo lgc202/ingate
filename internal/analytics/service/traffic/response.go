@@ -17,9 +17,9 @@ func trendResponse(result trafficbiz.TrendResult) *analyticsv1.GetTrafficTrendRe
 		response.Points = append(response.Points, &analyticsv1.TrafficTrendPoint{
 			StartedAt:        timestamppb.New(point.StartedAt),
 			RequestCount:     point.RequestCount,
-			ClientErrorCount: point.ClientErrors,
-			ServerErrorCount: point.ServerErrors,
-			NoResponseCount:  point.NoResponses,
+			ClientErrorCount: point.ClientErrorCount,
+			ServerErrorCount: point.ServerErrorCount,
+			NoResponseCount:  point.NoResponseCount,
 			AverageDuration:  durationpb.New(point.AverageDuration),
 			P50Duration:      durationpb.New(point.P50Duration),
 			P95Duration:      durationpb.New(point.P95Duration),
@@ -32,9 +32,9 @@ func trendResponse(result trafficbiz.TrendResult) *analyticsv1.GetTrafficTrendRe
 func summaryResponse(summary trafficbiz.Summary) *analyticsv1.TrafficSummary {
 	return &analyticsv1.TrafficSummary{
 		RequestCount:     summary.RequestCount,
-		ClientErrorCount: summary.ClientErrors,
-		ServerErrorCount: summary.ServerErrors,
-		NoResponseCount:  summary.NoResponses,
+		ClientErrorCount: summary.ClientErrorCount,
+		ServerErrorCount: summary.ServerErrorCount,
+		NoResponseCount:  summary.NoResponseCount,
 		AverageDuration:  durationpb.New(summary.AverageDuration),
 		P50Duration:      durationpb.New(summary.P50Duration),
 		P95Duration:      durationpb.New(summary.P95Duration),
@@ -50,9 +50,9 @@ func breakdownResponse(items []trafficbiz.BreakdownItem) *analyticsv1.ListTraffi
 		response.Items = append(response.Items, &analyticsv1.TrafficBreakdownItem{
 			ResourceId:       item.ResourceID,
 			RequestCount:     item.RequestCount,
-			ClientErrorCount: item.ClientErrors,
-			ServerErrorCount: item.ServerErrors,
-			NoResponseCount:  item.NoResponses,
+			ClientErrorCount: item.ClientErrorCount,
+			ServerErrorCount: item.ServerErrorCount,
+			NoResponseCount:  item.NoResponseCount,
 			AverageDuration:  durationpb.New(item.AverageDuration),
 			P50Duration:      durationpb.New(item.P50Duration),
 			P95Duration:      durationpb.New(item.P95Duration),
@@ -72,8 +72,8 @@ func resourceTrafficResponse(
 		response.Summaries = append(response.Summaries, &analyticsv1.ResourceTrafficSummary{
 			ResourceId:       summary.ResourceID,
 			RequestCount:     summary.RequestCount,
-			ServerErrorCount: summary.ServerErrors,
-			NoResponseCount:  summary.NoResponses,
+			ServerErrorCount: summary.ServerErrorCount,
+			NoResponseCount:  summary.NoResponseCount,
 		})
 	}
 	return response

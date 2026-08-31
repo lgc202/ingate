@@ -8,7 +8,7 @@ description: 使用 Docker Compose 安装、启动和卸载 Ingate
 ## 环境要求
 
 - Linux 或 macOS
-- Bash、curl、tar
+- Bash、curl、tar，以及 `sha256sum`（Linux）或 `shasum`（macOS）
 - Docker Engine
 - Docker Compose v2
 
@@ -30,7 +30,7 @@ curl -fsSL https://github.com/lgc202/ingate/releases/latest/download/install.sh 
 1. 读取最新正式 Release
 2. 下载对应版本的 Compose 安装包和校验文件
 3. 校验 SHA-256
-4. 生成管理员密码和会话签名密钥
+4. 生成管理员密码、会话签名密钥和内部服务凭据
 5. 拉取镜像并等待组件就绪
 
 默认安装目录是当前目录下的 `ingate`。安装结束时终端会显示 Console 地址、管理员用户名和一次性展示的密码。
@@ -73,7 +73,7 @@ Gateway 端口只有在创建并成功发布对应 Gateway 后才会承载流量
 ```
 
 :::caution
-不带 `--keep-data` 的完整卸载会永久删除声明式资源、证书、实时额度计数、请求记录和分析数据。
+不带 `--keep-data` 的完整卸载会永久删除声明式资源、证书、Assistant 会话与模型连接、实时额度计数、请求记录和分析数据。
 :::
 
 固定版本安装、备份恢复和升级流程见[配置与维护](../../operations/overview/)。

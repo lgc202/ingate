@@ -1,4 +1,4 @@
-// ingate-ai-extproc 为 Envoy 提供 AI 请求和响应的 External Processing 服务
+// Command ingate-ai-extproc 为 Envoy 提供 AI 请求和响应的 External Processing 服务。
 package main
 
 import (
@@ -15,20 +15,23 @@ import (
 const defaultConfigFile = "configs/ingate-ai-extproc.yaml"
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	configFile := flag.String("config", defaultConfigFile, "configuration file")
 	showVersion := flag.Bool("version", false, "print version")
 	flag.Parse()
 	if *showVersion {
-		fmt.Println(version.Text())
-		return
+		_, err := fmt.Fprintln(os.Stdout, version.Text())
+		return err
 	}
 	app, err := aiextproc.NewApp(*configFile)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
-	if err := app.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	return app.Run()
 }

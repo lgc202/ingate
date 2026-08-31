@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Check, Copy, KeyRound, Plus, ShieldCheck, UserRound } from 'lucide-react';
+import { Check, Copy, KeyRound, Plus, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   createCaller,
@@ -180,13 +180,29 @@ export function CallerPage() {
   };
 
   const disableKey = async (caller: Caller, keyID: string) => {
+    if (submitting) return;
+    setSubmitting(true);
     try {
       await disableAccessKey(caller.id, keyID, caller.version);
       await callers.reload();
       setNotice({ message: '访问密钥已停用', tone: 'success' });
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '停用访问密钥失败', tone: 'error' });
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  const openIssueKey = (caller: Caller) => {
+    setKeyName('');
+    setKeyExpiration('90d');
+    setIssueKeyFor(caller);
+  };
+
+  const closeIssueKey = () => {
+    setIssueKeyFor(null);
+    setKeyName('');
+    setKeyExpiration('90d');
   };
 
   return (
@@ -271,12 +287,12 @@ export function CallerPage() {
               </div>
             </section>
             <section className="resource-detail-section">
-              <div className="flex items-center justify-between gap-3 mb-3"><h3>访问密钥</h3><Button size="sm" variant="outline" onClick={() => setIssueKeyFor(detail)}><KeyRound className="h-3.5 w-3.5" />签发密钥</Button></div>
+              <div className="flex items-center justify-between gap-3 mb-3"><h3>访问密钥</h3><Button size="sm" variant="outline" onClick={() => openIssueKey(detail)}><KeyRound className="h-3.5 w-3.5" />签发密钥</Button></div>
               <div className="divide-y divide-slate-200 rounded-lg border border-slate-200">
                 {detail.accessKeys.map((key) => (
                   <div key={key.id} className="flex items-center justify-between gap-4 px-4 py-3">
                     <div><div className="font-medium text-slate-900">{key.name}</div><div className="mt-1 text-xs text-slate-500">创建于 {formatDateTime(key.createdAt)}{key.expiresAt ? ` · 到期于 ${formatDateTime(key.expiresAt)}` : ' · 长期有效'}</div></div>
-                    <div className="flex items-center gap-3"><Badge tone={keyStatus(key).tone}>{keyStatus(key).label}</Badge>{key.enabled ? <button type="button" className="link-button danger" onClick={() => void disableKey(detail, key.id)}>停用</button> : null}</div>
+                    <div className="flex items-center gap-3"><Badge tone={keyStatus(key).tone}>{keyStatus(key).label}</Badge>{key.enabled ? <button type="button" className="link-button danger" disabled={submitting} onClick={() => void disableKey(detail, key.id)}>停用</button> : null}</div>
                   </div>
                 ))}
               </div>
@@ -284,7 +300,9 @@ export function CallerPage() {
             <section className="resource-detail-section">
               <h3 className="mb-3">Token 额度</h3>
               <CallerTokenQuotaUsage callerID={detail.id} />
-              {policies.data ? (
+              {policies.error ? (
+                <ResourceStatePanel title="额度策略加载失败" message={policies.error.message} />
+              ) : policies.data ? (
                 <GovernancePolicyPanel
                   targetKind="Caller"
                   targetID={detail.id}
@@ -305,14 +323,15 @@ export function CallerPage() {
 
       <Drawer title={draft?.id ? '编辑调用方' : '创建调用方'} subtitle="为应用或服务授权受保护路由" isOpen={Boolean(draft)} onClose={() => setDraft(null)}>
         {draft && options.loading && !options.data ? <ResourceStatePanel title="正在加载可授权路由" message="正在读取受保护路由" /> : null}
+        {draft && options.error ? <ResourceStatePanel title="可授权路由加载失败" message={options.error.message} /> : null}
         {draft && options.data ? <CallerEditor draft={draft} routes={data.routes} onChange={setDraft} onCancel={() => setDraft(null)} onSave={() => void save()} submitting={submitting} /> : null}
       </Drawer>
 
-      <Modal title="签发访问密钥" isOpen={Boolean(issueKeyFor)} onClose={() => setIssueKeyFor(null)}>
+      <Modal title="签发访问密钥" isOpen={Boolean(issueKeyFor)} onClose={closeIssueKey}>
         <div className="space-y-4">
           <LabeledInput label="密钥名称" value={keyName} onChange={setKeyName} placeholder="例如：生产服务" />
           <ExpirationSelect value={keyExpiration} onChange={setKeyExpiration} />
-          <div className="flex justify-end gap-3 pt-2"><Button variant="ghost" onClick={() => setIssueKeyFor(null)}>取消</Button><Button disabled={!keyName.trim() || submitting} onClick={() => void issueKey()}>{submitting ? '签发中...' : '签发密钥'}</Button></div>
+          <div className="flex justify-end gap-3 pt-2"><Button variant="ghost" onClick={closeIssueKey}>取消</Button><Button disabled={!keyName.trim() || submitting} onClick={() => void issueKey()}>{submitting ? '签发中...' : '签发密钥'}</Button></div>
         </div>
       </Modal>
 
@@ -407,9 +426,37 @@ function CallerRouteSelect({
 }
 
 function IssuedKeyPanel({ issued, onClose }: { issued: IssuedAccessKey; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => { await navigator.clipboard.writeText(issued.secret); setCopied(true); };
-  return <div className="space-y-5"><div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">完整密钥只显示这一次。关闭后无法再次查看，请立即保存到密钥管理系统。</div><div><div className="mb-2 text-xs font-semibold text-slate-600">{issued.accessKey.name}</div><div className="flex items-center gap-2 rounded-lg border border-slate-300 bg-slate-950 px-4 py-3"><code className="min-w-0 flex-1 break-all text-xs text-emerald-300">{issued.secret}</code><Button size="sm" variant="outline" onClick={() => void copy()}>{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}{copied ? '已复制' : '复制'}</Button></div></div><div className="flex justify-end"><Button onClick={onClose}>我已保存</Button></div></div>;
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(issued.secret);
+      setCopyState('copied');
+    } catch {
+      setCopyState('failed');
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        完整密钥只显示这一次。关闭后无法再次查看，请立即保存到密钥管理系统。
+      </div>
+      <div>
+        <div className="mb-2 text-xs font-semibold text-slate-600">{issued.accessKey.name}</div>
+        <div className="flex items-center gap-2 rounded-lg border border-slate-300 bg-slate-950 px-4 py-3">
+          <code className="min-w-0 flex-1 break-all text-xs text-emerald-300">{issued.secret}</code>
+          <Button size="sm" variant="outline" onClick={() => void copy()}>
+            {copyState === 'copied'
+              ? <Check className="h-3.5 w-3.5" />
+              : <Copy className="h-3.5 w-3.5" />}
+            {copyState === 'copied' ? '已复制' : copyState === 'failed' ? '复制失败' : '复制'}
+          </Button>
+        </div>
+      </div>
+      <div className="flex justify-end"><Button onClick={onClose}>我已保存</Button></div>
+    </div>
+  );
 }
 
 function LabeledInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {

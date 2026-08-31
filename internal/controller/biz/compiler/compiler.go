@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"time"
 
 	clusterv3 "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	endpointv3 "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
@@ -13,9 +14,9 @@ import (
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
-// Compile 将完整资源集合直接编译为可发布的 Envoy 配置
-func Compile(resources Resources, wasmModules map[string]WasmModule) Result {
-	c := newCompilation(resources, wasmModules)
+// Compile 按 observedAt 观察到的证书有效期，将完整资源集合编译为可发布的 Envoy 配置。
+func Compile(resources Resources, wasmModules map[string]WasmModule, observedAt time.Time) Result {
+	c := newCompilation(resources, wasmModules, observedAt)
 	c.indexResources(resources)
 	clusters, endpoints, compiledUpstreams := c.buildUpstreams()
 	listenerGroups, listenersByGateway := c.buildListenerGroups()
@@ -46,13 +47,19 @@ func Compile(resources Resources, wasmModules map[string]WasmModule) Result {
 	}
 
 	if err := envoyConfig.validate(); err != nil {
-		c.addDiagnostic(SeverityError, "", "envoy", ReasonCompileFailed, fmt.Sprintf("validate Envoy configuration: %v", err))
+		c.addGlobalError(
+			ReasonCompileFailed,
+			fmt.Sprintf("validate Envoy configuration: %v", err),
+		)
 		c.sortDiagnostics()
 		return Result{ResourceGenerations: resourceGenerations, Diagnostics: c.diagnostics}
 	}
 	version, err := envoyConfig.version()
 	if err != nil {
-		c.addDiagnostic(SeverityError, "", "envoy", ReasonCompileFailed, fmt.Sprintf("compute Envoy config version: %v", err))
+		c.addGlobalError(
+			ReasonCompileFailed,
+			fmt.Sprintf("compute Envoy config version: %v", err),
+		)
 		c.sortDiagnostics()
 		return Result{ResourceGenerations: resourceGenerations, Diagnostics: c.diagnostics}
 	}
@@ -63,19 +70,55 @@ func Compile(resources Resources, wasmModules map[string]WasmModule) Result {
 	return result
 }
 
-func (c *compilation) addDiagnostic(severity Severity, kind gatewayv1.Kind, id string, reason Reason, message string) {
-	key := fmt.Sprintf("%s\x00%s\x00%s\x00%s\x00%s", severity, kind, id, reason, message)
+func (c *compilation) addDiagnostic(
+	severity Severity,
+	kind gatewayv1.Kind,
+	resourceID string,
+	reason Reason,
+	message string,
+) {
+	key := fmt.Sprintf("%s\x00%s\x00%s\x00%s\x00%s", severity, kind, resourceID, reason, message)
 	if c.diagnosticSet[key] {
 		return
 	}
 	c.diagnosticSet[key] = true
 	c.diagnostics = append(c.diagnostics, Diagnostic{
-		Severity: severity,
-		Kind:     kind,
-		ID:       id,
-		Reason:   reason,
-		Message:  message,
+		Severity:   severity,
+		Kind:       kind,
+		ResourceID: resourceID,
+		Reason:     reason,
+		Message:    message,
 	})
+}
+
+func (c *compilation) addResourceError(
+	kind gatewayv1.Kind,
+	resourceID string,
+	reason Reason,
+	message string,
+) {
+	c.addDiagnostic(SeverityError, kind, resourceID, reason, message)
+}
+
+func (c *compilation) addResourceWarning(
+	kind gatewayv1.Kind,
+	resourceID string,
+	reason Reason,
+	message string,
+) {
+	c.addDiagnostic(SeverityWarning, kind, resourceID, reason, message)
+}
+
+func (c *compilation) addRouteError(routeID string, reason Reason, message string) {
+	c.addResourceError(gatewayv1.KindRoute, routeID, reason, message)
+}
+
+func (c *compilation) addKindError(kind gatewayv1.Kind, reason Reason, message string) {
+	c.addDiagnostic(SeverityError, kind, "", reason, message)
+}
+
+func (c *compilation) addGlobalError(reason Reason, message string) {
+	c.addDiagnostic(SeverityError, "", "", reason, message)
 }
 
 func (c *compilation) sortDiagnostics() {
@@ -92,8 +135,8 @@ func (c *compilation) sortDiagnostics() {
 		if a.Kind != b.Kind {
 			return cmp.Compare(a.Kind, b.Kind)
 		}
-		if a.ID != b.ID {
-			return cmp.Compare(a.ID, b.ID)
+		if a.ResourceID != b.ResourceID {
+			return cmp.Compare(a.ResourceID, b.ResourceID)
 		}
 		if a.Reason != b.Reason {
 			return cmp.Compare(a.Reason, b.Reason)

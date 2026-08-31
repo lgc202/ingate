@@ -140,8 +140,8 @@ type AIModelCall struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// client_model 是调用方请求中使用的稳定模型名
 	ClientModel string `protobuf:"bytes,1,opt,name=client_model,json=clientModel,proto3" json:"client_model,omitempty"`
-	// upstream_model 是 AI Route 选中线路配置的真实模型名
-	UpstreamModel string `protobuf:"bytes,2,opt,name=upstream_model,json=upstreamModel,proto3" json:"upstream_model,omitempty"`
+	// target_model 是 AI Route 选中目标所配置的实际模型名
+	TargetModel string `protobuf:"bytes,2,opt,name=target_model,json=targetModel,proto3" json:"target_model,omitempty"`
 	// protocol 是模型 Service 使用的厂商 API 协议
 	Protocol ModelProtocol `protobuf:"varint,3,opt,name=protocol,proto3,enum=ingate.admin.v1.ModelProtocol" json:"protocol,omitempty"`
 	// response_model 是模型服务在响应中声明的模型名
@@ -195,9 +195,9 @@ func (x *AIModelCall) GetClientModel() string {
 	return ""
 }
 
-func (x *AIModelCall) GetUpstreamModel() string {
+func (x *AIModelCall) GetTargetModel() string {
 	if x != nil {
-		return x.UpstreamModel
+		return x.TargetModel
 	}
 	return ""
 }
@@ -285,10 +285,10 @@ type RequestRecord struct {
 	Protocol string `protobuf:"bytes,17,opt,name=protocol,proto3" json:"protocol,omitempty"`
 	// rejection_reason 是网关主动拒绝请求时可向用户解释的原因
 	RejectionReason RequestRejectionReason `protobuf:"varint,18,opt,name=rejection_reason,json=rejectionReason,proto3,enum=ingate.admin.v1.RequestRejectionReason" json:"rejection_reason,omitempty"`
-	// upstream_attempts 是包含首次转发在内的服务请求次数
-	UpstreamAttempts uint32 `protobuf:"varint,19,opt,name=upstream_attempts,json=upstreamAttempts,proto3" json:"upstream_attempts,omitempty"`
-	// upstream_address 是最终处理请求的服务地址
-	UpstreamAddress string `protobuf:"bytes,20,opt,name=upstream_address,json=upstreamAddress,proto3" json:"upstream_address,omitempty"`
+	// service_attempts 是包含首次转发在内的服务请求次数
+	ServiceAttempts uint32 `protobuf:"varint,19,opt,name=service_attempts,json=serviceAttempts,proto3" json:"service_attempts,omitempty"`
+	// service_address 是最终处理请求的服务地址
+	ServiceAddress string `protobuf:"bytes,20,opt,name=service_address,json=serviceAddress,proto3" json:"service_address,omitempty"`
 	// proxy_instance_id 是处理请求的数据面实例标识
 	ProxyInstanceId string `protobuf:"bytes,21,opt,name=proxy_instance_id,json=proxyInstanceID,proto3" json:"proxy_instance_id,omitempty"`
 	// ai_model_call 仅在请求经过 AI Route 时存在
@@ -457,16 +457,16 @@ func (x *RequestRecord) GetRejectionReason() RequestRejectionReason {
 	return RequestRejectionReason_REQUEST_REJECTION_REASON_UNSPECIFIED
 }
 
-func (x *RequestRecord) GetUpstreamAttempts() uint32 {
+func (x *RequestRecord) GetServiceAttempts() uint32 {
 	if x != nil {
-		return x.UpstreamAttempts
+		return x.ServiceAttempts
 	}
 	return 0
 }
 
-func (x *RequestRecord) GetUpstreamAddress() string {
+func (x *RequestRecord) GetServiceAddress() string {
 	if x != nil {
-		return x.UpstreamAddress
+		return x.ServiceAddress
 	}
 	return ""
 }
@@ -948,10 +948,10 @@ var File_admin_v1_request_record_proto protoreflect.FileDescriptor
 
 const file_admin_v1_request_record_proto_rawDesc = "" +
 	"\n" +
-	"\x1dadmin/v1/request_record.proto\x12\x0fingate.admin.v1\x1a\x17admin/v1/upstream.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8d\x03\n" +
+	"\x1dadmin/v1/request_record.proto\x12\x0fingate.admin.v1\x1a\x16admin/v1/service.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x89\x03\n" +
 	"\vAIModelCall\x12!\n" +
-	"\fclient_model\x18\x01 \x01(\tR\vclientModel\x12%\n" +
-	"\x0eupstream_model\x18\x02 \x01(\tR\rupstreamModel\x12:\n" +
+	"\fclient_model\x18\x01 \x01(\tR\vclientModel\x12!\n" +
+	"\ftarget_model\x18\x02 \x01(\tR\vtargetModel\x12:\n" +
 	"\bprotocol\x18\x03 \x01(\x0e2\x1e.ingate.admin.v1.ModelProtocolR\bprotocol\x12%\n" +
 	"\x0eresponse_model\x18\x04 \x01(\tR\rresponseModel\x12#\n" +
 	"\rfinish_reason\x18\x05 \x01(\tR\ffinishReason\x12&\n" +
@@ -960,7 +960,7 @@ const file_admin_v1_request_record_proto_rawDesc = "" +
 	"\ftotal_tokens\x18\b \x01(\x04H\x02R\vtotalTokens\x88\x01\x01B\x0f\n" +
 	"\r_input_tokensB\x10\n" +
 	"\x0e_output_tokensB\x0f\n" +
-	"\r_total_tokens\"\xcd\a\n" +
+	"\r_total_tokens\"\xc9\a\n" +
 	"\rRequestRecord\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -985,9 +985,9 @@ const file_admin_v1_request_record_proto_rawDesc = "" +
 	"\n" +
 	"service_id\x18\x10 \x01(\tR\tserviceID\x12\x1a\n" +
 	"\bprotocol\x18\x11 \x01(\tR\bprotocol\x12R\n" +
-	"\x10rejection_reason\x18\x12 \x01(\x0e2'.ingate.admin.v1.RequestRejectionReasonR\x0frejectionReason\x12+\n" +
-	"\x11upstream_attempts\x18\x13 \x01(\rR\x10upstreamAttempts\x12)\n" +
-	"\x10upstream_address\x18\x14 \x01(\tR\x0fupstreamAddress\x12*\n" +
+	"\x10rejection_reason\x18\x12 \x01(\x0e2'.ingate.admin.v1.RequestRejectionReasonR\x0frejectionReason\x12)\n" +
+	"\x10service_attempts\x18\x13 \x01(\rR\x0fserviceAttempts\x12'\n" +
+	"\x0fservice_address\x18\x14 \x01(\tR\x0eserviceAddress\x12*\n" +
 	"\x11proxy_instance_id\x18\x15 \x01(\tR\x0fproxyInstanceID\x12@\n" +
 	"\rai_model_call\x18\x16 \x01(\v2\x1c.ingate.admin.v1.AIModelCallR\vaiModelCall\x12\x1b\n" +
 	"\tcaller_id\x18\x17 \x01(\tR\bcallerID\x12\"\n" +
@@ -1119,7 +1119,7 @@ func file_admin_v1_request_record_proto_init() {
 	if File_admin_v1_request_record_proto != nil {
 		return
 	}
-	file_admin_v1_upstream_proto_init()
+	file_admin_v1_service_proto_init()
 	file_admin_v1_request_record_proto_msgTypes[0].OneofWrappers = []any{}
 	file_admin_v1_request_record_proto_msgTypes[3].OneofWrappers = []any{}
 	type x struct{}

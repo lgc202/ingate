@@ -1,4 +1,4 @@
-// Package health 提供进程健康检查 API
+// Package health 提供进程健康检查 API。
 package health
 
 import (
@@ -12,16 +12,16 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
-// Service 实现进程存活检查
+// Service 实现进程存活检查。
 type Service struct{}
 
-// NewService 创建健康检查协议服务
+// NewService 创建健康检查协议服务。
 func NewService() *Service {
 	return &Service{}
 }
 
-// Check 返回进程存活状态、当前请求 ID 和实际运行版本
-func (s *Service) Check(ctx context.Context, _ *emptypb.Empty) (*adminv1.HealthReply, error) {
+// Check 返回进程存活状态、当前请求 ID 和实际运行版本。
+func (*Service) Check(ctx context.Context, _ *emptypb.Empty) (*adminv1.HealthReply, error) {
 	var id string
 	if tr, ok := transport.FromServerContext(ctx); ok {
 		id = tr.RequestHeader().Get(requestid.Header)

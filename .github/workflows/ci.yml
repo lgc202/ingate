@@ -34,6 +34,7 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: |
+            docs/package-lock.json
             web/console/package-lock.json
             web/prototype/package-lock.json
 

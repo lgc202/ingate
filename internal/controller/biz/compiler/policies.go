@@ -2,8 +2,6 @@ package compiler
 
 import (
 	"fmt"
-	"maps"
-	"slices"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
@@ -22,7 +20,8 @@ type matchedPolicyTarget struct {
 func (c *compilation) buildPolicyConfigs(
 	attachments []routeAttachment,
 ) (map[listenerKey]listenerFilterConfig, []CompiledPolicyTarget) {
-	// 编译阶段直接把强类型 Policy 展开到 Envoy Route，执行组件不再理解用户资源挂载关系
+	// 编译阶段直接把强类型 Policy 展开到 Envoy Route，
+	// 执行组件不再理解用户资源挂载关系。
 	ipRestrictionPolicies := c.compileIPRestrictionPolicies()
 	rateLimitPolicies := c.compileRateLimitPolicies()
 	headerTransformationPolicies := c.compileHeaderTransformationPolicies()
@@ -41,7 +40,11 @@ func (c *compilation) buildPolicyConfigs(
 		restrictions, restrictionTargets := matchingIPRestrictionPolicies(ipRestrictionPolicies, key)
 		if len(restrictions) > 0 {
 			if err := applyIPRestrictionPolicies(attachment.routes, restrictions); err != nil {
-				c.addDiagnostic(SeverityError, gatewayv1.KindRoute, key.routeID, ReasonCompileFailed, fmt.Sprintf("compile IP restriction policies for route %q: %v", key.routeID, err))
+				c.addRouteError(
+					key.routeID,
+					ReasonCompileFailed,
+					fmt.Sprintf("compile IP restriction policies for route %q: %v", key.routeID, err),
+				)
 			} else {
 				config.ipRestriction = true
 				for _, target := range restrictionTargets {
@@ -53,7 +56,11 @@ func (c *compilation) buildPolicyConfigs(
 		rateLimits, rateLimitTargets := matchingRateLimitPolicies(rateLimitPolicies, key)
 		if len(rateLimits) > 0 {
 			if err := applyRateLimitPolicies(attachment.routes, rateLimits); err != nil {
-				c.addDiagnostic(SeverityError, gatewayv1.KindRoute, key.routeID, ReasonCompileFailed, fmt.Sprintf("compile rate limit policies for route %q: %v", key.routeID, err))
+				c.addRouteError(
+					key.routeID,
+					ReasonCompileFailed,
+					fmt.Sprintf("compile rate limit policies for route %q: %v", key.routeID, err),
+				)
 			} else {
 				for _, target := range rateLimitTargets {
 					c.recordPolicyTargets(target.source, target.targets, policyTargetSet)
@@ -64,7 +71,15 @@ func (c *compilation) buildPolicyConfigs(
 		transformations, transformationTargets := matchingHeaderTransformationPolicies(headerTransformationPolicies, key)
 		if len(transformations) > 0 {
 			if err := applyHeaderTransformationPolicies(attachment.routes, transformations, &config); err != nil {
-				c.addDiagnostic(SeverityError, gatewayv1.KindRoute, key.routeID, ReasonCompileFailed, fmt.Sprintf("compile header transformation policies for route %q: %v", key.routeID, err))
+				c.addRouteError(
+					key.routeID,
+					ReasonCompileFailed,
+					fmt.Sprintf(
+						"compile header transformation policies for route %q: %v",
+						key.routeID,
+						err,
+					),
+				)
 			} else {
 				for _, target := range transformationTargets {
 					c.recordPolicyTargets(target.source, target.targets, policyTargetSet)
@@ -77,14 +92,17 @@ func (c *compilation) buildPolicyConfigs(
 		case 0:
 		case 1:
 			if err := applyMockResponsePolicy(attachment.routes, mockResponses[0], &config); err != nil {
-				c.addDiagnostic(SeverityError, gatewayv1.KindRoute, key.routeID, ReasonCompileFailed, fmt.Sprintf("compile mock response policy for route %q: %v", key.routeID, err))
+				c.addRouteError(
+					key.routeID,
+					ReasonCompileFailed,
+					fmt.Sprintf("compile mock response policy for route %q: %v", key.routeID, err),
+				)
 			} else {
 				c.recordPolicyTargets(mockResponseTargets[0].source, mockResponseTargets[0].targets, policyTargetSet)
 			}
 		default:
 			for _, policy := range mockResponses {
-				c.addDiagnostic(
-					SeverityError,
+				c.addResourceError(
 					gatewayv1.KindMockResponsePolicy,
 					policy.source.Name,
 					ReasonConflict,
@@ -101,13 +119,12 @@ func (c *compilation) buildPolicyConfigs(
 }
 
 func matchingIPRestrictionPolicies(
-	policies map[string]compiledIPRestrictionPolicy,
+	policies []compiledIPRestrictionPolicy,
 	key policyRouteKey,
 ) ([]ipRestrictionPolicy, []matchedPolicyTarget) {
 	matched := make([]ipRestrictionPolicy, 0)
 	targets := make([]matchedPolicyTarget, 0)
-	for _, policyID := range slices.Sorted(maps.Keys(policies)) {
-		compiled := policies[policyID]
+	for _, compiled := range policies {
 		_, matchedTargets := matchingPolicyTargets(compiled.targets, key)
 		if len(matchedTargets) == 0 {
 			continue

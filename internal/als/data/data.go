@@ -1,4 +1,4 @@
-// Package data 装配 ALS 使用的 Kafka 和本地磁盘队列
+// Package data 装配 ALS 使用的 Kafka 和本地磁盘队列。
 package data
 
 import (
@@ -12,7 +12,7 @@ import (
 	"github.com/lgc202/ingate/internal/als/data/kafka"
 )
 
-// ProviderSet 绑定 ALS 业务层的主写入和磁盘队列边界
+// ProviderSet 绑定 ALS 业务层的主写入和磁盘队列边界。
 var ProviderSet = wire.NewSet(
 	NewKafkaPublisher,
 	NewDiskQueue,
@@ -20,7 +20,7 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(biz.RecordQueue), new(*diskqueue.Queue)),
 )
 
-// NewKafkaPublisher 创建 Kafka 发布端，并把连接释放交给 Wire cleanup
+// NewKafkaPublisher 创建 Kafka 发布端，并把连接释放交给 Wire cleanup。
 func NewKafkaPublisher(config *conf.Data_Kafka) (*kafka.Publisher, func(), error) {
 	publisher, err := kafka.NewPublisher(config)
 	if err != nil {
@@ -29,7 +29,7 @@ func NewKafkaPublisher(config *conf.Data_Kafka) (*kafka.Publisher, func(), error
 	return publisher, publisher.Close, nil
 }
 
-// NewDiskQueue 打开本地磁盘队列，并把关闭错误统一记录到服务日志
+// NewDiskQueue 打开本地磁盘队列，并把关闭错误统一记录到服务日志。
 func NewDiskQueue(
 	config *conf.Data_DiskQueue,
 	logger *slog.Logger,

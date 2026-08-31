@@ -36,7 +36,7 @@ type resourceRegistration struct {
 	newStorage     resourceStorageFactory
 }
 
-// installResources 把声明式资源及其 status 子资源注册到同一 API Group
+// installResources 把声明式资源及其 status 子资源注册到同一 API Group。
 func installResources(
 	genericServer *genericapiserver.GenericAPIServer,
 	config genericapiserver.CompletedConfig,
@@ -48,18 +48,66 @@ func installResources(
 		Codecs,
 	)
 	registrations := []resourceRegistration{
-		{gatewayv1.ResourceGateways, gatewayv1.ResourceGatewaysStatus, gatewaystorage.NewREST},
-		{gatewayv1.ResourceRoutes, gatewayv1.ResourceRoutesStatus, routestorage.NewREST},
-		{gatewayv1.ResourceUpstreams, gatewayv1.ResourceUpstreamsStatus, upstreamstorage.NewREST},
-		{gatewayv1.ResourceCertificates, gatewayv1.ResourceCertificatesStatus, certificatestorage.NewREST},
-		{gatewayv1.ResourceRateLimitPolicies, gatewayv1.ResourceRateLimitPoliciesStatus, ratelimitpolicystorage.NewREST},
-		{gatewayv1.ResourceIPRestrictionPolicies, gatewayv1.ResourceIPRestrictionPoliciesStatus, iprestrictionpolicystorage.NewREST},
-		{gatewayv1.ResourceCallers, gatewayv1.ResourceCallersStatus, callerstorage.NewREST},
-		{gatewayv1.ResourceTokenQuotaPolicies, gatewayv1.ResourceTokenQuotaPoliciesStatus, tokenquotapolicystorage.NewREST},
-		{gatewayv1.ResourceWasmPlugins, gatewayv1.ResourceWasmPluginsStatus, wasmpluginstorage.NewREST},
-		{gatewayv1.ResourcePluginSources, gatewayv1.ResourcePluginSourcesStatus, pluginsourcestorage.NewREST},
-		{gatewayv1.ResourceHeaderTransformationPolicies, gatewayv1.ResourceHeaderTransformationPoliciesStatus, headertransformationpolicystorage.NewREST},
-		{gatewayv1.ResourceMockResponsePolicies, gatewayv1.ResourceMockResponsePoliciesStatus, mockresponsepolicystorage.NewREST},
+		{
+			resource:       gatewayv1.ResourceGateways,
+			statusResource: gatewayv1.ResourceGatewaysStatus,
+			newStorage:     gatewaystorage.NewREST,
+		},
+		{
+			resource:       gatewayv1.ResourceRoutes,
+			statusResource: gatewayv1.ResourceRoutesStatus,
+			newStorage:     routestorage.NewREST,
+		},
+		{
+			resource:       gatewayv1.ResourceUpstreams,
+			statusResource: gatewayv1.ResourceUpstreamsStatus,
+			newStorage:     upstreamstorage.NewREST,
+		},
+		{
+			resource:       gatewayv1.ResourceCertificates,
+			statusResource: gatewayv1.ResourceCertificatesStatus,
+			newStorage:     certificatestorage.NewREST,
+		},
+		{
+			resource:       gatewayv1.ResourceRateLimitPolicies,
+			statusResource: gatewayv1.ResourceRateLimitPoliciesStatus,
+			newStorage:     ratelimitpolicystorage.NewREST,
+		},
+		{
+			resource:       gatewayv1.ResourceIPRestrictionPolicies,
+			statusResource: gatewayv1.ResourceIPRestrictionPoliciesStatus,
+			newStorage:     iprestrictionpolicystorage.NewREST,
+		},
+		{
+			resource:       gatewayv1.ResourceCallers,
+			statusResource: gatewayv1.ResourceCallersStatus,
+			newStorage:     callerstorage.NewREST,
+		},
+		{
+			resource:       gatewayv1.ResourceTokenQuotaPolicies,
+			statusResource: gatewayv1.ResourceTokenQuotaPoliciesStatus,
+			newStorage:     tokenquotapolicystorage.NewREST,
+		},
+		{
+			resource:       gatewayv1.ResourceWasmPlugins,
+			statusResource: gatewayv1.ResourceWasmPluginsStatus,
+			newStorage:     wasmpluginstorage.NewREST,
+		},
+		{
+			resource:       gatewayv1.ResourcePluginSources,
+			statusResource: gatewayv1.ResourcePluginSourcesStatus,
+			newStorage:     pluginsourcestorage.NewREST,
+		},
+		{
+			resource:       gatewayv1.ResourceHeaderTransformationPolicies,
+			statusResource: gatewayv1.ResourceHeaderTransformationPoliciesStatus,
+			newStorage:     headertransformationpolicystorage.NewREST,
+		},
+		{
+			resource:       gatewayv1.ResourceMockResponsePolicies,
+			statusResource: gatewayv1.ResourceMockResponsePoliciesStatus,
+			newStorage:     mockresponsepolicystorage.NewREST,
+		},
 	}
 	storage := make(map[string]rest.Storage, len(registrations)*2)
 	for _, registration := range registrations {

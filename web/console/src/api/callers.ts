@@ -17,7 +17,7 @@ export async function getCallerOptions(): Promise<CallerWorkspace> {
   return {
     callers: [],
     routes: routeList.routes
-      .filter((route) => route.accessMode === 'ROUTE_ACCESS_CALLER')
+      .filter((route) => route.accessMode === 'ROUTE_ACCESS_MODE_CALLER')
       .map((route) => ({ id: route.id, name: route.name })),
   };
 }

@@ -4,135 +4,40 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"net/http"
 	"runtime/debug"
-	"time"
 
 	"buf.build/go/protovalidate"
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
+	kerrors "github.com/go-kratos/kratos/v3/errors"
 	"github.com/go-kratos/kratos/v3/middleware"
-	kratosvalidate "github.com/go-kratos/kratos/v3/middleware/validate"
-	"github.com/go-kratos/kratos/v3/transport"
 	"google.golang.org/protobuf/proto"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
-// maxRequestBodyBytes 覆盖现有资源和证书配置，同时限制恶意请求造成的内存占用
-const (
-	maxRequestBodyBytes int64 = 4 << 20
-	forwardedUserHeader       = "X-Forwarded-User"
-)
-
-// requestLog 保存一次管理请求需要写入日志的最小信息，不包含请求参数和响应内容
-type requestLog struct {
-	operation string
-	actor     string
-	requestID string
-	code      int
-	reason    string
-	latency   time.Duration
-	cause     error
-}
-
-func newRequestLog(ctx context.Context, latency time.Duration, err error) requestLog {
-	entry := requestLog{
-		code:    http.StatusOK,
-		latency: latency,
-	}
-	if tr, ok := transport.FromServerContext(ctx); ok {
-		entry.operation = tr.Operation()
-		entry.actor = tr.RequestHeader().Get(forwardedUserHeader)
-		entry.requestID = tr.RequestHeader().Get(requestid.Header)
-	}
-	if serviceError := kratoserrors.FromError(err); serviceError != nil {
-		entry.code = int(serviceError.Code)
-		entry.reason = serviceError.Reason
-	}
-	if serviceError, ok := errors.AsType[*kratoserrors.Error](err); ok {
-		entry.cause = errors.Unwrap(serviceError)
-	} else if entry.code >= http.StatusInternalServerError {
-		entry.cause = err
-	}
-	return entry
-}
-
-func (l requestLog) write(ctx context.Context, logger *slog.Logger) {
-	// 健康检查由容器编排系统高频调用，成功结果不提供额外排障价值
-	if l.operation == adminv1.OperationHealthServiceCheck && l.code < http.StatusBadRequest {
-		return
-	}
-	attrs := []slog.Attr{
-		slog.String("operation", l.operation),
-		slog.String("actor", l.actor),
-		slog.Int("code", l.code),
-		slog.String("reason", l.reason),
-		slog.Duration("latency", l.latency),
-		slog.String("request_id", l.requestID),
-	}
-	// 正常查询和页面轮询只在排障时需要；请求错误仍保留在默认 INFO 日志中
-	level := slog.LevelDebug
-	if l.code >= http.StatusBadRequest {
-		level = slog.LevelInfo
-		if l.cause != nil {
-			attrs = append(attrs, slog.Any("err", l.cause))
-		}
-	}
-	if l.code >= http.StatusInternalServerError {
-		level = slog.LevelError
-	}
-	logger.LogAttrs(ctx, level, "server request", attrs...)
-}
-
-// httpMiddleware 按请求从外到内的执行顺序装配管理面中间件
-func httpMiddleware(logger *slog.Logger) []middleware.Middleware {
+// serverMiddleware 按请求从外到内的执行顺序装配管理面中间件。
+// HTTP 与 gRPC 共享相同的恢复、日志、错误脱敏和请求校验规则。
+func serverMiddleware(logger *slog.Logger) []middleware.Middleware {
 	return []middleware.Middleware{
-		recoveryMiddleware(logger),
 		requestLoggingMiddleware(logger),
-		kratosvalidate.Validator(validateRequest),
+		recoveryMiddleware(logger),
+		errorSanitizingMiddleware(),
+		requestValidationMiddleware(),
 	}
-}
-
-func validateRequest(value any) error {
-	message, ok := value.(proto.Message)
-	if !ok {
-		return nil
-	}
-	return protovalidate.Validate(message)
-}
-
-func requestIDFilter(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		id := request.Header.Get(requestid.Header)
-		if id == "" {
-			id = requestid.New()
-			request.Header.Set(requestid.Header, id)
-		}
-		writer.Header().Set(requestid.Header, id)
-		next.ServeHTTP(writer, request)
-	})
-}
-
-func requestBodyLimitFilter(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		request.Body = http.MaxBytesReader(writer, request.Body, maxRequestBodyBytes)
-		next.ServeHTTP(writer, request)
-	})
 }
 
 func recoveryMiddleware(logger *slog.Logger) middleware.Middleware {
-	// Kratos recovery 会记录完整请求；管理请求可能包含证书私钥，因此只记录 panic 和堆栈
+	// Kratos recovery 会记录完整请求；管理请求可能包含证书私钥，因此只记录堆栈。
 	return func(next middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, request any) (reply any, err error) {
 			defer func() {
-				if recovered := recover(); recovered != nil {
+				if recover() != nil {
 					logger.ErrorContext(ctx, "panic recovered",
-						"panic", recovered,
 						"stack", string(debug.Stack()),
 					)
-					err = kratoserrors.InternalServer(adminv1.ErrorReason_PANIC.String(), "request failed").
-						WithMetadata(map[string]string{userMessageMetadata: "请求处理失败"})
+					err = kerrors.InternalServer(
+						adminv1.ErrorReason_PANIC.String(),
+						"请求处理失败",
+					)
 				}
 			}()
 			return next(ctx, request)
@@ -140,15 +45,53 @@ func recoveryMiddleware(logger *slog.Logger) middleware.Middleware {
 	}
 }
 
-func requestLoggingMiddleware(logger *slog.Logger) middleware.Middleware {
-	// Kratos logging 会序列化完整请求；管理面日志只保留操作、结果和链路标识
+func errorSanitizingMiddleware() middleware.Middleware {
 	return func(next middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, request any) (any, error) {
-			startedAt := time.Now()
 			reply, err := next(ctx, request)
+			if err == nil {
+				return reply, nil
+			}
+			if ctx.Err() != nil {
+				switch {
+				case errors.Is(err, context.Canceled):
+					return reply, kerrors.ClientClosed(
+						adminv1.ErrorReason_REQUEST_CANCELED.String(),
+						"请求已取消",
+					).WithCause(err)
+				case errors.Is(err, context.DeadlineExceeded):
+					return reply, kerrors.GatewayTimeout(
+						adminv1.ErrorReason_REQUEST_TIMEOUT.String(),
+						"请求处理超时",
+					).WithCause(err)
+				}
+			}
+			serviceError, ok := errors.AsType[*kerrors.Error](err)
+			if ok && isAdminError(serviceError) {
+				return reply, kerrors.Clone(serviceError).WithCause(err)
+			}
+			return reply, kerrors.InternalServer(
+				adminv1.ErrorReason_INTERNAL_ERROR.String(),
+				"请求处理失败",
+			).WithCause(err)
+		}
+	}
+}
 
-			newRequestLog(ctx, time.Since(startedAt), err).write(ctx, logger)
-			return reply, err
+func requestValidationMiddleware() middleware.Middleware {
+	return func(next middleware.Handler) middleware.Handler {
+		return func(ctx context.Context, request any) (any, error) {
+			message, ok := request.(proto.Message)
+			if !ok {
+				return next(ctx, request)
+			}
+			if err := protovalidate.Validate(message); err != nil {
+				return nil, kerrors.BadRequest(
+					adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+					"请求参数不正确",
+				).WithCause(err)
+			}
+			return next(ctx, request)
 		}
 	}
 }

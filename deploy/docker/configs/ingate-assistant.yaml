@@ -1,0 +1,43 @@
+server:
+  http:
+    addr: "0.0.0.0:8003"
+    readiness_timeout: "5s"
+  shutdown_timeout: "30s"
+
+data:
+  mysql:
+    address: "mysql:3306"
+    database: "ingate"
+    username: "ingate"
+    password: "${MYSQL_PASSWORD}"
+    dial_timeout: "5s"
+    max_open_connections: 20
+    max_idle_connections: 10
+    connection_max_lifetime: "1800s"
+  redis:
+    address: "redis:6379"
+    password: ""
+    database: 0
+    dial_timeout: "3s"
+    read_timeout: "20s"
+    write_timeout: "3s"
+    pool_size: 20
+
+stream:
+  retention: "86400s"
+  max_events: 2000
+  read_block: "15s"
+
+worker:
+  concurrency: 8
+  poll_interval: "0.5s"
+  lease_duration: "30s"
+
+admin_api:
+  addr: "admin-api:18083"
+  timeout: "5s"
+
+logging:
+  format: "json"
+  level: "info"
+  add_source: false

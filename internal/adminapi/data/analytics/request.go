@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,20 +12,21 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
+	"github.com/lgc202/ingate/internal/adminapi/biz"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
 )
 
-// RequestRepository 通过 Analytics gRPC 查询请求明细
+// RequestRepository 通过 Analytics gRPC 查询请求明细。
 type RequestRepository struct {
 	client analyticsv1.RequestServiceClient
 }
 
-// NewRequestRepository 创建请求记录 Repository
+// NewRequestRepository 创建请求记录 Repository。
 func NewRequestRepository(connection *grpc.ClientConn) *RequestRepository {
 	return &RequestRepository{client: analyticsv1.NewRequestServiceClient(connection)}
 }
 
-// List 查询请求记录并把内部 Analytics 协议转换为 Admin API 业务类型
+// List 查询请求记录并把内部 Analytics 协议转换为 Admin API 业务类型。
 func (r *RequestRepository) List(ctx context.Context, options requestbiz.ListOptions) (requestbiz.Page, error) {
 	filter := options.Filter
 	request := &analyticsv1.ListRequestsRequest{
@@ -49,24 +51,37 @@ func (r *RequestRepository) List(ctx context.Context, options requestbiz.ListOpt
 		request.Filter.StatusCode = &value
 	}
 	reply, err := r.client.ListRequests(ctx, request)
-	if isUnavailable(err) {
+	if err != nil && ctx.Err() != nil {
+		return requestbiz.Page{}, ctx.Err()
+	}
+	if status.Code(err) == codes.InvalidArgument && options.PageToken != "" {
+		return requestbiz.Page{}, biz.ErrInvalidCursor.WithCause(err)
+	}
+	if isUnavailable(ctx, err) {
 		return requestbiz.Page{}, requestbiz.Unavailable(err)
 	}
 	if err != nil {
 		return requestbiz.Page{}, fmt.Errorf("list analytics request records: %w", err)
 	}
-	records := make([]requestbiz.Summary, 0, len(reply.GetRequests()))
-	for _, item := range reply.GetRequests() {
+	if reply == nil {
+		return requestbiz.Page{}, errors.New("analytics returned an empty request list response")
+	}
+	items := reply.GetRequests()
+	if len(items) > options.PageSize {
+		return requestbiz.Page{}, errors.New("analytics returned too many request records")
+	}
+	records := make([]requestbiz.Summary, len(items))
+	for i, item := range items {
 		summary, err := requestSummary(item)
 		if err != nil {
 			return requestbiz.Page{}, fmt.Errorf("convert analytics request summary: %w", err)
 		}
-		records = append(records, summary)
+		records[i] = summary
 	}
 	return requestbiz.Page{Records: records, NextPageToken: reply.GetNextPageToken()}, nil
 }
 
-// Get 查询单次请求记录
+// Get 查询单次请求记录。
 func (r *RequestRepository) Get(
 	ctx context.Context,
 	recordID string,
@@ -76,18 +91,27 @@ func (r *RequestRepository) Get(
 		Id:        recordID,
 		StartedAt: timestamppb.New(startedAt),
 	})
+	if err != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	if status.Code(err) == codes.NotFound {
 		return nil, requestbiz.ErrNotFound
 	}
-	if isUnavailable(err) {
+	if isUnavailable(ctx, err) {
 		return nil, requestbiz.Unavailable(err)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get analytics request record %q: %w", recordID, err)
 	}
+	if reply == nil {
+		return nil, errors.New("analytics returned an empty request record response")
+	}
 	record, err := requestRecord(reply)
 	if err != nil {
 		return nil, fmt.Errorf("convert analytics request record: %w", err)
+	}
+	if record.ID != recordID || !record.StartedAt.Equal(startedAt) {
+		return nil, errors.New("analytics returned a different request record")
 	}
 	return &record, nil
 }

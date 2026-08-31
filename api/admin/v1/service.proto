@@ -1,0 +1,234 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// ServiceManagementService 提供 HTTP 和模型 Service 的管理接口。
+service ServiceManagementService {
+  // ListServices 分页查询 Service。
+  rpc ListServices(ListServicesRequest) returns (ListServicesResponse) {
+    option (google.api.http) = {get: "/api/v1/services"};
+  }
+  // GetService 查询指定 Service。
+  rpc GetService(GetServiceRequest) returns (Service) {
+    option (google.api.http) = {get: "/api/v1/services/{id}"};
+  }
+  // CreateService 创建 Service，资源 ID 由服务端生成。
+  rpc CreateService(CreateServiceRequest) returns (Service) {
+    option (google.api.http) = {
+      post: "/api/v1/services"
+      body: "*"
+    };
+  }
+  // UpdateService 使用资源版本完整替换 Service 配置。
+  rpc UpdateService(UpdateServiceRequest) returns (Service) {
+    option (google.api.http) = {
+      put: "/api/v1/services/{id}"
+      body: "*"
+    };
+  }
+  // DeleteService 使用资源版本删除 Service。
+  rpc DeleteService(DeleteServiceRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/api/v1/services/{id}"};
+  }
+}
+
+// LoadBalancingPolicy 表示同一 Service 多个地址之间的流量分配方式。
+enum LoadBalancingPolicy {
+  // LOAD_BALANCING_POLICY_UNSPECIFIED 在写入时使用轮询策略。
+  LOAD_BALANCING_POLICY_UNSPECIFIED = 0;
+  // LOAD_BALANCING_POLICY_ROUND_ROBIN 依次选择可用地址。
+  LOAD_BALANCING_POLICY_ROUND_ROBIN = 1;
+  // LOAD_BALANCING_POLICY_LEAST_REQUEST 优先选择当前请求较少的地址。
+  LOAD_BALANCING_POLICY_LEAST_REQUEST = 2;
+}
+
+// ModelProtocol 表示模型 Service 对外提供的厂商 API 协议。
+enum ModelProtocol {
+  // MODEL_PROTOCOL_UNSPECIFIED 表示未选择模型协议。
+  MODEL_PROTOCOL_UNSPECIFIED = 0;
+  // MODEL_PROTOCOL_OPENAI 表示 OpenAI 兼容协议。
+  MODEL_PROTOCOL_OPENAI = 1;
+  // MODEL_PROTOCOL_ANTHROPIC 表示 Anthropic Messages 协议。
+  MODEL_PROTOCOL_ANTHROPIC = 2;
+}
+
+// ServiceType 表示 Service 提供普通 HTTP 能力还是模型能力。
+enum ServiceType {
+  // SERVICE_TYPE_UNSPECIFIED 在列表查询中表示不按类型筛选。
+  SERVICE_TYPE_UNSPECIFIED = 0;
+  // SERVICE_TYPE_HTTP 表示普通 HTTP Service。
+  SERVICE_TYPE_HTTP = 1;
+  // SERVICE_TYPE_MODEL 表示模型 Service。
+  SERVICE_TYPE_MODEL = 2;
+}
+
+// ModelService 是模型 Service 可安全返回控制台的配置。
+message ModelService {
+  // protocol 是调用模型 Service 使用的厂商 API 协议。
+  ModelProtocol protocol = 1;
+  // api_key_configured 表示服务端已保存 API Key，但不返回凭据内容。
+  bool api_key_configured = 2 [json_name = "apiKeyConfigured"];
+}
+
+// ModelServiceInput 管理模型 Service 的协议和凭据。
+// 更新时 model 整体缺失表示改为普通 HTTP Service；model 存在但未提供 api_key 表示保留原值。
+message ModelServiceInput {
+  // protocol 是调用模型 Service 使用的厂商 API 协议。
+  ModelProtocol protocol = 1 [(buf.validate.field).enum.defined_only = true];
+  // api_key 是写入后不可读回的模型 Service 凭据。
+  optional string api_key = 2 [
+    json_name = "apiKey",
+    (buf.validate.field).string.max_len = 4096
+  ];
+  // clear_api_key 明确删除已保存的 API Key，不能与 api_key 同时使用。
+  bool clear_api_key = 3 [json_name = "clearApiKey"];
+}
+
+// ServiceTLS 表示连接 Service 时使用 HTTPS。
+message ServiceTLS {
+  // server_name 用于 TLS SNI 和服务端证书校验。
+  string server_name = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+// ServiceEndpoint 是 Service 的一个可转发地址。
+message ServiceEndpoint {
+  // address 是不包含端口的主机名或 IP 地址。
+  string address = 1 [(buf.validate.field).string.min_len = 1];
+  // port 是 Service 的监听端口。
+  uint32 port = 2 [(buf.validate.field).uint32 = {
+    gte: 1
+    lte: 65535
+  }];
+  // weight 是该地址的相对流量权重，零值使用默认权重 1。
+  uint32 weight = 3 [(buf.validate.field).uint32.lte = 1000];
+}
+
+// ServiceHealthCheck 表示对 Service 地址执行的主动 HTTP 健康检查。
+message ServiceHealthCheck {
+  // path 是以斜杠开头的健康检查请求路径。
+  string path = 1 [(buf.validate.field).string.min_len = 1];
+  // interval_seconds 是检查间隔，零值使用服务端默认值。
+  uint32 interval_seconds = 2 [(buf.validate.field).uint32.lte = 300];
+  // timeout_seconds 是单次检查超时，零值使用服务端默认值且必须小于检查间隔。
+  uint32 timeout_seconds = 3 [(buf.validate.field).uint32.lte = 60];
+}
+
+// Service 是 Route 转发请求时引用的目标资源。
+message Service {
+  // id 是服务端生成且不可修改的资源主键。
+  string id = 1;
+  // name 是可修改的控制台展示名称。
+  string name = 2;
+  // endpoints 是 Service 可使用的转发地址。
+  repeated ServiceEndpoint endpoints = 3;
+  // tls 存在时使用 HTTPS 连接 Service，不存在时使用 HTTP。
+  ServiceTLS tls = 4;
+  // load_balancing 是多个可用地址之间的流量分配方式。
+  LoadBalancingPolicy load_balancing = 5;
+  // health_check 存在时启用主动健康检查。
+  ServiceHealthCheck health_check = 6;
+  // state 是控制器观察到的配置生效状态。
+  ResourceState state = 7;
+  // message 在配置未生效时说明当前状态原因。
+  string message = 8;
+  // version 是更新和删除时必须原样提交的乐观锁版本。
+  int64 version = 9;
+  // created_at 是资源创建时间。
+  google.protobuf.Timestamp created_at = 10;
+  // updated_at 是资源配置最近一次更新时间。
+  google.protobuf.Timestamp updated_at = 11;
+  // model 存在时表示该资源是模型 Service。
+  ModelService model = 12;
+}
+
+// ListServicesRequest 是 Service 的分页筛选条件。
+message ListServicesRequest {
+  // limit 是本页最大数量，零值使用服务端默认值。
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  // cursor 是上一页响应返回的不透明游标。
+  string cursor = 2;
+  // query 按展示名称、地址或端口模糊筛选。
+  string query = 3;
+  // type 按 Service 类型筛选，未指定时返回全部类型。
+  ServiceType type = 4 [(buf.validate.field).enum.defined_only = true];
+  // state 按配置生效状态筛选，未指定时返回全部状态。
+  ResourceState state = 5 [(buf.validate.field).enum.defined_only = true];
+}
+
+// ListServicesResponse 是一页 Service 及后续游标。
+message ListServicesResponse {
+  // services 是当前页的 Service。
+  repeated Service services = 1;
+  // next_cursor 非空时表示还有下一页。
+  string next_cursor = 2;
+}
+
+// GetServiceRequest 按资源 ID 查询 Service。
+message GetServiceRequest {
+  // id 是 Service 的资源主键。
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+// CreateServiceRequest 是新 Service 的完整配置。
+message CreateServiceRequest {
+  // name 是可修改的控制台展示名称。
+  string name = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
+  // endpoints 是 Service 可使用的转发地址。
+  repeated ServiceEndpoint endpoints = 2 [(buf.validate.field).repeated = {
+    min_items: 1
+    max_items: 64
+  }];
+  // tls 存在时使用 HTTPS 连接 Service。
+  ServiceTLS tls = 3;
+  // load_balancing 是多个可用地址之间的流量分配方式。
+  LoadBalancingPolicy load_balancing = 4;
+  // health_check 存在时启用主动健康检查。
+  ServiceHealthCheck health_check = 5;
+  // model 存在时创建模型 Service，否则创建普通 HTTP Service。
+  ModelServiceInput model = 6;
+}
+
+// UpdateServiceRequest 是替换现有 Service 的完整配置。
+message UpdateServiceRequest {
+  // id 是 Service 的资源主键。
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  // version 必须与读取到的资源版本一致。
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+  // name 是可修改的控制台展示名称。
+  string name = 3 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
+  // endpoints 是 Service 可使用的转发地址。
+  repeated ServiceEndpoint endpoints = 4 [(buf.validate.field).repeated = {
+    min_items: 1
+    max_items: 64
+  }];
+  // tls 存在时使用 HTTPS 连接 Service。
+  ServiceTLS tls = 5;
+  // load_balancing 是多个可用地址之间的流量分配方式。
+  LoadBalancingPolicy load_balancing = 6;
+  // health_check 存在时启用主动健康检查。
+  ServiceHealthCheck health_check = 7;
+  // model 存在时保存模型 Service 配置，不存在时改为普通 HTTP Service。
+  ModelServiceInput model = 8;
+}
+
+// DeleteServiceRequest 使用资源 ID 和版本删除 Service。
+message DeleteServiceRequest {
+  // id 是 Service 的资源主键。
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  // version 必须与读取到的资源版本一致。
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}

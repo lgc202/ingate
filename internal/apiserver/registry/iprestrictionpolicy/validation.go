@@ -1,20 +1,20 @@
 package iprestrictionpolicy
 
 import (
-	"net/netip"
-
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	"github.com/lgc202/ingate/internal/pkg/iprestrictionconfig"
 )
 
 func validatePolicy(policy *resource.IPRestrictionPolicy) field.ErrorList {
 	specPath := field.NewPath("spec")
-	var errs field.ErrorList
-	if policy.Spec.DisplayName == "" {
-		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
-	}
+	errs := apiregistry.ValidateResourceID(policy.Name, field.NewPath("metadata", "name"))
+	errs = append(errs, apiregistry.ValidateDisplayName(
+		policy.Spec.DisplayName,
+		specPath.Child("displayName"),
+	)...)
 	errs = append(errs, apiregistry.ValidatePolicyTargetRefs(
 		policy.Spec.TargetRefs,
 		specPath.Child("targetRefs"),
@@ -34,8 +34,13 @@ func validatePolicy(policy *resource.IPRestrictionPolicy) field.ErrorList {
 
 func validateRanges(values []string, path *field.Path) field.ErrorList {
 	var errs field.ErrorList
+	if len(values) > iprestrictionconfig.MaxRanges {
+		errs = append(errs, field.TooMany(path, len(values), iprestrictionconfig.MaxRanges))
+		values = values[:iprestrictionconfig.MaxRanges]
+	}
 	for i, value := range values {
-		if _, err := netip.ParsePrefix(value); err != nil {
+		normalized, valid := iprestrictionconfig.NormalizeRange(value)
+		if !valid || normalized != value {
 			errs = append(errs, field.Invalid(path.Index(i), value, "value must be an IP address or CIDR prefix"))
 		}
 	}

@@ -1,7 +1,6 @@
 server:
   http:
     addr: ":8081"
-    timeout: "30s"
   console_dir: "web/console/dist"
   shutdown_timeout: "30s"
   authentication:
@@ -15,6 +14,8 @@ server:
 data:
   admin_api:
     base_url: "http://127.0.0.1:8082"
+  assistant:
+    base_url: "http://127.0.0.1:8083"
 
 logging:
   format: "json"

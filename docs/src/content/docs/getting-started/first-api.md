@@ -17,7 +17,7 @@ description: 创建 Service、Gateway 和 Route，并通过 Ingate 访问 httpbi
 | 端口 | `80` |
 | 权重 | `1` |
 
-保存后等待状态变为“已生效”。
+保存 Service。新安装中尚未存在可发布的 Gateway 和 Route 时，Service 可能暂时显示“发布中”；完成下面三类资源后再统一确认状态。
 
 ## 2. 创建 HTTP Gateway
 
@@ -63,6 +63,8 @@ HTTP/1.1 200 OK
 content-type: application/json
 ```
 
+如果任一资源显示“异常”，打开详情查看原因并先修正该资源。同一套 Ingate 以完整配置域为单位发布；一条无法编译的资源会阻止本次候选配置生效，但不会撤销上一版已经生效的配置。
+
 ## 5. 查看请求结果
 
 进入 **观测分析 → 请求记录**。请求记录异步写入 ClickHouse，通常会有数秒延迟。打开记录详情可以看到：
@@ -70,6 +72,6 @@ content-type: application/json
 - 命中的 Gateway 和 Route
 - 最终 Service 与端点地址
 - HTTP 响应状态
-- 总耗时和上游耗时
+- 总耗时和首字节耗时
 
 流量趋势和资源排行位于[流量分析](../../observability/traffic-analysis/)。

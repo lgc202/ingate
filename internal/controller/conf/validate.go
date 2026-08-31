@@ -1,13 +1,19 @@
-// Package conf 定义并校验 ingate-controller 进程配置
+// Package conf 定义并校验 ingate-controller 进程配置。
 package conf
 
 import (
 	"errors"
+	"fmt"
 	"net/netip"
 	"strings"
+
+	"github.com/lgc202/ingate/internal/pkg/appconfig"
+	"github.com/lgc202/ingate/internal/pkg/controlplaneauth"
 )
 
-// Validate 校验 Controller 进程启动所需的配置
+const maxWasmModuleBytes = 256 << 20
+
+// Validate 校验 Controller 进程启动所需的配置。
 func (c *Bootstrap) Validate() error {
 	if c.GetServer() == nil || c.GetServer().GetGrpc() == nil || c.GetServer().GetHttp() == nil {
 		return errors.New("server gRPC and HTTP config are required")
@@ -32,6 +38,9 @@ func (c *Bootstrap) Validate() error {
 	if strings.TrimSpace(c.GetData().GetApiserver().GetKubeconfig()) == "" {
 		return errors.New("API Server kubeconfig must not be empty")
 	}
+	if !controlplaneauth.IsValidBearerToken(c.GetData().GetApiserver().GetBearerToken()) {
+		return errors.New("API Server bearer token is invalid")
+	}
 	wasm := c.GetData().GetWasm()
 	if wasm == nil {
 		return errors.New("wasm module storage config is required")
@@ -42,8 +51,8 @@ func (c *Bootstrap) Validate() error {
 	if wasm.GetPullTimeout() == nil || wasm.GetPullTimeout().AsDuration() <= 0 {
 		return errors.New("wasm module pull timeout must be greater than zero")
 	}
-	if wasm.GetMaxModuleBytes() <= 0 {
-		return errors.New("wasm maximum module size must be greater than zero")
+	if wasm.GetMaxModuleBytes() <= 0 || wasm.GetMaxModuleBytes() > maxWasmModuleBytes {
+		return fmt.Errorf("wasm maximum module size must be between 1 and %d bytes", maxWasmModuleBytes)
 	}
 	if wasm.GetMaxCacheBytes() < wasm.GetMaxModuleBytes() {
 		return errors.New("wasm cache size must not be smaller than the maximum module size")
@@ -61,18 +70,9 @@ func (c *Bootstrap) Validate() error {
 		return errors.New("resource watch resync period must not be negative")
 	}
 
-	if c.GetLogging() == nil {
+	logging := c.GetLogging()
+	if logging == nil {
 		return errors.New("logging config is required")
 	}
-	switch strings.ToLower(c.GetLogging().GetFormat()) {
-	case "json", "text":
-	default:
-		return errors.New("logging format must be json or text")
-	}
-	switch strings.ToLower(c.GetLogging().GetLevel()) {
-	case "debug", "info", "warn", "error":
-	default:
-		return errors.New("logging level must be debug, info, warn or error")
-	}
-	return nil
+	return appconfig.ValidateLogging(logging)
 }

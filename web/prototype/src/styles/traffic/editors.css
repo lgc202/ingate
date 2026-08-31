@@ -1,0 +1,315 @@
+.type-selector {
+  margin-bottom: 15px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.type-selector button {
+  min-height: 98px;
+  padding: 11px;
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--ink);
+  background: var(--paper);
+  text-align: left;
+  cursor: pointer;
+}
+.type-selector button:hover,
+.type-selector button.is-selected {
+  border-color: #7e8fc7;
+  background: #f7f8ff;
+  box-shadow: inset 0 0 0 1px rgba(53, 85, 183, 0.12);
+}
+.type-selector strong {
+  font-size: 0.68rem;
+}
+.type-selector small {
+  color: var(--muted);
+  font-size: 0.55rem;
+  line-height: 1.4;
+}
+.connection-test {
+  width: 100%;
+  min-height: 66px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px dashed var(--line-dark);
+  border-radius: 9px;
+  color: var(--ink);
+  background: var(--paper);
+  text-align: left;
+  cursor: pointer;
+}
+.connection-test > svg {
+  width: 20px;
+  color: var(--blue);
+}
+.connection-test div {
+  display: grid;
+  gap: 3px;
+}
+.connection-test strong {
+  font-size: 0.66rem;
+}
+.connection-test span {
+  color: var(--muted);
+  font-size: 0.57rem;
+}
+.connection-test.is-success {
+  border-style: solid;
+  border-color: #b8d4cd;
+  background: var(--teal-soft);
+}
+.connection-test.is-success > svg {
+  color: var(--teal);
+}
+.form-section {
+  margin-top: 14px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfaf5;
+}
+.form-section > header {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.form-section > header > span {
+  width: 25px;
+  height: 25px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--blue);
+  background: var(--blue-soft);
+  font-size: 0.59rem;
+  font-weight: 900;
+}
+.form-section > header > span svg {
+  width: 13px;
+}
+.form-section > header > div {
+  display: grid;
+  gap: 2px;
+}
+.form-section > header strong {
+  font-size: 0.68rem;
+}
+.form-section > header small {
+  color: var(--muted);
+  font-size: 0.55rem;
+}
+.form-section > header > button {
+  margin-left: auto;
+  padding: 5px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--red);
+  background: var(--red-soft);
+  font-size: 0.55rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.form-section > header > button svg {
+  width: 11px;
+}
+.advanced-config {
+  margin-top: 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--paper);
+}
+.advanced-config summary {
+  padding: 11px 13px;
+  color: #525754;
+  font-size: 0.64rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.advanced-config[open] summary {
+  border-bottom: 1px solid var(--line);
+}
+.advanced-config > .form-grid {
+  padding: 13px;
+}
+.optional-target {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+.optional-target > button,
+.text-action {
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  color: var(--blue);
+  background: transparent;
+  font-size: 0.61rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.optional-target > .form-grid {
+  margin-top: 12px;
+}
+.text-action svg {
+  width: 12px;
+}
+.tool-picker {
+  margin: 0;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.tool-picker legend {
+  padding: 0 5px;
+  color: #656966;
+  font-size: 0.64rem;
+  font-weight: 750;
+}
+.tool-picker-selected {
+  max-height: 92px;
+  margin-bottom: 8px;
+  padding: 7px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  border: 1px solid #d9ddd7;
+  border-radius: 7px;
+  background: #f7f6f1;
+  overflow-y: auto;
+}
+.tool-picker-selected > span {
+  min-width: 0;
+  padding: 4px 4px 4px 7px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #dedbd2;
+  border-radius: 6px;
+  background: #fff;
+}
+.tool-picker-selected code {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.54rem;
+}
+.tool-picker-selected button {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+.tool-picker-selected button svg {
+  width: 10px;
+}
+.tool-picker-empty {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px dashed #d5d1c7;
+  border-radius: 7px;
+  color: var(--muted);
+  background: #faf9f5;
+  font-size: 0.54rem;
+}
+.tool-picker-toolbar {
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tool-picker-toolbar .search-field {
+  flex: 1;
+}
+.tool-picker-toolbar > span {
+  color: var(--muted);
+  font-size: 0.57rem;
+  white-space: nowrap;
+}
+.tool-picker-list {
+  max-height: 210px;
+  padding-right: 4px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  overflow-y: auto;
+}
+.tool-picker-list label {
+  min-height: 36px;
+  padding: 0 9px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #e7e3da;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 0.61rem;
+  cursor: pointer;
+}
+.tool-picker-list input {
+  width: auto;
+  height: auto;
+}
+.endpoint-editor {
+  display: grid;
+  gap: 8px;
+}
+.endpoint-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px 34px;
+  align-items: end;
+  gap: 8px;
+}
+.endpoint-row label {
+  display: grid;
+  gap: 6px;
+}
+.endpoint-row label > span {
+  color: #656966;
+  font-size: 0.61rem;
+  font-weight: 750;
+}
+.endpoint-row input {
+  width: 100%;
+  height: 39px;
+  padding: 0 10px;
+  border: 1px solid var(--line-dark);
+  border-radius: 8px;
+  background: var(--paper);
+  font-size: 0.66rem;
+}
+.endpoint-row > button {
+  width: 34px;
+  height: 39px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--red);
+  background: var(--paper);
+  cursor: pointer;
+}
+.endpoint-row > button svg {
+  width: 13px;
+}

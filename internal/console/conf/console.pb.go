@@ -22,14 +22,14 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Bootstrap 定义 ingate-console 的完整进程配置
+// Bootstrap 定义 ingate-console 的完整进程配置。
 type Bootstrap struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// server 定义控制台 HTTP 入口和静态资源目录
+	// server 定义控制台 HTTP 入口和静态资源目录。
 	Server *Server `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
-	// data 定义控制台依赖的管理 API
+	// data 定义控制台依赖的管理 API。
 	Data *Data `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
-	// logging 定义进程日志行为
+	// logging 定义进程日志行为。
 	Logging       *Logging `protobuf:"bytes,3,opt,name=logging,proto3" json:"logging,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -86,16 +86,16 @@ func (x *Bootstrap) GetLogging() *Logging {
 	return nil
 }
 
-// Server 定义控制台 HTTP 服务配置
+// Server 定义控制台 HTTP 服务配置。
 type Server struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// http 定义控制台唯一的网络入口
+	// http 定义控制台唯一的网络入口。
 	Http *Server_HTTP `protobuf:"bytes,1,opt,name=http,proto3" json:"http,omitempty"`
-	// console_dir 是前端构建产物目录
+	// console_dir 是前端构建产物目录。
 	ConsoleDir string `protobuf:"bytes,2,opt,name=console_dir,json=consoleDir,proto3" json:"console_dir,omitempty"`
-	// shutdown_timeout 是等待在途请求结束的最长时间
+	// shutdown_timeout 是等待在途请求结束的最长时间。
 	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,3,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
-	// authentication 保护控制台管理 API
+	// authentication 保护控制台管理 API。
 	Authentication *Server_Authentication `protobuf:"bytes,4,opt,name=authentication,proto3" json:"authentication,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -159,11 +159,13 @@ func (x *Server) GetAuthentication() *Server_Authentication {
 	return nil
 }
 
-// Data 定义 Console 访问的后端服务
+// Data 定义 Console 访问的后端服务。
 type Data struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// admin_api 接收控制台发起的管理请求
-	AdminApi      *Data_AdminAPI `protobuf:"bytes,1,opt,name=admin_api,json=adminApi,proto3" json:"admin_api,omitempty"`
+	// admin_api 接收控制台发起的管理请求。
+	AdminApi *Data_AdminAPI `protobuf:"bytes,1,opt,name=admin_api,json=adminApi,proto3" json:"admin_api,omitempty"`
+	// assistant 接收运维助手的会话与流式请求。
+	Assistant     *Data_Assistant `protobuf:"bytes,2,opt,name=assistant,proto3" json:"assistant,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -205,14 +207,21 @@ func (x *Data) GetAdminApi() *Data_AdminAPI {
 	return nil
 }
 
-// Logging 定义结构化日志格式与级别
+func (x *Data) GetAssistant() *Data_Assistant {
+	if x != nil {
+		return x.Assistant
+	}
+	return nil
+}
+
+// Logging 定义结构化日志格式与级别。
 type Logging struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// format 支持 json 和 text
+	// format 支持 json 和 text。
 	Format string `protobuf:"bytes,1,opt,name=format,proto3" json:"format,omitempty"`
-	// level 支持 debug、info、warn 和 error
+	// level 支持 debug、info、warn 和 error。
 	Level string `protobuf:"bytes,2,opt,name=level,proto3" json:"level,omitempty"`
-	// add_source 控制日志是否包含调用位置
+	// add_source 控制日志是否包含调用位置。
 	AddSource     bool `protobuf:"varint,3,opt,name=add_source,json=addSource,proto3" json:"add_source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -269,19 +278,20 @@ func (x *Logging) GetAddSource() bool {
 	return false
 }
 
+// Authentication 定义单管理员会话认证。
 type Server_Authentication struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// enabled 控制管理控制台是否要求登录
+	// enabled 控制管理控制台是否要求登录。
 	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	// username 是单管理员登录名
+	// username 是单管理员登录名。
 	Username string `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
-	// password 是单管理员密码，应通过 INGATE_ADMIN_PASSWORD 环境变量注入
+	// password 是单管理员密码，应通过 INGATE_ADMIN_PASSWORD 环境变量注入。
 	Password string `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
-	// session_secret 用于签署 HttpOnly 会话 Cookie，应通过环境变量注入随机值
+	// session_secret 用于签署 HttpOnly 会话 Cookie，应通过环境变量注入随机值。
 	SessionSecret string `protobuf:"bytes,4,opt,name=session_secret,json=sessionSecret,proto3" json:"session_secret,omitempty"`
-	// session_ttl 是一次登录的有效时间
+	// session_ttl 是一次登录的有效时间。
 	SessionTtl *durationpb.Duration `protobuf:"bytes,5,opt,name=session_ttl,json=sessionTtl,proto3" json:"session_ttl,omitempty"`
-	// secure_cookie 要求浏览器只通过 HTTPS 发送会话 Cookie
+	// secure_cookie 要求浏览器只通过 HTTPS 发送会话 Cookie。
 	SecureCookie  bool `protobuf:"varint,6,opt,name=secure_cookie,json=secureCookie,proto3" json:"secure_cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -359,12 +369,11 @@ func (x *Server_Authentication) GetSecureCookie() bool {
 	return false
 }
 
+// HTTP 定义 Console 的网络入口。
 type Server_HTTP struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// addr 是控制台和管理 API 代理的监听地址
-	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
-	// timeout 限制单次 HTTP 请求处理时间
-	Timeout       *durationpb.Duration `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	// addr 是控制台和管理 API 代理的监听地址。
+	Addr          string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -406,16 +415,10 @@ func (x *Server_HTTP) GetAddr() string {
 	return ""
 }
 
-func (x *Server_HTTP) GetTimeout() *durationpb.Duration {
-	if x != nil {
-		return x.Timeout
-	}
-	return nil
-}
-
+// AdminAPI 定义 Admin API 代理目标。
 type Data_AdminAPI struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// base_url 是 ingate-admin-api 的内部 HTTP 地址
+	// base_url 是 ingate-admin-api 的内部 HTTP 地址。
 	BaseUrl       string `protobuf:"bytes,1,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -458,6 +461,52 @@ func (x *Data_AdminAPI) GetBaseUrl() string {
 	return ""
 }
 
+// Assistant 定义运维助手代理目标。
+type Data_Assistant struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// base_url 是 ingate-assistant 的内部 HTTP 地址。
+	BaseUrl       string `protobuf:"bytes,1,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Data_Assistant) Reset() {
+	*x = Data_Assistant{}
+	mi := &file_console_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Data_Assistant) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Data_Assistant) ProtoMessage() {}
+
+func (x *Data_Assistant) ProtoReflect() protoreflect.Message {
+	mi := &file_console_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Data_Assistant.ProtoReflect.Descriptor instead.
+func (*Data_Assistant) Descriptor() ([]byte, []int) {
+	return file_console_proto_rawDescGZIP(), []int{2, 1}
+}
+
+func (x *Data_Assistant) GetBaseUrl() string {
+	if x != nil {
+		return x.BaseUrl
+	}
+	return ""
+}
+
 var File_console_proto protoreflect.FileDescriptor
 
 const file_console_proto_rawDesc = "" +
@@ -466,7 +515,7 @@ const file_console_proto_rawDesc = "" +
 	"\tBootstrap\x123\n" +
 	"\x06server\x18\x01 \x01(\v2\x1b.ingate.console.conf.ServerR\x06server\x12-\n" +
 	"\x04data\x18\x02 \x01(\v2\x19.ingate.console.conf.DataR\x04data\x126\n" +
-	"\alogging\x18\x03 \x01(\v2\x1c.ingate.console.conf.LoggingR\alogging\"\xb7\x04\n" +
+	"\alogging\x18\x03 \x01(\v2\x1c.ingate.console.conf.LoggingR\alogging\"\x82\x04\n" +
 	"\x06Server\x124\n" +
 	"\x04http\x18\x01 \x01(\v2 .ingate.console.conf.Server.HTTPR\x04http\x12\x1f\n" +
 	"\vconsole_dir\x18\x02 \x01(\tR\n" +
@@ -480,13 +529,15 @@ const file_console_proto_rawDesc = "" +
 	"\x0esession_secret\x18\x04 \x01(\tR\rsessionSecret\x12:\n" +
 	"\vsession_ttl\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\n" +
 	"sessionTtl\x12#\n" +
-	"\rsecure_cookie\x18\x06 \x01(\bR\fsecureCookie\x1aO\n" +
+	"\rsecure_cookie\x18\x06 \x01(\bR\fsecureCookie\x1a\x1a\n" +
 	"\x04HTTP\x12\x12\n" +
-	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"n\n" +
+	"\x04addr\x18\x01 \x01(\tR\x04addr\"\xd9\x01\n" +
 	"\x04Data\x12?\n" +
-	"\tadmin_api\x18\x01 \x01(\v2\".ingate.console.conf.Data.AdminAPIR\badminApi\x1a%\n" +
+	"\tadmin_api\x18\x01 \x01(\v2\".ingate.console.conf.Data.AdminAPIR\badminApi\x12A\n" +
+	"\tassistant\x18\x02 \x01(\v2#.ingate.console.conf.Data.AssistantR\tassistant\x1a%\n" +
 	"\bAdminAPI\x12\x19\n" +
+	"\bbase_url\x18\x01 \x01(\tR\abaseUrl\x1a&\n" +
+	"\tAssistant\x12\x19\n" +
 	"\bbase_url\x18\x01 \x01(\tR\abaseUrl\"V\n" +
 	"\aLogging\x12\x16\n" +
 	"\x06format\x18\x01 \x01(\tR\x06format\x12\x14\n" +
@@ -506,7 +557,7 @@ func file_console_proto_rawDescGZIP() []byte {
 	return file_console_proto_rawDescData
 }
 
-var file_console_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_console_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_console_proto_goTypes = []any{
 	(*Bootstrap)(nil),             // 0: ingate.console.conf.Bootstrap
 	(*Server)(nil),                // 1: ingate.console.conf.Server
@@ -515,18 +566,19 @@ var file_console_proto_goTypes = []any{
 	(*Server_Authentication)(nil), // 4: ingate.console.conf.Server.Authentication
 	(*Server_HTTP)(nil),           // 5: ingate.console.conf.Server.HTTP
 	(*Data_AdminAPI)(nil),         // 6: ingate.console.conf.Data.AdminAPI
-	(*durationpb.Duration)(nil),   // 7: google.protobuf.Duration
+	(*Data_Assistant)(nil),        // 7: ingate.console.conf.Data.Assistant
+	(*durationpb.Duration)(nil),   // 8: google.protobuf.Duration
 }
 var file_console_proto_depIdxs = []int32{
 	1, // 0: ingate.console.conf.Bootstrap.server:type_name -> ingate.console.conf.Server
 	2, // 1: ingate.console.conf.Bootstrap.data:type_name -> ingate.console.conf.Data
 	3, // 2: ingate.console.conf.Bootstrap.logging:type_name -> ingate.console.conf.Logging
 	5, // 3: ingate.console.conf.Server.http:type_name -> ingate.console.conf.Server.HTTP
-	7, // 4: ingate.console.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	8, // 4: ingate.console.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
 	4, // 5: ingate.console.conf.Server.authentication:type_name -> ingate.console.conf.Server.Authentication
 	6, // 6: ingate.console.conf.Data.admin_api:type_name -> ingate.console.conf.Data.AdminAPI
-	7, // 7: ingate.console.conf.Server.Authentication.session_ttl:type_name -> google.protobuf.Duration
-	7, // 8: ingate.console.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	7, // 7: ingate.console.conf.Data.assistant:type_name -> ingate.console.conf.Data.Assistant
+	8, // 8: ingate.console.conf.Server.Authentication.session_ttl:type_name -> google.protobuf.Duration
 	9, // [9:9] is the sub-list for method output_type
 	9, // [9:9] is the sub-list for method input_type
 	9, // [9:9] is the sub-list for extension type_name
@@ -545,7 +597,7 @@ func file_console_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_console_proto_rawDesc), len(file_console_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

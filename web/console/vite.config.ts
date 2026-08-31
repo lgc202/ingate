@@ -16,6 +16,7 @@ export default defineConfig({
     proxy: {
       '/api': 'http://127.0.0.1:8001',
       '/auth': 'http://127.0.0.1:8001',
+      '/assistant': 'http://127.0.0.1:8001',
     },
   },
 });

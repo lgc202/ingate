@@ -1,4 +1,4 @@
-import type { ModelProtocol } from './upstream';
+import type { ModelProtocol } from './service';
 import type { RouteAccessMode } from './route';
 
 export type RequestOutcome =
@@ -14,7 +14,7 @@ export type RequestRejectionReason =
 
 export interface AIModelCall {
   clientModel: string;
-  upstreamModel: string;
+  targetModel: string;
   protocol: ModelProtocol;
   responseModel: string;
   finishReason: string;
@@ -50,8 +50,8 @@ export interface RequestRecord extends RequestRecordSummary {
   requestBytes: string | number;
   responseBytes: string | number;
   protocol: string;
-  upstreamAttempts: number;
-  upstreamAddress: string;
+  serviceAttempts: number;
+  serviceAddress: string;
   proxyInstanceID: string;
 }
 

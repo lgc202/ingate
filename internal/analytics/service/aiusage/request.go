@@ -3,11 +3,14 @@ package aiusage
 import (
 	"time"
 
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
+	"github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
 	aiusagebiz "github.com/lgc202/ingate/internal/analytics/biz/aiusage"
+	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 const (
@@ -55,6 +58,21 @@ func buildFilter(filter *analyticsv1.AIUsageFilter) (aiusagebiz.Filter, error) {
 	if err != nil {
 		return aiusagebiz.Filter{}, err
 	}
+	for _, resourceID := range []string{
+		filter.GetGatewayId(),
+		filter.GetCallerId(),
+		filter.GetRouteId(),
+		filter.GetUpstreamId(),
+	} {
+		if resourceID != "" && !resourceconfig.IsCanonicalID(resourceID) {
+			return aiusagebiz.Filter{}, invalidArgument("filter contains an invalid resource ID")
+		}
+	}
+	for _, model := range []string{filter.GetClientModel(), filter.GetUpstreamModel()} {
+		if model != "" && !routeconfig.IsValidModelName(model) {
+			return aiusagebiz.Filter{}, invalidArgument("filter contains an invalid model name")
+		}
+	}
 	return aiusagebiz.Filter{
 		StartTime:     startTime,
 		EndTime:       endTime,
@@ -71,14 +89,16 @@ func buildTimeRange(start, end *timestamppb.Timestamp) (time.Time, time.Time, er
 	if start == nil || end == nil || start.CheckValid() != nil || end.CheckValid() != nil {
 		return time.Time{}, time.Time{}, invalidArgument("start_time and end_time are required")
 	}
-	if !start.AsTime().Before(end.AsTime()) {
-		return time.Time{}, time.Time{}, invalidArgument("start_time must be before end_time")
+	startTime := start.AsTime()
+	endTime := end.AsTime()
+	if !analyticsconfig.IsValidQueryRange(startTime, endTime) {
+		return time.Time{}, time.Time{}, invalidArgument("time range is invalid or exceeds the maximum")
 	}
-	if !start.AsTime().Equal(start.AsTime().Truncate(time.Minute)) ||
-		!end.AsTime().Equal(end.AsTime().Truncate(time.Minute)) {
+	if !startTime.Equal(startTime.Truncate(time.Minute)) ||
+		!endTime.Equal(endTime.Truncate(time.Minute)) {
 		return time.Time{}, time.Time{}, invalidArgument("start_time and end_time must align to minute boundaries")
 	}
-	return start.AsTime(), end.AsTime(), nil
+	return startTime, endTime, nil
 }
 
 func buildTimeBucket(value analyticsv1.TimeBucket) (aiusagebiz.TimeBucket, error) {
@@ -126,5 +146,5 @@ func buildBreakdownOrder(value analyticsv1.AIUsageBreakdownOrder) (aiusagebiz.Br
 }
 
 func invalidArgument(message string) error {
-	return kratoserrors.BadRequest("INVALID_ARGUMENT", message)
+	return errors.BadRequest("INVALID_ARGUMENT", message)
 }

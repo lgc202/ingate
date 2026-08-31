@@ -1855,10 +1855,14 @@ func autoConvert_v1_RouteSpec_To_gateway_RouteSpec(in *RouteSpec, out *gateway.R
 	}
 	out.UpstreamRefs = *(*[]gateway.UpstreamRef)(unsafe.Pointer(&in.UpstreamRefs))
 	out.AI = (*gateway.AIRoute)(unsafe.Pointer(in.AI))
-	out.HostRewrite = (*gateway.HostRewrite)(unsafe.Pointer(in.HostRewrite))
+	if err := Convert_v1_HostRewrite_To_gateway_HostRewrite(&in.HostRewrite, &out.HostRewrite, s); err != nil {
+		return err
+	}
 	out.RequestHeaderModifier = (*gateway.HeaderModifier)(unsafe.Pointer(in.RequestHeaderModifier))
 	out.ResponseHeaderModifier = (*gateway.HeaderModifier)(unsafe.Pointer(in.ResponseHeaderModifier))
-	out.Timeout = (*gateway.RouteTimeout)(unsafe.Pointer(in.Timeout))
+	if err := Convert_v1_RouteTimeout_To_gateway_RouteTimeout(&in.Timeout, &out.Timeout, s); err != nil {
+		return err
+	}
 	out.Retry = (*gateway.RouteRetry)(unsafe.Pointer(in.Retry))
 	return nil
 }
@@ -1879,10 +1883,14 @@ func autoConvert_gateway_RouteSpec_To_v1_RouteSpec(in *gateway.RouteSpec, out *R
 	}
 	out.UpstreamRefs = *(*[]UpstreamRef)(unsafe.Pointer(&in.UpstreamRefs))
 	out.AI = (*AIRoute)(unsafe.Pointer(in.AI))
-	out.HostRewrite = (*HostRewrite)(unsafe.Pointer(in.HostRewrite))
+	if err := Convert_gateway_HostRewrite_To_v1_HostRewrite(&in.HostRewrite, &out.HostRewrite, s); err != nil {
+		return err
+	}
 	out.RequestHeaderModifier = (*HeaderModifier)(unsafe.Pointer(in.RequestHeaderModifier))
 	out.ResponseHeaderModifier = (*HeaderModifier)(unsafe.Pointer(in.ResponseHeaderModifier))
-	out.Timeout = (*RouteTimeout)(unsafe.Pointer(in.Timeout))
+	if err := Convert_gateway_RouteTimeout_To_v1_RouteTimeout(&in.Timeout, &out.Timeout, s); err != nil {
+		return err
+	}
 	out.Retry = (*RouteRetry)(unsafe.Pointer(in.Retry))
 	return nil
 }

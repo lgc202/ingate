@@ -14,18 +14,14 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
 )
 
-// strategy 定义 RateLimitPolicy 资源在 API Server 存储前后的处理规则
+// strategy 定义 RateLimitPolicy 资源在 API Server 存储前后的处理规则。
 type strategy struct {
 	apiregistry.Strategy
 }
 
-// statusStrategy 定义 RateLimitPolicy status 子资源更新规则
+// statusStrategy 定义 RateLimitPolicy status 子资源更新规则。
 type statusStrategy struct {
 	strategy
-}
-
-func newStrategy(typer runtime.ObjectTyper) strategy {
-	return strategy{Strategy: apiregistry.NewStrategy(typer)}
 }
 
 func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
@@ -37,11 +33,6 @@ func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
 
 func (strategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	return validatePolicy(obj.(*resource.RateLimitPolicy))
-}
-
-func (strategy) Canonicalize(obj runtime.Object) {
-	policy := obj.(*resource.RateLimitPolicy)
-	canonicalizeSpec(&policy.Spec)
 }
 
 func (strategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
@@ -58,10 +49,6 @@ func (strategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.E
 	return validatePolicy(obj.(*resource.RateLimitPolicy))
 }
 
-func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
-	return statusStrategy{strategy: newStrategy(typer)}
-}
-
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return apiregistry.SpecResetFields()
 }
@@ -74,14 +61,25 @@ func (statusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 	metav1.ResetObjectMetaForStatus(&newPolicy.ObjectMeta, &oldPolicy.ObjectMeta)
 }
 
-func (statusStrategy) ValidateUpdate(context.Context, runtime.Object, runtime.Object) field.ErrorList {
-	return nil
+func (statusStrategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.ErrorList {
+	policy := obj.(*resource.RateLimitPolicy)
+	return apiregistry.ValidatePolicyStatus(
+		policy.Status,
+		policy.Spec.TargetRefs,
+		policy.Generation,
+	)
+}
+
+func newStrategy(typer runtime.ObjectTyper) strategy {
+	return strategy{Strategy: apiregistry.NewStrategy(typer)}
+}
+
+func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
+	return statusStrategy{strategy: newStrategy(typer)}
 }
 
 func canonicalizeSpec(spec *resource.RateLimitPolicySpec) {
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
 	spec.Subject.HeaderName = strings.ToLower(strings.TrimSpace(spec.Subject.HeaderName))
-	for i := range spec.TargetRefs {
-		spec.TargetRefs[i].Name = strings.TrimSpace(spec.TargetRefs[i].Name)
-	}
+	apiregistry.CanonicalizePolicyTargetRefs(spec.TargetRefs)
 }

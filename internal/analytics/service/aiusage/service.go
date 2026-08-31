@@ -1,4 +1,4 @@
-// Package aiusage 实现模型调用与 Token 用量查询的 gRPC 协议转换
+// Package aiusage 实现模型调用与 Token 用量查询的 gRPC 协议转换。
 package aiusage
 
 import (
@@ -8,17 +8,17 @@ import (
 	aiusagebiz "github.com/lgc202/ingate/internal/analytics/biz/aiusage"
 )
 
-// Service 实现 Analytics AIUsageService gRPC API
+// Service 实现 Analytics AIUsageService gRPC API。
 type Service struct {
 	query *aiusagebiz.Query
 }
 
-// NewService 创建模型用量查询服务
+// NewService 创建模型用量查询服务。
 func NewService(query *aiusagebiz.Query) *Service {
 	return &Service{query: query}
 }
 
-// GetAIUsageTrend 查询模型调用和 Token 趋势
+// GetAIUsageTrend 查询模型调用和 Token 趋势。
 func (s *Service) GetAIUsageTrend(
 	ctx context.Context,
 	request *analyticsv1.GetAIUsageTrendRequest,
@@ -34,7 +34,7 @@ func (s *Service) GetAIUsageTrend(
 	return trendResponse(result), nil
 }
 
-// ListAIUsageBreakdown 查询业务维度的模型调用和 Token 分布
+// ListAIUsageBreakdown 查询业务维度的模型调用和 Token 分布。
 func (s *Service) ListAIUsageBreakdown(
 	ctx context.Context,
 	request *analyticsv1.ListAIUsageBreakdownRequest,

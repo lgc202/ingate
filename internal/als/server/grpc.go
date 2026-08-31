@@ -1,4 +1,3 @@
-// Package server 装配 ingate-als 的 Kratos transport 和积压回放任务
 package server
 
 import (
@@ -9,17 +8,17 @@ import (
 
 	"github.com/lgc202/ingate/internal/als/conf"
 	alsservice "github.com/lgc202/ingate/internal/als/service"
-	"github.com/lgc202/ingate/internal/pkg/tlsx"
+	"github.com/lgc202/ingate/internal/pkg/tlsconfig"
 )
 
-// NewGRPCServer 创建并注册 Envoy ALS gRPC 服务
+// NewGRPCServer 创建并注册 Envoy ALS gRPC 服务。
 func NewGRPCServer(config *conf.Server, service *alsservice.Service) (*kratosgrpc.Server, error) {
 	options := []kratosgrpc.ServerOption{
 		kratosgrpc.Network("tcp"),
 		kratosgrpc.Address(config.GetGrpc().GetAddr()),
 	}
 	tlsSettings := config.GetGrpc().GetTls()
-	tlsConfig, err := tlsx.NewServer(tlsx.ServerConfig{
+	tlsConfig, err := tlsconfig.NewServer(tlsconfig.ServerConfig{
 		Enabled:         tlsSettings.GetEnabled(),
 		CertificateFile: tlsSettings.GetCertFile(),
 		PrivateKeyFile:  tlsSettings.GetKeyFile(),

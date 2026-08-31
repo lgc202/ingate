@@ -1,47 +1,76 @@
 package gateway
 
 import (
-	"strings"
+	"fmt"
 
-	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	"github.com/lgc202/ingate/internal/pkg/gatewayconfig"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 func validateGateway(gateway *resource.Gateway) field.ErrorList {
 	specPath := field.NewPath("spec")
-	var errs field.ErrorList
+	errs := apiregistry.ValidateResourceID(gateway.Name, field.NewPath("metadata", "name"))
 
-	if strings.TrimSpace(gateway.Spec.DisplayName) == "" {
-		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
-	}
-	if len(gateway.Spec.Listeners) == 0 {
+	errs = append(errs, apiregistry.ValidateDisplayName(
+		gateway.Spec.DisplayName,
+		specPath.Child("displayName"),
+	)...)
+	listeners := gateway.Spec.Listeners
+	listenerCount := len(listeners)
+	if listenerCount == 0 {
 		errs = append(errs, field.Required(specPath.Child("listeners"), "at least one listener is required"))
 		return errs
 	}
+	if listenerCount > gatewayconfig.MaxListeners {
+		errs = append(errs, field.TooMany(
+			specPath.Child("listeners"),
+			listenerCount,
+			gatewayconfig.MaxListeners,
+		))
+		listeners = listeners[:gatewayconfig.MaxListeners]
+	}
 
-	listenerNames := make(map[string]struct{}, len(gateway.Spec.Listeners))
-	for i, listener := range gateway.Spec.Listeners {
+	listenerNames := make(map[string]bool, len(listeners))
+	for i, listener := range listeners {
 		listenerPath := specPath.Child("listeners").Index(i)
 		if listener.Name == "" {
 			errs = append(errs, field.Required(listenerPath.Child("name"), "listener name is required"))
-		} else if _, ok := listenerNames[listener.Name]; ok {
+		} else if listenerNames[listener.Name] {
 			errs = append(errs, field.Duplicate(listenerPath.Child("name"), listener.Name))
-		} else if messages := utilvalidation.IsDNS1123Label(listener.Name); len(messages) > 0 {
-			errs = append(errs, field.Invalid(listenerPath.Child("name"), listener.Name, strings.Join(messages, "; ")))
+		} else if !gatewayconfig.IsValidListenerName(listener.Name) {
+			errs = append(errs, field.Invalid(
+				listenerPath.Child("name"),
+				listener.Name,
+				"listener name must be a DNS label",
+			))
 		}
-		listenerNames[listener.Name] = struct{}{}
+		listenerNames[listener.Name] = true
 
 		switch listener.Protocol {
 		case resource.ProtocolHTTP:
 			if listener.CertificateRef != "" {
-				errs = append(errs, field.Forbidden(listenerPath.Child("certificateRef"), "certificateRef is only supported by HTTPS listeners"))
+				errs = append(errs, field.Forbidden(
+					listenerPath.Child("certificateRef"),
+					"certificateRef is only supported by HTTPS listeners",
+				))
 			}
 		case resource.ProtocolHTTPS:
 			if listener.CertificateRef == "" {
-				errs = append(errs, field.Required(listenerPath.Child("certificateRef"), "certificateRef is required for HTTPS listeners"))
+				errs = append(errs, field.Required(
+					listenerPath.Child("certificateRef"),
+					"certificateRef is required for HTTPS listeners",
+				))
+			} else if !resourceconfig.IsCanonicalID(listener.CertificateRef) {
+				errs = append(errs, field.Invalid(
+					listenerPath.Child("certificateRef"),
+					listener.CertificateRef,
+					"certificateRef must be a canonical UUID",
+				))
 			}
 		default:
 			errs = append(errs, field.NotSupported(listenerPath.Child("protocol"), listener.Protocol, []string{
@@ -49,18 +78,30 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 				string(resource.ProtocolHTTPS),
 			}))
 		}
-		if listener.Port < 1 || listener.Port > 65535 {
-			errs = append(errs, field.Invalid(listenerPath.Child("port"), listener.Port, "listener port must be between 1 and 65535"))
+		if !gatewayconfig.IsValidListenerPort(listener.Port) {
+			errs = append(errs, field.Invalid(
+				listenerPath.Child("port"),
+				listener.Port,
+				fmt.Sprintf(
+					"listener port must be between %d and %d",
+					gatewayconfig.MinListenerPort,
+					gatewayconfig.MaxListenerPort,
+				),
+			))
 		}
 
 		normalizedHostname, hostnameValid := hostnameutil.Normalize(listener.Hostname)
 		hostnameValid = hostnameValid && listener.Hostname != "*"
 		if !hostnameValid {
-			errs = append(errs, field.Invalid(listenerPath.Child("hostname"), listener.Hostname, "hostname is invalid"))
+			errs = append(errs, field.Invalid(
+				listenerPath.Child("hostname"),
+				listener.Hostname,
+				"hostname is invalid",
+			))
 		}
 
 		for j := range i {
-			previous := gateway.Spec.Listeners[j]
+			previous := listeners[j]
 			if listener.Port != previous.Port {
 				continue
 			}
@@ -73,6 +114,7 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 				continue
 			}
 			previousHostname, previousValid := hostnameutil.Normalize(previous.Hostname)
+			previousValid = previousValid && previous.Hostname != "*"
 			if hostnameValid && previousValid && hostnameutil.Overlaps(normalizedHostname, previousHostname) {
 				errs = append(errs, field.Invalid(
 					listenerPath.Child("hostname"),

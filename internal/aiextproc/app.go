@@ -1,7 +1,7 @@
-// Package aiextproc 装配 ingate-ai-extproc 进程及其资源生命周期
+// Package aiextproc 装配 ingate-ai-extproc 进程及其资源生命周期。
 //
 // Envoy 的 downstream ExtProc 负责提取客户端模型并处理最终响应，upstream ExtProc
-// 在负载均衡完成后注入凭据并转换厂商协议；两个独立流通过进程内请求状态关联
+// 在负载均衡完成后注入凭据并转换厂商协议；两个独立流通过进程内请求状态关联。
 package aiextproc
 
 import (
@@ -25,12 +25,12 @@ const name = "ingate-ai-extproc"
 
 type serviceInstanceID string
 
-// App 封装 AI ExtProc 的 Kratos 进程
+// App 封装 AI ExtProc 的 Kratos 进程。
 type App struct {
 	kratos *kratos.App
 }
 
-// NewApp 从配置文件创建完整的 AI ExtProc 进程
+// NewApp 从配置文件创建完整的 AI ExtProc 进程。
 func NewApp(configFile string) (*App, error) {
 	var bootstrap conf.Bootstrap
 	if err := appconfig.Load(configFile, &bootstrap); err != nil {
@@ -58,7 +58,7 @@ func NewApp(configFile string) (*App, error) {
 	return &App{kratos: kratosApp}, nil
 }
 
-// Run 启动 External Processing gRPC 和运维 HTTP 服务
+// Run 启动 External Processing gRPC 和运维 HTTP 服务。
 func (a *App) Run() error {
 	return a.kratos.Run()
 }
@@ -68,8 +68,8 @@ func newKratosApp(
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
 	grpcServer *kratosgrpc.Server,
-	configs *dataapiserver.ConfigCache,
-	quotas *dataredis.TokenCounter,
+	configCache *dataapiserver.ConfigCache,
+	tokenCounter *dataredis.TokenCounter,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
@@ -79,6 +79,6 @@ func newKratosApp(
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
 		// 配置缓存、实时额度计数和网络服务由同一进程生命周期管理
-		kratos.Server(httpServer, grpcServer, configs, quotas),
+		kratos.Server(httpServer, grpcServer, configCache, tokenCounter),
 	)
 }

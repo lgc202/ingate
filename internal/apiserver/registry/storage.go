@@ -1,4 +1,4 @@
-// Package registry 提供 Ingate 资源接入 generic-apiserver 所需的共享 REST storage
+// Package registry 提供 Ingate 资源接入 generic-apiserver 所需的共享 REST storage。
 package registry
 
 import (
@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 )
 
-// StorageDefinition 描述一个带 status 子资源的 Ingate 声明式资源存储
+// StorageDefinition 描述一个带 status 子资源的 Ingate 声明式资源存储。
 type StorageDefinition struct {
 	NewObject        func() runtime.Object
 	NewList          func() runtime.Object
@@ -24,12 +24,12 @@ type StorageDefinition struct {
 	StatusStrategy   rest.UpdateResetFieldsStrategy
 }
 
-// StatusREST 实现声明式资源的 status 子资源存储
+// StatusREST 实现声明式资源的 status 子资源存储。
 type StatusREST struct {
 	store *genericregistry.Store
 }
 
-// NewStorage 创建共享同一个底层 store 的主资源与 status 子资源存储
+// NewStorage 创建共享同一个底层 store 的主资源与 status 子资源存储。
 func NewStorage(
 	optsGetter generic.RESTOptionsGetter,
 	definition StorageDefinition,
@@ -55,16 +55,16 @@ func NewStorage(
 	return store, &StatusREST{store: &statusStore}, nil
 }
 
-// New 创建对应的资源对象
+// New 创建对应的资源对象。
 func (r *StatusREST) New() runtime.Object {
 	return r.store.New()
 }
 
-// Destroy 不重复销毁主资源与 status 子资源共享的底层存储
-func (r *StatusREST) Destroy() {
+// Destroy 不重复销毁主资源与 status 子资源共享的底层存储。
+func (*StatusREST) Destroy() {
 }
 
-// Get 读取旧对象，供 status Patch 合并使用
+// Get 读取旧对象，供 status Patch 合并使用。
 func (r *StatusREST) Get(
 	ctx context.Context,
 	name string,
@@ -73,7 +73,7 @@ func (r *StatusREST) Get(
 	return r.store.Get(ctx, name, options)
 }
 
-// Update 只通过 status strategy 更新子资源，不允许通过 PUT 创建对象
+// Update 只通过 status strategy 更新子资源，不允许通过 PUT 创建对象。
 func (r *StatusREST) Update(
 	ctx context.Context,
 	name string,
@@ -86,12 +86,12 @@ func (r *StatusREST) Update(
 	return r.store.Update(ctx, name, objInfo, createValidation, updateValidation, false, options)
 }
 
-// GetResetFields 返回 status strategy 会重置的字段
+// GetResetFields 返回 status strategy 会重置的字段。
 func (r *StatusREST) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return r.store.GetResetFields()
 }
 
-// ConvertToTable 使用主资源相同的默认表格转换规则
+// ConvertToTable 使用主资源相同的默认表格转换规则。
 func (r *StatusREST) ConvertToTable(
 	ctx context.Context,
 	object runtime.Object,

@@ -22,10 +22,6 @@ type statusStrategy struct {
 	strategy
 }
 
-func newStrategy(typer runtime.ObjectTyper) strategy {
-	return strategy{Strategy: apiregistry.NewStrategy(typer)}
-}
-
 func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
 	source := obj.(*resource.PluginSource)
 	source.Status = resource.ResourceStatus{}
@@ -35,10 +31,6 @@ func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
 
 func (strategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	return validateSource(obj.(*resource.PluginSource))
-}
-
-func (strategy) Canonicalize(obj runtime.Object) {
-	canonicalizeSpec(&obj.(*resource.PluginSource).Spec)
 }
 
 func (strategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
@@ -55,10 +47,6 @@ func (strategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.E
 	return validateSource(obj.(*resource.PluginSource))
 }
 
-func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
-	return statusStrategy{strategy: newStrategy(typer)}
-}
-
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return apiregistry.SpecResetFields()
 }
@@ -71,8 +59,17 @@ func (statusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 	metav1.ResetObjectMetaForStatus(&newSource.ObjectMeta, &oldSource.ObjectMeta)
 }
 
-func (statusStrategy) ValidateUpdate(context.Context, runtime.Object, runtime.Object) field.ErrorList {
-	return nil
+func (statusStrategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.ErrorList {
+	source := obj.(*resource.PluginSource)
+	return apiregistry.ValidateResourceStatus(source.Status, source.Generation)
+}
+
+func newStrategy(typer runtime.ObjectTyper) strategy {
+	return strategy{Strategy: apiregistry.NewStrategy(typer)}
+}
+
+func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
+	return statusStrategy{strategy: newStrategy(typer)}
 }
 
 func canonicalizeSpec(spec *resource.PluginSourceSpec) {

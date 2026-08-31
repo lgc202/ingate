@@ -28,7 +28,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 	--mount=type=cache,target=/tmp/go-build \
     set -eu; \
 	case "${COMPONENT}" in \
-		admin-api|ai-extproc|als|analytics|apiserver|authz|console|controller) ;; \
+		admin-api|ai-extproc|als|analytics|apiserver|assistant|authz|console|controller) ;; \
 		*) echo "unsupported component: ${COMPONENT}" >&2; exit 2 ;; \
 	esac; \
 	export CGO_ENABLED=0 GOTMPDIR=/tmp/go-build; \
@@ -74,6 +74,13 @@ COPY --from=service-builder /out/ingate-service /opt/ingate/admin-api/bin/ingate
 
 ENTRYPOINT ["/opt/ingate/admin-api/bin/ingate-admin-api"]
 CMD ["--config", "/opt/ingate/admin-api/configs/config.yaml"]
+
+FROM service-runtime AS assistant
+
+COPY --from=service-builder /out/ingate-service /opt/ingate/assistant/bin/ingate-assistant
+
+ENTRYPOINT ["/opt/ingate/assistant/bin/ingate-assistant"]
+CMD ["--config", "/opt/ingate/assistant/configs/config.yaml"]
 
 FROM service-runtime AS als
 

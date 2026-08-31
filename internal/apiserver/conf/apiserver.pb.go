@@ -93,8 +93,10 @@ type Server struct {
 	Http *Server_HTTP `protobuf:"bytes,1,opt,name=http,proto3" json:"http,omitempty"`
 	// shutdown_timeout 是等待在途 API 请求结束的最长时间
 	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,2,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// authentication 保护除健康检查外的全部 API Server 端点
+	Authentication *Server_Authentication `protobuf:"bytes,3,opt,name=authentication,proto3" json:"authentication,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Server) Reset() {
@@ -137,6 +139,13 @@ func (x *Server) GetHttp() *Server_HTTP {
 func (x *Server) GetShutdownTimeout() *durationpb.Duration {
 	if x != nil {
 		return x.ShutdownTimeout
+	}
+	return nil
+}
+
+func (x *Server) GetAuthentication() *Server_Authentication {
+	if x != nil {
+		return x.Authentication
 	}
 	return nil
 }
@@ -305,6 +314,51 @@ func (x *Server_HTTP) GetCertDirectory() string {
 	return ""
 }
 
+type Server_Authentication struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// bearer_token 认证访问声明式 API 的控制面组件
+	BearerToken   string `protobuf:"bytes,1,opt,name=bearer_token,json=bearerToken,proto3" json:"bearer_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Server_Authentication) Reset() {
+	*x = Server_Authentication{}
+	mi := &file_apiserver_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Server_Authentication) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Server_Authentication) ProtoMessage() {}
+
+func (x *Server_Authentication) ProtoReflect() protoreflect.Message {
+	mi := &file_apiserver_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Server_Authentication.ProtoReflect.Descriptor instead.
+func (*Server_Authentication) Descriptor() ([]byte, []int) {
+	return file_apiserver_proto_rawDescGZIP(), []int{1, 1}
+}
+
+func (x *Server_Authentication) GetBearerToken() string {
+	if x != nil {
+		return x.BearerToken
+	}
+	return ""
+}
+
 type Data_Etcd struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// endpoints 是 etcd 客户端连接的节点地址
@@ -317,7 +371,7 @@ type Data_Etcd struct {
 
 func (x *Data_Etcd) Reset() {
 	*x = Data_Etcd{}
-	mi := &file_apiserver_proto_msgTypes[5]
+	mi := &file_apiserver_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -329,7 +383,7 @@ func (x *Data_Etcd) String() string {
 func (*Data_Etcd) ProtoMessage() {}
 
 func (x *Data_Etcd) ProtoReflect() protoreflect.Message {
-	mi := &file_apiserver_proto_msgTypes[5]
+	mi := &file_apiserver_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -367,13 +421,16 @@ const file_apiserver_proto_rawDesc = "" +
 	"\tBootstrap\x125\n" +
 	"\x06server\x18\x01 \x01(\v2\x1d.ingate.apiserver.conf.ServerR\x06server\x12/\n" +
 	"\x04data\x18\x02 \x01(\v2\x1b.ingate.apiserver.conf.DataR\x04data\x128\n" +
-	"\alogging\x18\x03 \x01(\v2\x1e.ingate.apiserver.conf.LoggingR\alogging\"\xc9\x01\n" +
+	"\alogging\x18\x03 \x01(\v2\x1e.ingate.apiserver.conf.LoggingR\alogging\"\xd4\x02\n" +
 	"\x06Server\x126\n" +
 	"\x04http\x18\x01 \x01(\v2\".ingate.apiserver.conf.Server.HTTPR\x04http\x12D\n" +
-	"\x10shutdown_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1aA\n" +
+	"\x10shutdown_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x12T\n" +
+	"\x0eauthentication\x18\x03 \x01(\v2,.ingate.apiserver.conf.Server.AuthenticationR\x0eauthentication\x1aA\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x12%\n" +
-	"\x0ecert_directory\x18\x02 \x01(\tR\rcertDirectory\"z\n" +
+	"\x0ecert_directory\x18\x02 \x01(\tR\rcertDirectory\x1a3\n" +
+	"\x0eAuthentication\x12!\n" +
+	"\fbearer_token\x18\x01 \x01(\tR\vbearerToken\"z\n" +
 	"\x04Data\x124\n" +
 	"\x04etcd\x18\x01 \x01(\v2 .ingate.apiserver.conf.Data.EtcdR\x04etcd\x1a<\n" +
 	"\x04Etcd\x12\x1c\n" +
@@ -397,28 +454,30 @@ func file_apiserver_proto_rawDescGZIP() []byte {
 	return file_apiserver_proto_rawDescData
 }
 
-var file_apiserver_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_apiserver_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_apiserver_proto_goTypes = []any{
-	(*Bootstrap)(nil),           // 0: ingate.apiserver.conf.Bootstrap
-	(*Server)(nil),              // 1: ingate.apiserver.conf.Server
-	(*Data)(nil),                // 2: ingate.apiserver.conf.Data
-	(*Logging)(nil),             // 3: ingate.apiserver.conf.Logging
-	(*Server_HTTP)(nil),         // 4: ingate.apiserver.conf.Server.HTTP
-	(*Data_Etcd)(nil),           // 5: ingate.apiserver.conf.Data.Etcd
-	(*durationpb.Duration)(nil), // 6: google.protobuf.Duration
+	(*Bootstrap)(nil),             // 0: ingate.apiserver.conf.Bootstrap
+	(*Server)(nil),                // 1: ingate.apiserver.conf.Server
+	(*Data)(nil),                  // 2: ingate.apiserver.conf.Data
+	(*Logging)(nil),               // 3: ingate.apiserver.conf.Logging
+	(*Server_HTTP)(nil),           // 4: ingate.apiserver.conf.Server.HTTP
+	(*Server_Authentication)(nil), // 5: ingate.apiserver.conf.Server.Authentication
+	(*Data_Etcd)(nil),             // 6: ingate.apiserver.conf.Data.Etcd
+	(*durationpb.Duration)(nil),   // 7: google.protobuf.Duration
 }
 var file_apiserver_proto_depIdxs = []int32{
 	1, // 0: ingate.apiserver.conf.Bootstrap.server:type_name -> ingate.apiserver.conf.Server
 	2, // 1: ingate.apiserver.conf.Bootstrap.data:type_name -> ingate.apiserver.conf.Data
 	3, // 2: ingate.apiserver.conf.Bootstrap.logging:type_name -> ingate.apiserver.conf.Logging
 	4, // 3: ingate.apiserver.conf.Server.http:type_name -> ingate.apiserver.conf.Server.HTTP
-	6, // 4: ingate.apiserver.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
-	5, // 5: ingate.apiserver.conf.Data.etcd:type_name -> ingate.apiserver.conf.Data.Etcd
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	7, // 4: ingate.apiserver.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	5, // 5: ingate.apiserver.conf.Server.authentication:type_name -> ingate.apiserver.conf.Server.Authentication
+	6, // 6: ingate.apiserver.conf.Data.etcd:type_name -> ingate.apiserver.conf.Data.Etcd
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_apiserver_proto_init() }
@@ -432,7 +491,7 @@ func file_apiserver_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_apiserver_proto_rawDesc), len(file_apiserver_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

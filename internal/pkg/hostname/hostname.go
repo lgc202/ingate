@@ -1,9 +1,9 @@
-// Package hostname 提供 Gateway Host 的规范化和范围判断能力
+// Package hostname 提供 Gateway Host 的规范化和范围判断能力。
 package hostname
 
 import "strings"
 
-// Normalize 将 Host 规范化为小写；空值和星号统一表示不限制 Host
+// Normalize 将 Host 规范化为小写；空值和星号统一表示不限制 Host。
 func Normalize(value string) (string, bool) {
 	if value == "" || value == "*" {
 		return "*", true
@@ -22,7 +22,7 @@ func Normalize(value string) (string, bool) {
 	return value, validDNSName(value)
 }
 
-// Overlaps 判断两个已规范化的 Host 范围是否会匹配同一请求域名
+// Overlaps 判断两个已规范化的 Host 范围是否会匹配同一请求域名。
 func Overlaps(first, second string) bool {
 	if first == "*" || second == "*" {
 		return true

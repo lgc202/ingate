@@ -67,20 +67,46 @@ message GetIPRestrictionPolicyRequest {
 }
 
 message CreateIPRestrictionPolicyRequest {
-  string name = 1 [(buf.validate.field).string.min_len = 1];
-  repeated PolicyTargetRef targets = 2;
-  repeated string allow = 3 [(buf.validate.field).repeated.items.string.min_len = 1];
-  repeated string deny = 4 [(buf.validate.field).repeated.items.string.min_len = 1];
+  string name = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
+  repeated PolicyTargetRef targets = 2 [(buf.validate.field).repeated.max_items = 256];
+  repeated string allow = 3 [(buf.validate.field).repeated = {
+    max_items: 1024
+    items: {
+      string: {min_len: 1}
+    }
+  }];
+  repeated string deny = 4 [(buf.validate.field).repeated = {
+    max_items: 1024
+    items: {
+      string: {min_len: 1}
+    }
+  }];
 }
 
 message UpdateIPRestrictionPolicyRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
   int64 version = 2 [(buf.validate.field).int64.gt = 0];
-  string name = 3 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
   optional bool enabled = 4 [(buf.validate.field).required = true];
-  repeated PolicyTargetRef targets = 5;
-  repeated string allow = 6 [(buf.validate.field).repeated.items.string.min_len = 1];
-  repeated string deny = 7 [(buf.validate.field).repeated.items.string.min_len = 1];
+  repeated PolicyTargetRef targets = 5 [(buf.validate.field).repeated.max_items = 256];
+  repeated string allow = 6 [(buf.validate.field).repeated = {
+    max_items: 1024
+    items: {
+      string: {min_len: 1}
+    }
+  }];
+  repeated string deny = 7 [(buf.validate.field).repeated = {
+    max_items: 1024
+    items: {
+      string: {min_len: 1}
+    }
+  }];
 }
 
 message DeleteIPRestrictionPolicyRequest {

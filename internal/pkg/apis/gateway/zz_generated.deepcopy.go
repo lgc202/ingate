@@ -1185,11 +1185,7 @@ func (in *RouteSpec) DeepCopyInto(out *RouteSpec) {
 		*out = new(AIRoute)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.HostRewrite != nil {
-		in, out := &in.HostRewrite, &out.HostRewrite
-		*out = new(HostRewrite)
-		**out = **in
-	}
+	out.HostRewrite = in.HostRewrite
 	if in.RequestHeaderModifier != nil {
 		in, out := &in.RequestHeaderModifier, &out.RequestHeaderModifier
 		*out = new(HeaderModifier)
@@ -1200,11 +1196,7 @@ func (in *RouteSpec) DeepCopyInto(out *RouteSpec) {
 		*out = new(HeaderModifier)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.Timeout != nil {
-		in, out := &in.Timeout, &out.Timeout
-		*out = new(RouteTimeout)
-		**out = **in
-	}
+	out.Timeout = in.Timeout
 	if in.Retry != nil {
 		in, out := &in.Retry, &out.Retry
 		*out = new(RouteRetry)

@@ -1,7 +1,7 @@
-// Package als 装配 ingate-als 进程及其资源生命周期
+// Package als 装配 ingate-als 进程及其资源生命周期。
 //
 // 组件的主链路为 Envoy ALS -> gRPC Service -> biz.Recorder -> Kafka，
-// Kafka 不可用时先写入本地磁盘队列，DiskQueueReplayer 在恢复后重新投递积压记录
+// Kafka 不可用时先写入本地磁盘队列，DiskQueueReplayer 在恢复后重新投递积压记录。
 package als
 
 import (
@@ -24,14 +24,14 @@ const name = "ingate-als"
 
 type serviceInstanceID string
 
-// App 封装 Kratos 进程和 Wire 创建的外部资源
+// App 封装 Kratos 进程和 Wire 创建的外部资源。
 type App struct {
 	kratos  *kratos.App
 	cleanup func()
 }
 
-// NewApp 从配置文件创建完整的 ALS 进程
-// 配置只在启动时读取，修改后需要重启组件才会生效
+// NewApp 从配置文件创建完整的 ALS 进程。
+// 配置只在启动时读取，修改后需要重启组件才会生效。
 func NewApp(configFile string) (*App, error) {
 	var bootstrap conf.Bootstrap
 	if err := appconfig.Load(configFile, &bootstrap); err != nil {
@@ -59,7 +59,7 @@ func NewApp(configFile string) (*App, error) {
 	return &App{kratos: kratosApp, cleanup: cleanup}, nil
 }
 
-// Run 启动 ALS 的 HTTP、gRPC 和磁盘队列回放，退出后释放 Kafka 和磁盘队列资源
+// Run 启动 ALS 的 HTTP、gRPC 和磁盘队列回放，退出后释放 Kafka 和磁盘队列资源。
 func (a *App) Run() error {
 	defer a.cleanup()
 	return a.kratos.Run()

@@ -12,16 +12,16 @@ import (
 	"github.com/lgc202/ingate/internal/aiextproc/service/chatcompletion"
 )
 
-type callerIdentity struct {
-	callerID    string
-	accessKeyID string
-}
-
 var (
 	errUnsupportedPhase    = errors.New("unsupported ExtProc processing phase")
 	errRequestNotBuffered  = errors.New("AI request body requires buffered ExtProc mode")
 	errResponseNotBuffered = errors.New("anthropic response body requires buffered ExtProc mode")
 )
+
+type callerIdentity struct {
+	callerID    string
+	accessKeyID string
+}
 
 // requestState 只保存同一客户端请求跨 downstream 流、重试流和响应流共享的数据
 // 请求正文只在内存中保留到 downstream 流结束，不会写入日志或持久化存储
@@ -38,6 +38,23 @@ type requestState struct {
 	identity   callerIdentity                 // 前置鉴权解析出的调用方和访问密钥
 	quota      *tokenquota.Session            // 请求开始时通过检查的额度周期
 	settled    bool                           // 保证流式响应只结算一次
+}
+
+// streamState 保存一条 ExtProc gRPC 流的处理阶段。
+// downstream 流覆盖完整客户端请求和最终响应，upstream 流只处理一次上游尝试。
+type streamState struct {
+	ctx context.Context
+	// 流归属与跨流关联
+	processor *ExternalProcessor
+	upstream  bool
+	requestID string
+	request   *requestState
+
+	// downstream 响应转换状态，upstream 流不会读写这些字段
+	responseMetadata   chatcompletion.ResponseMetadata
+	responseSuccessful bool
+	openAIStream       *chatcompletion.OpenAIStream
+	anthropicStream    *chatcompletion.AnthropicStream
 }
 
 func (s *requestState) callerID() string {
@@ -110,23 +127,6 @@ func (s *requestState) selectedService() (selectedModelService, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.selected, s.selected.id != ""
-}
-
-// streamState 保存一条 ExtProc gRPC 流的处理阶段
-// downstream 流覆盖完整客户端请求和最终响应，upstream 流只处理一次上游尝试
-type streamState struct {
-	ctx context.Context
-	// 流归属与跨流关联
-	processor *ExternalProcessor
-	upstream  bool
-	requestID string
-	request   *requestState
-
-	// downstream 响应转换状态，upstream 流不会读写这些字段
-	responseMetadata   chatcompletion.ResponseMetadata
-	responseSuccessful bool
-	openAIStream       *chatcompletion.OpenAIStream
-	anthropicStream    *chatcompletion.AnthropicStream
 }
 
 func (s *streamState) close() {

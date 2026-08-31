@@ -1,13 +1,16 @@
 package traffic
 
 import (
+	"slices"
 	"time"
 
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
+	"github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
 	trafficbiz "github.com/lgc202/ingate/internal/analytics/biz/traffic"
+	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 const (
@@ -52,7 +55,9 @@ func buildBreakdownQuery(request *analyticsv1.ListTrafficBreakdownRequest) (traf
 	return trafficbiz.BreakdownQuery{Filter: filter, Dimension: dimension, Order: order, Limit: int(limit)}, nil
 }
 
-func buildResourceTrafficQuery(request *analyticsv1.BatchGetResourceTrafficRequest) (trafficbiz.ResourceTrafficQuery, error) {
+func buildResourceTrafficQuery(
+	request *analyticsv1.BatchGetResourceTrafficRequest,
+) (trafficbiz.ResourceTrafficQuery, error) {
 	startTime, endTime, err := buildTimeRange(request.GetStartTime(), request.GetEndTime())
 	if err != nil {
 		return trafficbiz.ResourceTrafficQuery{}, err
@@ -68,24 +73,37 @@ func buildResourceTrafficQuery(request *analyticsv1.BatchGetResourceTrafficReque
 	if len(resourceIDs) > maxResourceTrafficBatch {
 		return trafficbiz.ResourceTrafficQuery{}, invalidArgument("resource_ids exceeds maximum")
 	}
+	seen := make(map[string]bool, len(resourceIDs))
 	for _, resourceID := range resourceIDs {
-		if resourceID == "" {
-			return trafficbiz.ResourceTrafficQuery{}, invalidArgument("resource_ids contains an empty value")
+		if !resourceconfig.IsCanonicalID(resourceID) || seen[resourceID] {
+			return trafficbiz.ResourceTrafficQuery{}, invalidArgument(
+				"resource_ids contains an invalid or duplicate value",
+			)
 		}
+		seen[resourceID] = true
 	}
 	return trafficbiz.ResourceTrafficQuery{
 		StartTime:   startTime,
 		EndTime:     endTime,
 		Dimension:   dimension,
-		ResourceIDs: resourceIDs,
+		ResourceIDs: slices.Clone(resourceIDs),
 	}, nil
 }
 
-// 分钟聚合表无法准确表达分钟内的局部时间范围，因此协议边界必须对齐到整分钟
+// 分钟聚合表无法准确表达分钟内的局部时间范围，因此协议边界必须对齐到整分钟。
 func buildFilter(filter *analyticsv1.TrafficFilter) (trafficbiz.Filter, error) {
 	startTime, endTime, err := buildTimeRange(filter.GetStartTime(), filter.GetEndTime())
 	if err != nil {
 		return trafficbiz.Filter{}, err
+	}
+	for _, resourceID := range []string{
+		filter.GetGatewayId(),
+		filter.GetRouteId(),
+		filter.GetUpstreamId(),
+	} {
+		if resourceID != "" && !resourceconfig.IsCanonicalID(resourceID) {
+			return trafficbiz.Filter{}, invalidArgument("filter contains an invalid resource ID")
+		}
 	}
 	return trafficbiz.Filter{
 		StartTime:  startTime,
@@ -100,14 +118,16 @@ func buildTimeRange(start, end *timestamppb.Timestamp) (time.Time, time.Time, er
 	if start == nil || end == nil || start.CheckValid() != nil || end.CheckValid() != nil {
 		return time.Time{}, time.Time{}, invalidArgument("start_time and end_time are required")
 	}
-	if !start.AsTime().Before(end.AsTime()) {
-		return time.Time{}, time.Time{}, invalidArgument("start_time must be before end_time")
+	startTime := start.AsTime()
+	endTime := end.AsTime()
+	if !analyticsconfig.IsValidQueryRange(startTime, endTime) {
+		return time.Time{}, time.Time{}, invalidArgument("time range is invalid or exceeds the maximum")
 	}
-	if !start.AsTime().Equal(start.AsTime().Truncate(time.Minute)) ||
-		!end.AsTime().Equal(end.AsTime().Truncate(time.Minute)) {
+	if !startTime.Equal(startTime.Truncate(time.Minute)) ||
+		!endTime.Equal(endTime.Truncate(time.Minute)) {
 		return time.Time{}, time.Time{}, invalidArgument("start_time and end_time must align to minute boundaries")
 	}
-	return start.AsTime(), end.AsTime(), nil
+	return startTime, endTime, nil
 }
 
 func buildTimeBucket(value analyticsv1.TimeBucket) (trafficbiz.TimeBucket, error) {
@@ -153,5 +173,5 @@ func buildBreakdownOrder(value analyticsv1.TrafficBreakdownOrder) (trafficbiz.Br
 }
 
 func invalidArgument(message string) error {
-	return kratoserrors.BadRequest("INVALID_ARGUMENT", message)
+	return errors.BadRequest("INVALID_ARGUMENT", message)
 }

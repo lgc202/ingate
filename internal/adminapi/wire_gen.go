@@ -7,8 +7,8 @@
 package adminapi
 
 import (
+	"context"
 	"github.com/go-kratos/kratos/v3"
-	"github.com/google/wire"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	"github.com/lgc202/ingate/internal/adminapi/biz/aiusage"
 	"github.com/lgc202/ingate/internal/adminapi/biz/caller"
@@ -21,9 +21,9 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	"github.com/lgc202/ingate/internal/adminapi/biz/request"
 	"github.com/lgc202/ingate/internal/adminapi/biz/route"
+	"github.com/lgc202/ingate/internal/adminapi/biz/service"
 	"github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
 	"github.com/lgc202/ingate/internal/adminapi/biz/traffic"
-	"github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/biz/wasmplugin"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	"github.com/lgc202/ingate/internal/adminapi/data/aiextproc"
@@ -43,99 +43,87 @@ import (
 	ratelimit2 "github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	request2 "github.com/lgc202/ingate/internal/adminapi/service/request"
 	route2 "github.com/lgc202/ingate/internal/adminapi/service/route"
+	"github.com/lgc202/ingate/internal/adminapi/service/servicemanagement"
 	tokenquota2 "github.com/lgc202/ingate/internal/adminapi/service/tokenquota"
 	traffic2 "github.com/lgc202/ingate/internal/adminapi/service/traffic"
-	upstream2 "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 	wasmplugin2 "github.com/lgc202/ingate/internal/adminapi/service/wasmplugin"
 	"log/slog"
 )
 
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, adminapiServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
-	clientConn, cleanup, err := analytics.NewClient(data, logger)
+func wireApp(contextContext context.Context, confServer *conf.Server, data *conf.Data, logger *slog.Logger, adminapiServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
+	clientConn, cleanup, err := analytics.NewClient(contextContext, data, logger)
 	if err != nil {
 		return nil, nil, err
 	}
 	aiUsageRepository := analytics.NewAIUsageRepository(clientConn)
-	service := aiusage.NewService(aiUsageRepository)
-	aiusageService := aiusage2.NewService(service)
+	usecase := aiusage.NewUsecase(aiUsageRepository)
+	aiusageService := aiusage2.NewService(usecase)
 	versionedInterface, err := apiserver.NewClient(data)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
-	callerRepository := apiserver.NewCallerRepository(versionedInterface)
-	routeRepository := apiserver.NewRouteRepository(versionedInterface)
-	callerService := caller.NewService(callerRepository, routeRepository)
-	service2 := caller2.NewService(callerService)
-	gatewayRepository := apiserver.NewGatewayRepository(versionedInterface)
-	certificateRepository := apiserver.NewCertificateRepository(versionedInterface)
-	rateLimitPolicyRepository := apiserver.NewRateLimitPolicyRepository(versionedInterface)
-	ipRestrictionPolicyRepository := apiserver.NewIPRestrictionPolicyRepository(versionedInterface)
-	headerTransformationPolicyRepository := apiserver.NewHeaderTransformationPolicyRepository(versionedInterface)
-	mockResponsePolicyRepository := apiserver.NewMockResponsePolicyRepository(versionedInterface)
-	policyUsageFinder := biz.NewPolicyUsageFinder(rateLimitPolicyRepository, ipRestrictionPolicyRepository, headerTransformationPolicyRepository, mockResponsePolicyRepository)
-	gatewayService := gateway.NewService(gatewayRepository, routeRepository, certificateRepository, policyUsageFinder)
-	service3 := gateway2.NewService(gatewayService)
-	upstreamRepository := apiserver.NewUpstreamRepository(versionedInterface)
-	routeService := route.NewService(routeRepository, gatewayRepository, upstreamRepository, callerRepository, policyUsageFinder)
-	service4 := route2.NewService(routeService)
-	upstreamService := upstream.NewService(upstreamRepository, routeRepository)
-	service5 := upstream2.NewService(upstreamService)
-	certificateService := certificate.NewService(certificateRepository, gatewayRepository)
-	service6 := certificate2.NewService(certificateService)
-	ratelimitService := ratelimit.NewService(rateLimitPolicyRepository, gatewayRepository, routeRepository)
-	service7 := ratelimit2.NewService(ratelimitService)
-	iprestrictionService := iprestriction.NewService(ipRestrictionPolicyRepository, gatewayRepository, routeRepository)
-	service8 := iprestriction2.NewService(iprestrictionService)
+	callerStore := apiserver.NewCallerStore(versionedInterface)
+	routeStore := apiserver.NewRouteStore(versionedInterface)
+	tokenQuotaPolicyStore := apiserver.NewTokenQuotaPolicyStore(versionedInterface)
+	callerUsecase := caller.NewUsecase(callerStore, routeStore, tokenQuotaPolicyStore)
+	callerService := caller2.NewService(callerUsecase)
+	gatewayStore := apiserver.NewGatewayStore(versionedInterface)
+	certificateStore := apiserver.NewCertificateStore(versionedInterface)
+	rateLimitPolicyStore := apiserver.NewRateLimitPolicyStore(versionedInterface)
+	ipRestrictionPolicyStore := apiserver.NewIPRestrictionPolicyStore(versionedInterface)
+	headerTransformationPolicyStore := apiserver.NewHeaderTransformationPolicyStore(versionedInterface)
+	mockResponsePolicyStore := apiserver.NewMockResponsePolicyStore(versionedInterface)
+	policyUsageFinder := biz.NewPolicyUsageFinder(rateLimitPolicyStore, ipRestrictionPolicyStore, headerTransformationPolicyStore, mockResponsePolicyStore)
+	gatewayUsecase := gateway.NewUsecase(gatewayStore, routeStore, certificateStore, policyUsageFinder)
+	gatewayService := gateway2.NewService(gatewayUsecase)
+	upstreamStore := apiserver.NewUpstreamStore(versionedInterface)
+	routeUsecase := route.NewUsecase(routeStore, gatewayStore, upstreamStore, callerStore, policyUsageFinder)
+	routeService := route2.NewService(routeUsecase)
+	serviceUsecase := service.NewUsecase(upstreamStore, routeStore)
+	servicemanagementService := servicemanagement.NewService(serviceUsecase)
+	certificateUsecase := certificate.NewUsecase(certificateStore, gatewayStore)
+	certificateService := certificate2.NewService(certificateUsecase)
+	ratelimitUsecase := ratelimit.NewUsecase(rateLimitPolicyStore, gatewayStore, routeStore)
+	ratelimitService := ratelimit2.NewService(ratelimitUsecase)
+	iprestrictionUsecase := iprestriction.NewUsecase(ipRestrictionPolicyStore, gatewayStore, routeStore)
+	iprestrictionService := iprestriction2.NewService(iprestrictionUsecase)
 	requestRepository := analytics.NewRequestRepository(clientConn)
-	requestService := request.NewService(requestRepository)
-	service9 := request2.NewService(requestService)
+	requestUsecase := request.NewUsecase(requestRepository)
+	requestService := request2.NewService(requestUsecase)
 	trafficRepository := analytics.NewTrafficRepository(clientConn)
-	trafficService := traffic.NewService(trafficRepository)
-	service10 := traffic2.NewService(trafficService)
-	tokenQuotaPolicyRepository := apiserver.NewTokenQuotaPolicyRepository(versionedInterface)
-	client, cleanup2, err := aiextproc.NewClient(data, logger)
+	trafficUsecase := traffic.NewUsecase(trafficRepository)
+	trafficService := traffic2.NewService(trafficUsecase)
+	tokenQuotaUsageServiceClient, cleanup2, err := aiextproc.NewClient(contextContext, data, logger)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
-	tokenQuotaUsageReader := aiextproc.NewTokenQuotaUsageReader(client)
-	tokenquotaService := tokenquota.NewService(tokenQuotaPolicyRepository, callerRepository, tokenQuotaUsageReader)
-	service11 := tokenquota2.NewService(tokenquotaService)
+	tokenQuotaUsageReader := aiextproc.NewTokenQuotaUsageReader(tokenQuotaUsageServiceClient)
+	tokenquotaUsecase := tokenquota.NewUsecase(tokenQuotaPolicyStore, callerStore, tokenQuotaUsageReader)
+	tokenquotaService := tokenquota2.NewService(tokenquotaUsecase)
 	healthService := health.NewService()
-	wasmPluginRepository := apiserver.NewWasmPluginRepository(versionedInterface)
-	pluginInstallationChecker := biz.NewPluginInstallationChecker(wasmPluginRepository)
-	headertransformationService := headertransformation.NewService(headerTransformationPolicyRepository, gatewayRepository, routeRepository, pluginInstallationChecker)
-	service12 := headertransformation2.NewService(headertransformationService)
-	mockresponseService := mockresponse.NewService(mockResponsePolicyRepository, gatewayRepository, routeRepository, pluginInstallationChecker)
-	service13 := mockresponse2.NewService(mockresponseService)
-	pluginUsageFinder := biz.NewPluginUsageFinder(headerTransformationPolicyRepository, mockResponsePolicyRepository)
-	pluginSourceRepository := apiserver.NewPluginSourceRepository(versionedInterface)
-	catalog, err := plugincatalog.NewCatalog(data, pluginSourceRepository, logger)
-	if err != nil {
-		cleanup2()
-		cleanup()
-		return nil, nil, err
-	}
-	wasmpluginService := wasmplugin.NewService(wasmPluginRepository, pluginUsageFinder, catalog)
-	service14 := wasmplugin2.NewService(wasmpluginService)
-	pluginsourceService := pluginsource.NewService(pluginSourceRepository, catalog)
-	service15 := pluginsource2.NewService(pluginsourceService)
-	httpHandlers := server.NewHTTPHandlers(aiusageService, service2, service3, service4, service5, service6, service7, service8, service9, service10, service11, healthService, service12, service13, service14, service15)
-	httpServer := server.NewHTTPServer(confServer, logger, httpHandlers)
-	app := newKratosApp(logger, confServer, httpServer, catalog, adminapiServiceInstanceID)
+	wasmPluginStore := apiserver.NewWasmPluginStore(versionedInterface)
+	pluginInstallationChecker := biz.NewPluginInstallationChecker(wasmPluginStore)
+	headertransformationUsecase := headertransformation.NewUsecase(headerTransformationPolicyStore, routeStore, pluginInstallationChecker)
+	headertransformationService := headertransformation2.NewService(headertransformationUsecase)
+	mockresponseUsecase := mockresponse.NewUsecase(mockResponsePolicyStore, routeStore, pluginInstallationChecker)
+	mockresponseService := mockresponse2.NewService(mockresponseUsecase)
+	pluginUsageFinder := biz.NewPluginUsageFinder(headerTransformationPolicyStore, mockResponsePolicyStore)
+	pluginSourceStore := apiserver.NewPluginSourceStore(versionedInterface)
+	catalog := plugincatalog.NewCatalog(data, pluginSourceStore, logger)
+	wasmpluginUsecase := wasmplugin.NewUsecase(wasmPluginStore, pluginUsageFinder, catalog)
+	wasmpluginService := wasmplugin2.NewService(wasmpluginUsecase)
+	pluginsourceUsecase := pluginsource.NewUsecase(pluginSourceStore, catalog)
+	pluginsourceService := pluginsource2.NewService(pluginsourceUsecase)
+	services := server.NewServices(aiusageService, callerService, gatewayService, routeService, servicemanagementService, certificateService, ratelimitService, iprestrictionService, requestService, trafficService, tokenquotaService, healthService, headertransformationService, mockresponseService, wasmpluginService, pluginsourceService)
+	httpServer := server.NewHTTPServer(confServer, logger, services)
+	grpcServer := server.NewGRPCServer(confServer, logger, services)
+	app := newKratosApp(logger, confServer, httpServer, grpcServer, catalog, adminapiServiceInstanceID)
 	return app, func() {
 		cleanup2()
 		cleanup()
 	}, nil
 }
-
-// wire.go:
-
-// bizProviderSet 汇总各资源的业务服务
-var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, biz.NewPluginUsageFinder, biz.NewPluginInstallationChecker, wire.Bind(new(wasmplugin.UsageFinder), new(*biz.PluginUsageFinder)), aiusage.NewService, caller.NewService, gateway.NewService, headertransformation.NewService, mockresponse.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, pluginsource.NewService, request.NewService, traffic.NewService, tokenquota.NewService, wasmplugin.NewService)
-
-// serviceProviderSet 汇总 Admin API 的协议服务
-var serviceProviderSet = wire.NewSet(aiusage2.NewService, caller2.NewService, gateway2.NewService, headertransformation2.NewService, mockresponse2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, pluginsource2.NewService, request2.NewService, traffic2.NewService, tokenquota2.NewService, health.NewService, wasmplugin2.NewService)

@@ -7,20 +7,51 @@ import (
 	"slices"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/policyconfig"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 func (c *compilation) validPolicyTargets(
 	policyKind gatewayv1.Kind,
 	policyID string,
 	targets []gatewayv1.PolicyTargetRef,
+	allowedTargetKinds ...gatewayv1.Kind,
 ) []gatewayv1.PolicyTargetRef {
+	if len(targets) > policyconfig.MaxTargets {
+		c.addResourceError(
+			policyKind,
+			policyID,
+			ReasonInvalidSpec,
+			fmt.Sprintf("policy %q contains too many targets", policyID),
+		)
+		targets = targets[:policyconfig.MaxTargets]
+	}
+
 	validTargets := make([]gatewayv1.PolicyTargetRef, 0, len(targets))
 	seen := make(map[string]bool, len(targets))
 	for _, target := range targets {
+		if !slices.Contains(allowedTargetKinds, target.Kind) {
+			c.addResourceError(
+				policyKind,
+				policyID,
+				ReasonUnsupported,
+				fmt.Sprintf("policy %q targets unsupported kind %q", policyID, target.Kind),
+			)
+			continue
+		}
+		if !resourceconfig.IsCanonicalID(target.Name) {
+			c.addResourceError(
+				policyKind,
+				policyID,
+				ReasonInvalidSpec,
+				fmt.Sprintf("policy %q has invalid target %s %q", policyID, target.Kind, target.Name),
+			)
+			continue
+		}
+
 		key := string(target.Kind) + "\x00" + target.Name
 		if seen[key] {
-			c.addDiagnostic(
-				SeverityError,
+			c.addResourceError(
 				policyKind,
 				policyID,
 				ReasonConflict,
@@ -30,15 +61,10 @@ func (c *compilation) validPolicyTargets(
 		}
 		seen[key] = true
 
-		if target.Name == "" {
-			c.addDiagnostic(SeverityError, policyKind, policyID, ReasonInvalidSpec, fmt.Sprintf("policy %q has a target without a name", policyID))
-			continue
-		}
 		switch target.Kind {
 		case gatewayv1.KindGateway:
 			if _, exists := c.gateways[target.Name]; !exists {
-				c.addDiagnostic(
-					SeverityWarning,
+				c.addResourceWarning(
 					policyKind,
 					policyID,
 					ReasonReferenceNotFound,
@@ -48,8 +74,7 @@ func (c *compilation) validPolicyTargets(
 			}
 		case gatewayv1.KindRoute:
 			if _, exists := c.routes[target.Name]; !exists {
-				c.addDiagnostic(
-					SeverityWarning,
+				c.addResourceWarning(
 					policyKind,
 					policyID,
 					ReasonReferenceNotFound,
@@ -57,23 +82,18 @@ func (c *compilation) validPolicyTargets(
 				)
 				continue
 			}
-		default:
-			c.addDiagnostic(
-				SeverityError,
-				policyKind,
-				policyID,
-				ReasonUnsupported,
-				fmt.Sprintf("policy %q targets unsupported kind %q", policyID, target.Kind),
-			)
-			continue
 		}
 		validTargets = append(validTargets, target)
 	}
 	return validTargets
 }
 
-func matchingPolicyTargets(targets []gatewayv1.PolicyTargetRef, key policyRouteKey) (string, []gatewayv1.PolicyTargetRef) {
-	// 同一策略同时命中 Gateway 和 Route 时只执行一次，并让更精确的 Route 范围决定计数作用域
+func matchingPolicyTargets(
+	targets []gatewayv1.PolicyTargetRef,
+	key policyRouteKey,
+) (string, []gatewayv1.PolicyTargetRef) {
+	// 同一策略同时命中 Gateway 和 Route 时只执行一次，
+	// 并让更精确的 Route 范围决定计数作用域。
 	matched := make([]gatewayv1.PolicyTargetRef, 0, 2)
 	scope := ""
 	for _, target := range targets {
@@ -107,10 +127,10 @@ func (c *compilation) recordPolicyTargets(
 		var targetResource ResourceGeneration
 		if target.Kind == gatewayv1.KindGateway {
 			resource := c.gateways[target.Name]
-			targetResource = newResourceGeneration(target.Kind, resource.Name, resource.UID, resource.Generation)
+			targetResource = newResourceGeneration(target.Kind, resource)
 		} else {
 			resource := c.routes[target.Name]
-			targetResource = newResourceGeneration(target.Kind, resource.Name, resource.UID, resource.Generation)
+			targetResource = newResourceGeneration(target.Kind, resource)
 		}
 		policyTargetSet[CompiledPolicyTarget{
 			Policy: policy,

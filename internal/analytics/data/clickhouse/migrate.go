@@ -7,32 +7,32 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"time"
 
 	"github.com/pressly/goose/v3"
 
 	"github.com/lgc202/ingate/internal/analytics/conf"
-	"github.com/lgc202/ingate/internal/pkg/clickhousex"
+	"github.com/lgc202/ingate/internal/pkg/clickhouseclient"
 )
-
-const schemaMigrationTableName = "ingate_schema_migrations"
 
 const (
-	requestRecordsTable = "request_records"
-	requestMetricsTable = "request_metrics_1m"
-	modelCallsTable     = "model_calls"
+	schemaMigrationTableName = "ingate_schema_migrations"
+	// requiredSchemaVersion 必须与 migrations 目录中的最高版本保持一致。
+	// 已发布的 migration 不得原地修改，表结构变更必须追加新版本。
+	requiredSchemaVersion int64 = 2
 )
 
-// migrationFiles 随 Analytics 二进制发布，部署时不依赖源码目录
+// migrationFiles 随 Analytics 二进制发布，部署时不依赖源码目录。
 //
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
-// Migrate 按版本应用 Analytics 的 ClickHouse 表结构变更
+// Migrate 按版本应用 Analytics 的 ClickHouse 表结构变更。
 //
 // 正常服务进程不执行 DDL，生产环境可以为运行账号移除建表权限。调用方负责在
-// 服务启动前完成迁移，Migrate 返回本次实际应用的版本数量
+// 服务启动前完成迁移，Migrate 返回本次实际应用的版本数量。
 func Migrate(ctx context.Context, config *conf.Data_ClickHouse) (applied int, err error) {
-	db, err := clickhousex.NewDB(clientConfig(config))
+	db, err := clickhouseclient.OpenDB(clientConfig(config))
 	if err != nil {
 		return 0, err
 	}
@@ -56,6 +56,15 @@ func Migrate(ctx context.Context, config *conf.Data_ClickHouse) (applied int, er
 	if err != nil {
 		return 0, fmt.Errorf("create ClickHouse migration provider: %w", err)
 	}
+	migrationSources := provider.ListSources()
+	embeddedVersion := migrationSources[len(migrationSources)-1].Version
+	if embeddedVersion != requiredSchemaVersion {
+		return 0, fmt.Errorf(
+			"embedded ClickHouse migrations end at version %d, but Analytics requires version %d",
+			embeddedVersion,
+			requiredSchemaVersion,
+		)
+	}
 	results, err := provider.Up(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("migrate ClickHouse analytics schema: %w", err)
@@ -72,13 +81,25 @@ func applyRetention(ctx context.Context, db *sql.DB, retention *conf.Data_ClickH
 		timestamp string
 		seconds   int64
 	}{
-		{name: requestRecordsTable, timestamp: "started_at", seconds: int64(retention.GetRequestRecords().AsDuration().Seconds())},
-		{name: requestMetricsTable, timestamp: "started_at", seconds: int64(retention.GetRequestMetrics().AsDuration().Seconds())},
-		{name: modelCallsTable, timestamp: "started_at", seconds: int64(retention.GetModelCalls().AsDuration().Seconds())},
+		{
+			name:      requestTableName,
+			timestamp: "started_at",
+			seconds:   int64(retention.GetRequestRecords().AsDuration() / time.Second),
+		},
+		{
+			name:      minuteMetricsTableName,
+			timestamp: "started_at",
+			seconds:   int64(retention.GetRequestMetrics().AsDuration() / time.Second),
+		},
+		{
+			name:      modelCallTableName,
+			timestamp: "started_at",
+			seconds:   int64(retention.GetModelCalls().AsDuration() / time.Second),
+		},
 	}
 	for _, table := range tables {
 		// 表名和时间列来自上方常量，保留秒数已经过配置校验；这里只拼接 ClickHouse DDL，
-		// 不把任何请求数据或未校验的外部文本带入 SQL
+		// 不把任何请求数据或未校验的外部文本带入 SQL。
 		statement := fmt.Sprintf(
 			"ALTER TABLE %s MODIFY TTL %s + toIntervalSecond(%d)",
 			table.name,

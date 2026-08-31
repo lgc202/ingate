@@ -210,7 +210,7 @@ type Logging struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// format 支持 json 和 text
 	Format string `protobuf:"bytes,1,opt,name=format,proto3" json:"format,omitempty"`
-	// level 支持 debug、info、warn 和 error，可在运行中热更新
+	// level 支持 debug、info、warn 和 error
 	Level string `protobuf:"bytes,2,opt,name=level,proto3" json:"level,omitempty"`
 	// add_source 控制日志是否包含调用位置
 	AddSource     bool `protobuf:"varint,3,opt,name=add_source,json=addSource,proto3" json:"add_source,omitempty"`

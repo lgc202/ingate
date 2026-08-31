@@ -1,4 +1,4 @@
-// ingate-controller 将声明式资源编译并发布为 Envoy xDS 配置
+// Command ingate-controller 将声明式资源编译并发布为 Envoy xDS 配置。
 package main
 
 import (
@@ -15,20 +15,23 @@ import (
 const defaultConfigFile = "configs/ingate-controller.yaml"
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	configFile := flag.String("config", defaultConfigFile, "configuration file")
 	showVersion := flag.Bool("version", false, "print version")
 	flag.Parse()
 	if *showVersion {
-		fmt.Println(version.Text())
-		return
+		_, err := fmt.Fprintln(os.Stdout, version.Text())
+		return err
 	}
 	app, err := controller.NewApp(*configFile)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
-	if err := app.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	return app.Run()
 }

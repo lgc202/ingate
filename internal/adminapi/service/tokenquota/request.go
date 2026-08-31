@@ -1,88 +1,110 @@
 package tokenquota
 
 import (
+	"slices"
 	"strings"
-	"time"
-	_ "time/tzdata"
+
+	"github.com/go-kratos/kratos/v3/errors"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/tokenquotaconfig"
 )
 
-func createSpec(request *adminv1.CreateTokenQuotaPolicyRequest) (resource.TokenQuotaPolicySpec, error) {
-	return tokenQuotaSpec(
-		request.GetName(),
-		request.GetEnabled(),
-		request.GetTargets(),
-		request.GetTimeZone(),
-		request.GetLimits(),
-	)
-}
-
-func updateSpec(request *adminv1.UpdateTokenQuotaPolicyRequest) (resource.TokenQuotaPolicySpec, error) {
-	return tokenQuotaSpec(
-		request.GetName(),
-		request.GetEnabled(),
-		request.GetTargets(),
-		request.GetTimeZone(),
-		request.GetLimits(),
-	)
-}
-
-func tokenQuotaSpec(
-	name string,
+func parseTokenQuotaPolicySpec(
+	displayName string,
 	enabled bool,
-	targets []*adminv1.PolicyTargetRef,
+	targetConfigs []*adminv1.PolicyTargetRef,
 	timeZone string,
-	limits []*adminv1.TokenQuotaLimit,
+	limitConfigs []*adminv1.TokenQuotaLimit,
 ) (resource.TokenQuotaPolicySpec, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return resource.TokenQuotaPolicySpec{}, adminservice.BadRequest("Token 额度策略名称不能为空")
+	displayName = strings.TrimSpace(displayName)
+	if displayName == "" {
+		return resource.TokenQuotaPolicySpec{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"Token 额度策略名称不能为空",
+		)
 	}
-	refs, err := adminservice.PolicyTargetRefs(targets, resource.KindCaller)
+	targets, err := adminservice.PolicyTargetRefs(targetConfigs, resource.KindCaller)
 	if err != nil {
 		return resource.TokenQuotaPolicySpec{}, err
 	}
-	timeZone = strings.TrimSpace(timeZone)
-	if _, err := time.LoadLocation(timeZone); err != nil {
-		return resource.TokenQuotaPolicySpec{}, adminservice.BadRequest("额度周期时区不正确")
+	timeZone, _, valid := tokenquotaconfig.LoadLocation(timeZone)
+	if !valid {
+		return resource.TokenQuotaPolicySpec{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"额度周期时区不正确",
+		)
 	}
-	converted, err := tokenQuotaLimits(limits)
+	limits, err := parseTokenQuotaLimits(limitConfigs)
 	if err != nil {
 		return resource.TokenQuotaPolicySpec{}, err
 	}
+
 	return resource.TokenQuotaPolicySpec{
-		DisplayName: name,
+		DisplayName: displayName,
 		Enabled:     enabled,
-		TargetRefs:  refs,
+		TargetRefs:  targets,
 		TimeZone:    timeZone,
-		Limits:      converted,
+		Limits:      limits,
 	}, nil
 }
 
-func tokenQuotaLimits(limits []*adminv1.TokenQuotaLimit) ([]resource.TokenQuotaLimit, error) {
-	converted := make([]resource.TokenQuotaLimit, 0, len(limits))
-	seen := make(map[resource.TokenQuotaPeriod]bool, len(limits))
-	for _, limit := range limits {
-		if limit == nil {
-			return nil, adminservice.BadRequest("Token 额度不能为空")
+func parseTokenQuotaLimits(
+	configs []*adminv1.TokenQuotaLimit,
+) ([]resource.TokenQuotaLimit, error) {
+	if len(configs) == 0 {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"请至少配置一项 Token 额度",
+		)
+	}
+	if len(configs) > tokenquotaconfig.MaxLimits {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"Token 额度周期数量超过限制",
+		)
+	}
+
+	limits := make([]resource.TokenQuotaLimit, len(configs))
+	seen := make(map[resource.TokenQuotaPeriod]bool, len(configs))
+	for i, config := range configs {
+		if config == nil {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"Token 额度不能为空",
+			)
 		}
-		period, err := tokenQuotaPeriod(limit.GetPeriod())
+		period, err := parseTokenQuotaPeriod(config.GetPeriod())
 		if err != nil {
 			return nil, err
 		}
 		if seen[period] {
-			return nil, adminservice.BadRequest("同一额度周期不能重复配置")
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"同一额度周期不能重复配置",
+			)
+		}
+		tokens := config.GetTokens()
+		if !tokenquotaconfig.IsValidTokenLimit(tokens) {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"Token 额度超出支持范围",
+			)
 		}
 		seen[period] = true
-		converted = append(converted, resource.TokenQuotaLimit{Period: period, Tokens: limit.GetTokens()})
+		limits[i] = resource.TokenQuotaLimit{Period: period, Tokens: tokens}
 	}
-	return converted, nil
+	slices.SortFunc(limits, func(a, b resource.TokenQuotaLimit) int {
+		return tokenQuotaPeriodOrder(a.Period) - tokenQuotaPeriodOrder(b.Period)
+	})
+	return limits, nil
 }
 
-func tokenQuotaPeriod(period adminv1.TokenQuotaPeriod) (resource.TokenQuotaPeriod, error) {
+func parseTokenQuotaPeriod(
+	period adminv1.TokenQuotaPeriod,
+) (resource.TokenQuotaPeriod, error) {
 	switch period {
 	case adminv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_DAY:
 		return resource.TokenQuotaPeriodDay, nil
@@ -91,6 +113,22 @@ func tokenQuotaPeriod(period adminv1.TokenQuotaPeriod) (resource.TokenQuotaPerio
 	case adminv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_MONTH:
 		return resource.TokenQuotaPeriodMonth, nil
 	default:
-		return "", adminservice.BadRequest("Token 额度周期不正确")
+		return "", errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"Token 额度周期不正确",
+		)
+	}
+}
+
+func tokenQuotaPeriodOrder(period resource.TokenQuotaPeriod) int {
+	switch period {
+	case resource.TokenQuotaPeriodDay:
+		return 1
+	case resource.TokenQuotaPeriodWeek:
+		return 2
+	case resource.TokenQuotaPeriodMonth:
+		return 3
+	default:
+		return 4
 	}
 }

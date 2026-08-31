@@ -36,8 +36,11 @@ service MockResponsePolicyService {
 }
 
 message MockResponseHeader {
-  string name = 1 [(buf.validate.field).string.min_len = 1];
-  string value = 2;
+  string name = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 256
+  }];
+  string value = 2 [(buf.validate.field).string.max_bytes = 8192];
 }
 
 message MockResponsePolicy {
@@ -74,30 +77,42 @@ message GetMockResponsePolicyRequest {
 }
 
 message CreateMockResponsePolicyRequest {
-  string name = 1 [(buf.validate.field).string.min_len = 1];
-  repeated PolicyTargetRef targets = 2;
+  string name = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
+  repeated PolicyTargetRef targets = 2 [(buf.validate.field).repeated.max_items = 256];
   int32 status_code = 3 [
     (buf.validate.field).int32.gte = 200,
     (buf.validate.field).int32.lte = 599
   ];
-  string content_type = 4 [(buf.validate.field).string.min_len = 1];
-  repeated MockResponseHeader headers = 5;
-  string body = 6 [(buf.validate.field).string.max_len = 1048576];
+  string content_type = 4 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 1024
+  }];
+  repeated MockResponseHeader headers = 5 [(buf.validate.field).repeated.max_items = 64];
+  string body = 6 [(buf.validate.field).string.max_bytes = 1048576];
 }
 
 message UpdateMockResponsePolicyRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
   int64 version = 2 [(buf.validate.field).int64.gt = 0];
-  string name = 3 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
   optional bool enabled = 4 [(buf.validate.field).required = true];
-  repeated PolicyTargetRef targets = 5;
+  repeated PolicyTargetRef targets = 5 [(buf.validate.field).repeated.max_items = 256];
   int32 status_code = 6 [
     (buf.validate.field).int32.gte = 200,
     (buf.validate.field).int32.lte = 599
   ];
-  string content_type = 7 [(buf.validate.field).string.min_len = 1];
-  repeated MockResponseHeader headers = 8;
-  string body = 9 [(buf.validate.field).string.max_len = 1048576];
+  string content_type = 7 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 1024
+  }];
+  repeated MockResponseHeader headers = 8 [(buf.validate.field).repeated.max_items = 64];
+  string body = 9 [(buf.validate.field).string.max_bytes = 1048576];
 }
 
 message DeleteMockResponsePolicyRequest {

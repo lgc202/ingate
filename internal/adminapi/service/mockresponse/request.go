@@ -1,104 +1,120 @@
 package mockresponse
 
 import (
-	"mime"
+	"fmt"
 	"strings"
 
-	"golang.org/x/net/http/httpguts"
+	"github.com/go-kratos/kratos/v3/errors"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
+	"github.com/lgc202/ingate/internal/pkg/mockresponseconfig"
 )
 
-const maxResponseBodyBytes = 1 << 20
-
-func createSpec(request *adminv1.CreateMockResponsePolicyRequest) (resource.MockResponsePolicySpec, error) {
-	return policySpec(
-		request.GetName(),
-		true,
-		request.GetTargets(),
-		request.GetStatusCode(),
-		request.GetContentType(),
-		request.GetHeaders(),
-		request.GetBody(),
-	)
-}
-
-func updateSpec(request *adminv1.UpdateMockResponsePolicyRequest) (resource.MockResponsePolicySpec, error) {
-	return policySpec(
-		request.GetName(),
-		request.GetEnabled(),
-		request.GetTargets(),
-		request.GetStatusCode(),
-		request.GetContentType(),
-		request.GetHeaders(),
-		request.GetBody(),
-	)
-}
-
-func policySpec(
-	name string,
+func parseMockResponsePolicySpec(
+	displayName string,
 	enabled bool,
-	targets []*adminv1.PolicyTargetRef,
+	targetConfigs []*adminv1.PolicyTargetRef,
 	statusCode int32,
 	contentType string,
-	headers []*adminv1.MockResponseHeader,
+	headerConfigs []*adminv1.MockResponseHeader,
 	body string,
 ) (resource.MockResponsePolicySpec, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return resource.MockResponsePolicySpec{}, adminservice.BadRequest("模拟响应策略名称不能为空")
+	displayName = strings.TrimSpace(displayName)
+	if displayName == "" {
+		return resource.MockResponsePolicySpec{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"模拟响应策略名称不能为空",
+		)
 	}
-	targetRefs, err := adminservice.PolicyTargetRefs(targets, resource.KindRoute)
+	targets, err := adminservice.PolicyTargetRefs(targetConfigs, resource.KindRoute)
 	if err != nil {
 		return resource.MockResponsePolicySpec{}, err
 	}
-	if statusCode < 200 || statusCode > 599 {
-		return resource.MockResponsePolicySpec{}, adminservice.BadRequest("响应状态码必须在 200 到 599 之间")
+	if !mockresponseconfig.IsValidStatusCode(statusCode) {
+		return resource.MockResponsePolicySpec{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"响应状态码必须在 200 到 599 之间",
+		)
 	}
-	contentType = strings.TrimSpace(contentType)
-	if _, _, err := mime.ParseMediaType(contentType); err != nil {
-		return resource.MockResponsePolicySpec{}, adminservice.BadRequest("响应内容类型格式不正确")
+	contentType, valid := mockresponseconfig.NormalizeContentType(contentType)
+	if !valid {
+		return resource.MockResponsePolicySpec{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"响应内容类型格式不正确",
+		)
 	}
-	if len(body) > maxResponseBodyBytes {
-		return resource.MockResponsePolicySpec{}, adminservice.BadRequest("响应正文不能超过 1 MiB")
+	if len(body) > mockresponseconfig.MaxBodyBytes {
+		return resource.MockResponsePolicySpec{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"响应正文不能超过 1 MiB",
+		)
 	}
-	responseHeaders, err := headerValues(headers)
+	headers, err := parseMockResponseHeaders(headerConfigs)
 	if err != nil {
 		return resource.MockResponsePolicySpec{}, err
 	}
+
 	return resource.MockResponsePolicySpec{
-		DisplayName: name,
+		DisplayName: displayName,
 		Enabled:     enabled,
-		TargetRefs:  targetRefs,
+		TargetRefs:  targets,
 		StatusCode:  statusCode,
 		ContentType: contentType,
-		Headers:     responseHeaders,
+		Headers:     headers,
 		Body:        body,
 	}, nil
 }
 
-func headerValues(values []*adminv1.MockResponseHeader) ([]resource.HeaderValue, error) {
-	headers := make([]resource.HeaderValue, 0, len(values))
-	seen := make(map[string]bool, len(values))
-	for _, value := range values {
-		name := strings.ToLower(strings.TrimSpace(value.GetName()))
-		if name == "" || strings.HasPrefix(name, ":") || !httpguts.ValidHeaderFieldName(name) {
-			return nil, adminservice.BadRequest("响应 Header 名称格式不正确")
+func parseMockResponseHeaders(
+	configs []*adminv1.MockResponseHeader,
+) ([]resource.HeaderValue, error) {
+	if len(configs) > mockresponseconfig.MaxHeaders {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"响应 Header 数量超过限制",
+		)
+	}
+
+	headers := make([]resource.HeaderValue, len(configs))
+	seen := make(map[string]bool, len(configs))
+	for i, config := range configs {
+		if config == nil {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				fmt.Sprintf("第 %d 条响应 Header 不能为空", i+1),
+			)
 		}
-		if name == "content-type" {
-			return nil, adminservice.BadRequest("Content-Type 请通过响应内容类型配置")
+		name := httpheader.NormalizeName(config.GetName())
+		if !httpheader.IsValidName(name) {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				fmt.Sprintf("第 %d 条响应 Header 名称格式不正确", i+1),
+			)
+		}
+		if mockresponseconfig.IsReservedHeaderName(name) {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				fmt.Sprintf("响应 Header %q 由系统管理，不能自行配置", name),
+			)
 		}
 		if seen[name] {
-			return nil, adminservice.BadRequest("响应 Header 名称不能重复")
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				fmt.Sprintf("响应 Header %q 不能重复", name),
+			)
+		}
+		value := httpheader.NormalizeValue(config.GetValue())
+		if !httpheader.IsValidValue(value) {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				fmt.Sprintf("响应 Header %q 的值格式不正确", name),
+			)
 		}
 		seen[name] = true
-		headerValue := strings.TrimSpace(value.GetValue())
-		if !httpguts.ValidHeaderFieldValue(headerValue) {
-			return nil, adminservice.BadRequest("响应 Header 值包含非法字符")
-		}
-		headers = append(headers, resource.HeaderValue{Name: name, Value: headerValue})
+		headers[i] = resource.HeaderValue{Name: name, Value: value}
 	}
 	return headers, nil
 }

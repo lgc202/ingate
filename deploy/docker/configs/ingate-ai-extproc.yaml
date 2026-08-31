@@ -1,6 +1,11 @@
 server:
   grpc:
     addr: "0.0.0.0:18081"
+    tls:
+      enabled: false
+      cert_file: ""
+      key_file: ""
+      client_ca_file: ""
   http:
     addr: "0.0.0.0:18082"
     timeout: "5s"
@@ -10,6 +15,7 @@ data:
   apiserver:
     master: ""
     kubeconfig: "/opt/ingate/ai-extproc/configs/kubeconfig.yaml"
+    bearer_token: "${APISERVER_BEARER_TOKEN}"
   redis:
     address: "redis:6379"
     password: ""

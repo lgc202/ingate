@@ -1,4 +1,4 @@
-// Package ratelimitpolicy 提供 RateLimitPolicy 的 apiserver 存储与校验
+// Package ratelimitpolicy 提供 RateLimitPolicy 的 API Server 存储与校验。
 package ratelimitpolicy
 
 import (
@@ -10,7 +10,7 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
 )
 
-// NewREST 创建 RateLimitPolicy 主资源与 status 子资源存储
+// NewREST 创建 RateLimitPolicy 主资源与 status 子资源存储。
 func NewREST(
 	optsGetter generic.RESTOptionsGetter,
 	typer runtime.ObjectTyper,

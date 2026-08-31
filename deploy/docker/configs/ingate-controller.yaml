@@ -10,6 +10,7 @@ data:
   apiserver:
     master: ""
     kubeconfig: "/opt/ingate/controller/configs/kubeconfig.yaml"
+    bearer_token: "${APISERVER_BEARER_TOKEN}"
   wasm:
     cache_dir: "/data/ingate/controller/wasm"
     pull_timeout: "30s"

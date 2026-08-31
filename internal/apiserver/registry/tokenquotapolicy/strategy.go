@@ -13,6 +13,7 @@ import (
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	"github.com/lgc202/ingate/internal/pkg/tokenquotaconfig"
 )
 
 type strategy struct {
@@ -21,10 +22,6 @@ type strategy struct {
 
 type statusStrategy struct {
 	strategy
-}
-
-func newStrategy(typer runtime.ObjectTyper) strategy {
-	return strategy{Strategy: apiregistry.NewStrategy(typer)}
 }
 
 func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
@@ -36,10 +33,6 @@ func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
 
 func (strategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	return validatePolicy(obj.(*resource.TokenQuotaPolicy))
-}
-
-func (strategy) Canonicalize(obj runtime.Object) {
-	canonicalizeSpec(&obj.(*resource.TokenQuotaPolicy).Spec)
 }
 
 func (strategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
@@ -56,10 +49,6 @@ func (strategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.E
 	return validatePolicy(obj.(*resource.TokenQuotaPolicy))
 }
 
-func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
-	return statusStrategy{strategy: newStrategy(typer)}
-}
-
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return apiregistry.SpecResetFields()
 }
@@ -72,16 +61,31 @@ func (statusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 	metav1.ResetObjectMetaForStatus(&newPolicy.ObjectMeta, &oldPolicy.ObjectMeta)
 }
 
-func (statusStrategy) ValidateUpdate(context.Context, runtime.Object, runtime.Object) field.ErrorList {
-	return nil
+func (statusStrategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.ErrorList {
+	policy := obj.(*resource.TokenQuotaPolicy)
+	return apiregistry.ValidatePolicyStatus(
+		policy.Status,
+		policy.Spec.TargetRefs,
+		policy.Generation,
+	)
+}
+
+func newStrategy(typer runtime.ObjectTyper) strategy {
+	return strategy{Strategy: apiregistry.NewStrategy(typer)}
+}
+
+func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
+	return statusStrategy{strategy: newStrategy(typer)}
 }
 
 func canonicalizeSpec(spec *resource.TokenQuotaPolicySpec) {
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
-	spec.TimeZone = strings.TrimSpace(spec.TimeZone)
-	for i := range spec.TargetRefs {
-		spec.TargetRefs[i].Name = strings.TrimSpace(spec.TargetRefs[i].Name)
+	if timeZone, _, valid := tokenquotaconfig.LoadLocation(spec.TimeZone); valid {
+		spec.TimeZone = timeZone
+	} else {
+		spec.TimeZone = strings.TrimSpace(spec.TimeZone)
 	}
+	apiregistry.CanonicalizePolicyTargetRefs(spec.TargetRefs)
 	slices.SortFunc(spec.Limits, func(a, b resource.TokenQuotaLimit) int {
 		return tokenQuotaPeriodOrder(a.Period) - tokenQuotaPeriodOrder(b.Period)
 	})

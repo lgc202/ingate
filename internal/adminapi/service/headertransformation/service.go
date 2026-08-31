@@ -1,4 +1,4 @@
-// Package headertransformation 提供请求响应 Header 转换策略管理 API
+// Package headertransformation 提供请求响应 Header 转换策略管理 API。
 package headertransformation
 
 import (
@@ -11,16 +11,17 @@ import (
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
 
-// Service 实现请求响应 Header 转换策略管理 API
+// Service 实现请求响应 Header 转换策略管理 API。
 type Service struct {
-	policies *headertransformationbiz.Service
+	policies *headertransformationbiz.Usecase
 }
 
-// NewService 创建请求响应 Header 转换策略协议服务
-func NewService(policies *headertransformationbiz.Service) *Service {
+// NewService 创建请求响应 Header 转换策略协议服务。
+func NewService(policies *headertransformationbiz.Usecase) *Service {
 	return &Service{policies: policies}
 }
 
+// ListHeaderTransformationPolicies 返回满足筛选条件的请求响应 Header 转换策略。
 func (s *Service) ListHeaderTransformationPolicies(
 	ctx context.Context,
 	request *adminv1.ListHeaderTransformationPoliciesRequest,
@@ -33,16 +34,20 @@ func (s *Service) ListHeaderTransformationPolicies(
 	if err != nil {
 		return nil, err
 	}
-	response := &adminv1.ListHeaderTransformationPoliciesResponse{
-		Policies:   make([]*adminv1.HeaderTransformationPolicy, 0, len(page.Policies)),
+	policies := make([]*adminv1.HeaderTransformationPolicy, len(page.Items))
+	for i := range page.Items {
+		policies[i] = headerTransformationPolicyResponse(
+			&page.Items[i],
+			page.TargetNames,
+		)
+	}
+	return &adminv1.ListHeaderTransformationPoliciesResponse{
+		Policies:   policies,
 		NextCursor: page.NextCursor,
-	}
-	for i := range page.Policies {
-		response.Policies = append(response.Policies, policyResponse(&page.Policies[i], page.TargetNames))
-	}
-	return response, nil
+	}, nil
 }
 
+// GetHeaderTransformationPolicy 返回指定请求响应 Header 转换策略。
 func (s *Service) GetHeaderTransformationPolicy(
 	ctx context.Context,
 	request *adminv1.GetHeaderTransformationPolicyRequest,
@@ -51,14 +56,21 @@ func (s *Service) GetHeaderTransformationPolicy(
 	if err != nil {
 		return nil, err
 	}
-	return policyResponse(view.Policy, view.TargetNames), nil
+	return headerTransformationPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// CreateHeaderTransformationPolicy 创建并启用请求响应 Header 转换策略。
 func (s *Service) CreateHeaderTransformationPolicy(
 	ctx context.Context,
 	request *adminv1.CreateHeaderTransformationPolicyRequest,
 ) (*adminv1.HeaderTransformationPolicy, error) {
-	spec, err := createSpec(request)
+	spec, err := parseHeaderTransformationPolicySpec(
+		request.GetName(),
+		true,
+		request.GetTargets(),
+		request.GetRequestRules(),
+		request.GetResponseRules(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -66,24 +78,37 @@ func (s *Service) CreateHeaderTransformationPolicy(
 	if err != nil {
 		return nil, err
 	}
-	return policyResponse(view.Policy, view.TargetNames), nil
+	return headerTransformationPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// UpdateHeaderTransformationPolicy 完整替换请求响应 Header 转换策略配置。
 func (s *Service) UpdateHeaderTransformationPolicy(
 	ctx context.Context,
 	request *adminv1.UpdateHeaderTransformationPolicyRequest,
 ) (*adminv1.HeaderTransformationPolicy, error) {
-	spec, err := updateSpec(request)
+	spec, err := parseHeaderTransformationPolicySpec(
+		request.GetName(),
+		request.GetEnabled(),
+		request.GetTargets(),
+		request.GetRequestRules(),
+		request.GetResponseRules(),
+	)
 	if err != nil {
 		return nil, err
 	}
-	view, err := s.policies.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	view, err := s.policies.Replace(
+		ctx,
+		request.GetId(),
+		request.GetVersion(),
+		spec,
+	)
 	if err != nil {
 		return nil, err
 	}
-	return policyResponse(view.Policy, view.TargetNames), nil
+	return headerTransformationPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// DeleteHeaderTransformationPolicy 删除请求响应 Header 转换策略。
 func (s *Service) DeleteHeaderTransformationPolicy(
 	ctx context.Context,
 	request *adminv1.DeleteHeaderTransformationPolicyRequest,

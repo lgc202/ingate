@@ -31,12 +31,17 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// RouteService 提供路由管理接口
+// RouteService 提供路由管理接口。
 type RouteServiceClient interface {
+	// ListRoutes 分页查询 Route。
 	ListRoutes(ctx context.Context, in *ListRoutesRequest, opts ...grpc.CallOption) (*ListRoutesResponse, error)
+	// GetRoute 查询指定 Route。
 	GetRoute(ctx context.Context, in *GetRouteRequest, opts ...grpc.CallOption) (*Route, error)
+	// CreateRoute 创建 Route。
 	CreateRoute(ctx context.Context, in *CreateRouteRequest, opts ...grpc.CallOption) (*Route, error)
+	// UpdateRoute 使用资源版本完整替换 Route 配置。
 	UpdateRoute(ctx context.Context, in *UpdateRouteRequest, opts ...grpc.CallOption) (*Route, error)
+	// DeleteRoute 使用资源版本删除 Route。
 	DeleteRoute(ctx context.Context, in *DeleteRouteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
@@ -102,12 +107,17 @@ func (c *routeServiceClient) DeleteRoute(ctx context.Context, in *DeleteRouteReq
 // All implementations should embed UnimplementedRouteServiceServer
 // for forward compatibility.
 //
-// RouteService 提供路由管理接口
+// RouteService 提供路由管理接口。
 type RouteServiceServer interface {
+	// ListRoutes 分页查询 Route。
 	ListRoutes(context.Context, *ListRoutesRequest) (*ListRoutesResponse, error)
+	// GetRoute 查询指定 Route。
 	GetRoute(context.Context, *GetRouteRequest) (*Route, error)
+	// CreateRoute 创建 Route。
 	CreateRoute(context.Context, *CreateRouteRequest) (*Route, error)
+	// UpdateRoute 使用资源版本完整替换 Route 配置。
 	UpdateRoute(context.Context, *UpdateRouteRequest) (*Route, error)
+	// DeleteRoute 使用资源版本删除 Route。
 	DeleteRoute(context.Context, *DeleteRouteRequest) (*emptypb.Empty, error)
 }
 

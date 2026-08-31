@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package ingate.assistant.conf;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/lgc202/ingate/internal/assistant/conf;conf";
+
+// Bootstrap 定义 ingate-assistant 的完整进程配置。
+message Bootstrap {
+  // server 定义 HTTP 入口和进程退出期限。
+  Server server = 1;
+  // data 定义持久存储和短期事件存储。
+  Data data = 2;
+  // stream 定义 SSE 事件的保留与读取行为。
+  Stream stream = 3;
+  // logging 定义结构化日志行为。
+  Logging logging = 4;
+  // worker 定义后台 Agent 执行槽和租约。
+  Worker worker = 5;
+  // admin_api 定义只读工具访问的内部管理接口。
+  AdminAPI admin_api = 6;
+}
+
+// Server 定义 Assistant HTTP 服务和进程退出行为。
+message Server {
+  // HTTP 定义 Assistant 唯一的网络入口。
+  message HTTP {
+    // addr 是 HTTP 监听地址。
+    string addr = 1;
+    // readiness_timeout 是一次依赖就绪检查的最长等待时间。
+    google.protobuf.Duration readiness_timeout = 2;
+  }
+  // http 是 Assistant HTTP 服务配置。
+  HTTP http = 1;
+  // shutdown_timeout 是等待在途请求和后台执行槽结束的最长时间。
+  google.protobuf.Duration shutdown_timeout = 2;
+}
+
+// Data 定义 Assistant 使用的持久化和短期事件基础设施。
+message Data {
+  // MySQL 保存会话、消息、执行、步骤和模型连接。
+  message MySQL {
+    // address 是 MySQL TCP 地址。
+    string address = 1;
+    // database 是 Assistant 使用的数据库名。
+    string database = 2;
+    // username 是数据库用户名。
+    string username = 3;
+    // password 是数据库密码，应通过环境变量注入。
+    string password = 4;
+    // dial_timeout 是建立数据库连接的最长等待时间。
+    google.protobuf.Duration dial_timeout = 5;
+    // max_open_connections 限制连接池总连接数。
+    uint32 max_open_connections = 6;
+    // max_idle_connections 限制连接池保留的空闲连接数。
+    uint32 max_idle_connections = 7;
+    // connection_max_lifetime 限制连接复用时长。
+    google.protobuf.Duration connection_max_lifetime = 8;
+  }
+  // Redis 保存可过期、可重放的 SSE 增量事件。
+  message Redis {
+    // address 是 Redis TCP 地址。
+    string address = 1;
+    // password 是 Redis 密码，应通过环境变量注入。
+    string password = 2;
+    // database 是单机 Redis 的逻辑数据库编号。
+    int32 database = 3;
+    // dial_timeout 是建立 Redis 连接的最长等待时间。
+    google.protobuf.Duration dial_timeout = 4;
+    // read_timeout 是普通 Redis 命令的读取超时；阻塞读取使用 read_block。
+    google.protobuf.Duration read_timeout = 5;
+    // write_timeout 是 Redis 命令的写入超时。
+    google.protobuf.Duration write_timeout = 6;
+    // pool_size 限制 Redis 连接池大小。
+    uint32 pool_size = 7;
+  }
+  // mysql 是 Assistant 的持久化事实来源。
+  MySQL mysql = 1;
+  // redis 只承载短期流式通知，不决定执行终态。
+  Redis redis = 2;
+}
+
+// Stream 定义单次执行事件流的保留和阻塞读取策略。
+message Stream {
+  // retention 是一条执行事件流的保留时间。
+  google.protobuf.Duration retention = 1;
+  // max_events 是一条执行流最多保留的近期事件数。
+  uint32 max_events = 2;
+  // read_block 是无新事件时单次 Redis 阻塞读取的最长时间。
+  google.protobuf.Duration read_block = 3;
+}
+
+// Worker 定义后台 Agent 执行的进程内并发度、领取频率和实例租约。
+// 同一会话仍由业务规则保证串行；不同会话可以由多个执行槽并发处理。
+message Worker {
+  // concurrency 是当前进程固定创建的执行槽数量。
+  uint32 concurrency = 1;
+  // poll_interval 是空闲执行槽再次领取任务前的等待时间。
+  google.protobuf.Duration poll_interval = 2;
+  // lease_duration 是一个执行槽失联后允许恢复器收敛任务的期限。
+  google.protobuf.Duration lease_duration = 3;
+}
+
+// AdminAPI 定义助手读取当前 Ingate 资源时使用的内部 gRPC 地址。
+message AdminAPI {
+  // addr 是 Admin API 内部 gRPC 地址。
+  string addr = 1;
+  // timeout 是一次只读工具查询的最长等待时间。
+  google.protobuf.Duration timeout = 2;
+}
+
+// Logging 定义 Assistant 的结构化日志格式与级别。
+message Logging {
+  // format 支持 json 和 text。
+  string format = 1;
+  // level 支持 debug、info、warn 和 error。
+  string level = 2;
+  // add_source 控制日志是否包含调用位置。
+  bool add_source = 3;
+}

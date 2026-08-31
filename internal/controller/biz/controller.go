@@ -1,4 +1,3 @@
-// Package biz 编排声明式资源到 Envoy 配置的控制面用例
 package biz
 
 import (
@@ -8,6 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"k8s.io/client-go/util/workqueue"
@@ -15,9 +16,8 @@ import (
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
 	"github.com/lgc202/ingate/internal/controller/biz/delivery"
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	certificateutil "github.com/lgc202/ingate/internal/pkg/certificate"
 )
-
-type queueKey string
 
 const (
 	queueKeyDesiredConfig    queueKey = "desired-config"
@@ -28,9 +28,11 @@ const (
 	wasmModuleRetryDelay = 30 * time.Second
 )
 
-// ResourceWatcher 向控制循环提供完整资源事实和变更通知
+type queueKey string
+
+// ResourceWatcher 向控制循环提供完整资源事实和变更通知。
 //
-// 接口定义在消费方，避免 biz 依赖 informer 和生成客户端
+// 接口定义在消费方，避免 biz 依赖 informer 和生成客户端。
 type ResourceWatcher interface {
 	Start(context.Context) error
 	Stop()
@@ -38,19 +40,19 @@ type ResourceWatcher interface {
 	Changes() <-chan struct{}
 }
 
-// StatusWriter 将编译和发布结果回写为声明式资源状态
+// StatusWriter 将编译和发布结果回写为声明式资源状态。
 type StatusWriter interface {
 	ApplyCompileResult(context.Context, compiler.Resources, []compiler.Diagnostic, delivery.Status) error
 	ApplyProgrammed(context.Context, compiler.Resources, delivery.Status) error
 }
 
-// WasmModuleStore 隔离 Controller 与远端模块拉取、缓存和保留策略
+// WasmModuleStore 隔离 Controller 与远端模块拉取、缓存和保留策略。
 type WasmModuleStore interface {
 	Resolve(context.Context, *gatewayv1.WasmPlugin) (compiler.WasmModule, error)
 	Retain([]compiler.ResourceGeneration)
 }
 
-// Controller 将一个 Ingate 配置域持续收敛为可被 Envoy 接受的配置
+// Controller 将一个 Ingate 配置域持续收敛为可被 Envoy 接受的配置。
 type Controller struct {
 	resources    ResourceWatcher
 	delivery     *delivery.Delivery
@@ -58,12 +60,14 @@ type Controller struct {
 	wasmModules  WasmModuleStore
 	queue        workqueue.TypedRateLimitingInterface[queueKey]
 	logger       *slog.Logger
-	started      chan struct{}
 	done         chan struct{}
+	running      atomic.Bool
+	lifecycleMu  sync.Mutex
 	cancel       context.CancelFunc
+	stopping     bool
 }
 
-// NewController 创建使用固定全局 key 收敛整个配置域的控制循环
+// NewController 创建使用固定全局 key 收敛整个配置域的控制循环。
 func NewController(
 	resources ResourceWatcher,
 	statusWriter StatusWriter,
@@ -80,18 +84,25 @@ func NewController(
 			workqueue.DefaultTypedControllerRateLimiter[queueKey](),
 			workqueue.TypedRateLimitingQueueConfig[queueKey]{Name: "configuration-reconcile"},
 		),
-		logger:  logger,
-		started: make(chan struct{}),
-		done:    make(chan struct{}),
+		logger: logger.With("component", "controller"),
+		done:   make(chan struct{}),
 	}
 }
 
-// Start 同步资源缓存后执行唯一的全配置域收敛循环
+// Start 同步资源缓存后执行唯一的全配置域收敛循环。
 func (c *Controller) Start(ctx context.Context) error {
+	if !c.running.CompareAndSwap(false, true) {
+		return errors.New("controller is already running")
+	}
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	c.lifecycleMu.Lock()
 	c.cancel = cancel
-	close(c.started)
+	stopping := c.stopping
+	c.lifecycleMu.Unlock()
+	if stopping {
+		cancel()
+	}
 	defer close(c.done)
 	defer c.resources.Stop()
 
@@ -118,23 +129,22 @@ func (c *Controller) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop 停止资源监听与收敛循环，并等待内部协程退出
+// Stop 停止资源监听与收敛循环，并等待内部协程退出。
 func (c *Controller) Stop(ctx context.Context) error {
-	select {
-	case <-c.started:
-	case <-c.done:
+	c.lifecycleMu.Lock()
+	c.stopping = true
+	cancel := c.cancel
+	c.lifecycleMu.Unlock()
+	if cancel == nil {
 		return nil
-	case <-ctx.Done():
-		return ctx.Err()
 	}
-
-	c.cancel()
+	cancel()
 
 	select {
 	case <-c.done:
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("stop configuration controller: %w", ctx.Err())
 	}
 }
 
@@ -187,24 +197,28 @@ func (c *Controller) reconcileDesiredConfig(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	observedAt := time.Now().UTC()
+	if delay, exists := nextCertificateTransition(resources.Certificates, observedAt); exists {
+		c.queue.AddAfter(queueKeyDesiredConfig, delay)
+	}
 	c.wasmModules.Retain(wasmModuleGenerations(resources.WasmPlugins, c.delivery.Status().ActiveResources))
 
 	wasmModules, moduleDiagnostics := c.resolveWasmModules(ctx, resources.WasmPlugins)
-	result := compiler.Compile(resources, wasmModules)
-	deliveryResult := result
-	result.Diagnostics = mergeWasmModuleDiagnostics(result.Diagnostics, moduleDiagnostics)
+	compileResult := compiler.Compile(resources, wasmModules, observedAt)
+	diagnostics := mergeDiagnostics(compileResult.Diagnostics, moduleDiagnostics)
 
 	var deliveryErr error
-	// 仅安装但尚未被策略使用的插件校验失败不应冻结整个网关配置；依赖该插件的策略会在编译结果中产生阻塞诊断
-	if deliveryResult.HasErrors() {
+	// 仅安装但尚未被策略使用的插件校验失败不应冻结整个网关配置；
+	// 依赖该插件的策略会在编译结果中产生阻塞诊断。
+	if compileResult.HasErrors() {
 		if err := c.delivery.CancelCandidate(ctx); err != nil {
 			deliveryErr = fmt.Errorf("cancel pending Envoy configuration after compile errors: %w", err)
 		}
-	} else if err := c.delivery.Submit(ctx, deliveryResult); err != nil {
-		deliveryErr = fmt.Errorf("submit Envoy configuration %q: %w", result.Version, err)
+	} else if err := c.delivery.Submit(ctx, compileResult); err != nil {
+		deliveryErr = fmt.Errorf("submit Envoy configuration %q: %w", compileResult.Version, err)
 	}
 
-	statusErr := c.statusWriter.ApplyCompileResult(ctx, resources, result.Diagnostics, c.delivery.Status())
+	statusErr := c.statusWriter.ApplyCompileResult(ctx, resources, diagnostics, c.delivery.Status())
 	if statusErr != nil {
 		statusErr = fmt.Errorf("apply resource compile status: %w", statusErr)
 	}
@@ -213,6 +227,31 @@ func (c *Controller) reconcileDesiredConfig(ctx context.Context) error {
 		c.queue.AddAfter(queueKeyDesiredConfig, wasmModuleRetryDelay)
 	}
 	return reconcileErr
+}
+
+func nextCertificateTransition(
+	certificates []*gatewayv1.Certificate,
+	observedAt time.Time,
+) (time.Duration, bool) {
+	var next time.Time
+	for _, certificate := range certificates {
+		if certificate == nil {
+			continue
+		}
+		leaf, err := certificateutil.ParseLeafCertificate(certificate.Spec.CertificatePEM)
+		if err != nil {
+			continue
+		}
+		for _, transition := range []time.Time{leaf.NotBefore, leaf.NotAfter} {
+			if transition.After(observedAt) && (next.IsZero() || transition.Before(next)) {
+				next = transition
+			}
+		}
+	}
+	if next.IsZero() {
+		return 0, false
+	}
+	return next.Sub(observedAt), true
 }
 
 func (c *Controller) resolveWasmModules(
@@ -227,12 +266,16 @@ func (c *Controller) resolveWasmModules(
 		}
 		module, err := c.wasmModules.Resolve(ctx, plugin)
 		if err != nil {
+			c.logger.ErrorContext(ctx, "prepare Wasm module failed",
+				"plugin_id", plugin.Name,
+				"err", err,
+			)
 			diagnostics = append(diagnostics, compiler.Diagnostic{
-				Severity: compiler.SeverityError,
-				Kind:     gatewayv1.KindWasmPlugin,
-				ID:       plugin.Name,
-				Reason:   compiler.ReasonArtifactUnavailable,
-				Message:  fmt.Sprintf("prepare Wasm plugin %q module: %v", plugin.Name, err),
+				Severity:   compiler.SeverityError,
+				Kind:       gatewayv1.KindWasmPlugin,
+				ResourceID: plugin.Name,
+				Reason:     compiler.ReasonArtifactUnavailable,
+				Message:    fmt.Sprintf("Wasm plugin %q module is unavailable", plugin.Name),
 			})
 			continue
 		}
@@ -241,33 +284,18 @@ func (c *Controller) resolveWasmModules(
 	return modules, diagnostics
 }
 
-// mergeWasmModuleDiagnostics 用具体的拉取失败替换 compiler 对缺失模块的兜底诊断
-//
-// 即使模块拉取失败也必须完整编译其余资源，避免把尚未校验的资源误标为 Accepted
-func mergeWasmModuleDiagnostics(
+func mergeDiagnostics(
 	compiled []compiler.Diagnostic,
-	resolved []compiler.Diagnostic,
+	additional []compiler.Diagnostic,
 ) []compiler.Diagnostic {
-	failedPlugins := make(map[string]bool, len(resolved))
-	for _, diagnostic := range resolved {
-		failedPlugins[diagnostic.ID] = true
-	}
-
-	diagnostics := make([]compiler.Diagnostic, 0, len(compiled)+len(resolved))
-	for _, diagnostic := range compiled {
-		if diagnostic.Kind == gatewayv1.KindWasmPlugin &&
-			diagnostic.Reason == compiler.ReasonCompileFailed &&
-			failedPlugins[diagnostic.ID] {
-			continue
-		}
-		diagnostics = append(diagnostics, diagnostic)
-	}
-	diagnostics = append(diagnostics, resolved...)
+	diagnostics := make([]compiler.Diagnostic, 0, len(compiled)+len(additional))
+	diagnostics = append(diagnostics, compiled...)
+	diagnostics = append(diagnostics, additional...)
 	slices.SortFunc(diagnostics, func(a, b compiler.Diagnostic) int {
 		return cmp.Or(
 			cmp.Compare(a.Severity, b.Severity),
 			cmp.Compare(a.Kind, b.Kind),
-			cmp.Compare(a.ID, b.ID),
+			cmp.Compare(a.ResourceID, b.ResourceID),
 			cmp.Compare(a.Reason, b.Reason),
 			cmp.Compare(a.Message, b.Message),
 		)
@@ -291,7 +319,8 @@ func (c *Controller) reconcileProgrammedStatus(ctx context.Context) error {
 
 // wasmModuleGenerations 同时保留当前期望插件和 last-good xDS 仍引用的插件 generation
 //
-// Candidate 生效前不能只按最新声明式资源清理缓存，否则删除或升级插件会让 Active 配置的模块 URL 提前失效
+// Candidate 生效前不能只按最新声明式资源清理缓存，
+// 否则删除或升级插件会让 Active 配置的模块 URL 提前失效。
 func wasmModuleGenerations(
 	plugins []*gatewayv1.WasmPlugin,
 	active []compiler.ResourceGeneration,

@@ -6,52 +6,82 @@ import "google/protobuf/duration.proto";
 
 option go_package = "github.com/lgc202/ingate/internal/authz/conf;conf";
 
-// Bootstrap 定义 ingate-authz 的完整进程配置
+// Bootstrap 定义 ingate-authz 的完整进程配置。
 message Bootstrap {
+  // server 定义进程监听地址和退出超时。
   Server server = 1;
+  // logging 定义结构化日志行为。
   Logging logging = 2;
+  // data 定义声明式资源与 Redis 的连接方式。
   Data data = 3;
 }
 
-// Data 定义 Caller 配置来源
+// Data 定义 Caller 配置来源。
 message Data {
   message APIServer {
+    // master 是声明式 API Server 地址。
     string master = 1;
+    // kubeconfig 是访问声明式 API Server 的客户端配置文件。
     string kubeconfig = 2;
+    // bearer_token 认证 Authz 到声明式 API 的内部请求。
+    string bearer_token = 3;
   }
   message Redis {
-    // address 是共享请求计数使用的 Redis 地址
+    // address 是共享请求计数使用的 Redis 地址。
     string address = 1;
-    // password 为空表示 Redis 未启用认证
+    // password 为空表示 Redis 未启用认证。
     string password = 2;
-    // database 是请求限流使用的逻辑数据库
+    // database 是请求限流使用的逻辑数据库。
     int32 database = 3;
-    // dial_timeout 限制建立 Redis 连接的时间
+    // dial_timeout 限制建立 Redis 连接的时间。
     google.protobuf.Duration dial_timeout = 4;
-    // operation_timeout 限制单次限流计数的时间
+    // operation_timeout 限制单次限流计数的时间。
     google.protobuf.Duration operation_timeout = 5;
   }
+  // apiserver 定义声明式 API Server 连接参数。
   APIServer apiserver = 1;
+  // redis 定义共享请求计数使用的 Redis 连接参数。
   Redis redis = 2;
 }
 
-// Server 定义 Envoy External Authorization 和运维入口
+// Server 定义 Envoy External Authorization 和运维入口。
 message Server {
   message GRPC {
+    message TLS {
+      // enabled 控制 Authz gRPC 服务是否启用 TLS。
+      bool enabled = 1;
+      // cert_file 是服务端证书链文件。
+      string cert_file = 2;
+      // key_file 是服务端私钥文件。
+      string key_file = 3;
+      // client_ca_file 非空时启用 mTLS 并只信任该 CA 签发的 Envoy 客户端证书。
+      string client_ca_file = 4;
+    }
+    // addr 是 Envoy 连接的 gRPC 监听地址。
     string addr = 1;
+    // tls 保护 Envoy 到 Authz 的调用方凭据和准入结果。
+    TLS tls = 2;
   }
   message HTTP {
+    // addr 是运维 HTTP 服务的监听地址。
     string addr = 1;
+    // timeout 限制运维 HTTP 请求的处理时间。
     google.protobuf.Duration timeout = 2;
   }
+  // grpc 定义 Envoy External Authorization 服务。
   GRPC grpc = 1;
+  // http 定义健康检查、就绪检查与指标服务。
   HTTP http = 2;
+  // shutdown_timeout 限制进程优雅退出的等待时间。
   google.protobuf.Duration shutdown_timeout = 3;
 }
 
-// Logging 定义结构化日志格式与级别
+// Logging 定义结构化日志格式与级别。
 message Logging {
+  // format 是日志编码格式。
   string format = 1;
+  // level 是最低输出级别。
   string level = 2;
+  // add_source 控制日志是否包含源码位置。
   bool add_source = 3;
 }

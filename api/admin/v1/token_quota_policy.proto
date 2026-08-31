@@ -88,10 +88,16 @@ message GetTokenQuotaPolicyRequest {
 }
 
 message CreateTokenQuotaPolicyRequest {
-  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
   optional bool enabled = 2 [(buf.validate.field).required = true];
-  repeated PolicyTargetRef targets = 3;
-  string time_zone = 4 [(buf.validate.field).string.min_len = 1];
+  repeated PolicyTargetRef targets = 3 [(buf.validate.field).repeated.max_items = 256];
+  string time_zone = 4 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 255
+  }];
   repeated TokenQuotaLimit limits = 5 [(buf.validate.field).repeated = {
     min_items: 1
     max_items: 3
@@ -101,10 +107,16 @@ message CreateTokenQuotaPolicyRequest {
 message UpdateTokenQuotaPolicyRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
   int64 version = 2 [(buf.validate.field).int64.gt = 0];
-  string name = 3 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
   optional bool enabled = 4 [(buf.validate.field).required = true];
-  repeated PolicyTargetRef targets = 5;
-  string time_zone = 6 [(buf.validate.field).string.min_len = 1];
+  repeated PolicyTargetRef targets = 5 [(buf.validate.field).repeated.max_items = 256];
+  string time_zone = 6 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 255
+  }];
   repeated TokenQuotaLimit limits = 7 [(buf.validate.field).repeated = {
     min_items: 1
     max_items: 3

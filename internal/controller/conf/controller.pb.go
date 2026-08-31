@@ -109,7 +109,7 @@ type Server struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// grpc 暴露 Envoy ADS 服务
 	Grpc *Server_GRPC `protobuf:"bytes,1,opt,name=grpc,proto3" json:"grpc,omitempty"`
-	// http 暴露健康检查和就绪检查
+	// http 暴露 /healthz、/readyz 和 /metrics 运维端点。
 	Http *Server_HTTP `protobuf:"bytes,2,opt,name=http,proto3" json:"http,omitempty"`
 	// shutdown_timeout 是等待 Controller 各执行循环停止的最长时间
 	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,3,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
@@ -226,9 +226,9 @@ func (x *Data) GetWasm() *Data_Wasm {
 // Delivery 定义 Candidate 配置的确认和回退期限
 type Delivery struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// candidate_ack_timeout 是 Envoy 首次收到 Candidate 后的 ACK 等待时间
+	// candidate_ack_timeout 是 Envoy 首次收到 Candidate 后等待所有已连接实例接受的时间
 	CandidateAckTimeout *durationpb.Duration `protobuf:"bytes,1,opt,name=candidate_ack_timeout,json=candidateAckTimeout,proto3" json:"candidate_ack_timeout,omitempty"`
-	// nack_rollback_timeout 是 NACK 后恢复 Active 配置的最长等待时间
+	// nack_rollback_timeout 是 NACK 或 ACK 超时后恢复 Active 配置的最长等待时间
 	NackRollbackTimeout *durationpb.Duration `protobuf:"bytes,2,opt,name=nack_rollback_timeout,json=nackRollbackTimeout,proto3" json:"nack_rollback_timeout,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
@@ -435,7 +435,7 @@ func (x *Server_GRPC) GetAddr() string {
 
 type Server_HTTP struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// addr 是健康检查的 HTTP 监听地址
+	// addr 是 /healthz、/readyz 和 /metrics 运维端点的 HTTP 监听地址。
 	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
 	// timeout 限制单次运维 HTTP 请求处理时间
 	Timeout       *durationpb.Duration `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
@@ -492,7 +492,9 @@ type Data_APIServer struct {
 	// master 覆盖 kubeconfig 中的 API Server 地址
 	Master string `protobuf:"bytes,1,opt,name=master,proto3" json:"master,omitempty"`
 	// kubeconfig 保存声明式资源 API 的连接与认证配置
-	Kubeconfig    string `protobuf:"bytes,2,opt,name=kubeconfig,proto3" json:"kubeconfig,omitempty"`
+	Kubeconfig string `protobuf:"bytes,2,opt,name=kubeconfig,proto3" json:"kubeconfig,omitempty"`
+	// bearer_token 认证 Controller 到声明式 API 的内部请求
+	BearerToken   string `protobuf:"bytes,3,opt,name=bearer_token,json=bearerToken,proto3" json:"bearer_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -537,6 +539,13 @@ func (x *Data_APIServer) GetMaster() string {
 func (x *Data_APIServer) GetKubeconfig() string {
 	if x != nil {
 		return x.Kubeconfig
+	}
+	return ""
+}
+
+func (x *Data_APIServer) GetBearerToken() string {
+	if x != nil {
+		return x.BearerToken
 	}
 	return ""
 }
@@ -632,15 +641,16 @@ const file_controller_proto_rawDesc = "" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xfe\x02\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xa1\x03\n" +
 	"\x04Data\x12D\n" +
 	"\tapiserver\x18\x01 \x01(\v2&.ingate.controller.conf.Data.APIServerR\tapiserver\x125\n" +
-	"\x04wasm\x18\x02 \x01(\v2!.ingate.controller.conf.Data.WasmR\x04wasm\x1aC\n" +
+	"\x04wasm\x18\x02 \x01(\v2!.ingate.controller.conf.Data.WasmR\x04wasm\x1af\n" +
 	"\tAPIServer\x12\x16\n" +
 	"\x06master\x18\x01 \x01(\tR\x06master\x12\x1e\n" +
 	"\n" +
 	"kubeconfig\x18\x02 \x01(\tR\n" +
-	"kubeconfig\x1a\xb3\x01\n" +
+	"kubeconfig\x12!\n" +
+	"\fbearer_token\x18\x03 \x01(\tR\vbearerToken\x1a\xb3\x01\n" +
 	"\x04Wasm\x12\x1b\n" +
 	"\tcache_dir\x18\x01 \x01(\tR\bcacheDir\x12<\n" +
 	"\fpull_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\vpullTimeout\x12(\n" +

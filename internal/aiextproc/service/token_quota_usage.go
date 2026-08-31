@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -12,33 +14,40 @@ import (
 	"github.com/lgc202/ingate/internal/aiextproc/biz/tokenquota"
 )
 
-// TokenQuotaUsageService 将 AI ExtProc 的实时额度转换为内部 gRPC 协议
+// TokenQuotaUsageService 将 AI ExtProc 的实时额度转换为内部 gRPC 协议。
 type TokenQuotaUsageService struct {
-	quotas *tokenquota.Service
+	limiter *tokenquota.Limiter
+	logger  *slog.Logger
 }
 
-// NewTokenQuotaUsageService 创建 Token 额度查询服务
-func NewTokenQuotaUsageService(quotas *tokenquota.Service) *TokenQuotaUsageService {
-	return &TokenQuotaUsageService{quotas: quotas}
+// NewTokenQuotaUsageService 创建 Token 额度查询服务。
+func NewTokenQuotaUsageService(
+	limiter *tokenquota.Limiter,
+	logger *slog.Logger,
+) *TokenQuotaUsageService {
+	return &TokenQuotaUsageService{limiter: limiter, logger: logger}
 }
 
-// GetCallerUsage 查询调用方当前命中的全部自然周期额度
+// GetCallerUsage 查询调用方当前命中的全部自然周期额度。
 func (s *TokenQuotaUsageService) GetCallerUsage(
 	ctx context.Context,
 	request *aiextprocv1.GetCallerUsageRequest,
 ) (*aiextprocv1.GetCallerUsageResponse, error) {
-	if request.GetCallerId() == "" {
-		return nil, status.Error(codes.InvalidArgument, "caller_id is required")
+	callerID, err := uuid.Parse(request.GetCallerId())
+	if err != nil || callerID.String() != request.GetCallerId() {
+		return nil, status.Error(codes.InvalidArgument, "caller_id must be a canonical UUID")
 	}
-	usages, err := s.quotas.CurrentUsage(ctx, request.GetCallerId(), time.Now())
+	usages, err := s.limiter.CurrentUsage(ctx, callerID.String(), time.Now())
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "query token quota usage: %v", err)
+		if ctx.Err() != nil {
+			return nil, status.FromContextError(ctx.Err()).Err()
+		}
+		s.logger.ErrorContext(ctx, "query token quota usage failed", "caller_id", callerID.String(), "err", err)
+		return nil, status.Error(codes.Unavailable, "token quota usage is unavailable")
 	}
-	response := &aiextprocv1.GetCallerUsageResponse{
-		Usages: make([]*aiextprocv1.TokenQuotaUsage, 0, len(usages)),
-	}
-	for _, usage := range usages {
-		response.Usages = append(response.Usages, &aiextprocv1.TokenQuotaUsage{
+	response := &aiextprocv1.GetCallerUsageResponse{Usages: make([]*aiextprocv1.TokenQuotaUsage, len(usages))}
+	for i, usage := range usages {
+		response.Usages[i] = &aiextprocv1.TokenQuotaUsage{
 			PolicyId:    usage.PolicyID,
 			PolicyName:  usage.PolicyName,
 			Period:      tokenQuotaPeriodResponse(usage.Period),
@@ -46,7 +55,7 @@ func (s *TokenQuotaUsageService) GetCallerUsage(
 			LimitTokens: usage.Limit,
 			StartedAt:   timestamppb.New(usage.Start),
 			ResetsAt:    timestamppb.New(usage.End),
-		})
+		}
 	}
 	return response, nil
 }

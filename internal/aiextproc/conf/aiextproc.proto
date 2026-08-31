@@ -23,6 +23,8 @@ message Data {
     string master = 1;
     // kubeconfig 保存声明式资源 API 的连接配置
     string kubeconfig = 2;
+    // bearer_token 认证 AI ExtProc 到声明式 API 的内部请求
+    string bearer_token = 3;
   }
 
   message Redis {
@@ -46,18 +48,30 @@ message Data {
 // Server 定义 AI ExtProc 的监听和退出行为
 message Server {
   message GRPC {
+    message TLS {
+      // enabled 控制 AI ExtProc gRPC 服务是否启用 TLS。
+      bool enabled = 1;
+      // cert_file 是服务端证书链文件。
+      string cert_file = 2;
+      // key_file 是服务端私钥文件。
+      string key_file = 3;
+      // client_ca_file 非空时启用 mTLS，并校验 Envoy 与 Admin API 的客户端证书。
+      string client_ca_file = 4;
+    }
     // addr 是 Envoy External Processing Filter 连接的 gRPC 地址
     string addr = 1;
+    // tls 保护 Envoy、Admin API 到 AI ExtProc 的内部链路。
+    TLS tls = 2;
   }
   message HTTP {
-    // addr 是健康检查和就绪检查的 HTTP 地址
+    // addr 是 /healthz、/readyz 和 /metrics 运维端点的 HTTP 监听地址。
     string addr = 1;
     // timeout 限制单次运维 HTTP 请求处理时间
     google.protobuf.Duration timeout = 2;
   }
   // grpc 接收 Envoy External Processing 双向流
   GRPC grpc = 1;
-  // http 暴露 healthz 和 readyz
+  // http 暴露 /healthz、/readyz 和 /metrics 运维端点。
   HTTP http = 2;
   // shutdown_timeout 是等待现有 External Processing 流退出的最长时间
   google.protobuf.Duration shutdown_timeout = 3;

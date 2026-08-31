@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/iprestrictionconfig"
 )
 
 const (
@@ -33,11 +34,17 @@ type compiledIPRestrictionPolicy struct {
 	targets []gatewayv1.PolicyTargetRef
 }
 
-func (c *compilation) compileIPRestrictionPolicies() map[string]compiledIPRestrictionPolicy {
-	result := make(map[string]compiledIPRestrictionPolicy)
+func (c *compilation) compileIPRestrictionPolicies() []compiledIPRestrictionPolicy {
+	result := make([]compiledIPRestrictionPolicy, 0, len(c.ipRestrictionPolicies))
 	for _, policyID := range slices.Sorted(maps.Keys(c.ipRestrictionPolicies)) {
 		policy := c.ipRestrictionPolicies[policyID]
-		targets := c.validPolicyTargets(gatewayv1.KindIPRestrictionPolicy, policyID, policy.Spec.TargetRefs)
+		targets := c.validPolicyTargets(
+			gatewayv1.KindIPRestrictionPolicy,
+			policyID,
+			policy.Spec.TargetRefs,
+			gatewayv1.KindGateway,
+			gatewayv1.KindRoute,
+		)
 		if !policy.Spec.Enabled {
 			continue
 		}
@@ -45,11 +52,11 @@ func (c *compilation) compileIPRestrictionPolicies() map[string]compiledIPRestri
 		if !valid {
 			continue
 		}
-		result[policyID] = compiledIPRestrictionPolicy{
-			source:  newResourceGeneration(gatewayv1.KindIPRestrictionPolicy, policy.Name, policy.UID, policy.Generation),
+		result = append(result, compiledIPRestrictionPolicy{
+			source:  newResourceGeneration(gatewayv1.KindIPRestrictionPolicy, policy),
 			policy:  compiled,
 			targets: targets,
-		}
+		})
 	}
 	return result
 }
@@ -57,8 +64,7 @@ func (c *compilation) compileIPRestrictionPolicies() map[string]compiledIPRestri
 func (c *compilation) ipRestrictionPolicy(policy *gatewayv1.IPRestrictionPolicy) (ipRestrictionPolicy, bool) {
 	valid := true
 	if (len(policy.Spec.Allow) > 0) == (len(policy.Spec.Deny) > 0) {
-		c.addDiagnostic(
-			SeverityError,
+		c.addResourceError(
 			gatewayv1.KindIPRestrictionPolicy,
 			policy.Name,
 			ReasonInvalidSpec,
@@ -72,13 +78,23 @@ func (c *compilation) ipRestrictionPolicy(policy *gatewayv1.IPRestrictionPolicy)
 }
 
 func (c *compilation) ipPrefixes(policy *gatewayv1.IPRestrictionPolicy, values []string) ([]netip.Prefix, bool) {
-	prefixes := make([]netip.Prefix, 0, len(values))
 	valid := true
+	if len(values) > iprestrictionconfig.MaxRanges {
+		c.addResourceError(
+			gatewayv1.KindIPRestrictionPolicy,
+			policy.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("IP restriction policy %q contains too many IP ranges", policy.Name),
+		)
+		values = values[:iprestrictionconfig.MaxRanges]
+		valid = false
+	}
+
+	prefixes := make([]netip.Prefix, 0, len(values))
 	for _, value := range values {
-		prefix, err := netip.ParsePrefix(value)
-		if err != nil {
-			c.addDiagnostic(
-				SeverityError,
+		normalized, ok := iprestrictionconfig.NormalizeRange(value)
+		if !ok {
+			c.addResourceError(
 				gatewayv1.KindIPRestrictionPolicy,
 				policy.Name,
 				ReasonInvalidSpec,
@@ -87,6 +103,7 @@ func (c *compilation) ipPrefixes(policy *gatewayv1.IPRestrictionPolicy, values [
 			valid = false
 			continue
 		}
+		prefix, _ := netip.ParsePrefix(normalized)
 		prefixes = append(prefixes, prefix.Masked())
 	}
 	return prefixes, valid

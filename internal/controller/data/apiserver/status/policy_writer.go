@@ -10,16 +10,15 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
-	"github.com/lgc202/ingate/internal/controller/biz/delivery"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 func (w *Writer) updateRateLimitPolicy(
 	ctx context.Context,
 	source compiler.ResourceGeneration,
 	compile *compileDecision,
-	deliveryStatus delivery.Status,
+	deliveryState deliveryIndex,
 	targets map[resourceKey]compiler.ResourceGeneration,
-	programmedTargets map[compiler.CompiledPolicyTarget]bool,
 ) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		resource, err := w.client.RateLimitPolicies().Get(ctx, source.Name, metav1.GetOptions{})
@@ -33,15 +32,16 @@ func (w *Writer) updateRateLimitPolicy(
 			return nil
 		}
 
-		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryState)
 		targetStatuses := policyTargetStatuses(
 			resource.Status.Targets,
 			resource.Spec.TargetRefs,
 			source,
 			conditions,
-			deliveryStatus,
+			deliveryState,
 			targets,
-			programmedTargets,
+			gatewayv1.KindGateway,
+			gatewayv1.KindRoute,
 		)
 		conditions = policyConditions(conditions, source, targetStatuses)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) &&
@@ -67,9 +67,8 @@ func (w *Writer) updateIPRestrictionPolicy(
 	ctx context.Context,
 	source compiler.ResourceGeneration,
 	compile *compileDecision,
-	deliveryStatus delivery.Status,
+	deliveryState deliveryIndex,
 	targets map[resourceKey]compiler.ResourceGeneration,
-	programmedTargets map[compiler.CompiledPolicyTarget]bool,
 ) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		resource, err := w.client.IPRestrictionPolicies().Get(ctx, source.Name, metav1.GetOptions{})
@@ -83,15 +82,16 @@ func (w *Writer) updateIPRestrictionPolicy(
 			return nil
 		}
 
-		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryState)
 		targetStatuses := policyTargetStatuses(
 			resource.Status.Targets,
 			resource.Spec.TargetRefs,
 			source,
 			conditions,
-			deliveryStatus,
+			deliveryState,
 			targets,
-			programmedTargets,
+			gatewayv1.KindGateway,
+			gatewayv1.KindRoute,
 		)
 		conditions = policyConditions(conditions, source, targetStatuses)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) &&
@@ -117,9 +117,8 @@ func (w *Writer) updateHeaderTransformationPolicy(
 	ctx context.Context,
 	source compiler.ResourceGeneration,
 	compile *compileDecision,
-	deliveryStatus delivery.Status,
+	deliveryState deliveryIndex,
 	targets map[resourceKey]compiler.ResourceGeneration,
-	programmedTargets map[compiler.CompiledPolicyTarget]bool,
 ) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		resource, err := w.client.HeaderTransformationPolicies().Get(ctx, source.Name, metav1.GetOptions{})
@@ -133,15 +132,15 @@ func (w *Writer) updateHeaderTransformationPolicy(
 			return nil
 		}
 
-		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryState)
 		targetStatuses := policyTargetStatuses(
 			resource.Status.Targets,
 			resource.Spec.TargetRefs,
 			source,
 			conditions,
-			deliveryStatus,
+			deliveryState,
 			targets,
-			programmedTargets,
+			gatewayv1.KindRoute,
 		)
 		conditions = policyConditions(conditions, source, targetStatuses)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) &&
@@ -167,9 +166,8 @@ func (w *Writer) updateMockResponsePolicy(
 	ctx context.Context,
 	source compiler.ResourceGeneration,
 	compile *compileDecision,
-	deliveryStatus delivery.Status,
+	deliveryState deliveryIndex,
 	targets map[resourceKey]compiler.ResourceGeneration,
-	programmedTargets map[compiler.CompiledPolicyTarget]bool,
 ) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		resource, err := w.client.MockResponsePolicies().Get(ctx, source.Name, metav1.GetOptions{})
@@ -183,15 +181,15 @@ func (w *Writer) updateMockResponsePolicy(
 			return nil
 		}
 
-		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryState)
 		targetStatuses := policyTargetStatuses(
 			resource.Status.Targets,
 			resource.Spec.TargetRefs,
 			source,
 			conditions,
-			deliveryStatus,
+			deliveryState,
 			targets,
-			programmedTargets,
+			gatewayv1.KindRoute,
 		)
 		conditions = policyConditions(conditions, source, targetStatuses)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) &&

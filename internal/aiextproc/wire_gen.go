@@ -21,17 +21,20 @@ import (
 // Injectors from wire.go:
 
 func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, data_Redis *conf.Data_Redis, logger *slog.Logger, aiextprocServiceInstanceID serviceInstanceID) (*kratos.App, error) {
-	configCache, err := apiserver.NewConfigCache(data_APIServer)
+	configCache, err := apiserver.NewConfigCache(data_APIServer, logger)
 	if err != nil {
 		return nil, err
 	}
 	tokenCounter := redis.NewTokenCounter(data_Redis)
 	readiness := data.NewReadiness(configCache, tokenCounter)
-	tokenquotaService := tokenquota.NewService(configCache, tokenCounter)
-	externalProcessor := service.NewExternalProcessor(configCache, tokenquotaService, logger)
+	limiter := tokenquota.NewLimiter(configCache, tokenCounter)
+	externalProcessor := service.NewExternalProcessor(configCache, limiter, logger)
 	httpServer := server.NewHTTPServer(confServer, readiness, externalProcessor)
-	tokenQuotaUsageService := service.NewTokenQuotaUsageService(tokenquotaService)
-	grpcServer := server.NewGRPCServer(confServer, externalProcessor, tokenQuotaUsageService)
+	tokenQuotaUsageService := service.NewTokenQuotaUsageService(limiter, logger)
+	grpcServer, err := server.NewGRPCServer(confServer, externalProcessor, tokenQuotaUsageService)
+	if err != nil {
+		return nil, err
+	}
 	app := newKratosApp(logger, confServer, httpServer, grpcServer, configCache, tokenCounter, aiextprocServiceInstanceID)
 	return app, nil
 }

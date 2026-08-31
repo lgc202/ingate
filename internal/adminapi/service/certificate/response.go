@@ -1,6 +1,8 @@
 package certificate
 
 import (
+	"slices"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
@@ -8,8 +10,11 @@ import (
 	certificateutil "github.com/lgc202/ingate/internal/pkg/certificate"
 )
 
-func certificateResponse(certificate *resource.Certificate) *adminv1.Certificate {
-	status := biz.ResourceStatusFromConditions(certificate.Generation, certificate.Status.Conditions)
+func certificateSummaryResponse(certificate *resource.Certificate) *adminv1.Certificate {
+	status := biz.ResourceStatusFromConditions(
+		certificate.Generation,
+		certificate.Status.Conditions,
+	)
 	response := &adminv1.Certificate{
 		Id:        certificate.Name,
 		Name:      certificate.Spec.DisplayName,
@@ -17,19 +22,21 @@ func certificateResponse(certificate *resource.Certificate) *adminv1.Certificate
 		Message:   adminservice.ResourceMessage(status.Reason),
 		Version:   certificate.Generation,
 		CreatedAt: adminservice.Timestamp(certificate.CreationTimestamp.Time),
-		UpdatedAt: adminservice.Timestamp(adminservice.ResourceUpdatedAt(certificate.Annotations)),
+		UpdatedAt: adminservice.Timestamp(
+			adminservice.ResourceUpdatedAt(certificate.Annotations),
+		),
 	}
-	leaf, err := certificateutil.ParseKeyPair(certificate.Spec.CertificatePEM, certificate.Spec.PrivateKeyPEM)
+	leaf, err := certificateutil.ParseLeafCertificate(certificate.Spec.CertificatePEM)
 	if err == nil {
-		response.DnsNames = append([]string(nil), leaf.DNSNames...)
+		response.DnsNames = slices.Clone(leaf.DNSNames)
 		response.NotBefore = adminservice.Timestamp(leaf.NotBefore)
 		response.NotAfter = adminservice.Timestamp(leaf.NotAfter)
 	}
 	return response
 }
 
-func certificateWithPEMResponse(certificate *resource.Certificate) *adminv1.Certificate {
-	response := certificateResponse(certificate)
+func certificateDetailResponse(certificate *resource.Certificate) *adminv1.Certificate {
+	response := certificateSummaryResponse(certificate)
 	response.CertificatePem = certificate.Spec.CertificatePEM
 	return response
 }

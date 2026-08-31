@@ -1,0 +1,11 @@
+/* 完整产品原型：信息架构与派生视图 */
+.delivery-status {
+  height: 34px; padding: 0 10px; display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid #d9d9d3; border-radius: 9px; background: #fff; color: #5f6470;
+  font-size: .68rem; font-weight: 800; text-decoration: none; cursor: pointer;
+}
+.delivery-status:hover { border-color: #bfc5db; background: #f8f8f5; }
+.delivery-status svg { width: 14px; }
+.delivery-status svg { color: var(--success); }
+
+.resource-kind-tabs { display: flex; gap: 4px; border-bottom: 1px solid #dadbd7; }.resource-kind-tabs button { min-width: 140px; height: 43px; padding: 0 12px; display: flex; align-items: center; gap: 8px; border: 0; border-bottom: 2px solid transparent; color: #777b85; background: transparent; font-size: .72rem; font-weight: 800; cursor: pointer; }.resource-kind-tabs button svg { width: 15px; }.resource-kind-tabs button span { min-width: 21px; padding: 2px 6px; border-radius: 10px; color: #8a8e98; background: #e9e9e5; font-size: .6rem; }.resource-kind-tabs button.is-active { color: var(--accent); border-bottom-color: var(--accent); }.resource-kind-tabs button.is-active span { color: var(--accent); background: var(--accent-soft); }

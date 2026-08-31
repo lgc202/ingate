@@ -1,4 +1,4 @@
-// Package authz 装配 ingate-authz 进程及其资源生命周期
+// Package authz 装配 ingate-authz 进程及其资源生命周期。
 package authz
 
 import (
@@ -22,12 +22,12 @@ const name = "ingate-authz"
 
 type serviceInstanceID string
 
-// App 封装 Authz 的 Kratos 进程
+// App 封装 Authz 的 Kratos 进程。
 type App struct {
 	kratos *kratos.App
 }
 
-// NewApp 从配置文件创建完整的 Authz 进程
+// NewApp 从配置文件创建完整的 Authz 进程。
 func NewApp(configFile string) (*App, error) {
 	var bootstrap conf.Bootstrap
 	if err := appconfig.Load(configFile, &bootstrap); err != nil {
@@ -54,7 +54,7 @@ func NewApp(configFile string) (*App, error) {
 	return &App{kratos: kratosApp}, nil
 }
 
-// Run 启动 External Authorization gRPC 和运维 HTTP 服务
+// Run 启动 External Authorization gRPC 和运维 HTTP 服务。
 func (a *App) Run() error {
 	return a.kratos.Run()
 }

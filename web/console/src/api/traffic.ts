@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, setQueryParameter } from './client';
 import { getRequestRecordWorkspace } from './requestRecords';
 import type {
   ResourceTrafficSummary,
@@ -17,9 +17,9 @@ export async function getTrafficAnalysis(filters: TrafficAnalysisFilters): Promi
     breakdownOrder: filters.breakdownOrder,
     breakdownLimit: String(filters.breakdownLimit ?? 10),
   });
-  setQuery(query, 'gatewayID', filters.gatewayID);
-  setQuery(query, 'routeID', filters.routeID);
-  setQuery(query, 'serviceID', filters.serviceID);
+  setQueryParameter(query, 'gatewayID', filters.gatewayID);
+  setQueryParameter(query, 'routeID', filters.routeID);
+  setQueryParameter(query, 'serviceID', filters.serviceID);
   const analysis = await apiRequest<TrafficAnalysis>(`/traffic-analysis?${query}`);
   return {
     ...analysis,
@@ -55,9 +55,4 @@ export async function batchGetResourceTraffic(
     },
   )));
   return responses.flatMap((response) => response.summaries ?? []);
-}
-
-function setQuery(query: URLSearchParams, name: string, value?: string) {
-  const normalized = value?.trim();
-  if (normalized) query.set(name, normalized);
 }

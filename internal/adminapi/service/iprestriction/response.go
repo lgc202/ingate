@@ -1,6 +1,8 @@
 package iprestriction
 
 import (
+	"slices"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
@@ -11,7 +13,12 @@ func ipRestrictionPolicyResponse(
 	policy *resource.IPRestrictionPolicy,
 	names biz.PolicyTargetNames,
 ) *adminv1.IPRestrictionPolicy {
-	status := biz.PolicyStatus(policy.Generation, policy.Spec.Enabled, len(policy.Spec.TargetRefs), policy.Status.Conditions)
+	status := biz.PolicyStatus(
+		policy.Generation,
+		policy.Spec.Enabled,
+		len(policy.Spec.TargetRefs),
+		policy.Status.Conditions,
+	)
 	disabled := status.State == biz.ResourceStateDisabled
 	return &adminv1.IPRestrictionPolicy{
 		Id:      policy.Name,
@@ -24,8 +31,8 @@ func ipRestrictionPolicyResponse(
 			policy.Status.Targets,
 			names,
 		),
-		Allow:     append([]string(nil), policy.Spec.Allow...),
-		Deny:      append([]string(nil), policy.Spec.Deny...),
+		Allow:     slices.Clone(policy.Spec.Allow),
+		Deny:      slices.Clone(policy.Spec.Deny),
 		State:     adminservice.ResourceState(status.State),
 		Message:   adminservice.ResourceMessage(status.Reason),
 		Version:   policy.Generation,

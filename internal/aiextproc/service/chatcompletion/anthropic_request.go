@@ -3,17 +3,20 @@ package chatcompletion
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/tidwall/sjson"
+
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 const (
-	// AnthropicMessagesPath 是 Anthropic Messages API 的标准请求路径
+	// AnthropicMessagesPath 是 Anthropic Messages API 的标准请求路径。
 	AnthropicMessagesPath = "/v1/messages"
-	// AnthropicVersion 是当前转换器生成请求时使用的稳定 API 版本
+	// AnthropicVersion 是当前转换器生成请求时使用的稳定 API 版本。
 	AnthropicVersion = "2023-06-01"
 
 	// defaultAnthropicMaxTokens 衔接 OpenAI 可选字段与 Anthropic 必填字段
@@ -47,8 +50,11 @@ type openAIContentBlock struct {
 }
 
 // RewriteAnthropicRequest 把 OpenAI Chat Completions 请求转换为 Anthropic Messages 请求
-// 当前只接收文本消息和两种协议共有的采样参数，不能可靠转换的能力会明确拒绝
+// 当前只接收文本消息和两种协议共有的采样参数，不能可靠转换的能力会明确拒绝。
 func RewriteAnthropicRequest(body []byte, upstreamModel string) (UpstreamRequest, error) {
+	if !routeconfig.IsValidModelName(upstreamModel) {
+		return UpstreamRequest{}, errors.New("upstream model is invalid")
+	}
 	if !json.Valid(body) {
 		return UpstreamRequest{}, invalidRequest("request body must be valid JSON")
 	}
@@ -56,8 +62,8 @@ func RewriteAnthropicRequest(body []byte, upstreamModel string) (UpstreamRequest
 	if err := json.Unmarshal(body, &source); err != nil {
 		return UpstreamRequest{}, invalidRequest("request body does not match Chat Completions")
 	}
-	if source.Model == "" {
-		return UpstreamRequest{}, invalidRequest("model must be a non-empty string")
+	if !routeconfig.IsValidModelName(source.Model) {
+		return UpstreamRequest{}, invalidRequest("model must be a valid non-empty string")
 	}
 	if len(source.Messages) == 0 {
 		return UpstreamRequest{}, invalidRequest("messages must not be empty")
@@ -126,6 +132,7 @@ func RewriteAnthropicRequest(body []byte, upstreamModel string) (UpstreamRequest
 func anthropicMessages(source []openAIMessage) ([]anthropic.MessageParam, []anthropic.TextBlockParam, error) {
 	messages := make([]anthropic.MessageParam, 0, len(source))
 	var system []anthropic.TextBlockParam
+	conversationStarted := false
 	for _, message := range source {
 		text, err := messageText(message.Content)
 		if err != nil {
@@ -134,10 +141,17 @@ func anthropicMessages(source []openAIMessage) ([]anthropic.MessageParam, []anth
 		switch message.Role {
 		case "system", "developer":
 			// Anthropic 把系统指令放在顶层，不能作为普通 message 发送
+			if conversationStarted {
+				return nil, nil, invalidRequest(
+					"system and developer messages must precede conversation messages for anthropic upstream",
+				)
+			}
 			system = append(system, anthropic.TextBlockParam{Text: text})
 		case "user":
+			conversationStarted = true
 			messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(text)))
 		case "assistant":
+			conversationStarted = true
 			messages = append(messages, anthropic.NewAssistantMessage(anthropic.NewTextBlock(text)))
 		default:
 			return nil, nil, invalidRequest("message role is not supported by the anthropic upstream")

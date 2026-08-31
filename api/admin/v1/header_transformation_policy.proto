@@ -46,8 +46,11 @@ enum HeaderTransformationOperation {
 
 message HeaderTransformationRule {
   HeaderTransformationOperation operation = 1 [(buf.validate.field).enum.defined_only = true];
-  string name = 2 [(buf.validate.field).string.min_len = 1];
-  string value = 3;
+  string name = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 256
+  }];
+  string value = 3 [(buf.validate.field).string.max_bytes = 8192];
 }
 
 message HeaderTransformationPolicy {
@@ -82,20 +85,26 @@ message GetHeaderTransformationPolicyRequest {
 }
 
 message CreateHeaderTransformationPolicyRequest {
-  string name = 1 [(buf.validate.field).string.min_len = 1];
-  repeated PolicyTargetRef targets = 2;
-  repeated HeaderTransformationRule request_rules = 3;
-  repeated HeaderTransformationRule response_rules = 4;
+  string name = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
+  repeated PolicyTargetRef targets = 2 [(buf.validate.field).repeated.max_items = 256];
+  repeated HeaderTransformationRule request_rules = 3 [(buf.validate.field).repeated.max_items = 64];
+  repeated HeaderTransformationRule response_rules = 4 [(buf.validate.field).repeated.max_items = 64];
 }
 
 message UpdateHeaderTransformationPolicyRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
   int64 version = 2 [(buf.validate.field).int64.gt = 0];
-  string name = 3 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
   optional bool enabled = 4 [(buf.validate.field).required = true];
-  repeated PolicyTargetRef targets = 5;
-  repeated HeaderTransformationRule request_rules = 6;
-  repeated HeaderTransformationRule response_rules = 7;
+  repeated PolicyTargetRef targets = 5 [(buf.validate.field).repeated.max_items = 256];
+  repeated HeaderTransformationRule request_rules = 6 [(buf.validate.field).repeated.max_items = 64];
+  repeated HeaderTransformationRule response_rules = 7 [(buf.validate.field).repeated.max_items = 64];
 }
 
 message DeleteHeaderTransformationPolicyRequest {

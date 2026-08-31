@@ -137,12 +137,12 @@ func schema_pkg_apis_gateway_v1_AIModel(ref common.ReferenceCallback) common.Ope
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "AIModel 把调用方使用的稳定模型名映射到一个或多个模型服务",
+				Description: "AIModel 把调用方使用的稳定模型名映射到一个或多个模型服务。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name 是调用方请求体中使用的稳定模型名",
+							Description: "Name 是调用方请求体中使用的稳定模型名。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -155,7 +155,7 @@ func schema_pkg_apis_gateway_v1_AIModel(ref common.ReferenceCallback) common.Ope
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Targets 是可承载该模型的实际线路，各线路按相对权重分流",
+							Description: "Targets 是可承载该模型的实际线路，各线路按相对权重分流。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -180,12 +180,12 @@ func schema_pkg_apis_gateway_v1_AIModelTarget(ref common.ReferenceCallback) comm
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "AIModelTarget 表示一个模型服务上的实际模型线路",
+				Description: "AIModelTarget 表示一个模型服务上的实际模型线路。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"upstreamRef": {
 						SchemaProps: spec.SchemaProps{
-							Description: "UpstreamRef 引用模型服务的资源 ID",
+							Description: "UpstreamRef 引用模型服务的资源 ID。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -193,7 +193,7 @@ func schema_pkg_apis_gateway_v1_AIModelTarget(ref common.ReferenceCallback) comm
 					},
 					"model": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Model 是发送给模型服务的真实模型名",
+							Description: "Model 是发送给模型服务的真实模型名。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -201,7 +201,7 @@ func schema_pkg_apis_gateway_v1_AIModelTarget(ref common.ReferenceCallback) comm
 					},
 					"weight": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Weight 是同一客户端模型下各线路的相对权重",
+							Description: "Weight 是同一客户端模型下各线路的相对权重。",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -218,7 +218,7 @@ func schema_pkg_apis_gateway_v1_AIRoute(ref common.ReferenceCallback) common.Ope
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "AIRoute 定义一个入口路径下发布的客户端模型及其实际模型线路",
+				Description: "AIRoute 定义一个入口路径下发布的客户端模型及其实际模型线路。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"models": {
@@ -228,7 +228,7 @@ func schema_pkg_apis_gateway_v1_AIRoute(ref common.ReferenceCallback) common.Ope
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Models 中每个客户端模型名在当前 Route 内必须唯一",
+							Description: "Models 中每个客户端模型名在当前 Route 内必须唯一。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -253,12 +253,12 @@ func schema_pkg_apis_gateway_v1_AccessKey(ref common.ReferenceCallback) common.O
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "AccessKey 表示 Caller 下的一份可独立停用和到期的访问凭据",
+				Description: "AccessKey 表示 Caller 下的一份可独立停用和到期的访问凭据。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"id": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ID 是密钥的公开标识，也用于从请求凭据中定位摘要",
+							Description: "ID 是密钥的公开标识，也用于从请求凭据中定位摘要。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -266,7 +266,7 @@ func schema_pkg_apis_gateway_v1_AccessKey(ref common.ReferenceCallback) common.O
 					},
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 用于区分同一调用方在不同环境或客户端中的密钥",
+							Description: "DisplayName 用于区分同一调用方在不同环境或客户端中的密钥。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -274,7 +274,7 @@ func schema_pkg_apis_gateway_v1_AccessKey(ref common.ReferenceCallback) common.O
 					},
 					"secretDigest": {
 						SchemaProps: spec.SchemaProps{
-							Description: "SecretDigest 是完整密钥的 SHA-256 摘要，不保存可恢复的明文",
+							Description: "SecretDigest 是完整密钥的 SHA-256 摘要，不保存可恢复的明文。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -282,7 +282,7 @@ func schema_pkg_apis_gateway_v1_AccessKey(ref common.ReferenceCallback) common.O
 					},
 					"enabled": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Enabled 为 false 时该密钥立即失效",
+							Description: "Enabled 为 false 时该密钥立即失效。",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -290,13 +290,13 @@ func schema_pkg_apis_gateway_v1_AccessKey(ref common.ReferenceCallback) common.O
 					},
 					"createdAt": {
 						SchemaProps: spec.SchemaProps{
-							Description: "CreatedAt 记录密钥签发时间",
+							Description: "CreatedAt 记录密钥签发时间。",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
 					"expiresAt": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ExpiresAt 为空表示密钥不会自动到期",
+							Description: "ExpiresAt 为空表示密钥不会自动到期。",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
@@ -313,7 +313,7 @@ func schema_pkg_apis_gateway_v1_Caller(ref common.ReferenceCallback) common.Open
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "Caller 声明一个调用网关的应用或服务及其访问权限",
+				Description: "Caller 声明一个调用网关的应用或服务及其访问权限。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -360,7 +360,7 @@ func schema_pkg_apis_gateway_v1_CallerList(ref common.ReferenceCallback) common.
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "CallerList 表示 Caller 资源列表",
+				Description: "CallerList 表示 Caller 资源列表。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -409,19 +409,19 @@ func schema_pkg_apis_gateway_v1_CallerSpec(ref common.ReferenceCallback) common.
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "CallerSpec 定义调用方是否可用、可访问的 Route 以及访问密钥",
+				Description: "CallerSpec 定义调用方是否可用、可访问的 Route 以及访问密钥。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与鉴权匹配",
+							Description: "DisplayName 保存控制台展示名称，不参与鉴权匹配。",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"enabled": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Enabled 为 false 时立即拒绝该调用方的全部密钥",
+							Description: "Enabled 为 false 时立即拒绝该调用方的全部密钥。",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -434,7 +434,7 @@ func schema_pkg_apis_gateway_v1_CallerSpec(ref common.ReferenceCallback) common.
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "RouteRefs 保存当前调用方可以访问的 Route ID",
+							Description: "RouteRefs 保存当前调用方可以访问的 Route ID。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -457,7 +457,7 @@ func schema_pkg_apis_gateway_v1_CallerSpec(ref common.ReferenceCallback) common.
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "AccessKeys 只保存不可逆摘要，完整密钥仅在签发时返回一次",
+							Description: "AccessKeys 只保存不可逆摘要，完整密钥仅在签发时返回一次。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -482,7 +482,7 @@ func schema_pkg_apis_gateway_v1_Certificate(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "Certificate 声明一个可由多个 HTTPS Gateway 监听器复用的 TLS 证书",
+				Description: "Certificate 声明一个可由多个 HTTPS Gateway 监听器复用的 TLS 证书。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -529,7 +529,7 @@ func schema_pkg_apis_gateway_v1_CertificateList(ref common.ReferenceCallback) co
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "CertificateList 表示 Certificate 资源列表",
+				Description: "CertificateList 表示 Certificate 资源列表。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -578,19 +578,19 @@ func schema_pkg_apis_gateway_v1_CertificateSpec(ref common.ReferenceCallback) co
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "CertificateSpec 定义 TLS 证书及其私钥",
+				Description: "CertificateSpec 定义 TLS 证书及其私钥。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与 Gateway 引用",
+							Description: "DisplayName 保存控制台展示名称，不参与 Gateway 引用。",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"certificatePEM": {
 						SchemaProps: spec.SchemaProps{
-							Description: "CertificatePEM 保存叶子证书以及可选的中间证书链",
+							Description: "CertificatePEM 保存叶子证书以及可选的中间证书链。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -598,7 +598,7 @@ func schema_pkg_apis_gateway_v1_CertificateSpec(ref common.ReferenceCallback) co
 					},
 					"privateKeyPEM": {
 						SchemaProps: spec.SchemaProps{
-							Description: "PrivateKeyPEM 保存与叶子证书匹配的私钥",
+							Description: "PrivateKeyPEM 保存与叶子证书匹配的私钥。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -615,12 +615,12 @@ func schema_pkg_apis_gateway_v1_Endpoint(ref common.ReferenceCallback) common.Op
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "Endpoint 表示 Upstream 的一个网络地址及其相对容量",
+				Description: "Endpoint 表示 Upstream 的一个网络地址及其相对容量。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"address": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Address 是 IP 地址或 DNS 主机名，不包含协议和端口",
+							Description: "Address 是 IP 地址或 DNS 主机名，不包含协议和端口。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -628,7 +628,7 @@ func schema_pkg_apis_gateway_v1_Endpoint(ref common.ReferenceCallback) common.Op
 					},
 					"port": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Port 是服务接收流量的 TCP 端口",
+							Description: "Port 是服务接收流量的 TCP 端口。",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -636,7 +636,7 @@ func schema_pkg_apis_gateway_v1_Endpoint(ref common.ReferenceCallback) common.Op
 					},
 					"weight": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Weight 默认为 1，多个端点之间按相对权重分配流量",
+							Description: "Weight 默认为 1，多个端点之间按相对权重分配流量。",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
@@ -652,7 +652,7 @@ func schema_pkg_apis_gateway_v1_Gateway(ref common.ReferenceCallback) common.Ope
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "Gateway 声明一个流量入口",
+				Description: "Gateway 声明一个流量入口。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -699,7 +699,7 @@ func schema_pkg_apis_gateway_v1_GatewayList(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "GatewayList 表示 Gateway 资源列表",
+				Description: "GatewayList 表示 Gateway 资源列表。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -748,19 +748,19 @@ func schema_pkg_apis_gateway_v1_GatewaySpec(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "GatewaySpec 定义 Gateway 的期望入口配置",
+				Description: "GatewaySpec 定义 Gateway 的期望入口配置。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与引用和运行时匹配",
+							Description: "DisplayName 保存控制台展示名称，不参与引用和运行时匹配。",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"enabled": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Enabled 表示 Gateway 是否参与编译和下发",
+							Description: "Enabled 表示 Gateway 是否参与编译和下发。",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -797,12 +797,12 @@ func schema_pkg_apis_gateway_v1_HeaderMatch(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "HeaderMatch 表示 HTTP Header 精确匹配条件",
+				Description: "HeaderMatch 表示 HTTP Header 精确匹配条件。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name 不区分大小写",
+							Description: "Name 不区分大小写。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -810,7 +810,7 @@ func schema_pkg_apis_gateway_v1_HeaderMatch(ref common.ReferenceCallback) common
 					},
 					"value": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Value 按完整字符串匹配",
+							Description: "Value 按完整字符串匹配。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -827,7 +827,7 @@ func schema_pkg_apis_gateway_v1_HeaderModifier(ref common.ReferenceCallback) com
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "HeaderModifier 表示 Header 写入和删除动作",
+				Description: "HeaderModifier 表示 Header 写入和删除动作。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"set": {
@@ -837,7 +837,7 @@ func schema_pkg_apis_gateway_v1_HeaderModifier(ref common.ReferenceCallback) com
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Set 覆盖同名 Header 的现有值",
+							Description: "Set 覆盖同名 Header 的现有值，不存在时创建。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -856,7 +856,7 @@ func schema_pkg_apis_gateway_v1_HeaderModifier(ref common.ReferenceCallback) com
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Add 在现有值之后追加 Header",
+							Description: "Add 在同名 Header 的现有值之后追加值，不存在时创建。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -875,7 +875,7 @@ func schema_pkg_apis_gateway_v1_HeaderModifier(ref common.ReferenceCallback) com
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Remove 在转发前删除指定 Header",
+							Description: "Remove 删除指定 Header。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -900,7 +900,7 @@ func schema_pkg_apis_gateway_v1_HeaderTransformationPolicy(ref common.ReferenceC
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "HeaderTransformationPolicy 声明请求和响应 Header 转换策略",
+				Description: "HeaderTransformationPolicy 声明请求和响应 Header 转换策略。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -947,7 +947,7 @@ func schema_pkg_apis_gateway_v1_HeaderTransformationPolicyList(ref common.Refere
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "HeaderTransformationPolicyList 表示 HeaderTransformationPolicy 资源列表",
+				Description: "HeaderTransformationPolicyList 表示 HeaderTransformationPolicy 资源列表。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -996,12 +996,12 @@ func schema_pkg_apis_gateway_v1_HeaderTransformationPolicySpec(ref common.Refere
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "HeaderTransformationPolicySpec 定义转换规则及其作用路由",
+				Description: "HeaderTransformationPolicySpec 定义转换规则及其作用路由。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与流量匹配",
+							Description: "DisplayName 保存控制台展示名称，不参与流量匹配。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1009,7 +1009,7 @@ func schema_pkg_apis_gateway_v1_HeaderTransformationPolicySpec(ref common.Refere
 					},
 					"enabled": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Enabled 为 false 时保留策略但不修改请求和响应",
+							Description: "Enabled 为 false 时保留策略但不修改请求和响应。",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -1026,7 +1026,7 @@ func schema_pkg_apis_gateway_v1_HeaderTransformationPolicySpec(ref common.Refere
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "TargetRefs 为空时策略保存为未应用状态，当前只允许引用 Route",
+							Description: "TargetRefs 为空时策略保存为未应用状态，当前只允许引用 Route。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1045,7 +1045,7 @@ func schema_pkg_apis_gateway_v1_HeaderTransformationPolicySpec(ref common.Refere
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "RequestRules 按声明顺序修改发往上游服务的请求 Header",
+							Description: "RequestRules 按声明顺序修改发往上游服务的请求 Header。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1064,7 +1064,7 @@ func schema_pkg_apis_gateway_v1_HeaderTransformationPolicySpec(ref common.Refere
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "ResponseRules 按声明顺序修改返回给客户端的响应 Header",
+							Description: "ResponseRules 按声明顺序修改返回给客户端的响应 Header。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1089,12 +1089,12 @@ func schema_pkg_apis_gateway_v1_HeaderTransformationRule(ref common.ReferenceCal
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "HeaderTransformationRule 表示一条 Header 修改规则",
+				Description: "HeaderTransformationRule 表示一条 Header 修改规则。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"operation": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Operation 决定删除、重命名、替换、添加或追加 Header",
+							Description: "Operation 决定删除、重命名、替换、添加或追加 Header。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1102,7 +1102,7 @@ func schema_pkg_apis_gateway_v1_HeaderTransformationRule(ref common.ReferenceCal
 					},
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name 是待修改的 Header 名称",
+							Description: "Name 是待修改的 Header 名称。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1110,7 +1110,7 @@ func schema_pkg_apis_gateway_v1_HeaderTransformationRule(ref common.ReferenceCal
 					},
 					"value": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Value 是 Rename 的新名称或其他写操作的目标值；Remove 不使用该字段",
+							Description: "Value 是 Rename 的新名称或其他写操作的目标值；Remove 不使用该字段。",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1126,21 +1126,23 @@ func schema_pkg_apis_gateway_v1_HeaderValue(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "HeaderValue 表示 Header 名和值",
+				Description: "HeaderValue 表示 Header 名和值。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
+							Description: "Name 是待写入的 Header 名称。",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"value": {
 						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
+							Description: "Value 是待写入的非空 Header 值。",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 				},
@@ -1154,12 +1156,12 @@ func schema_pkg_apis_gateway_v1_HostRewrite(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "HostRewrite 定义转发请求使用的上游 Host",
+				Description: "HostRewrite 定义转发请求使用的上游 Host。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"mode": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Mode 选择服务端点主机名、原始 Host 或固定主机名",
+							Description: "Mode 选择 Upstream 端点主机名、原始 Host 或固定主机名。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1167,7 +1169,7 @@ func schema_pkg_apis_gateway_v1_HostRewrite(ref common.ReferenceCallback) common
 					},
 					"hostname": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Hostname 仅在 Custom 模式下使用，不包含端口",
+							Description: "Hostname 仅在 Custom 模式下使用，不包含端口。",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1183,7 +1185,7 @@ func schema_pkg_apis_gateway_v1_IPRestrictionPolicy(ref common.ReferenceCallback
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "IPRestrictionPolicy 声明客户端 IP 访问限制策略",
+				Description: "IPRestrictionPolicy 声明客户端 IP 访问限制策略。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -1230,7 +1232,7 @@ func schema_pkg_apis_gateway_v1_IPRestrictionPolicyList(ref common.ReferenceCall
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "IPRestrictionPolicyList 表示 IPRestrictionPolicy 资源列表",
+				Description: "IPRestrictionPolicyList 表示 IPRestrictionPolicy 资源列表。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -1279,12 +1281,12 @@ func schema_pkg_apis_gateway_v1_IPRestrictionPolicySpec(ref common.ReferenceCall
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "IPRestrictionPolicySpec 定义客户端 IP 允许列表或拒绝列表",
+				Description: "IPRestrictionPolicySpec 定义客户端 IP 允许列表或拒绝列表。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与策略匹配",
+							Description: "DisplayName 保存控制台展示名称，不参与策略匹配。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1292,7 +1294,7 @@ func schema_pkg_apis_gateway_v1_IPRestrictionPolicySpec(ref common.ReferenceCall
 					},
 					"enabled": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Enabled 为 false 时保留策略但不执行 IP 检查",
+							Description: "Enabled 为 false 时保留策略但不执行 IP 检查。",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -1309,7 +1311,7 @@ func schema_pkg_apis_gateway_v1_IPRestrictionPolicySpec(ref common.ReferenceCall
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "TargetRefs 为空时策略保存为未应用状态",
+							Description: "TargetRefs 为空时策略保存为未应用状态。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1328,7 +1330,7 @@ func schema_pkg_apis_gateway_v1_IPRestrictionPolicySpec(ref common.ReferenceCall
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Allow 与 Deny 必须且只能配置其中一个，每项是 IP 或 CIDR",
+							Description: "Allow 与 Deny 必须且只能配置其中一个，每项是 IP 或 CIDR。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1348,7 +1350,7 @@ func schema_pkg_apis_gateway_v1_IPRestrictionPolicySpec(ref common.ReferenceCall
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Deny 与 Allow 必须且只能配置其中一个，每项是 IP 或 CIDR",
+							Description: "Deny 与 Allow 必须且只能配置其中一个，每项是 IP 或 CIDR。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1374,12 +1376,12 @@ func schema_pkg_apis_gateway_v1_Listener(ref common.ReferenceCallback) common.Op
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "Listener 声明一个 Gateway 对外提供的流量入口",
+				Description: "Listener 声明一个 Gateway 对外提供的流量入口。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name 在当前 Gateway 内唯一，用于识别监听入口",
+							Description: "Name 在当前 Gateway 内唯一，用于识别监听入口。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1387,7 +1389,7 @@ func schema_pkg_apis_gateway_v1_Listener(ref common.ReferenceCallback) common.Op
 					},
 					"protocol": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Protocol 决定是否由 Envoy 终止 TLS",
+							Description: "Protocol 决定是否由 Envoy 终止 TLS。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1395,7 +1397,7 @@ func schema_pkg_apis_gateway_v1_Listener(ref common.ReferenceCallback) common.Op
 					},
 					"port": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Port 是 Envoy 对外监听的 TCP 端口",
+							Description: "Port 是 Envoy 对外监听的 TCP 端口。",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -1403,14 +1405,14 @@ func schema_pkg_apis_gateway_v1_Listener(ref common.ReferenceCallback) common.Op
 					},
 					"hostname": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Hostname 为空时接受任意 Host，否则只接受指定域名",
+							Description: "Hostname 为空时接受任意 Host，否则只接受指定域名。",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"certificateRef": {
 						SchemaProps: spec.SchemaProps{
-							Description: "CertificateRef 只在 HTTPS 下使用，引用 Certificate 的 metadata.name",
+							Description: "CertificateRef 只在 HTTPS 下使用，引用 Certificate 的 metadata.name。",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1426,7 +1428,7 @@ func schema_pkg_apis_gateway_v1_MockResponsePolicy(ref common.ReferenceCallback)
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "MockResponsePolicy 声明命中 Route 后由网关直接返回的固定 HTTP 响应",
+				Description: "MockResponsePolicy 声明命中 Route 后由网关直接返回的固定 HTTP 响应。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -1473,7 +1475,7 @@ func schema_pkg_apis_gateway_v1_MockResponsePolicyList(ref common.ReferenceCallb
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "MockResponsePolicyList 表示 MockResponsePolicy 资源列表",
+				Description: "MockResponsePolicyList 表示 MockResponsePolicy 资源列表。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -1522,12 +1524,12 @@ func schema_pkg_apis_gateway_v1_MockResponsePolicySpec(ref common.ReferenceCallb
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "MockResponsePolicySpec 定义固定响应内容及其作用路由",
+				Description: "MockResponsePolicySpec 定义固定响应内容及其作用路由。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与流量匹配",
+							Description: "DisplayName 保存控制台展示名称，不参与流量匹配。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1535,7 +1537,7 @@ func schema_pkg_apis_gateway_v1_MockResponsePolicySpec(ref common.ReferenceCallb
 					},
 					"enabled": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Enabled 为 false 时保留策略但继续把请求转发到上游",
+							Description: "Enabled 为 false 时保留策略但继续把请求转发到上游。",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -1552,7 +1554,7 @@ func schema_pkg_apis_gateway_v1_MockResponsePolicySpec(ref common.ReferenceCallb
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "TargetRefs 为空时策略保存为未应用状态，当前只允许引用 Route",
+							Description: "TargetRefs 为空时策略保存为未应用状态，当前只允许引用 Route。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1566,7 +1568,7 @@ func schema_pkg_apis_gateway_v1_MockResponsePolicySpec(ref common.ReferenceCallb
 					},
 					"statusCode": {
 						SchemaProps: spec.SchemaProps{
-							Description: "StatusCode 是返回给客户端的 HTTP 状态码",
+							Description: "StatusCode 是返回给客户端的 HTTP 状态码。",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -1574,7 +1576,7 @@ func schema_pkg_apis_gateway_v1_MockResponsePolicySpec(ref common.ReferenceCallb
 					},
 					"contentType": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ContentType 是响应正文的媒体类型，同时写入 Content-Type Header",
+							Description: "ContentType 是响应正文的媒体类型，同时写入 Content-Type Header。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1590,7 +1592,7 @@ func schema_pkg_apis_gateway_v1_MockResponsePolicySpec(ref common.ReferenceCallb
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Headers 是除 Content-Type 外的固定响应 Header",
+							Description: "Headers 是除 Content-Type 外的固定响应 Header。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1604,7 +1606,7 @@ func schema_pkg_apis_gateway_v1_MockResponsePolicySpec(ref common.ReferenceCallb
 					},
 					"body": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Body 是原样返回给客户端的响应正文",
+							Description: "Body 是原样返回给客户端的响应正文。",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1622,12 +1624,12 @@ func schema_pkg_apis_gateway_v1_ModelUpstream(ref common.ReferenceCallback) comm
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "ModelUpstream 定义模型服务与 Ingate 交互使用的协议 真实模型名属于 Route 的模型映射，同一个模型服务可以承载多个模型",
+				Description: "ModelUpstream 定义模型服务与 Ingate 交互使用的协议。 真实模型名属于 Route 的模型映射，同一个模型服务可以承载多个模型。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"protocol": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Protocol 决定凭据注入和请求响应转换规则",
+							Description: "Protocol 决定凭据注入和请求响应转换规则。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1635,7 +1637,7 @@ func schema_pkg_apis_gateway_v1_ModelUpstream(ref common.ReferenceCallback) comm
 					},
 					"apiKey": {
 						SchemaProps: spec.SchemaProps{
-							Description: "APIKey 保存模型服务的访问凭据；Controller 不得把该值写入 Envoy xDS",
+							Description: "APIKey 保存模型服务的访问凭据；Controller 不得把该值写入 Envoy xDS。",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1651,12 +1653,12 @@ func schema_pkg_apis_gateway_v1_PathMatch(ref common.ReferenceCallback) common.O
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "PathMatch 表示请求路径匹配条件",
+				Description: "PathMatch 表示请求路径匹配条件。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"type": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Type 选择完整路径或路径前缀匹配",
+							Description: "Type 选择完整路径或路径前缀匹配。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1664,7 +1666,7 @@ func schema_pkg_apis_gateway_v1_PathMatch(ref common.ReferenceCallback) common.O
 					},
 					"value": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Value 是不含查询参数和片段的绝对路径",
+							Description: "Value 是不含查询参数和片段的绝对路径。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1681,7 +1683,7 @@ func schema_pkg_apis_gateway_v1_PluginSource(ref common.ReferenceCallback) commo
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "PluginSource 声明一个由用户维护的远程插件目录 官方目录由进程配置提供，不重复写入声明式资源",
+				Description: "PluginSource 声明一个由用户维护的远程插件目录。 官方目录由进程配置提供，不重复写入声明式资源。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -1728,7 +1730,7 @@ func schema_pkg_apis_gateway_v1_PluginSourceList(ref common.ReferenceCallback) c
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "PluginSourceList 表示 PluginSource 资源列表",
+				Description: "PluginSourceList 表示 PluginSource 资源列表。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -1777,12 +1779,12 @@ func schema_pkg_apis_gateway_v1_PluginSourceSpec(ref common.ReferenceCallback) c
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "PluginSourceSpec 定义插件目录的用户配置",
+				Description: "PluginSourceSpec 定义插件目录的用户配置。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称",
+							Description: "DisplayName 保存控制台展示名称。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1790,7 +1792,7 @@ func schema_pkg_apis_gateway_v1_PluginSourceSpec(ref common.ReferenceCallback) c
 					},
 					"url": {
 						SchemaProps: spec.SchemaProps{
-							Description: "URL 指向与官方目录使用相同结构的 JSON 文件",
+							Description: "URL 指向与官方目录使用相同结构的 JSON 文件。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1798,7 +1800,7 @@ func schema_pkg_apis_gateway_v1_PluginSourceSpec(ref common.ReferenceCallback) c
 					},
 					"enabled": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Enabled 控制该目录是否参与插件发现和升级",
+							Description: "Enabled 控制该目录是否参与插件发现和升级。",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -1815,7 +1817,7 @@ func schema_pkg_apis_gateway_v1_PolicyStatus(ref common.ReferenceCallback) commo
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "PolicyStatus 表示策略的总体状态和各目标生效状态",
+				Description: "PolicyStatus 表示策略的总体状态和各目标生效状态。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"conditions": {
@@ -1828,7 +1830,7 @@ func schema_pkg_apis_gateway_v1_PolicyStatus(ref common.ReferenceCallback) commo
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Conditions 记录策略整体的接受、引用解析和生效结果",
+							Description: "Conditions 记录策略整体的接受、引用解析和生效结果。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1847,7 +1849,7 @@ func schema_pkg_apis_gateway_v1_PolicyStatus(ref common.ReferenceCallback) commo
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Targets 保留每个目标的独立结果，单个目标失败不影响其他目标",
+							Description: "Targets 保留每个目标的独立结果，单个目标失败不影响其他目标。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1871,12 +1873,12 @@ func schema_pkg_apis_gateway_v1_PolicyTargetRef(ref common.ReferenceCallback) co
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "PolicyTargetRef 表示策略的生效目标",
+				Description: "PolicyTargetRef 表示策略的生效目标。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Kind 由具体策略约束可引用的资源类型",
+							Description: "Kind 由具体策略约束可引用的资源类型。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1884,7 +1886,7 @@ func schema_pkg_apis_gateway_v1_PolicyTargetRef(ref common.ReferenceCallback) co
 					},
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name 引用目标资源的 metadata.name",
+							Description: "Name 引用目标资源的 metadata.name。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1901,12 +1903,12 @@ func schema_pkg_apis_gateway_v1_PolicyTargetStatus(ref common.ReferenceCallback)
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "PolicyTargetStatus 表示策略在单个目标上的生效状态",
+				Description: "PolicyTargetStatus 表示策略在单个目标上的生效状态。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"targetRef": {
 						SchemaProps: spec.SchemaProps{
-							Description: "TargetRef 标识当前状态对应的策略目标",
+							Description: "TargetRef 标识当前状态对应的策略目标。",
 							Default:     map[string]interface{}{},
 							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyTargetRef"),
 						},
@@ -1921,7 +1923,7 @@ func schema_pkg_apis_gateway_v1_PolicyTargetStatus(ref common.ReferenceCallback)
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Conditions 记录策略在当前目标上的解析和生效结果",
+							Description: "Conditions 记录策略在当前目标上的解析和生效结果。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1946,12 +1948,12 @@ func schema_pkg_apis_gateway_v1_RateLimit(ref common.ReferenceCallback) common.O
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RateLimit 定义请求补充速率",
+				Description: "RateLimit 定义请求补充速率。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"requests": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Requests 是每个统计周期补充的请求额度，也是令牌桶容量",
+							Description: "Requests 是每个统计周期补充的请求额度，也是令牌桶容量。",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int64",
@@ -1959,7 +1961,7 @@ func schema_pkg_apis_gateway_v1_RateLimit(ref common.ReferenceCallback) common.O
 					},
 					"windowSeconds": {
 						SchemaProps: spec.SchemaProps{
-							Description: "WindowSeconds 是补满请求额度所需的秒数",
+							Description: "WindowSeconds 是补满请求额度所需的秒数。",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int64",
@@ -1976,7 +1978,7 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicy(ref common.ReferenceCallback) co
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RateLimitPolicy 声明限流策略",
+				Description: "RateLimitPolicy 声明限流策略。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -2023,7 +2025,7 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicyList(ref common.ReferenceCallback
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RateLimitPolicyList 表示 RateLimitPolicy 资源列表",
+				Description: "RateLimitPolicyList 表示 RateLimitPolicy 资源列表。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -2072,12 +2074,12 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref common.ReferenceCallback
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RateLimitPolicySpec 定义限流策略配置",
+				Description: "RateLimitPolicySpec 定义限流策略配置。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与策略匹配",
+							Description: "DisplayName 保存控制台展示名称，不参与策略匹配。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2085,7 +2087,7 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref common.ReferenceCallback
 					},
 					"enabled": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Enabled 为 false 时保留策略但不执行限流",
+							Description: "Enabled 为 false 时保留策略但不执行限流。",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -2102,7 +2104,7 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref common.ReferenceCallback
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "TargetRefs 为空时策略保存为未应用状态",
+							Description: "TargetRefs 为空时策略保存为未应用状态。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2116,14 +2118,14 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref common.ReferenceCallback
 					},
 					"subject": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Subject 决定目标内哪些请求共享同一计数器",
+							Description: "Subject 决定目标内哪些请求共享同一计数器。",
 							Default:     map[string]interface{}{},
 							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RateLimitSubject"),
 						},
 					},
 					"limit": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Limit 定义单个计数器的请求上限和统计周期",
+							Description: "Limit 定义单个计数器的请求上限和统计周期。",
 							Default:     map[string]interface{}{},
 							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RateLimit"),
 						},
@@ -2141,12 +2143,12 @@ func schema_pkg_apis_gateway_v1_RateLimitSubject(ref common.ReferenceCallback) c
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RateLimitSubject 定义目标内共享额度的请求主体",
+				Description: "RateLimitSubject 定义目标内共享额度的请求主体。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"type": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Type 选择全部请求、客户端 IP 或 Header 值作为计数主体",
+							Description: "Type 选择全部请求、客户端 IP 或 Header 值作为计数主体。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2154,7 +2156,7 @@ func schema_pkg_apis_gateway_v1_RateLimitSubject(ref common.ReferenceCallback) c
 					},
 					"headerName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "HeaderName 只在 Header 主体下使用",
+							Description: "HeaderName 只在 Header 主体下使用。",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2170,7 +2172,7 @@ func schema_pkg_apis_gateway_v1_ResourceStatus(ref common.ReferenceCallback) com
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "ResourceStatus 表示声明式资源状态",
+				Description: "ResourceStatus 表示声明式资源状态。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"conditions": {
@@ -2183,7 +2185,7 @@ func schema_pkg_apis_gateway_v1_ResourceStatus(ref common.ReferenceCallback) com
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Conditions 记录资源当前 Generation 的接受、引用解析和生效结果",
+							Description: "Conditions 记录资源当前 Generation 的接受、引用解析和生效结果。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2207,7 +2209,7 @@ func schema_pkg_apis_gateway_v1_Route(ref common.ReferenceCallback) common.OpenA
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "Route 声明一组请求匹配条件和对应的转发行为",
+				Description: "Route 声明一组请求匹配条件和对应的转发行为。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -2254,7 +2256,7 @@ func schema_pkg_apis_gateway_v1_RouteList(ref common.ReferenceCallback) common.O
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RouteList 表示 Route 资源列表",
+				Description: "RouteList 表示 Route 资源列表。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -2303,12 +2305,12 @@ func schema_pkg_apis_gateway_v1_RouteMatch(ref common.ReferenceCallback) common.
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RouteMatch 表示必须同时满足的请求匹配条件",
+				Description: "RouteMatch 表示必须同时满足的请求匹配条件。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"path": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Path 是每个请求都必须满足的路径条件",
+							Description: "Path 是每个请求都必须满足的路径条件。",
 							Default:     map[string]interface{}{},
 							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PathMatch"),
 						},
@@ -2320,7 +2322,7 @@ func schema_pkg_apis_gateway_v1_RouteMatch(ref common.ReferenceCallback) common.
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Methods 为空时匹配所有 HTTP 方法，多个值之间是 OR 关系",
+							Description: "Methods 为空时匹配所有 HTTP 方法，多个值之间是 OR 关系。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2340,7 +2342,7 @@ func schema_pkg_apis_gateway_v1_RouteMatch(ref common.ReferenceCallback) common.
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Headers 必须全部匹配",
+							Description: "Headers 必须全部匹配。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2365,12 +2367,12 @@ func schema_pkg_apis_gateway_v1_RouteRetry(ref common.ReferenceCallback) common.
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RouteRetry 表示 Route 的失败重试配置",
+				Description: "RouteRetry 表示 Route 的失败重试配置。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"attempts": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Attempts 是首次转发失败后的最大重试次数",
+							Description: "Attempts 是首次转发失败后的最大重试次数。",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -2378,7 +2380,7 @@ func schema_pkg_apis_gateway_v1_RouteRetry(ref common.ReferenceCallback) common.
 					},
 					"perTryTimeoutMillis": {
 						SchemaProps: spec.SchemaProps{
-							Description: "PerTryTimeoutMillis 是每次转发尝试的超时毫秒数",
+							Description: "PerTryTimeoutMillis 是每次转发尝试（包括首次）的超时毫秒数。",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -2395,19 +2397,19 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RouteSpec 定义 Route 的挂载范围、匹配条件和转发行为",
+				Description: "RouteSpec 定义 Route 的挂载范围、匹配条件和转发行为。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与引用和请求匹配",
+							Description: "DisplayName 保存控制台展示名称，不参与引用和请求匹配。",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"enabled": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Enabled 表示 Route 是否参与编译和下发",
+							Description: "Enabled 表示 Route 是否参与编译和下发。",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -2415,7 +2417,7 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 					},
 					"accessMode": {
 						SchemaProps: spec.SchemaProps{
-							Description: "AccessMode 决定客户端是否需要使用 Caller 访问密钥",
+							Description: "AccessMode 决定客户端是否需要使用 Caller 访问密钥。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2428,7 +2430,7 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "GatewayRefs 保存承载当前 Route 的 Gateway ID",
+							Description: "GatewayRefs 保存承载当前 Route 的 Gateway ID 列表。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2448,7 +2450,7 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Hostnames 为空时不限制请求 Host，多个值之间是 OR 关系",
+							Description: "Hostnames 为空时继承所关联 Gateway Listener 的 Host 范围，多个值之间是 OR 关系。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2463,8 +2465,9 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 					},
 					"match": {
 						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteMatch"),
+							Description: "Match 定义请求必须满足的路径、方法和 Header 条件。",
+							Default:     map[string]interface{}{},
+							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteMatch"),
 						},
 					},
 					"upstreamRefs": {
@@ -2474,7 +2477,7 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "UpstreamRefs 保存接收请求的上游服务及流量权重 AI 为空时使用该字段；AI Route 的线路由 AI.Models 分别声明",
+							Description: "UpstreamRefs 保存接收请求的上游服务及流量权重。 AI 为空时使用该字段；AI Route 的线路由 AI.Models 分别声明。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2488,38 +2491,44 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 					},
 					"ai": {
 						SchemaProps: spec.SchemaProps{
-							Description: "AI 存在时表示当前 Route 发布 OpenAI 兼容模型接口",
+							Description: "AI 存在时表示当前 Route 发布 OpenAI 兼容模型接口。",
 							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.AIRoute"),
 						},
 					},
 					"hostRewrite": {
 						SchemaProps: spec.SchemaProps{
-							Description: "HostRewrite 为空时保留客户端 Host，其他模式由 Route 显式控制",
+							Description: "HostRewrite 由 API Server 物化默认值，存储后的配置始终显式声明 Host 行为。",
+							Default:     map[string]interface{}{},
 							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HostRewrite"),
 						},
 					},
 					"requestHeaderModifier": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderModifier"),
+							Description: "RequestHeaderModifier 在请求转发到 Upstream 前修改 Header。",
+							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderModifier"),
 						},
 					},
 					"responseHeaderModifier": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderModifier"),
+							Description: "ResponseHeaderModifier 在 Upstream 响应返回客户端前修改 Header。",
+							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderModifier"),
 						},
 					},
 					"timeout": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteTimeout"),
+							Description: "Timeout 由 API Server 物化默认值，Compiler 不依赖数据面的隐式超时。",
+							Default:     map[string]interface{}{},
+							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteTimeout"),
 						},
 					},
 					"retry": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteRetry"),
+							Description: "Retry 为空时不重试失败的 Upstream 请求。",
+							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteRetry"),
 						},
 					},
 				},
-				Required: []string{"enabled", "accessMode", "gatewayRefs", "match"},
+				Required: []string{"enabled", "accessMode", "gatewayRefs", "match", "hostRewrite", "timeout"},
 			},
 		},
 		Dependencies: []string{
@@ -2531,12 +2540,12 @@ func schema_pkg_apis_gateway_v1_RouteTimeout(ref common.ReferenceCallback) commo
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RouteTimeout 表示 Route 的请求总超时",
+				Description: "RouteTimeout 表示 Route 的请求总超时。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"requestMillis": {
 						SchemaProps: spec.SchemaProps{
-							Description: "RequestMillis 是从接收请求到返回响应的总超时毫秒数",
+							Description: "RequestMillis 是从接收请求到返回响应的总超时毫秒数。",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -2553,12 +2562,12 @@ func schema_pkg_apis_gateway_v1_TokenQuotaLimit(ref common.ReferenceCallback) co
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "TokenQuotaLimit 定义一个自然周期内允许使用的总 Token 数",
+				Description: "TokenQuotaLimit 定义一个自然周期内允许使用的总 Token 数。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"period": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Period 指定自然日、自然周或自然月",
+							Description: "Period 指定自然日、自然周或自然月。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2566,7 +2575,7 @@ func schema_pkg_apis_gateway_v1_TokenQuotaLimit(ref common.ReferenceCallback) co
 					},
 					"tokens": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Tokens 是该周期内输入和输出 Token 的总上限",
+							Description: "Tokens 是该周期内输入和输出 Token 的总上限。",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int64",
@@ -2583,7 +2592,7 @@ func schema_pkg_apis_gateway_v1_TokenQuotaPolicy(ref common.ReferenceCallback) c
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "TokenQuotaPolicy 声明调用方可使用的模型 Token 额度",
+				Description: "TokenQuotaPolicy 声明调用方可使用的模型 Token 额度。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -2630,7 +2639,7 @@ func schema_pkg_apis_gateway_v1_TokenQuotaPolicyList(ref common.ReferenceCallbac
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "TokenQuotaPolicyList 表示 TokenQuotaPolicy 资源列表",
+				Description: "TokenQuotaPolicyList 表示 TokenQuotaPolicy 资源列表。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -2679,12 +2688,12 @@ func schema_pkg_apis_gateway_v1_TokenQuotaPolicySpec(ref common.ReferenceCallbac
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "TokenQuotaPolicySpec 定义调用方额度及其自然周期",
+				Description: "TokenQuotaPolicySpec 定义调用方额度及其自然周期。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与额度匹配",
+							Description: "DisplayName 保存控制台展示名称，不参与额度匹配。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2692,7 +2701,7 @@ func schema_pkg_apis_gateway_v1_TokenQuotaPolicySpec(ref common.ReferenceCallbac
 					},
 					"enabled": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Enabled 为 false 时保留配置但不检查和结算额度",
+							Description: "Enabled 为 false 时保留配置但不检查和结算额度。",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -2709,7 +2718,7 @@ func schema_pkg_apis_gateway_v1_TokenQuotaPolicySpec(ref common.ReferenceCallbac
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "TargetRefs 只允许引用 Caller；同一策略中的每个 Caller 独立计数",
+							Description: "TargetRefs 只允许引用 Caller；同一策略中的每个 Caller 独立计数。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2723,7 +2732,7 @@ func schema_pkg_apis_gateway_v1_TokenQuotaPolicySpec(ref common.ReferenceCallbac
 					},
 					"timeZone": {
 						SchemaProps: spec.SchemaProps{
-							Description: "TimeZone 使用 IANA 时区确定自然周期边界",
+							Description: "TimeZone 使用 IANA 时区确定自然周期边界。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2739,7 +2748,7 @@ func schema_pkg_apis_gateway_v1_TokenQuotaPolicySpec(ref common.ReferenceCallbac
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Limits 可同时配置日、周和月额度，每种周期最多一项",
+							Description: "Limits 可同时配置日、周和月额度，每种周期最多一项。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2764,7 +2773,7 @@ func schema_pkg_apis_gateway_v1_Upstream(ref common.ReferenceCallback) common.Op
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "Upstream 声明一个逻辑上游服务",
+				Description: "Upstream 声明一个逻辑上游服务。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -2811,12 +2820,12 @@ func schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref common.ReferenceCallback
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamHealthCheck 声明 Upstream 的 HTTP 主动健康检查",
+				Description: "UpstreamHealthCheck 声明 Upstream 的 HTTP 主动健康检查。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"path": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Path 是主动健康检查请求使用的绝对路径",
+							Description: "Path 是主动健康检查请求使用的绝对路径。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2824,14 +2833,14 @@ func schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref common.ReferenceCallback
 					},
 					"intervalSeconds": {
 						SchemaProps: spec.SchemaProps{
-							Description: "IntervalSeconds 是相邻两次检查的间隔，默认 10 秒",
+							Description: "IntervalSeconds 是相邻两次检查的间隔，默认 10 秒。",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
 					},
 					"timeoutSeconds": {
 						SchemaProps: spec.SchemaProps{
-							Description: "TimeoutSeconds 是单次检查的超时时间，默认 2 秒",
+							Description: "TimeoutSeconds 是单次检查的超时时间，默认 2 秒。",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
@@ -2847,7 +2856,7 @@ func schema_pkg_apis_gateway_v1_UpstreamList(ref common.ReferenceCallback) commo
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamList 表示 Upstream 资源列表",
+				Description: "UpstreamList 表示 Upstream 资源列表。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -2896,12 +2905,12 @@ func schema_pkg_apis_gateway_v1_UpstreamRef(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamRef 表示 Route 转发到的 Upstream 及其相对权重",
+				Description: "UpstreamRef 表示 Route 转发到的 Upstream 及其相对权重。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name 引用 Upstream 的 metadata.name",
+							Description: "Name 引用 Upstream 的 metadata.name。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2909,7 +2918,7 @@ func schema_pkg_apis_gateway_v1_UpstreamRef(ref common.ReferenceCallback) common
 					},
 					"weight": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Weight 是多个 Upstream 之间的相对流量权重",
+							Description: "Weight 是多个 Upstream 之间的相对流量权重。",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -2926,12 +2935,12 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamSpec 定义 HTTP 上游服务的连接方式和端点集合",
+				Description: "UpstreamSpec 定义 HTTP 上游服务的连接方式和端点集合。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与资源引用",
+							Description: "DisplayName 保存控制台展示名称，不参与资源引用。",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2943,7 +2952,7 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Endpoints 是当前服务可接收流量的网络端点",
+							Description: "Endpoints 是当前服务可接收流量的网络端点。",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -2957,26 +2966,26 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 					},
 					"tls": {
 						SchemaProps: spec.SchemaProps{
-							Description: "TLS 描述访问 Upstream 时的服务端身份校验，未配置时使用明文 HTTP",
+							Description: "TLS 描述访问 Upstream 时的服务端身份校验，未配置时使用明文 HTTP。",
 							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.UpstreamTLS"),
 						},
 					},
 					"loadBalancing": {
 						SchemaProps: spec.SchemaProps{
-							Description: "LoadBalancing 指定多个端点之间的负载均衡策略",
+							Description: "LoadBalancing 指定多个端点之间的负载均衡策略。",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"healthCheck": {
 						SchemaProps: spec.SchemaProps{
-							Description: "HealthCheck 描述可选的 HTTP 主动健康检查，对象存在即启用",
+							Description: "HealthCheck 描述可选的 HTTP 主动健康检查，对象存在即启用。",
 							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.UpstreamHealthCheck"),
 						},
 					},
 					"model": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Model 存在时表示当前 Upstream 是模型服务，协议转换由 Ingate 数据面完成",
+							Description: "Model 存在时表示当前 Upstream 是模型服务，协议转换由 Ingate 数据面完成。",
 							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.ModelUpstream"),
 						},
 					},
@@ -2993,12 +3002,12 @@ func schema_pkg_apis_gateway_v1_UpstreamTLS(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamTLS 声明使用系统 CA 根证书包校验上游证书",
+				Description: "UpstreamTLS 声明使用系统 CA 根证书包校验上游证书。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"serverName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ServerName 用于 TLS SNI 和服务端证书身份校验",
+							Description: "ServerName 用于 TLS SNI 和服务端证书身份校验。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3015,7 +3024,7 @@ func schema_pkg_apis_gateway_v1_WasmPlugin(ref common.ReferenceCallback) common.
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "WasmPlugin 声明一个已安装的 Proxy-Wasm 插件制品",
+				Description: "WasmPlugin 声明一个已安装的 Proxy-Wasm 插件制品。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -3062,7 +3071,7 @@ func schema_pkg_apis_gateway_v1_WasmPluginList(ref common.ReferenceCallback) com
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "WasmPluginList 表示 WasmPlugin 资源列表",
+				Description: "WasmPluginList 表示 WasmPlugin 资源列表。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -3111,12 +3120,12 @@ func schema_pkg_apis_gateway_v1_WasmPluginSpec(ref common.ReferenceCallback) com
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "WasmPluginSpec 定义插件身份和模块来源",
+				Description: "WasmPluginSpec 定义插件身份和模块来源。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"sourceID": {
 						SchemaProps: spec.SchemaProps{
-							Description: "SourceID 标识安装插件时选中的插件源，升级始终回到同一来源解析制品",
+							Description: "SourceID 标识安装插件时选中的插件源，升级始终回到同一来源解析制品。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3124,7 +3133,7 @@ func schema_pkg_apis_gateway_v1_WasmPluginSpec(ref common.ReferenceCallback) com
 					},
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与流量匹配",
+							Description: "DisplayName 保存控制台展示名称，不参与流量匹配。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3132,7 +3141,7 @@ func schema_pkg_apis_gateway_v1_WasmPluginSpec(ref common.ReferenceCallback) com
 					},
 					"package": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Package 是插件在仓库中的稳定标识，同一配置域只能安装一个版本",
+							Description: "Package 是插件在仓库中的稳定标识，同一配置域只能安装一个版本。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3140,7 +3149,7 @@ func schema_pkg_apis_gateway_v1_WasmPluginSpec(ref common.ReferenceCallback) com
 					},
 					"version": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Version 表示插件制品版本，不等同于资源 Generation",
+							Description: "Version 表示插件制品版本，不等同于资源 Generation。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3148,7 +3157,7 @@ func schema_pkg_apis_gateway_v1_WasmPluginSpec(ref common.ReferenceCallback) com
 					},
 					"url": {
 						SchemaProps: spec.SchemaProps{
-							Description: "URL 支持指向 Wasm 模块的 HTTP(S) URL 或 oci:// 镜像引用",
+							Description: "URL 支持指向 Wasm 模块的 HTTP(S) URL 或 oci:// 镜像引用。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3156,14 +3165,15 @@ func schema_pkg_apis_gateway_v1_WasmPluginSpec(ref common.ReferenceCallback) com
 					},
 					"sha256": {
 						SchemaProps: spec.SchemaProps{
-							Description: "SHA256 对 HTTP(S) 校验 Wasm 模块，对 OCI 校验镜像 manifest；为空时不校验来源摘要",
+							Description: "SHA256 对 HTTP(S) 校验 Wasm 模块，对 OCI 校验镜像 manifest。",
+							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"pullPolicy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "PullPolicy 控制资源版本变化时是否重新拉取模块",
+							Description: "PullPolicy 控制资源版本变化时是否重新拉取模块。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3171,13 +3181,13 @@ func schema_pkg_apis_gateway_v1_WasmPluginSpec(ref common.ReferenceCallback) com
 					},
 					"rootID": {
 						SchemaProps: spec.SchemaProps{
-							Description: "RootID 必须与 Proxy-Wasm 模块注册 Context 时使用的 root_id 一致；为空表示使用模块的默认 Root Context",
+							Description: "RootID 必须与 Proxy-Wasm 模块注册 Context 时使用的 root_id 一致； 为空表示使用模块的默认 Root Context。",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 				},
-				Required: []string{"sourceID", "displayName", "package", "version", "url", "pullPolicy"},
+				Required: []string{"sourceID", "displayName", "package", "version", "url", "sha256", "pullPolicy"},
 			},
 		},
 	}

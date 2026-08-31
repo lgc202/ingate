@@ -10,14 +10,13 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
-	"github.com/lgc202/ingate/internal/controller/biz/delivery"
 )
 
 func (w *Writer) updateGateway(
 	ctx context.Context,
 	source compiler.ResourceGeneration,
 	compile *compileDecision,
-	deliveryStatus delivery.Status,
+	deliveryState deliveryIndex,
 ) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		resource, err := w.client.Gateways().Get(ctx, source.Name, metav1.GetOptions{})
@@ -31,7 +30,7 @@ func (w *Writer) updateGateway(
 			return nil
 		}
 
-		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryState)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
 			return nil
 		}
@@ -53,7 +52,7 @@ func (w *Writer) updateCertificate(
 	ctx context.Context,
 	source compiler.ResourceGeneration,
 	compile *compileDecision,
-	deliveryStatus delivery.Status,
+	deliveryState deliveryIndex,
 ) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		resource, err := w.client.Certificates().Get(ctx, source.Name, metav1.GetOptions{})
@@ -67,7 +66,7 @@ func (w *Writer) updateCertificate(
 			return nil
 		}
 
-		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryState)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
 			return nil
 		}
@@ -89,7 +88,7 @@ func (w *Writer) updateRoute(
 	ctx context.Context,
 	source compiler.ResourceGeneration,
 	compile *compileDecision,
-	deliveryStatus delivery.Status,
+	deliveryState deliveryIndex,
 ) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		resource, err := w.client.Routes().Get(ctx, source.Name, metav1.GetOptions{})
@@ -103,7 +102,7 @@ func (w *Writer) updateRoute(
 			return nil
 		}
 
-		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryState)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
 			return nil
 		}
@@ -125,7 +124,7 @@ func (w *Writer) updateUpstream(
 	ctx context.Context,
 	source compiler.ResourceGeneration,
 	compile *compileDecision,
-	deliveryStatus delivery.Status,
+	deliveryState deliveryIndex,
 ) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		resource, err := w.client.Upstreams().Get(ctx, source.Name, metav1.GetOptions{})
@@ -139,7 +138,7 @@ func (w *Writer) updateUpstream(
 			return nil
 		}
 
-		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryState)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
 			return nil
 		}

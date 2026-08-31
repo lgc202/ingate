@@ -151,7 +151,7 @@ message Data {
 message Logging {
   // format 支持 json 和 text
   string format = 1;
-  // level 支持 debug、info、warn 和 error，可在运行中热更新
+  // level 支持 debug、info、warn 和 error
   string level = 2;
   // add_source 控制日志是否包含调用位置
   bool add_source = 3;

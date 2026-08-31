@@ -15,6 +15,7 @@ import (
 func wireApp(
 	*conf.Server,
 	*conf.Data_AdminAPI,
+	*conf.Data_Assistant,
 	*slog.Logger,
 	serviceInstanceID,
 ) (*kratos.App, error) {

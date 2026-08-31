@@ -15,13 +15,20 @@ import (
 
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, data_AdminAPI *conf.Data_AdminAPI, logger *slog.Logger, consoleServiceInstanceID serviceInstanceID) (*kratos.App, error) {
-	reverseProxy, err := server.NewAdminAPIProxy(data_AdminAPI, logger)
+func wireApp(confServer *conf.Server, data_AdminAPI *conf.Data_AdminAPI, data_Assistant *conf.Data_Assistant, logger *slog.Logger, consoleServiceInstanceID serviceInstanceID) (*kratos.App, error) {
+	adminAPIProxy, err := server.NewAdminAPIProxy(data_AdminAPI, logger)
+	if err != nil {
+		return nil, err
+	}
+	assistantProxy, err := server.NewAssistantProxy(data_Assistant, logger)
 	if err != nil {
 		return nil, err
 	}
 	sessionAuth := server.NewSessionAuth(confServer)
-	httpServer := server.NewHTTPServer(confServer, reverseProxy, sessionAuth, logger)
+	httpServer, err := server.NewHTTPServer(confServer, adminAPIProxy, assistantProxy, sessionAuth, logger)
+	if err != nil {
+		return nil, err
+	}
 	app := newKratosApp(logger, confServer, httpServer, consoleServiceInstanceID)
 	return app, nil
 }

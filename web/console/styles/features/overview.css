@@ -1,0 +1,56 @@
+/* 工作台 */
+.overview-hero { position: relative; min-height: 292px; padding: 38px 44px; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr); align-items: center; overflow: hidden; border-radius: 18px; color: #f7f8ff; background: linear-gradient(125deg, #252b48 0%, #303f86 54%, #4a5fc2 100%); box-shadow: 0 22px 45px rgba(40, 47, 92, 0.2); }
+.overview-hero::before { content: ""; position: absolute; inset: 0; opacity: 0.18; background-image: linear-gradient(rgba(255,255,255,.16) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.16) 1px, transparent 1px); background-size: 34px 34px; mask-image: linear-gradient(90deg, transparent, #000); }
+.overview-hero-copy { position: relative; z-index: 2; max-width: 650px; }
+.overview-hero .eyebrow { color: #bac4ff; }
+.overview-hero h2 { margin: 10px 0 14px; font-size: clamp(2rem, 3vw, 3.1rem); line-height: 1.08; letter-spacing: -0.045em; }
+.overview-hero p { max-width: 610px; margin: 0; color: #d1d6ef; font-size: 0.92rem; line-height: 1.7; }
+.hero-actions { margin-top: 24px; display: flex; gap: 10px; }
+.hero-actions a { text-decoration: none; }
+.overview-hero .hero-actions button:first-child { background: #f3f4ff; color: #263778; }
+.overview-hero .hero-actions a:last-child button { border-color: rgba(255,255,255,0.27); background: rgba(255,255,255,0.07); color: #fff; }
+.hero-signal { position: relative; z-index: 2; height: 220px; display: grid; place-items: center; }
+.signal-core { position: relative; z-index: 3; width: 126px; height: 126px; display: grid; align-content: center; justify-items: center; border: 1px solid rgba(255,255,255,0.34); border-radius: 50%; background: rgba(20,27,62,0.52); box-shadow: inset 0 0 32px rgba(138,158,255,0.16), 0 0 55px rgba(134,153,255,0.18); backdrop-filter: blur(8px); }
+.signal-core strong { font-size: 1.75rem; letter-spacing: -0.04em; }
+.signal-core span { color: #bfc7e9; font-size: 0.72rem; }
+.signal-orbit { position: absolute; border: 1px solid rgba(208,215,255,0.22); border-radius: 50%; }
+.signal-orbit-one { width: 185px; height: 185px; }
+.signal-orbit-two { width: 250px; height: 250px; border-style: dashed; }
+.signal-label { position: absolute; padding: 6px 10px; border: 1px solid rgba(255,255,255,0.15); border-radius: 999px; background: rgba(28,34,70,0.68); color: #d9ddf4; font-size: 0.7rem; backdrop-filter: blur(8px); }
+.signal-label-a { top: 13px; right: 45px; }.signal-label-b { bottom: 24px; right: 15px; }.signal-label-c { left: 22px; bottom: 44px; }
+.metric-ribbon { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid #deded8; border-radius: 15px; background: #fff; box-shadow: var(--shadow-soft); }
+.metric-item { min-width: 0; padding: 19px 21px; display: flex; align-items: center; gap: 13px; }
+.metric-item + .metric-item { border-left: 1px solid #e5e4de; }
+.metric-icon { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 11px; color: var(--accent); background: var(--accent-soft); }
+.metric-icon svg { width: 18px; }
+.metric-item > div { min-width: 0; display: grid; grid-template-columns: 1fr auto; align-items: baseline; column-gap: 8px; }
+.metric-item span:not(.metric-icon) { grid-column: 1 / -1; color: var(--muted); font-size: 0.74rem; }
+.metric-item strong { font-size: 1.27rem; letter-spacing: -0.03em; }
+.metric-item small { color: #9699a1; font-size: 0.69rem; white-space: nowrap; }
+.overview-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(310px, 0.75fr); gap: 18px; }
+.request-flow-card, .health-card, .recent-card { padding: 21px; }
+.request-flow { margin-top: 22px; display: grid; grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr) auto minmax(120px, 1fr) auto minmax(120px, 1fr); align-items: center; gap: 8px; }
+.flow-node { min-width: 0; padding: 14px; border: 1px solid #e2e2dd; border-radius: 12px; background: #fbfbf9; }
+.flow-node > span { width: 30px; height: 30px; margin-bottom: 10px; display: grid; place-items: center; border-radius: 8px; color: var(--accent); background: var(--accent-soft); }
+.flow-node svg { width: 15px; }
+.flow-node small, .flow-node p { display: block; margin: 0; color: #8a8d95; font-size: 0.68rem; }
+.flow-node strong { display: block; margin: 2px 0 3px; overflow: hidden; font-size: 0.82rem; text-overflow: ellipsis; white-space: nowrap; }
+.flow-arrow { width: 16px; color: #b2b4bb; }
+.flow-footnote { margin-top: 15px; padding: 9px 11px; display: flex; align-items: center; gap: 8px; border-radius: 9px; color: #60646e; background: #f5f5f1; font-size: 0.74rem; }
+.flow-footnote svg { width: 15px; color: var(--success); }
+.health-list { margin-top: 14px; }
+.health-row { padding: 13px 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; border-bottom: 1px solid #ededE8; }
+.health-row:last-child { border: 0; }
+.health-row > div { min-width: 0; display: grid; gap: 2px; }
+.health-row > div:last-child { text-align: right; }
+.health-row strong { overflow: hidden; font-size: 0.78rem; text-overflow: ellipsis; white-space: nowrap; }
+.health-row span { color: #92959d; font-size: 0.68rem; }
+.recent-card { overflow: hidden; padding-bottom: 8px; }
+.recent-request-list { margin: 15px -21px 0; }
+.recent-request-row { min-height: 62px; padding: 10px 21px; display: grid; grid-template-columns: auto minmax(145px, 1.2fr) repeat(4, minmax(90px, 1fr)); align-items: center; gap: 13px; border-top: 1px solid #ecebe6; }
+.request-result-mark { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; }
+.request-result-mark svg { width: 16px; }.request-result-mark.is-success { color: var(--success); background: var(--success-soft); }.request-result-mark.is-warning { color: var(--amber); background: var(--amber-soft); }.request-result-mark.is-error { color: var(--red); background: var(--red-soft); }
+.recent-request-row > div { min-width: 0; display: grid; gap: 2px; }
+.recent-request-row > div span { color: #92959d; font-size: 0.68rem; }
+.recent-request-row > div strong { overflow: hidden; font-size: 0.76rem; text-overflow: ellipsis; white-space: nowrap; }
+.request-id strong { font-family: "SFMono-Regular", Consolas, monospace; }

@@ -1,4 +1,4 @@
-// Package conf 定义并校验 ingate-console 进程配置
+// Package conf 定义并校验 ingate-console 进程配置。
 package conf
 
 import (
@@ -6,18 +6,19 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
+
+	"github.com/lgc202/ingate/internal/pkg/adminidentity"
+	"github.com/lgc202/ingate/internal/pkg/appconfig"
 )
 
-// Validate 校验 Console 启动所需的配置
+// Validate 校验 Console 启动所需的配置。
 func (c *Bootstrap) Validate() error {
 	if c.GetServer() == nil || c.GetServer().GetHttp() == nil {
 		return errors.New("server HTTP config is required")
 	}
 	if strings.TrimSpace(c.GetServer().GetHttp().GetAddr()) == "" {
 		return errors.New("server HTTP address must not be empty")
-	}
-	if c.GetServer().GetHttp().GetTimeout() == nil || c.GetServer().GetHttp().GetTimeout().AsDuration() <= 0 {
-		return errors.New("server HTTP timeout must be greater than zero")
 	}
 	if strings.TrimSpace(c.GetServer().GetConsoleDir()) == "" {
 		return errors.New("server console directory must not be empty")
@@ -28,40 +29,37 @@ func (c *Bootstrap) Validate() error {
 	if err := validateAuthentication(c.GetServer().GetAuthentication()); err != nil {
 		return err
 	}
-	if c.GetData() == nil || c.GetData().GetAdminApi() == nil {
-		return errors.New("admin API config is required")
+	if c.GetData() == nil || c.GetData().GetAdminApi() == nil || c.GetData().GetAssistant() == nil {
+		return errors.New("admin API and assistant config are required")
 	}
-	if err := validateAdminAPIURL(c.GetData().GetAdminApi().GetBaseUrl()); err != nil {
+	if err := validateServiceURL("admin API", c.GetData().GetAdminApi().GetBaseUrl()); err != nil {
 		return err
 	}
-	if c.GetLogging() == nil {
+	if err := validateServiceURL("assistant", c.GetData().GetAssistant().GetBaseUrl()); err != nil {
+		return err
+	}
+	logging := c.GetLogging()
+	if logging == nil {
 		return errors.New("logging config is required")
 	}
-	switch strings.ToLower(c.GetLogging().GetFormat()) {
-	case "json", "text":
-	default:
-		return errors.New("logging format must be json or text")
-	}
-	switch strings.ToLower(c.GetLogging().GetLevel()) {
-	case "debug", "info", "warn", "error":
-	default:
-		return errors.New("logging level must be debug, info, warn or error")
-	}
-	return nil
+	return appconfig.ValidateLogging(logging)
 }
 
 func validateAuthentication(config *Server_Authentication) error {
 	if config == nil {
 		return errors.New("console authentication config is required")
 	}
-	if config.GetSessionTtl() == nil || config.GetSessionTtl().AsDuration() <= 0 {
-		return errors.New("console authentication session TTL must be greater than zero")
+	if config.GetSessionTtl() == nil || config.GetSessionTtl().AsDuration() < time.Second {
+		return errors.New("console authentication session TTL must be at least one second")
+	}
+	if !adminidentity.IsValid(config.GetUsername()) {
+		return errors.New("console authentication username is invalid")
 	}
 	if !config.GetEnabled() {
 		return nil
 	}
-	if strings.TrimSpace(config.GetUsername()) == "" || config.GetPassword() == "" {
-		return errors.New("console authentication username and password are required")
+	if config.GetPassword() == "" {
+		return errors.New("console authentication password is required")
 	}
 	if len(config.GetSessionSecret()) < 32 {
 		return errors.New("console authentication session secret must contain at least 32 bytes")
@@ -69,13 +67,19 @@ func validateAuthentication(config *Server_Authentication) error {
 	return nil
 }
 
-func validateAdminAPIURL(value string) error {
+func validateServiceURL(service, value string) error {
 	target, err := url.Parse(strings.TrimSpace(value))
 	if err != nil {
-		return fmt.Errorf("parse admin API base URL: %w", err)
+		return fmt.Errorf("parse %s base URL: %w", service, err)
 	}
 	if target.Host == "" || target.Scheme != "http" && target.Scheme != "https" {
-		return errors.New("admin API base URL must be an absolute HTTP URL")
+		return fmt.Errorf("%s base URL must be an absolute HTTP URL", service)
+	}
+	if target.User != nil {
+		return fmt.Errorf("%s base URL must not contain user information", service)
+	}
+	if target.RawQuery != "" || target.Fragment != "" {
+		return fmt.Errorf("%s base URL must not contain a query or fragment", service)
 	}
 	return nil
 }

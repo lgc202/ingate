@@ -24,11 +24,17 @@ message Server {
     // cert_directory 保存本地运行时自动生成的服务端证书
     string cert_directory = 2;
   }
+  message Authentication {
+    // bearer_token 认证访问声明式 API 的控制面组件
+    string bearer_token = 1;
+  }
 
   // http 定义 Generic API Server 的 HTTPS 服务
   HTTP http = 1;
   // shutdown_timeout 是等待在途 API 请求结束的最长时间
   google.protobuf.Duration shutdown_timeout = 2;
+  // authentication 保护除健康检查外的全部 API Server 端点
+  Authentication authentication = 3;
 }
 
 // Data 定义 API Server 的存储依赖

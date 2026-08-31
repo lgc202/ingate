@@ -146,7 +146,7 @@ type Server struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// grpc 接收 Envoy External Processing 双向流
 	Grpc *Server_GRPC `protobuf:"bytes,1,opt,name=grpc,proto3" json:"grpc,omitempty"`
-	// http 暴露 healthz 和 readyz
+	// http 暴露 /healthz、/readyz 和 /metrics 运维端点。
 	Http *Server_HTTP `protobuf:"bytes,2,opt,name=http,proto3" json:"http,omitempty"`
 	// shutdown_timeout 是等待现有 External Processing 流退出的最长时间
 	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,3,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
@@ -274,7 +274,9 @@ type Data_APIServer struct {
 	// master 覆盖 kubeconfig 中的 API Server 地址
 	Master string `protobuf:"bytes,1,opt,name=master,proto3" json:"master,omitempty"`
 	// kubeconfig 保存声明式资源 API 的连接配置
-	Kubeconfig    string `protobuf:"bytes,2,opt,name=kubeconfig,proto3" json:"kubeconfig,omitempty"`
+	Kubeconfig string `protobuf:"bytes,2,opt,name=kubeconfig,proto3" json:"kubeconfig,omitempty"`
+	// bearer_token 认证 AI ExtProc 到声明式 API 的内部请求
+	BearerToken   string `protobuf:"bytes,3,opt,name=bearer_token,json=bearerToken,proto3" json:"bearer_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -319,6 +321,13 @@ func (x *Data_APIServer) GetMaster() string {
 func (x *Data_APIServer) GetKubeconfig() string {
 	if x != nil {
 		return x.Kubeconfig
+	}
+	return ""
+}
+
+func (x *Data_APIServer) GetBearerToken() string {
+	if x != nil {
+		return x.BearerToken
 	}
 	return ""
 }
@@ -407,7 +416,9 @@ func (x *Data_Redis) GetOperationTimeout() *durationpb.Duration {
 type Server_GRPC struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// addr 是 Envoy External Processing Filter 连接的 gRPC 地址
-	Addr          string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
+	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
+	// tls 保护 Envoy、Admin API 到 AI ExtProc 的内部链路。
+	Tls           *Server_GRPC_TLS `protobuf:"bytes,2,opt,name=tls,proto3" json:"tls,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -449,9 +460,16 @@ func (x *Server_GRPC) GetAddr() string {
 	return ""
 }
 
+func (x *Server_GRPC) GetTls() *Server_GRPC_TLS {
+	if x != nil {
+		return x.Tls
+	}
+	return nil
+}
+
 type Server_HTTP struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// addr 是健康检查和就绪检查的 HTTP 地址
+	// addr 是 /healthz、/readyz 和 /metrics 运维端点的 HTTP 监听地址。
 	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
 	// timeout 限制单次运维 HTTP 请求处理时间
 	Timeout       *durationpb.Duration `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
@@ -503,6 +521,78 @@ func (x *Server_HTTP) GetTimeout() *durationpb.Duration {
 	return nil
 }
 
+type Server_GRPC_TLS struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// enabled 控制 AI ExtProc gRPC 服务是否启用 TLS。
+	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	// cert_file 是服务端证书链文件。
+	CertFile string `protobuf:"bytes,2,opt,name=cert_file,json=certFile,proto3" json:"cert_file,omitempty"`
+	// key_file 是服务端私钥文件。
+	KeyFile string `protobuf:"bytes,3,opt,name=key_file,json=keyFile,proto3" json:"key_file,omitempty"`
+	// client_ca_file 非空时启用 mTLS，并校验 Envoy 与 Admin API 的客户端证书。
+	ClientCaFile  string `protobuf:"bytes,4,opt,name=client_ca_file,json=clientCaFile,proto3" json:"client_ca_file,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Server_GRPC_TLS) Reset() {
+	*x = Server_GRPC_TLS{}
+	mi := &file_aiextproc_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Server_GRPC_TLS) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Server_GRPC_TLS) ProtoMessage() {}
+
+func (x *Server_GRPC_TLS) ProtoReflect() protoreflect.Message {
+	mi := &file_aiextproc_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Server_GRPC_TLS.ProtoReflect.Descriptor instead.
+func (*Server_GRPC_TLS) Descriptor() ([]byte, []int) {
+	return file_aiextproc_proto_rawDescGZIP(), []int{2, 0, 0}
+}
+
+func (x *Server_GRPC_TLS) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *Server_GRPC_TLS) GetCertFile() string {
+	if x != nil {
+		return x.CertFile
+	}
+	return ""
+}
+
+func (x *Server_GRPC_TLS) GetKeyFile() string {
+	if x != nil {
+		return x.KeyFile
+	}
+	return ""
+}
+
+func (x *Server_GRPC_TLS) GetClientCaFile() string {
+	if x != nil {
+		return x.ClientCaFile
+	}
+	return ""
+}
+
 var File_aiextproc_proto protoreflect.FileDescriptor
 
 const file_aiextproc_proto_rawDesc = "" +
@@ -511,27 +601,34 @@ const file_aiextproc_proto_rawDesc = "" +
 	"\tBootstrap\x125\n" +
 	"\x06server\x18\x01 \x01(\v2\x1d.ingate.aiextproc.conf.ServerR\x06server\x128\n" +
 	"\alogging\x18\x02 \x01(\v2\x1e.ingate.aiextproc.conf.LoggingR\alogging\x12/\n" +
-	"\x04data\x18\x03 \x01(\v2\x1b.ingate.aiextproc.conf.DataR\x04data\"\xab\x03\n" +
+	"\x04data\x18\x03 \x01(\v2\x1b.ingate.aiextproc.conf.DataR\x04data\"\xce\x03\n" +
 	"\x04Data\x12C\n" +
 	"\tapiserver\x18\x01 \x01(\v2%.ingate.aiextproc.conf.Data.APIServerR\tapiserver\x127\n" +
-	"\x05redis\x18\x02 \x01(\v2!.ingate.aiextproc.conf.Data.RedisR\x05redis\x1aC\n" +
+	"\x05redis\x18\x02 \x01(\v2!.ingate.aiextproc.conf.Data.RedisR\x05redis\x1af\n" +
 	"\tAPIServer\x12\x16\n" +
 	"\x06master\x18\x01 \x01(\tR\x06master\x12\x1e\n" +
 	"\n" +
 	"kubeconfig\x18\x02 \x01(\tR\n" +
-	"kubeconfig\x1a\xdf\x01\n" +
+	"kubeconfig\x12!\n" +
+	"\fbearer_token\x18\x03 \x01(\tR\vbearerToken\x1a\xdf\x01\n" +
 	"\x05Redis\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x1a\n" +
 	"\bdatabase\x18\x03 \x01(\x05R\bdatabase\x12<\n" +
 	"\fdial_timeout\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\vdialTimeout\x12F\n" +
-	"\x11operation_timeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\x10operationTimeout\"\xab\x02\n" +
+	"\x11operation_timeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\x10operationTimeout\"\xe5\x03\n" +
 	"\x06Server\x126\n" +
 	"\x04grpc\x18\x01 \x01(\v2\".ingate.aiextproc.conf.Server.GRPCR\x04grpc\x126\n" +
 	"\x04http\x18\x02 \x01(\v2\".ingate.aiextproc.conf.Server.HTTPR\x04http\x12D\n" +
-	"\x10shutdown_timeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1a\x1a\n" +
+	"\x10shutdown_timeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1a\xd3\x01\n" +
 	"\x04GRPC\x12\x12\n" +
-	"\x04addr\x18\x01 \x01(\tR\x04addr\x1aO\n" +
+	"\x04addr\x18\x01 \x01(\tR\x04addr\x128\n" +
+	"\x03tls\x18\x02 \x01(\v2&.ingate.aiextproc.conf.Server.GRPC.TLSR\x03tls\x1a}\n" +
+	"\x03TLS\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1b\n" +
+	"\tcert_file\x18\x02 \x01(\tR\bcertFile\x12\x19\n" +
+	"\bkey_file\x18\x03 \x01(\tR\akeyFile\x12$\n" +
+	"\x0eclient_ca_file\x18\x04 \x01(\tR\fclientCaFile\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
 	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"V\n" +
@@ -553,7 +650,7 @@ func file_aiextproc_proto_rawDescGZIP() []byte {
 	return file_aiextproc_proto_rawDescData
 }
 
-var file_aiextproc_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_aiextproc_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_aiextproc_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: ingate.aiextproc.conf.Bootstrap
 	(*Data)(nil),                // 1: ingate.aiextproc.conf.Data
@@ -563,7 +660,8 @@ var file_aiextproc_proto_goTypes = []any{
 	(*Data_Redis)(nil),          // 5: ingate.aiextproc.conf.Data.Redis
 	(*Server_GRPC)(nil),         // 6: ingate.aiextproc.conf.Server.GRPC
 	(*Server_HTTP)(nil),         // 7: ingate.aiextproc.conf.Server.HTTP
-	(*durationpb.Duration)(nil), // 8: google.protobuf.Duration
+	(*Server_GRPC_TLS)(nil),     // 8: ingate.aiextproc.conf.Server.GRPC.TLS
+	(*durationpb.Duration)(nil), // 9: google.protobuf.Duration
 }
 var file_aiextproc_proto_depIdxs = []int32{
 	2,  // 0: ingate.aiextproc.conf.Bootstrap.server:type_name -> ingate.aiextproc.conf.Server
@@ -573,15 +671,16 @@ var file_aiextproc_proto_depIdxs = []int32{
 	5,  // 4: ingate.aiextproc.conf.Data.redis:type_name -> ingate.aiextproc.conf.Data.Redis
 	6,  // 5: ingate.aiextproc.conf.Server.grpc:type_name -> ingate.aiextproc.conf.Server.GRPC
 	7,  // 6: ingate.aiextproc.conf.Server.http:type_name -> ingate.aiextproc.conf.Server.HTTP
-	8,  // 7: ingate.aiextproc.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
-	8,  // 8: ingate.aiextproc.conf.Data.Redis.dial_timeout:type_name -> google.protobuf.Duration
-	8,  // 9: ingate.aiextproc.conf.Data.Redis.operation_timeout:type_name -> google.protobuf.Duration
-	8,  // 10: ingate.aiextproc.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	11, // [11:11] is the sub-list for method output_type
-	11, // [11:11] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	9,  // 7: ingate.aiextproc.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	9,  // 8: ingate.aiextproc.conf.Data.Redis.dial_timeout:type_name -> google.protobuf.Duration
+	9,  // 9: ingate.aiextproc.conf.Data.Redis.operation_timeout:type_name -> google.protobuf.Duration
+	8,  // 10: ingate.aiextproc.conf.Server.GRPC.tls:type_name -> ingate.aiextproc.conf.Server.GRPC.TLS
+	9,  // 11: ingate.aiextproc.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_aiextproc_proto_init() }
@@ -595,7 +694,7 @@ func file_aiextproc_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_aiextproc_proto_rawDesc), len(file_aiextproc_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

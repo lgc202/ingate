@@ -1,33 +1,28 @@
 package compiler
 
 import (
-	"cmp"
 	"fmt"
 	"maps"
 	"slices"
 	"strings"
 
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/extauthz"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
-const (
-	envoyRouteNamePrefix  = "ingate-route"
-	virtualHostNamePrefix = "ingate-vhost"
-)
-
-// routeAttachment 表示一条 Route 已成功展开到某个 Gateway Listener
-// 内置治理策略只根据成功挂载结果生成执行索引
-type routeAttachment struct {
-	listenerKey listenerKey
-	gatewayID   string
-	routeID     string
-	routes      []*routev3.Route
+// preparedRoute 保存一条 Route 进入 Listener 挂载阶段所需的已校验数据。
+type preparedRoute struct {
+	routeID           string
+	gatewayIDs        []string
+	hostnames         []string
+	explicitHostnames bool
+	entries           []routeEntry
+	accessConfig      *anypb.Any
 }
 
 func (c *compilation) buildRoutes(
@@ -35,167 +30,214 @@ func (c *compilation) buildRoutes(
 	listenersByGateway map[string][]gatewayListener,
 	compiledUpstreams map[string]bool,
 ) ([]*routev3.RouteConfiguration, []routeAttachment) {
-	routesByListener := make(map[listenerKey]map[string][]routeEntry, len(listenerGroups))
-	matchOwners := make(map[listenerKey]map[string]map[string]routeEntry, len(listenerGroups))
-	attachmentIndex := make(map[policyRouteKey]int)
-	attachments := make([]routeAttachment, 0)
-
+	table := newRouteTable(len(listenerGroups))
 	for _, routeID := range slices.Sorted(maps.Keys(c.routes)) {
 		route := c.routes[routeID]
 		if !route.Spec.Enabled {
 			continue
 		}
-		hostnames, explicitHostnames := c.routeHostnames(route)
-		gatewayIDs := uniqueStrings(route.Spec.GatewayRefs)
-		if len(gatewayIDs) == 0 {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonInvalidSpec, fmt.Sprintf("route %q must reference at least one gateway", routeID))
+		prepared, ok := c.prepareRoute(route, compiledUpstreams)
+		if !ok {
 			continue
 		}
-		accessConfig, accessValid := c.routeAccessConfig(route)
-		if !accessValid {
-			continue
-		}
-		entries := c.buildRouteEntries(route, compiledUpstreams)
-		if len(entries) == 0 {
-			continue
-		}
+		c.attachRoute(table, prepared, listenersByGateway)
+	}
+	return table.configurations(listenerGroups), table.sortedAttachments()
+}
 
-		attached := false
-		hasEnabledGateway := false
-		for _, gatewayID := range gatewayIDs {
-			gateway, exists := c.gateways[gatewayID]
-			if !exists {
-				c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonReferenceNotFound, fmt.Sprintf("route %q references missing gateway %q", routeID, gatewayID))
-				continue
-			}
-			if !gateway.Spec.Enabled {
-				continue
-			}
-			hasEnabledGateway = true
-			domainsByListener := c.routeDomainsByListener(
-				route,
-				gatewayID,
-				hostnames,
-				explicitHostnames,
-				listenersByGateway,
+func (c *compilation) prepareRoute(
+	route *gatewayv1.Route,
+	compiledUpstreams map[string]bool,
+) (preparedRoute, bool) {
+	hostnames, hostnamesValid := c.routeHostnames(route)
+	gatewayIDs, gatewaysValid := c.routeGatewayIDs(route)
+	accessConfig, accessValid := c.routeAccessConfig(route)
+	entries := c.buildRouteEntries(route, compiledUpstreams)
+	if !hostnamesValid || !gatewaysValid || !accessValid || len(entries) == 0 {
+		return preparedRoute{}, false
+	}
+	return preparedRoute{
+		routeID:           route.Name,
+		gatewayIDs:        gatewayIDs,
+		hostnames:         hostnames,
+		explicitHostnames: len(route.Spec.Hostnames) > 0,
+		entries:           entries,
+		accessConfig:      accessConfig,
+	}, true
+}
+
+func (c *compilation) attachRoute(
+	table *routeTable,
+	route preparedRoute,
+	listenersByGateway map[string][]gatewayListener,
+) {
+	attached := false
+	hasEnabledGateway := false
+	for _, gatewayID := range route.gatewayIDs {
+		gateway, exists := c.gateways[gatewayID]
+		if !exists {
+			c.addRouteError(
+				route.routeID,
+				ReasonReferenceNotFound,
+				fmt.Sprintf("route %q references missing gateway %q", route.routeID, gatewayID),
 			)
-			if len(domainsByListener) == 0 {
-				c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonConflict, fmt.Sprintf("route %q has no attachable listener on gateway %q", routeID, gatewayID))
-				continue
-			}
-			for _, key := range sortedListenerKeySet(domainsByListener) {
-				if routesByListener[key] == nil {
-					routesByListener[key] = make(map[string][]routeEntry)
-				}
-				if matchOwners[key] == nil {
-					matchOwners[key] = make(map[string]map[string]routeEntry)
-				}
-				for _, domain := range slices.Sorted(maps.Keys(domainsByListener[key])) {
-					if matchOwners[key][domain] == nil {
-						matchOwners[key][domain] = make(map[string]routeEntry)
-					}
-					for _, entry := range entries {
-						current := entry
-						current.route = proto.Clone(entry.route).(*routev3.Route)
-						if accessConfig != nil {
-							if current.route.TypedPerFilterConfig == nil {
-								current.route.TypedPerFilterConfig = make(map[string]*anypb.Any)
-							}
-							current.route.TypedPerFilterConfig[extauthz.FilterName] = accessConfig
-						}
-						current.route.Name = envoyRouteName(gatewayID, routeID, entry.method, entry.variant)
-						matchKey := routeMatchKey(current.route.Match)
-						if previous, conflict := matchOwners[key][domain][matchKey]; conflict {
-							message := fmt.Sprintf("listener %s hostname %q has the same route match in %q and %q", listenerName(key), domain, previous.routeID, routeID)
-							c.addDiagnostic(SeverityError, gatewayv1.KindRoute, previous.routeID, ReasonConflict, message)
-							c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonConflict, message)
-							continue
-						}
-						matchOwners[key][domain][matchKey] = current
-						routesByListener[key][domain] = append(routesByListener[key][domain], current)
-						attached = true
-
-						attachmentKey := policyRouteKey{listenerKey: key, gatewayID: gatewayID, routeID: routeID}
-						index, exists := attachmentIndex[attachmentKey]
-						if !exists {
-							index = len(attachments)
-							attachmentIndex[attachmentKey] = index
-							attachments = append(attachments, routeAttachment{
-								listenerKey: key,
-								gatewayID:   gatewayID,
-								routeID:     routeID,
-							})
-						}
-						attachments[index].routes = append(attachments[index].routes, current.route)
-					}
-				}
-			}
+			continue
 		}
-		// 网关停用表示用户主动暂停入口，引用它的 Route 保留配置但暂不挂载
-		// 只有仍存在启用网关却无法挂载时，才属于需要阻断发布的配置错误
-		if hasEnabledGateway && !attached {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonConflict, fmt.Sprintf("route %q has no attachable listener", routeID))
+		if !gateway.Spec.Enabled {
+			continue
+		}
+		hasEnabledGateway = true
+
+		domainsByListener := c.routeDomainsByListener(
+			route.routeID,
+			gatewayID,
+			route.hostnames,
+			route.explicitHostnames,
+			listenersByGateway,
+		)
+		if len(domainsByListener) == 0 {
+			c.addRouteError(
+				route.routeID,
+				ReasonConflict,
+				fmt.Sprintf(
+					"route %q has no attachable listener on gateway %q",
+					route.routeID,
+					gatewayID,
+				),
+			)
+			continue
+		}
+
+		for _, key := range sortedListenerKeySet(domainsByListener) {
+			for _, domain := range slices.Sorted(maps.Keys(domainsByListener[key])) {
+				for _, entry := range route.entries {
+					previousRouteID, conflict := table.addEntry(
+						key,
+						domain,
+						gatewayID,
+						entry,
+						route.accessConfig,
+					)
+					if conflict {
+						message := fmt.Sprintf(
+							"listener %s hostname %q has overlapping route matches with equal precedence in %q and %q",
+							listenerName(key),
+							domain,
+							previousRouteID,
+							route.routeID,
+						)
+						c.addRouteError(previousRouteID, ReasonConflict, message)
+						c.addRouteError(route.routeID, ReasonConflict, message)
+						continue
+					}
+					attached = true
+				}
+			}
 		}
 	}
 
-	slices.SortFunc(attachments, compareRouteAttachments)
-	configs := make([]*routev3.RouteConfiguration, 0, len(listenerGroups))
-	for _, key := range sortedListenerKeys(listenerGroups) {
-		virtualHosts := make([]*routev3.VirtualHost, 0, len(routesByListener[key]))
-		for _, domain := range slices.Sorted(maps.Keys(routesByListener[key])) {
-			entries := routesByListener[key][domain]
-			slices.SortFunc(entries, compareRouteEntries)
-			routes := make([]*routev3.Route, 0, len(entries))
-			for _, entry := range entries {
-				routes = append(routes, entry.route)
-			}
-			virtualHosts = append(virtualHosts, &routev3.VirtualHost{
-				Name:    virtualHostName(key, domain),
-				Domains: []string{domain},
-				Routes:  routes,
-			})
-		}
-		configs = append(configs, &routev3.RouteConfiguration{Name: routeConfigName(key), VirtualHosts: virtualHosts})
+	// 网关停用表示用户主动暂停入口，引用它的 Route 保留配置但暂不挂载。
+	// 只有仍存在启用网关却无法挂载时，才属于需要阻断发布的配置错误。
+	if hasEnabledGateway && !attached {
+		c.addRouteError(
+			route.routeID,
+			ReasonConflict,
+			fmt.Sprintf("route %q has no attachable listener", route.routeID),
+		)
 	}
-	return configs, attachments
 }
 
 func (c *compilation) routeHostnames(route *gatewayv1.Route) ([]string, bool) {
 	if len(route.Spec.Hostnames) == 0 {
+		return nil, true
+	}
+	if len(route.Spec.Hostnames) > routeconfig.MaxHostnames {
+		c.addRouteError(
+			route.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("route %q declares too many hostnames", route.Name),
+		)
 		return nil, false
 	}
-	hostnames := make(map[string]bool, len(route.Spec.Hostnames))
-	for _, value := range route.Spec.Hostnames {
-		hostname, ok := hostnameutil.Normalize(value)
+
+	valid := true
+	seenHostnames := make(map[string]bool, len(route.Spec.Hostnames))
+	for _, hostnameValue := range route.Spec.Hostnames {
+		hostname, ok := hostnameutil.Normalize(hostnameValue)
 		if !ok || hostname == "*" {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q has invalid hostname %q", route.Name, value))
+			c.addRouteError(
+				route.Name,
+				ReasonInvalidSpec,
+				fmt.Sprintf("route %q has invalid hostname %q", route.Name, hostnameValue),
+			)
+			valid = false
 			continue
 		}
-		if hostnames[hostname] {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonConflict, fmt.Sprintf("route %q declares hostname %q more than once", route.Name, hostname))
+		if seenHostnames[hostname] {
+			c.addRouteError(
+				route.Name,
+				ReasonInvalidSpec,
+				fmt.Sprintf("route %q declares hostname %q more than once", route.Name, hostname),
+			)
+			valid = false
 			continue
 		}
-		hostnames[hostname] = true
+		seenHostnames[hostname] = true
 	}
-	return slices.Sorted(maps.Keys(hostnames)), true
+	return slices.Sorted(maps.Keys(seenHostnames)), valid
+}
+
+func (c *compilation) routeGatewayIDs(route *gatewayv1.Route) ([]string, bool) {
+	if len(route.Spec.GatewayRefs) == 0 {
+		c.addRouteError(
+			route.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("route %q must reference at least one gateway", route.Name),
+		)
+		return nil, false
+	}
+	if len(route.Spec.GatewayRefs) > routeconfig.MaxGatewayRefs {
+		c.addRouteError(
+			route.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("route %q references too many gateways", route.Name),
+		)
+		return nil, false
+	}
+
+	valid := true
+	seenGatewayIDs := make(map[string]bool, len(route.Spec.GatewayRefs))
+	for _, gatewayID := range route.Spec.GatewayRefs {
+		if !resourceconfig.IsCanonicalID(gatewayID) || seenGatewayIDs[gatewayID] {
+			c.addRouteError(
+				route.Name,
+				ReasonInvalidSpec,
+				fmt.Sprintf("route %q has an invalid or duplicate gateway reference %q", route.Name, gatewayID),
+			)
+			valid = false
+			continue
+		}
+		seenGatewayIDs[gatewayID] = true
+	}
+	return slices.Sorted(maps.Keys(seenGatewayIDs)), valid
 }
 
 func (c *compilation) routeDomainsByListener(
-	route *gatewayv1.Route,
+	routeID string,
 	gatewayID string,
 	hostnames []string,
 	explicitHostnames bool,
 	listenersByGateway map[string][]gatewayListener,
 ) map[listenerKey]map[string]bool {
-	result := make(map[listenerKey]map[string]bool)
+	domains := make(map[listenerKey]map[string]bool, len(listenersByGateway[gatewayID]))
 	if !explicitHostnames {
 		for _, listener := range listenersByGateway[gatewayID] {
-			if result[listener.key] == nil {
-				result[listener.key] = make(map[string]bool)
+			if domains[listener.key] == nil {
+				domains[listener.key] = make(map[string]bool)
 			}
-			result[listener.key][listener.hostname] = true
+			domains[listener.key][listener.hostname] = true
 		}
-		return result
+		return domains
 	}
 
 	for _, hostname := range hostnames {
@@ -204,62 +246,32 @@ func (c *compilation) routeDomainsByListener(
 			if !hostnameCoveredByListener(hostname, listener.hostname) {
 				continue
 			}
-			if result[listener.key] == nil {
-				result[listener.key] = make(map[string]bool)
+			if domains[listener.key] == nil {
+				domains[listener.key] = make(map[string]bool)
 			}
-			result[listener.key][hostname] = true
+			domains[listener.key][hostname] = true
 			matched = true
 		}
 		if !matched {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonConflict, fmt.Sprintf("route %q hostname %q does not belong to a listener on gateway %q", route.Name, hostname, gatewayID))
+			c.addRouteError(
+				routeID,
+				ReasonConflict,
+				fmt.Sprintf(
+					"route %q hostname %q does not belong to a listener on gateway %q",
+					routeID,
+					hostname,
+					gatewayID,
+				),
+			)
 		}
 	}
-	return result
-}
-
-func uniqueStrings(values []string) []string {
-	seen := make(map[string]bool, len(values))
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		if value == "" || seen[value] {
-			continue
-		}
-		seen[value] = true
-		result = append(result, value)
-	}
-	slices.Sort(result)
-	return result
-}
-
-func compareRouteAttachments(a, b routeAttachment) int {
-	if result := compareListenerKeys(a.listenerKey, b.listenerKey); result != 0 {
-		return result
-	}
-	if result := cmp.Compare(a.gatewayID, b.gatewayID); result != 0 {
-		return result
-	}
-	return cmp.Compare(a.routeID, b.routeID)
+	return domains
 }
 
 func sortedListenerKeySet(values map[listenerKey]map[string]bool) []listenerKey {
 	keys := slices.Collect(maps.Keys(values))
 	slices.SortFunc(keys, compareListenerKeys)
 	return keys
-}
-
-func envoyRouteName(gatewayID, routeID, method, variant string) string {
-	name := fmt.Sprintf("%s/%s/%s", envoyRouteNamePrefix, gatewayID, routeID)
-	if method != "" {
-		name += "/" + strings.ToLower(method)
-	}
-	if variant != "" {
-		name += "/" + variant
-	}
-	return name
-}
-
-func virtualHostName(key listenerKey, domain string) string {
-	return fmt.Sprintf("%s/%s/%s", virtualHostNamePrefix, listenerName(key), domain)
 }
 
 func hostnameCoveredByListener(hostname, listenerHostname string) bool {

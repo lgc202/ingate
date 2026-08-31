@@ -66,28 +66,46 @@ message GetCertificateRequest {
 }
 
 message CreateCertificateRequest {
-  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
   string certificate_pem = 2 [
     json_name = "certificatePEM",
-    (buf.validate.field).string.min_len = 1
+    (buf.validate.field).string = {
+      min_len: 1
+      max_bytes: 262144
+    }
   ];
   string private_key_pem = 3 [
     json_name = "privateKeyPEM",
-    (buf.validate.field).string.min_len = 1
+    (buf.validate.field).string = {
+      min_len: 1
+      max_bytes: 65536
+    }
   ];
 }
 
 message UpdateCertificateRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
   int64 version = 2 [(buf.validate.field).int64.gt = 0];
-  string name = 3 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
   optional string certificate_pem = 4 [
     json_name = "certificatePEM",
-    (buf.validate.field).string.min_len = 1
+    (buf.validate.field).string = {
+      min_len: 1
+      max_bytes: 262144
+    }
   ];
   optional string private_key_pem = 5 [
     json_name = "privateKeyPEM",
-    (buf.validate.field).string.min_len = 1
+    (buf.validate.field).string = {
+      min_len: 1
+      max_bytes: 65536
+    }
   ];
 }
 

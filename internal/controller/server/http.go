@@ -13,7 +13,7 @@ import (
 	"github.com/lgc202/ingate/internal/controller/conf"
 )
 
-// NewHTTPServer 创建 Controller 的健康检查与就绪检查接口
+// NewHTTPServer 创建 Controller 的健康检查与就绪检查接口。
 func NewHTTPServer(
 	config *conf.Server,
 	configDelivery *delivery.Delivery,
@@ -84,8 +84,8 @@ func ready(configDelivery *delivery.Delivery) http.HandlerFunc {
 	}
 }
 
-func writeJSON(response http.ResponseWriter, status int, value any) {
+func writeJSON(response http.ResponseWriter, statusCode int, value any) {
 	response.Header().Set("Content-Type", "application/json")
-	response.WriteHeader(status)
+	response.WriteHeader(statusCode)
 	_ = json.NewEncoder(response).Encode(value)
 }

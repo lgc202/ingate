@@ -1,0 +1,131 @@
+package request
+
+import "time"
+
+const (
+	// OutcomeUnknown 表示查询时不限制请求结果。
+	OutcomeUnknown Outcome = iota
+	// OutcomeSuccess 表示状态码小于 400。
+	OutcomeSuccess
+	// OutcomeClientError 表示状态码位于 400 到 499。
+	OutcomeClientError
+	// OutcomeServerError 表示状态码不小于 500。
+	OutcomeServerError
+	// OutcomeNoResponse 表示没有获得有效 HTTP 状态码。
+	OutcomeNoResponse
+)
+
+const (
+	// RejectionReasonNone 表示请求不是已识别的网关拒绝，或没有拒绝原因。
+	RejectionReasonNone RejectionReason = iota
+	// RejectionReasonTokenQuotaExceeded 表示调用方当前周期的 Token 额度已用尽。
+	RejectionReasonTokenQuotaExceeded
+)
+
+// Outcome 是按 HTTP 状态码归纳的请求结果。
+type Outcome uint8
+
+// RejectionReason 是网关主动拒绝请求时可向用户解释的原因。
+type RejectionReason uint8
+
+// ModelCall 是请求记录中的模型映射和 Token 用量。
+type ModelCall struct {
+	ClientModel     string
+	TargetModel     string
+	ServiceProtocol string
+	ResponseModel   string
+	FinishReason    string
+	InputTokens     *uint64
+	OutputTokens    *uint64
+	TotalTokens     *uint64
+}
+
+// Record 是控制台排障使用的单次请求元数据。
+type Record struct {
+	ID              string
+	RequestID       string
+	StartedAt       time.Time
+	Duration        *time.Duration
+	TimeToFirstByte *time.Duration
+	ClientIP        string
+	Method          string
+	Host            string
+	Path            string
+	StatusCode      uint32
+	Outcome         Outcome
+	RequestBytes    uint64
+	ResponseBytes   uint64
+	GatewayID       string
+	RouteID         string
+	ServiceID       string
+	Protocol        string
+	RejectionReason RejectionReason
+	ServiceAttempts uint32
+	ServiceAddress  string
+	ProxyInstanceID string
+	CallerID        string
+	AccessKeyID     string
+	ModelCall       *ModelCall
+}
+
+// Summary 是请求记录列表展示所需的最小字段集。
+type Summary struct {
+	ID              string
+	StartedAt       time.Time
+	Duration        *time.Duration
+	Method          string
+	Host            string
+	Path            string
+	StatusCode      uint32
+	Outcome         Outcome
+	GatewayID       string
+	RouteID         string
+	ServiceID       string
+	CallerID        string
+	AccessKeyID     string
+	RejectionReason RejectionReason
+	ModelCall       *ModelCall
+}
+
+// Filter 是请求记录的结构化过滤条件，时间范围为左闭右开。
+type Filter struct {
+	StartTime  time.Time
+	EndTime    time.Time
+	GatewayID  string
+	RouteID    string
+	ServiceID  string
+	RequestID  string
+	Method     string
+	Host       string
+	PathPrefix string
+	Outcome    Outcome
+	StatusCode *uint16
+	CallerID   string
+}
+
+// ListOptions 是请求记录分页查询参数。
+type ListOptions struct {
+	Filter    Filter
+	PageSize  int
+	PageToken string
+}
+
+// Page 是按请求开始时间倒序排列的请求记录分页结果。
+type Page struct {
+	Records       []Summary
+	NextPageToken string
+}
+
+// ClassifyStatusCode 根据 HTTP 状态码返回管理面请求结果分类。
+func ClassifyStatusCode(statusCode uint32) Outcome {
+	switch {
+	case statusCode >= 500:
+		return OutcomeServerError
+	case statusCode >= 400:
+		return OutcomeClientError
+	case statusCode >= 100:
+		return OutcomeSuccess
+	default:
+		return OutcomeNoResponse
+	}
+}

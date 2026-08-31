@@ -8,6 +8,14 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
+func catalogResponse(items []wasmpluginbiz.CatalogItem) *adminv1.ListWasmPluginCatalogResponse {
+	plugins := make([]*adminv1.WasmPluginCatalogItem, len(items))
+	for i, item := range items {
+		plugins[i] = catalogItemResponse(item)
+	}
+	return &adminv1.ListWasmPluginCatalogResponse{Plugins: plugins}
+}
+
 func catalogItemResponse(item wasmpluginbiz.CatalogItem) *adminv1.WasmPluginCatalogItem {
 	return &adminv1.WasmPluginCatalogItem{
 		SourceId:      item.SourceID,
@@ -25,16 +33,14 @@ func catalogItemResponse(item wasmpluginbiz.CatalogItem) *adminv1.WasmPluginCata
 
 func pluginResponse(
 	plugin *resource.WasmPlugin,
-	sourceName string,
-	latestVersion string,
-	upgradeAvailable bool,
+	catalog wasmpluginbiz.CatalogInfo,
 	usages []biz.PluginPolicyUsage,
 ) *adminv1.WasmPlugin {
 	status := biz.WasmPluginStatus(plugin.Generation, plugin.Status.Conditions)
 	response := &adminv1.WasmPlugin{
 		Id:               plugin.Name,
 		SourceId:         plugin.Spec.SourceID,
-		SourceName:       sourceName,
+		SourceName:       catalog.SourceName,
 		Name:             plugin.Spec.DisplayName,
 		PackageName:      plugin.Spec.Package,
 		PluginVersion:    plugin.Spec.Version,
@@ -46,15 +52,16 @@ func pluginResponse(
 		Version:          plugin.Generation,
 		CreatedAt:        adminservice.Timestamp(plugin.CreationTimestamp.Time),
 		UpdatedAt:        adminservice.Timestamp(adminservice.ResourceUpdatedAt(plugin.Annotations)),
-		LatestVersion:    latestVersion,
-		UpgradeAvailable: upgradeAvailable,
+		LatestVersion:    catalog.LatestVersion,
+		UpgradeAvailable: catalog.UpgradeAvailable,
+		Usages:           make([]*adminv1.WasmPluginPolicyUsage, len(usages)),
 	}
-	for _, usage := range usages {
-		response.Usages = append(response.Usages, &adminv1.WasmPluginPolicyUsage{
+	for i, usage := range usages {
+		response.Usages[i] = &adminv1.WasmPluginPolicyUsage{
 			PolicyId:   usage.PolicyID,
 			PolicyKind: string(usage.PolicyKind),
 			PolicyName: usage.DisplayName,
-		})
+		}
 	}
 	return response
 }

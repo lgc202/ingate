@@ -1,8 +1,8 @@
-// Package analytics 装配 ingate-analytics 进程及其资源生命周期
+// Package analytics 装配 ingate-analytics 进程及其资源生命周期。
 //
 // 组件的数据写入链路为 Kafka -> RequestConsumer -> request.Recorder -> ClickHouse，
 // 查询链路为 Admin API -> gRPC Service -> biz 查询用例 -> ClickHouse。Kratos 只管理
-// HTTP、gRPC 和 Kafka 消费循环的启动停止，不承载请求分析业务
+// HTTP、gRPC 和 Kafka 消费循环的启动停止，不承载请求分析业务。
 package analytics
 
 import (
@@ -27,16 +27,16 @@ const name = "ingate-analytics"
 
 type serviceInstanceID string
 
-// App 封装 Kratos 进程和 Wire 创建的外部资源
+// App 封装 Kratos 进程和 Wire 创建的外部资源。
 //
-// Run 返回后会执行 cleanup，释放 ClickHouse 等不由 Kratos Server 管理的连接
+// Run 返回后会执行 cleanup，释放 ClickHouse 等不由 Kratos Server 管理的连接。
 type App struct {
 	kratos  *kratos.App
 	cleanup func()
 }
 
-// NewApp 从配置文件创建完整的 Analytics 进程
-// 配置只在启动时读取，修改后需要重启组件才会生效
+// NewApp 从配置文件创建完整的 Analytics 进程。
+// 配置只在启动时读取，修改后需要重启组件才会生效。
 func NewApp(configFile string) (*App, error) {
 	var bootstrap conf.Bootstrap
 	if err := appconfig.Load(configFile, &bootstrap); err != nil {
@@ -51,6 +51,7 @@ func NewApp(configFile string) (*App, error) {
 	kratoslog.SetDefault(logger)
 
 	kratosApp, cleanup, err := wireApp(
+		context.Background(),
 		bootstrap.GetServer(),
 		bootstrap.GetData().GetKafka(),
 		bootstrap.GetData().GetClickHouse(),
@@ -64,13 +65,13 @@ func NewApp(configFile string) (*App, error) {
 	return &App{kratos: kratosApp, cleanup: cleanup}, nil
 }
 
-// Run 启动 Analytics 的 HTTP、gRPC 和 Kafka 消费循环，退出后释放 ClickHouse 连接
+// Run 启动 Analytics 的 HTTP、gRPC 和 Kafka 消费循环，退出后释放 ClickHouse 连接。
 func (a *App) Run() error {
 	defer a.cleanup()
 	return a.kratos.Run()
 }
 
-// Migrate 应用 Analytics 的 ClickHouse 表结构变更后退出
+// Migrate 应用 Analytics 的 ClickHouse 表结构变更后退出。
 func Migrate(ctx context.Context, configFile string) (int, error) {
 	var bootstrap conf.Bootstrap
 	if err := appconfig.Load(configFile, &bootstrap); err != nil {

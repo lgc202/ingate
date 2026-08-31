@@ -1,4 +1,3 @@
-// Package server 装配 ingate-controller 的 Kratos transport
 package server
 
 import (
@@ -9,7 +8,7 @@ import (
 	"github.com/lgc202/ingate/internal/controller/server/xds"
 )
 
-// NewGRPCServer 创建并注册 Envoy ADS 服务
+// NewGRPCServer 创建并注册 Envoy ADS 服务。
 func NewGRPCServer(config *conf.Server, service *xds.Service) *kratosgrpc.Server {
 	server := kratosgrpc.NewServer(
 		kratosgrpc.Network("tcp"),

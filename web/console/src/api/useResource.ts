@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { normalizeApiError } from './errors';
+import { errorMessage } from './errors';
+import type { CursorPage } from './client';
 
 export interface ResourceState<T> {
   data: T | null;
@@ -28,11 +29,6 @@ export interface CursorResource<T> extends ResourceState<CursorPage<T>> {
   reset: () => void;
 }
 
-export interface CursorPage<T> {
-  items: T[];
-  nextCursor: string;
-}
-
 export function useResource<T>(load: () => Promise<T>, options?: ResourceOptions<T>): ResourceState<T> {
   const requestVersion = useRef(0);
   const autoRefreshCount = useRef(0);
@@ -44,9 +40,9 @@ export function useResource<T>(load: () => Promise<T>, options?: ResourceOptions
     error: null,
   });
 
-  const reload = useCallback(async (options?: ReloadOptions) => {
+  const reload = useCallback(async (reloadOptions?: ReloadOptions) => {
     const version = ++requestVersion.current;
-    const silent = options?.silent === true;
+    const silent = reloadOptions?.silent === true;
     if (!silent) {
       setState((current) => ({ ...current, loading: true, error: null }));
     }
@@ -69,17 +65,18 @@ export function useResource<T>(load: () => Promise<T>, options?: ResourceOptions
         setState((current) => ({ ...current, loading: false }));
         return;
       }
-      const normalizedError = normalizeApiError(error);
       setState({
         data: null,
         loading: false,
-        error: new Error(normalizedError.message),
+        error: new Error(errorMessage(error, '请求处理失败')),
       });
     }
   }, [load]);
 
   useEffect(() => {
     if (optionsRef.current?.enabled === false) {
+      requestVersion.current++;
+      setState((current) => ({ ...current, loading: false }));
       return;
     }
     void reload();

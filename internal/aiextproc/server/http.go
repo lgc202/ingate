@@ -13,12 +13,12 @@ import (
 	"github.com/lgc202/ingate/internal/aiextproc/service"
 )
 
-// Readiness 提供运维接口所需的组件就绪状态
+// Readiness 提供运维接口所需的组件就绪状态。
 type Readiness interface {
 	Ready() bool
 }
 
-// NewHTTPServer 创建健康检查和就绪检查服务
+// NewHTTPServer 创建健康检查和就绪检查服务。
 func NewHTTPServer(
 	config *conf.Server,
 	readiness Readiness,
@@ -86,8 +86,8 @@ func health(response http.ResponseWriter, _ *http.Request) {
 	writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func writeJSON(response http.ResponseWriter, status int, value any) {
+func writeJSON(response http.ResponseWriter, statusCode int, value any) {
 	response.Header().Set("Content-Type", "application/json")
-	response.WriteHeader(status)
+	response.WriteHeader(statusCode)
 	_ = json.NewEncoder(response).Encode(value)
 }

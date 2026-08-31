@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,7 +14,10 @@ import (
 	"time"
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
+	"github.com/lgc202/ingate/internal/pkg/wasmconfig"
 )
+
+const maxSourcePointerBytes = sha256.Size*2 + 1
 
 type cacheFile struct {
 	path    string
@@ -20,45 +25,81 @@ type cacheFile struct {
 	modTime time.Time
 }
 
-func (s *Store) cachedSource(sourceURL, expectedSHA string) (compiler.WasmModule, bool) {
+func (s *Store) cachedSource(
+	ctx context.Context,
+	sourceURL string,
+	expectedSHA string,
+) (compiler.WasmModule, bool, error) {
 	pointerPath := s.sourcePointerPath(sourceURL, expectedSHA)
-	pointer, err := os.ReadFile(pointerPath)
+	moduleSHA, ok := readSourcePointer(pointerPath)
+	if !ok {
+		return compiler.WasmModule{}, false, nil
+	}
+	if !wasmconfig.IsValidSHA256Digest(moduleSHA) {
+		if err := removeCacheFile(pointerPath); err != nil {
+			return compiler.WasmModule{}, false, fmt.Errorf("remove invalid Wasm source pointer: %w", err)
+		}
+		return compiler.WasmModule{}, false, nil
+	}
+	valid, err := s.cachedModuleValid(ctx, moduleSHA)
 	if err != nil {
-		return compiler.WasmModule{}, false
+		return compiler.WasmModule{}, false, err
 	}
-	moduleSHA := strings.TrimSpace(string(pointer))
-	if len(moduleSHA) != 64 {
-		_ = os.Remove(pointerPath)
-		return compiler.WasmModule{}, false
-	}
-	if _, err := hex.DecodeString(moduleSHA); err != nil {
-		_ = os.Remove(pointerPath)
-		return compiler.WasmModule{}, false
-	}
-	if !s.cachedModuleValid(moduleSHA) {
-		_ = os.Remove(pointerPath)
-		_ = os.Remove(s.modulePath(moduleSHA))
-		return compiler.WasmModule{}, false
+	if !valid {
+		if err := removeCacheFile(s.modulePath(moduleSHA)); err != nil {
+			return compiler.WasmModule{}, false, fmt.Errorf("remove invalid cached Wasm module: %w", err)
+		}
+		if err := removeCacheFile(pointerPath); err != nil {
+			return compiler.WasmModule{}, false, fmt.Errorf("remove invalid Wasm source pointer: %w", err)
+		}
+		return compiler.WasmModule{}, false, nil
 	}
 	s.touchModule(moduleSHA)
-	return compiler.WasmModule{Path: s.modulePath(moduleSHA), SHA256: moduleSHA}, true
+	return compiler.WasmModule{Path: s.modulePath(moduleSHA), SHA256: moduleSHA}, true, nil
 }
 
-// cachedModuleValid 在进程重启后首次复用磁盘文件时重新验证内容寻址约束
-// 同一进程已经 Resolve 的模块由内存索引复用，不会在每次资源收敛时重复计算摘要
-func (s *Store) cachedModuleValid(moduleSHA string) bool {
-	file, err := os.Open(s.modulePath(moduleSHA))
+// cachedModuleValid 在进程重启后首次复用磁盘文件时重新验证内容寻址约束。
+// 同一进程已经 Resolve 的模块由内存索引复用，不会在每次资源收敛时重复计算摘要。
+func (s *Store) cachedModuleValid(ctx context.Context, moduleSHA string) (bool, error) {
+	path := s.modulePath(moduleSHA)
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
 	if err != nil {
-		return false
+		return false, fmt.Errorf("inspect cached Wasm module: %w", err)
 	}
-	binary, readErr := readModule(file, s.maxModuleSize)
+	if !info.Mode().IsRegular() || info.Size() > s.maxModuleSize {
+		return false, nil
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return false, fmt.Errorf("open cached Wasm module: %w", err)
+	}
+	moduleBytes, readErr := io.ReadAll(io.LimitReader(file, s.maxModuleSize+1))
 	closeErr := file.Close()
-	if readErr != nil || closeErr != nil || digest(binary) != moduleSHA {
-		return false
+	if readErr != nil {
+		return false, fmt.Errorf("read cached Wasm module: %w", readErr)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), s.pullTimeout)
+	if closeErr != nil {
+		return false, fmt.Errorf("close cached Wasm module: %w", closeErr)
+	}
+	if int64(len(moduleBytes)) > s.maxModuleSize {
+		return false, nil
+	}
+	if sha256Digest(moduleBytes) != moduleSHA {
+		return false, nil
+	}
+	validationCtx, cancel := context.WithTimeout(ctx, s.pullTimeout)
 	defer cancel()
-	return validateWasm(ctx, binary) == nil
+	if err := validateWasm(validationCtx, moduleBytes); err != nil {
+		if validationCtx.Err() != nil {
+			return false, fmt.Errorf("validate cached Wasm module: %w", validationCtx.Err())
+		}
+		return false, nil
+	}
+	return true, nil
 }
 
 func (s *Store) moduleExists(moduleSHA string) bool {
@@ -66,18 +107,39 @@ func (s *Store) moduleExists(moduleSHA string) bool {
 	return err == nil && info.Mode().IsRegular()
 }
 
+func readSourcePointer(path string) (string, bool) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", false
+	}
+	pointer, readErr := io.ReadAll(io.LimitReader(file, maxSourcePointerBytes+1))
+	closeErr := file.Close()
+	if readErr != nil || closeErr != nil || len(pointer) > maxSourcePointerBytes {
+		return "", false
+	}
+	return strings.TrimSpace(string(pointer)), true
+}
+
+func removeCacheFile(path string) error {
+	err := os.Remove(path)
+	if err == nil || errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
+}
+
 func (s *Store) touchModule(moduleSHA string) {
 	now := time.Now()
 	_ = os.Chtimes(s.modulePath(moduleSHA), now, now)
 }
 
-func (s *Store) writeModule(moduleSHA string, binary []byte) error {
+func (s *Store) writeModule(moduleSHA string, moduleBytes []byte) error {
 	path := s.modulePath(moduleSHA)
 	if s.moduleExists(moduleSHA) {
 		s.touchModule(moduleSHA)
 		return nil
 	}
-	return writeAtomic(path, binary, 0o644)
+	return writeAtomic(path, moduleBytes, 0o644)
 }
 
 func (s *Store) writeSourcePointer(sourceURL, expectedSHA, moduleSHA string) error {

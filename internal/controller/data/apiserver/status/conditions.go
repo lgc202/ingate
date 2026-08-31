@@ -34,12 +34,48 @@ type compileDecision struct {
 	resolvedRefs *conditionDecision
 }
 
-// resourceConditions 在编译结果缺席时只刷新 Programmed，保留当前 Generation 的编译结论
+// deliveryIndex 为一次状态收敛建立只读索引，避免逐个资源线性扫描发布结果。
+type deliveryIndex struct {
+	activeResources     map[compiler.ResourceGeneration]bool
+	activePolicyTargets map[compiler.CompiledPolicyTarget]bool
+	failedResources     map[compiler.ResourceGeneration]bool
+	failedPolicyTargets map[compiler.CompiledPolicyTarget]bool
+	failureReason       delivery.FailureReason
+}
+
+func newDeliveryIndex(status delivery.Status) deliveryIndex {
+	deliveryState := deliveryIndex{
+		activeResources:     make(map[compiler.ResourceGeneration]bool, len(status.ActiveResources)),
+		activePolicyTargets: make(map[compiler.CompiledPolicyTarget]bool, len(status.ActivePolicyTargets)),
+	}
+	for _, resource := range status.ActiveResources {
+		deliveryState.activeResources[resource] = true
+	}
+	for _, target := range status.ActivePolicyTargets {
+		deliveryState.activePolicyTargets[target] = true
+	}
+	if status.LastFailure == nil {
+		return deliveryState
+	}
+
+	deliveryState.failedResources = make(map[compiler.ResourceGeneration]bool, len(status.LastFailure.Resources))
+	deliveryState.failedPolicyTargets = make(map[compiler.CompiledPolicyTarget]bool, len(status.LastFailure.PolicyTargets))
+	for _, resource := range status.LastFailure.Resources {
+		deliveryState.failedResources[resource] = true
+	}
+	for _, target := range status.LastFailure.PolicyTargets {
+		deliveryState.failedPolicyTargets[target] = true
+	}
+	deliveryState.failureReason = status.LastFailure.Reason
+	return deliveryState
+}
+
+// resourceConditions 在编译结果缺席时只刷新 Programmed，保留当前 Generation 的编译结论。
 func resourceConditions(
 	existing []metav1.Condition,
 	resource compiler.ResourceGeneration,
 	compile *compileDecision,
-	deliveryStatus delivery.Status,
+	deliveryState deliveryIndex,
 ) []metav1.Condition {
 	conditions := slices.Clone(existing)
 	if !kindHasReferences(resource.Kind) {
@@ -60,21 +96,21 @@ func resourceConditions(
 		}
 	}
 
-	meta.SetStatusCondition(&conditions, programmedCondition(conditions, resource, deliveryStatus))
+	meta.SetStatusCondition(&conditions, programmedCondition(conditions, resource, deliveryState))
 	return conditions
 }
 
 func programmedCondition(
 	conditions []metav1.Condition,
 	resource compiler.ResourceGeneration,
-	deliveryStatus delivery.Status,
+	deliveryState deliveryIndex,
 ) metav1.Condition {
 	accepted := currentCondition(conditions, gatewayv1.ConditionAccepted, resource.Generation)
 	if accepted == nil {
 		return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, pendingDecision())
 	}
 	if accepted.Status != metav1.ConditionTrue {
-		return conditionBlockedBy(gatewayv1.ConditionProgrammed, resource.Generation, accepted)
+		return conditionBlockedBy(resource.Generation, accepted)
 	}
 
 	if kindHasReferences(resource.Kind) {
@@ -83,21 +119,21 @@ func programmedCondition(
 			return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, pendingDecision())
 		}
 		if resolvedRefs.Status != metav1.ConditionTrue {
-			return conditionBlockedBy(gatewayv1.ConditionProgrammed, resource.Generation, resolvedRefs)
+			return conditionBlockedBy(resource.Generation, resolvedRefs)
 		}
 	}
 
-	if slices.Contains(deliveryStatus.ActiveResources, resource) {
+	if deliveryState.activeResources[resource] {
 		return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, conditionDecision{
 			status:  metav1.ConditionTrue,
 			reason:  gatewayv1.ReasonProgrammed,
 			message: messageProgrammed,
 		})
 	}
-	if deliveryStatus.LastFailure != nil && slices.Contains(deliveryStatus.LastFailure.Resources, resource) {
+	if deliveryState.failedResources[resource] {
 		reason := gatewayv1.ReasonDeliveryFailed
 		message := messageDeliveryFailed
-		if deliveryStatus.LastFailure.Reason == delivery.FailureRejected {
+		if deliveryState.failureReason == delivery.FailureRejected {
 			reason = gatewayv1.ReasonRejected
 			message = messageRejected
 		}
@@ -111,7 +147,6 @@ func programmedCondition(
 }
 
 func conditionBlockedBy(
-	conditionType gatewayv1.ConditionType,
 	generation int64,
 	blocking *metav1.Condition,
 ) metav1.Condition {
@@ -123,7 +158,7 @@ func conditionBlockedBy(
 		reason = gatewayv1.ConditionReason(blocking.Reason)
 		message = blocking.Message
 	}
-	return newCondition(conditionType, generation, conditionDecision{
+	return newCondition(gatewayv1.ConditionProgrammed, generation, conditionDecision{
 		status:  status,
 		reason:  reason,
 		message: message,

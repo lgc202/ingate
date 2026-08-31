@@ -7,8 +7,16 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
-func policyResponse(policy *resource.MockResponsePolicy, names biz.PolicyTargetNames) *adminv1.MockResponsePolicy {
-	status := biz.PolicyStatus(policy.Generation, policy.Spec.Enabled, len(policy.Spec.TargetRefs), policy.Status.Conditions)
+func mockResponsePolicyResponse(
+	policy *resource.MockResponsePolicy,
+	names biz.PolicyTargetNames,
+) *adminv1.MockResponsePolicy {
+	status := biz.PolicyStatus(
+		policy.Generation,
+		policy.Spec.Enabled,
+		len(policy.Spec.TargetRefs),
+		policy.Status.Conditions,
+	)
 	disabled := status.State == biz.ResourceStateDisabled
 	return &adminv1.MockResponsePolicy{
 		Id:      policy.Name,
@@ -23,7 +31,7 @@ func policyResponse(policy *resource.MockResponsePolicy, names biz.PolicyTargetN
 		),
 		StatusCode:  policy.Spec.StatusCode,
 		ContentType: policy.Spec.ContentType,
-		Headers:     headerResponses(policy.Spec.Headers),
+		Headers:     mockResponseHeaderResponses(policy.Spec.Headers),
 		Body:        policy.Spec.Body,
 		State:       adminservice.ResourceState(status.State),
 		Message:     adminservice.ResourceMessage(status.Reason),
@@ -33,10 +41,10 @@ func policyResponse(policy *resource.MockResponsePolicy, names biz.PolicyTargetN
 	}
 }
 
-func headerResponses(values []resource.HeaderValue) []*adminv1.MockResponseHeader {
-	headers := make([]*adminv1.MockResponseHeader, 0, len(values))
-	for _, value := range values {
-		headers = append(headers, &adminv1.MockResponseHeader{Name: value.Name, Value: value.Value})
+func mockResponseHeaderResponses(values []resource.HeaderValue) []*adminv1.MockResponseHeader {
+	headers := make([]*adminv1.MockResponseHeader, len(values))
+	for i, value := range values {
+		headers[i] = &adminv1.MockResponseHeader{Name: value.Name, Value: value.Value}
 	}
 	return headers
 }

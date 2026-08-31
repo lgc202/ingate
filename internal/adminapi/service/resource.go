@@ -1,3 +1,4 @@
+// Package service 维护 Admin API 产品协议与业务对象之间的共享转换规则。
 package service
 
 import (
@@ -10,7 +11,7 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
-// Timestamp 把非零时间转换为协议时间
+// Timestamp 把非零时间转换为协议时间。
 func Timestamp(value time.Time) *timestamppb.Timestamp {
 	if value.IsZero() {
 		return nil
@@ -18,7 +19,7 @@ func Timestamp(value time.Time) *timestamppb.Timestamp {
 	return timestamppb.New(value)
 }
 
-// ResourceUpdatedAt 读取由 API Server 注解维护的资源更新时间
+// ResourceUpdatedAt 读取由 API Server 注解维护的资源更新时间。
 func ResourceUpdatedAt(annotations map[string]string) time.Time {
 	value := annotations[resource.AnnotationUpdatedAt]
 	if value == "" {
@@ -28,7 +29,7 @@ func ResourceUpdatedAt(annotations map[string]string) time.Time {
 	return parsed
 }
 
-// ResourceState 把领域状态转换为控制台协议枚举
+// ResourceState 把领域状态转换为控制台协议枚举。
 func ResourceState(state biz.ResourceState) adminv1.ResourceState {
 	switch state {
 	case biz.ResourceStateDisabled:
@@ -44,23 +45,23 @@ func ResourceState(state biz.ResourceState) adminv1.ResourceState {
 	}
 }
 
-// ResourceFilter 把控制台筛选条件转换为业务层查询条件
+// ResourceFilter 把控制台筛选条件转换为业务层查询条件。
 func ResourceFilter(query string, enabled *bool, state adminv1.ResourceState) biz.ResourceFilter {
-	filter := biz.ResourceFilter{Query: query, Enabled: enabled}
+	var resourceState biz.ResourceState
 	switch state {
 	case adminv1.ResourceState_DISABLED:
-		filter.State = biz.ResourceStateDisabled
+		resourceState = biz.ResourceStateDisabled
 	case adminv1.ResourceState_PENDING:
-		filter.State = biz.ResourceStatePending
+		resourceState = biz.ResourceStatePending
 	case adminv1.ResourceState_READY:
-		filter.State = biz.ResourceStateReady
+		resourceState = biz.ResourceStateReady
 	case adminv1.ResourceState_ERROR:
-		filter.State = biz.ResourceStateError
+		resourceState = biz.ResourceStateError
 	}
-	return filter
+	return biz.NewResourceFilter(query, enabled, resourceState)
 }
 
-// ResourceMessage 返回控制台可以直接展示的资源状态文案
+// ResourceMessage 返回控制台可以直接展示的资源状态文案。
 func ResourceMessage(reason biz.ResourceReason) string {
 	switch reason {
 	case biz.ReasonAwaitingAcceptance:

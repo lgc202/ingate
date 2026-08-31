@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Mock Response 使用标准 Proxy-Wasm ABI 在请求阶段直接返回固定 HTTP 响应
+// Package main 使用标准 Proxy-Wasm ABI 在请求阶段直接返回固定 HTTP 响应。
 //
 // 该实现借鉴 APISIX mocking 与 Higress custom-response 的本地响应语义，
-// 但只保留 Ingate 强类型 MockResponsePolicy 当前开放的状态码、Header 和正文
+// 但只保留 Ingate 强类型 MockResponsePolicy 当前开放的状态码、Header 和正文。
 package main
 
 import (
@@ -23,12 +23,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
-
-	"golang.org/x/net/http/httpguts"
+	"io"
 
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
+
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
+	"github.com/lgc202/ingate/internal/pkg/mockresponseconfig"
 )
 
 type pluginConfig struct {
@@ -60,16 +61,12 @@ type httpContext struct {
 	body       []byte
 }
 
-func main() {}
-
-func init() {
-	proxywasm.SetVMContext(&vmContext{})
-}
-
+// NewPluginContext 为每个 Root ID 创建独立插件上下文。
 func (*vmContext) NewPluginContext(uint32) types.PluginContext {
 	return &pluginContext{}
 }
 
+// OnPluginStart 读取并保存当前插件实例的固定响应配置。
 func (p *pluginContext) OnPluginStart(int) types.OnPluginStartStatus {
 	rawConfig, err := proxywasm.GetPluginConfiguration()
 	if err != nil {
@@ -91,21 +88,29 @@ func (p *pluginContext) OnPluginStart(int) types.OnPluginStartStatus {
 	return types.OnPluginStartStatusOK
 }
 
-// NewHttpContext 为每条 HTTP 流保存只读响应配置
+// NewHttpContext 为每条 HTTP 流保存只读响应配置。
 //
 //nolint:staticcheck // 方法名由 Proxy-Wasm SDK 接口定义，不能按 Go 缩写规则改名
 func (p *pluginContext) NewHttpContext(uint32) types.HttpContext {
 	return &httpContext{statusCode: p.statusCode, headers: p.headers, body: p.body}
 }
 
-// OnHttpRequestHeaders 在上游连接建立前结束请求，因此不会占用上游连接或产生重试
+// OnHttpRequestHeaders 在上游连接建立前结束请求，因此不会占用上游连接或产生重试。
+// Host ABI 失败会主动触发 VM trap，由 Envoy 的 FAIL_CLOSED 策略拒绝请求。
 //
 //nolint:staticcheck // 方法名由 Proxy-Wasm SDK 接口定义，不能按 Go 缩写规则改名
 func (h *httpContext) OnHttpRequestHeaders(int, bool) types.Action {
 	if err := proxywasm.SendHttpResponse(h.statusCode, h.headers, h.body, -1); err != nil {
-		proxywasm.LogErrorf("send mock response: %v", err)
+		proxywasm.LogCriticalf("send mock response: %v", err)
+		panic("send mock response")
 	}
 	return types.ActionPause
+}
+
+func main() {}
+
+func init() {
+	proxywasm.SetVMContext(&vmContext{})
 }
 
 func decodeConfig(raw []byte) (pluginConfig, error) {
@@ -118,23 +123,36 @@ func decodeConfig(raw []byte) (pluginConfig, error) {
 	if err := decoder.Decode(&config); err != nil {
 		return pluginConfig{}, fmt.Errorf("decode JSON: %w", err)
 	}
-	if config.StatusCode < 200 || config.StatusCode > 599 {
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return pluginConfig{}, errors.New("configuration must contain exactly one JSON value")
+	}
+	if config.StatusCode < mockresponseconfig.MinStatusCode ||
+		config.StatusCode > mockresponseconfig.MaxStatusCode {
 		return pluginConfig{}, fmt.Errorf("status code %d is outside 200-599", config.StatusCode)
 	}
-	seen := make(map[string]struct{}, len(config.Headers))
+	if len(config.Headers) > mockresponseconfig.MaxHeaders+1 {
+		return pluginConfig{}, fmt.Errorf("header count exceeds %d", mockresponseconfig.MaxHeaders+1)
+	}
+	if len(config.Body) > mockresponseconfig.MaxBodyBytes {
+		return pluginConfig{}, fmt.Errorf("body exceeds %d bytes", mockresponseconfig.MaxBodyBytes)
+	}
+	seen := make(map[string]bool, len(config.Headers))
 	for index := range config.Headers {
-		name := strings.ToLower(strings.TrimSpace(config.Headers[index].Name))
-		if name == "" || strings.HasPrefix(name, ":") || !httpguts.ValidHeaderFieldName(name) {
+		name := httpheader.NormalizeName(config.Headers[index].Name)
+		if !httpheader.IsValidName(name) {
 			return pluginConfig{}, fmt.Errorf("header %d has invalid name %q", index+1, config.Headers[index].Name)
 		}
-		if _, exists := seen[name]; exists {
+		if seen[name] {
 			return pluginConfig{}, fmt.Errorf("header %d duplicates %q", index+1, name)
 		}
-		if !httpguts.ValidHeaderFieldValue(config.Headers[index].Value) {
+		value := httpheader.NormalizeValue(config.Headers[index].Value)
+		if !httpheader.IsValidValue(value) {
 			return pluginConfig{}, fmt.Errorf("header %d contains invalid value bytes", index+1)
 		}
-		seen[name] = struct{}{}
+		seen[name] = true
 		config.Headers[index].Name = name
+		config.Headers[index].Value = value
 	}
 	return config, nil
 }

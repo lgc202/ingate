@@ -36,7 +36,7 @@ static_resources:
                       address: 127.0.0.1
                       port_value: 18000
     - name: ingate-system-als
-      type: STRICT_DNS
+      type: STATIC
       connect_timeout: 1s
       typed_extension_protocol_options:
         envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
@@ -50,10 +50,10 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: als
+                      address: 127.0.0.1
                       port_value: 18091
     - name: ingate-system-ai-extproc
-      type: STRICT_DNS
+      type: STATIC
       connect_timeout: 1s
       typed_extension_protocol_options:
         envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
@@ -70,7 +70,7 @@ static_resources:
                       address: 127.0.0.1
                       port_value: 18081
     - name: ingate-system-authz
-      type: STRICT_DNS
+      type: STATIC
       connect_timeout: 1s
       typed_extension_protocol_options:
         envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
@@ -84,7 +84,7 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: authz
+                      address: 127.0.0.1
                       port_value: 18071
 admin:
   address:

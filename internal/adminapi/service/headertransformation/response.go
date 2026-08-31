@@ -7,11 +7,16 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
-func policyResponse(
+func headerTransformationPolicyResponse(
 	policy *resource.HeaderTransformationPolicy,
 	names biz.PolicyTargetNames,
 ) *adminv1.HeaderTransformationPolicy {
-	status := biz.PolicyStatus(policy.Generation, policy.Spec.Enabled, len(policy.Spec.TargetRefs), policy.Status.Conditions)
+	status := biz.PolicyStatus(
+		policy.Generation,
+		policy.Spec.Enabled,
+		len(policy.Spec.TargetRefs),
+		policy.Status.Conditions,
+	)
 	disabled := status.State == biz.ResourceStateDisabled
 	return &adminv1.HeaderTransformationPolicy{
 		Id:      policy.Name,
@@ -24,8 +29,8 @@ func policyResponse(
 			policy.Status.Targets,
 			names,
 		),
-		RequestRules:  ruleResponses(policy.Spec.RequestRules),
-		ResponseRules: ruleResponses(policy.Spec.ResponseRules),
+		RequestRules:  headerTransformationRuleResponses(policy.Spec.RequestRules),
+		ResponseRules: headerTransformationRuleResponses(policy.Spec.ResponseRules),
 		State:         adminservice.ResourceState(status.State),
 		Message:       adminservice.ResourceMessage(status.Reason),
 		Version:       policy.Generation,
@@ -34,20 +39,24 @@ func policyResponse(
 	}
 }
 
-func ruleResponses(rules []resource.HeaderTransformationRule) []*adminv1.HeaderTransformationRule {
-	result := make([]*adminv1.HeaderTransformationRule, 0, len(rules))
-	for _, rule := range rules {
-		result = append(result, &adminv1.HeaderTransformationRule{
-			Operation: operationResponse(rule.Operation),
+func headerTransformationRuleResponses(
+	rules []resource.HeaderTransformationRule,
+) []*adminv1.HeaderTransformationRule {
+	responses := make([]*adminv1.HeaderTransformationRule, len(rules))
+	for i, rule := range rules {
+		responses[i] = &adminv1.HeaderTransformationRule{
+			Operation: headerTransformationOperationResponse(rule.Operation),
 			Name:      rule.Name,
 			Value:     rule.Value,
-		})
+		}
 	}
-	return result
+	return responses
 }
 
-func operationResponse(value resource.HeaderTransformationOperation) adminv1.HeaderTransformationOperation {
-	switch value {
+func headerTransformationOperationResponse(
+	operation resource.HeaderTransformationOperation,
+) adminv1.HeaderTransformationOperation {
+	switch operation {
 	case resource.HeaderTransformationRemove:
 		return adminv1.HeaderTransformationOperation_HEADER_TRANSFORMATION_OPERATION_REMOVE
 	case resource.HeaderTransformationRename:

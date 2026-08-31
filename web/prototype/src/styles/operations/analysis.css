@@ -1,0 +1,133 @@
+.analysis-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(270px, 0.5fr);
+  gap: 15px;
+}
+.chart-card,
+.composition-card {
+  padding: 17px;
+}
+.card-header > span {
+  color: var(--muted);
+  font-size: 0.59rem;
+}
+.bar-chart {
+  height: 245px;
+  margin-top: 18px;
+  padding: 15px 9px 0;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(12px, 1fr));
+  align-items: end;
+  gap: 9px;
+  border-bottom: 1px solid var(--line-dark);
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0 54px,
+    #e9e5dc 55px
+  );
+}
+.bar-chart i {
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 22px;
+  align-items: end;
+  justify-items: center;
+  font-style: normal;
+}
+.bar-chart b {
+  width: 65%;
+  min-height: 8px;
+  display: block;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, #5d78c9, #3555b7);
+  transition: height 400ms ease;
+}
+.bar-chart span {
+  color: var(--faint);
+  font-size: 0.5rem;
+}
+.composition-card header h3 {
+  margin: 3px 0 0;
+  font-size: 0.82rem;
+}
+.donut {
+  width: 135px;
+  height: 135px;
+  margin: 18px auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, #fffef9 0 52%, transparent 53%),
+    conic-gradient(
+      var(--blue) 0 65.2%,
+      var(--orange) 65.2% 94.6%,
+      var(--teal) 94.6% 100%
+    );
+}
+.donut div {
+  display: grid;
+  justify-items: center;
+}
+.donut strong {
+  font-size: 0.93rem;
+}
+.donut span {
+  color: var(--muted);
+  font-size: 0.52rem;
+}
+.composition-card p {
+  margin: 7px 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.61rem;
+}
+.composition-card p strong {
+  margin-left: auto;
+  color: var(--ink);
+}
+.composition-card p i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--blue);
+}
+.composition-card p i.ai {
+  background: var(--orange);
+}
+.composition-card p i.mcp {
+  background: var(--teal);
+}
+.ranking-card {
+  overflow: hidden;
+}
+.ranking-card > header {
+  padding: 15px;
+}
+.ranking-row {
+  min-height: 58px;
+  padding: 0 15px;
+  display: grid;
+  grid-template-columns: minmax(160px, 1.1fr) 55px minmax(
+      145px,
+      1fr
+    ) 70px 70px 90px 100px;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid #e9e5dc;
+  color: var(--ink);
+  font-size: 0.7rem;
+  text-decoration: none;
+}
+.ranking-row:not(.ranking-head):hover {
+  background: #fcfaf5;
+}
+.ranking-head {
+  min-height: 36px;
+  color: var(--muted);
+  background: #f1eee7;
+  font-size: 0.64rem;
+  font-weight: 850;
+}

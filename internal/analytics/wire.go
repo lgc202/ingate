@@ -3,6 +3,7 @@
 package analytics
 
 import (
+	"context"
 	"log/slog"
 
 	kratos "github.com/go-kratos/kratos/v3"
@@ -11,11 +12,13 @@ import (
 	"github.com/lgc202/ingate/internal/analytics/biz"
 	"github.com/lgc202/ingate/internal/analytics/conf"
 	"github.com/lgc202/ingate/internal/analytics/data"
+	"github.com/lgc202/ingate/internal/analytics/data/clickhouse"
 	"github.com/lgc202/ingate/internal/analytics/server"
 	"github.com/lgc202/ingate/internal/analytics/service"
 )
 
 func wireApp(
+	context.Context,
 	*conf.Server,
 	*conf.Data_Kafka,
 	*conf.Data_ClickHouse,
@@ -27,6 +30,7 @@ func wireApp(
 		biz.ProviderSet,
 		service.ProviderSet,
 		server.ProviderSet,
+		wire.Bind(new(server.StorePinger), new(*clickhouse.Store)),
 		newKratosApp,
 	))
 }

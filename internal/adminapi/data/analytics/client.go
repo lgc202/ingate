@@ -1,4 +1,4 @@
-// Package analytics 实现 Admin API 到 Analytics 查询服务的 gRPC 适配
+// Package analytics 实现 Admin API 到 Analytics 查询服务的 gRPC 适配。
 package analytics
 
 import (
@@ -13,14 +13,18 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/lgc202/ingate/internal/adminapi/conf"
-	"github.com/lgc202/ingate/internal/pkg/tlsx"
+	"github.com/lgc202/ingate/internal/pkg/tlsconfig"
 )
 
-// NewClient 创建 Admin API 访问 Analytics 的 gRPC 连接
-func NewClient(config *conf.Data, logger *slog.Logger) (*googlegrpc.ClientConn, func(), error) {
+// NewClient 创建 Admin API 访问 Analytics 的 gRPC 连接。
+func NewClient(
+	ctx context.Context,
+	config *conf.Data,
+	logger *slog.Logger,
+) (*googlegrpc.ClientConn, func(), error) {
 	settings := config.GetAnalytics()
 	tlsSettings := settings.GetTls()
-	tlsConfig, err := tlsx.NewClient(tlsx.ClientConfig{
+	tlsConfig, err := tlsconfig.NewClient(tlsconfig.ClientConfig{
 		Enabled:         tlsSettings.GetEnabled(),
 		CAFile:          tlsSettings.GetCaFile(),
 		CertificateFile: tlsSettings.GetCertFile(),
@@ -41,7 +45,7 @@ func NewClient(config *conf.Data, logger *slog.Logger) (*googlegrpc.ClientConn, 
 			googlegrpc.WithTransportCredentials(insecure.NewCredentials()),
 		))
 	}
-	connection, err := kratosgrpc.NewClient(context.Background(), options...)
+	connection, err := kratosgrpc.NewClient(ctx, options...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create Analytics gRPC client: %w", err)
 	}
@@ -53,7 +57,10 @@ func NewClient(config *conf.Data, logger *slog.Logger) (*googlegrpc.ClientConn, 
 	return connection, cleanup, nil
 }
 
-func isUnavailable(err error) bool {
+func isUnavailable(ctx context.Context, err error) bool {
+	if err == nil || ctx.Err() != nil {
+		return false
+	}
 	switch status.Code(err) {
 	case codes.Unavailable, codes.DeadlineExceeded:
 		return true

@@ -1,46 +1,112 @@
 package compiler
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
-func (c *compilation) headerModifier(route *gatewayv1.Route, modifier *gatewayv1.HeaderModifier) ([]*corev3.HeaderValueOption, []string, bool) {
+func (c *compilation) buildHeaderModifier(
+	route *gatewayv1.Route,
+	modifier *gatewayv1.HeaderModifier,
+) ([]*corev3.HeaderValueOption, []string, bool) {
 	if modifier == nil {
 		return nil, nil, true
 	}
-	values := make([]*corev3.HeaderValueOption, 0, len(modifier.Set)+len(modifier.Add))
-	valid := len(modifier.Set)+len(modifier.Add)+len(modifier.Remove) > 0
-	for _, header := range modifier.Set {
-		if header.Name == "" || header.Value == "" {
+	actionCount := len(modifier.Set) + len(modifier.Add) + len(modifier.Remove)
+	if actionCount == 0 || actionCount > routeconfig.MaxHeaderModifierActions {
+		c.addRouteError(
+			route.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("route %q has an invalid header modifier", route.Name),
+		)
+		return nil, nil, false
+	}
+
+	headersToAdd := make([]*corev3.HeaderValueOption, 0, len(modifier.Set)+len(modifier.Add))
+	headersToRemove := make([]string, 0, len(modifier.Remove))
+	usedNames := make(map[string]bool, actionCount)
+	valid := true
+	for _, header := range normalizedHeaderValues(modifier.Set) {
+		if !isValidHeaderValue(header) || usedNames[header.Name] {
 			valid = false
 			continue
 		}
-		values = append(values, headerValueOption(header, corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD))
+		usedNames[header.Name] = true
+		headersToAdd = append(
+			headersToAdd,
+			headerValueOption(header, corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD),
+		)
 	}
-	for _, header := range modifier.Add {
-		if header.Name == "" || header.Value == "" {
+	for _, header := range normalizedHeaderValues(modifier.Add) {
+		if !isValidHeaderValue(header) || usedNames[header.Name] {
 			valid = false
 			continue
 		}
-		values = append(values, headerValueOption(header, corev3.HeaderValueOption_APPEND_IF_EXISTS_OR_ADD))
+		usedNames[header.Name] = true
+		headersToAdd = append(
+			headersToAdd,
+			headerValueOption(header, corev3.HeaderValueOption_APPEND_IF_EXISTS_OR_ADD),
+		)
 	}
-	for _, name := range modifier.Remove {
-		if name == "" {
+	for _, name := range normalizedHeaderNames(modifier.Remove) {
+		if !httpheader.IsValidName(name) || usedNames[name] {
 			valid = false
+			continue
 		}
+		usedNames[name] = true
+		headersToRemove = append(headersToRemove, name)
 	}
 	if !valid {
-		c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q has an invalid header modifier", route.Name))
+		c.addRouteError(
+			route.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("route %q has an invalid header modifier", route.Name),
+		)
 	}
-	return values, slices.Clone(modifier.Remove), valid
+	return headersToAdd, headersToRemove, valid
 }
 
-func headerValueOption(value gatewayv1.HeaderValue, action corev3.HeaderValueOption_HeaderAppendAction) *corev3.HeaderValueOption {
+func normalizedHeaderValues(values []gatewayv1.HeaderValue) []gatewayv1.HeaderValue {
+	result := slices.Clone(values)
+	for i := range result {
+		result[i].Name = httpheader.NormalizeName(result[i].Name)
+		result[i].Value = httpheader.NormalizeValue(result[i].Value)
+	}
+	slices.SortFunc(result, func(a, b gatewayv1.HeaderValue) int {
+		if result := cmp.Compare(a.Name, b.Name); result != 0 {
+			return result
+		}
+		return cmp.Compare(a.Value, b.Value)
+	})
+	return result
+}
+
+func normalizedHeaderNames(names []string) []string {
+	result := slices.Clone(names)
+	for i := range result {
+		result[i] = httpheader.NormalizeName(result[i])
+	}
+	slices.Sort(result)
+	return result
+}
+
+func isValidHeaderValue(value gatewayv1.HeaderValue) bool {
+	return httpheader.IsValidName(value.Name) &&
+		value.Value != "" &&
+		httpheader.IsValidValue(value.Value)
+}
+
+func headerValueOption(
+	value gatewayv1.HeaderValue,
+	action corev3.HeaderValueOption_HeaderAppendAction,
+) *corev3.HeaderValueOption {
 	return &corev3.HeaderValueOption{
 		Header:       &corev3.HeaderValue{Key: value.Name, Value: value.Value},
 		AppendAction: action,

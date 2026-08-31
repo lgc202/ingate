@@ -13,12 +13,12 @@ import (
 	"github.com/lgc202/ingate/internal/authz/service"
 )
 
-// Readiness 提供运维接口所需的组件就绪状态
+// Readiness 提供运维接口所需的组件就绪状态。
 type Readiness interface {
 	Ready() bool
 }
 
-// NewHTTPServer 创建健康检查和就绪检查服务
+// NewHTTPServer 创建健康检查和就绪检查服务。
 func NewHTTPServer(
 	config *conf.Server,
 	readiness Readiness,
@@ -82,9 +82,9 @@ func metricsHandler(readiness Readiness, authorization *service.AuthorizationSer
 		prometheus.NewCounterFunc(prometheus.CounterOpts{
 			Namespace: "ingate",
 			Subsystem: "authz",
-			Name:      "errors_total",
-			Help:      "Authorization checks that failed because execution dependencies were unavailable.",
-		}, func() float64 { return float64(authorization.Counters().Errors) }),
+			Name:      "failed_total",
+			Help:      "Authorization checks that failed before an allow or deny decision could be made.",
+		}, func() float64 { return float64(authorization.Counters().Failed) }),
 	)
 	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{EnableOpenMetrics: true})
 }
@@ -96,8 +96,8 @@ func boolMetric(value bool) float64 {
 	return 0
 }
 
-func writeJSON(response http.ResponseWriter, status int, value any) {
+func writeJSON(response http.ResponseWriter, statusCode int, value any) {
 	response.Header().Set("Content-Type", "application/json")
-	response.WriteHeader(status)
+	response.WriteHeader(statusCode)
 	_ = json.NewEncoder(response).Encode(value)
 }

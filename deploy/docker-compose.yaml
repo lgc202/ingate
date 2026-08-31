@@ -33,6 +33,23 @@ services:
       retries: 20
       start_period: 5s
 
+  mysql:
+    image: mysql:8.4.11
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ingate
+      MYSQL_USER: ingate
+      MYSQL_PASSWORD: "${INGATE_MYSQL_PASSWORD:-ingate-dev}"
+      MYSQL_ROOT_PASSWORD: "${INGATE_MYSQL_ROOT_PASSWORD:-ingate-root-dev}"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
   kafka:
     image: apache/kafka:4.0.2
     restart: unless-stopped
@@ -84,12 +101,12 @@ services:
     environment:
       CLICKHOUSE_DB: ingate
       CLICKHOUSE_USER: ingate
-      CLICKHOUSE_PASSWORD: ingate-dev
+      CLICKHOUSE_PASSWORD: "${INGATE_CLICKHOUSE_PASSWORD:-ingate-dev}"
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - clickhouse-data:/var/lib/clickhouse
     healthcheck:
-      test: ["CMD", "clickhouse-client", "--user", "ingate", "--password", "ingate-dev", "--query", "SELECT 1"]
+      test: ["CMD-SHELL", "clickhouse-client --user ingate --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1'"]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -98,6 +115,8 @@ services:
   als:
     image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-als:${INGATE_VERSION:-latest}"
     restart: unless-stopped
+    # Envoy 与 ALS 共享网络命名空间，避免请求记录经过容器网络传输
+    network_mode: service:controller
     depends_on:
       kafka-init:
         condition: service_completed_successfully
@@ -117,6 +136,8 @@ services:
     depends_on:
       clickhouse:
         condition: service_healthy
+    environment:
+      INGATE_CLICKHOUSE_PASSWORD: "${INGATE_CLICKHOUSE_PASSWORD:-ingate-dev}"
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-analytics.yaml:/opt/ingate/analytics/configs/config.yaml:ro"
     restart: "no"
@@ -131,6 +152,8 @@ services:
         condition: service_healthy
       analytics-migrate:
         condition: service_completed_successfully
+    environment:
+      INGATE_CLICKHOUSE_PASSWORD: "${INGATE_CLICKHOUSE_PASSWORD:-ingate-dev}"
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-analytics.yaml:/opt/ingate/analytics/configs/config.yaml:ro"
     healthcheck:
@@ -151,9 +174,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    environment:
+      INGATE_APISERVER_BEARER_TOKEN: "${INGATE_APISERVER_BEARER_TOKEN:-}"
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-ai-extproc.yaml:/opt/ingate/ai-extproc/configs/config.yaml:ro"
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/kubeconfig.yaml:/opt/ingate/ai-extproc/configs/kubeconfig.yaml:ro"
+      - apiserver-certificates:/opt/ingate/apiserver-client:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18082/readyz"]
       interval: 5s
@@ -164,14 +190,19 @@ services:
   authz:
     image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-authz:${INGATE_VERSION:-latest}"
     restart: unless-stopped
+    # Envoy 与 Authz 共享网络命名空间，避免调用方凭据经过容器网络传输
+    network_mode: service:controller
     depends_on:
       apiserver:
         condition: service_healthy
       redis:
         condition: service_healthy
+    environment:
+      INGATE_APISERVER_BEARER_TOKEN: "${INGATE_APISERVER_BEARER_TOKEN:-}"
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-authz.yaml:/opt/ingate/authz/configs/config.yaml:ro"
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/kubeconfig.yaml:/opt/ingate/authz/configs/kubeconfig.yaml:ro"
+      - apiserver-certificates:/opt/ingate/apiserver-client:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18072/readyz"]
       interval: 5s
@@ -185,11 +216,13 @@ services:
     depends_on:
       etcd:
         condition: service_healthy
+    environment:
+      INGATE_APISERVER_BEARER_TOKEN: "${INGATE_APISERVER_BEARER_TOKEN:-}"
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-apiserver.yaml:/opt/ingate/apiserver/configs/config.yaml:ro"
       - apiserver-certificates:/opt/ingate/apiserver/certificates
     healthcheck:
-      test: ["CMD", "curl", "-kfsS", "https://127.0.0.1:18443/readyz"]
+      test: ["CMD", "curl", "--cacert", "/opt/ingate/apiserver/certificates/apiserver.crt", "-fsS", "https://127.0.0.1:18443/readyz"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -204,9 +237,12 @@ services:
     ports:
       - "${INGATE_BIND_ADDRESS:-127.0.0.1}:${INGATE_HTTP_PORT:-8080}:8080"
       - "${INGATE_BIND_ADDRESS:-127.0.0.1}:${INGATE_HTTPS_PORT:-8443}:8443"
+    environment:
+      INGATE_APISERVER_BEARER_TOKEN: "${INGATE_APISERVER_BEARER_TOKEN:-}"
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-controller.yaml:/opt/ingate/controller/configs/config.yaml:ro"
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/kubeconfig.yaml:/opt/ingate/controller/configs/kubeconfig.yaml:ro"
+      - apiserver-certificates:/opt/ingate/apiserver-client:ro
       - controller-wasm:/data/ingate/controller/wasm
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18080/readyz"]
@@ -247,11 +283,49 @@ services:
         condition: service_healthy
       analytics:
         condition: service_healthy
+    environment:
+      INGATE_APISERVER_BEARER_TOKEN: "${INGATE_APISERVER_BEARER_TOKEN:-}"
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-admin-api.yaml:/opt/ingate/admin-api/configs/config.yaml:ro"
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/kubeconfig.yaml:/opt/ingate/admin-api/configs/kubeconfig.yaml:ro"
+      - apiserver-certificates:/opt/ingate/apiserver-client:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8002/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  assistant-migrate:
+    image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-assistant:${INGATE_VERSION:-latest}"
+    command: ["--config", "/opt/ingate/assistant/configs/config.yaml", "--migrate"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      INGATE_MYSQL_PASSWORD: "${INGATE_MYSQL_PASSWORD:-ingate-dev}"
+    volumes:
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-assistant.yaml:/opt/ingate/assistant/configs/config.yaml:ro"
+    restart: "no"
+
+  assistant:
+    image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-assistant:${INGATE_VERSION:-latest}"
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      assistant-migrate:
+        condition: service_completed_successfully
+      admin-api:
+        condition: service_healthy
+    environment:
+      INGATE_MYSQL_PASSWORD: "${INGATE_MYSQL_PASSWORD:-ingate-dev}"
+    volumes:
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-assistant.yaml:/opt/ingate/assistant/configs/config.yaml:ro"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8003/readyz"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -284,4 +358,5 @@ volumes:
   controller-wasm:
   etcd-data:
   kafka-data:
+  mysql-data:
   redis-data:

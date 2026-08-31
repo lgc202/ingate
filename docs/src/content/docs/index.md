@@ -10,6 +10,7 @@ Ingate 是一个基于官方 Envoy 的声明式 API 与 AI 网关。普通 HTTP 
 1. [安装 Ingate](./getting-started/installation/)
 2. [转发第一个 API 请求](./getting-started/first-api/)
 3. [发布并调用第一个模型](./getting-started/first-ai-route/)
+4. [配置并使用运维助手](./operations/assistant/)
 
 ## 资源模型
 
@@ -31,9 +32,10 @@ API 与 AI 是 Route 和 Service 的类型，不形成两套平行资源。AI Ro
 | --- | --- |
 | [概念与架构](./concepts/architecture/) | 组件职责、通信链路、数据归属和资源关系 |
 | [流量管理](./traffic/gateway/) | Gateway、Route、Service 和 Certificate |
-| [访问治理](./governance/caller/) | Caller、IP 访问限制、请求限流和 Token 额度 |
+| [访问治理](./governance/caller/) | Caller、IP 访问限制、请求限流、Token 额度和插件策略 |
 | [插件](./plugins/overview/) | 插件源、安装、升级、Policy 和卸载 |
 | [观测分析](./observability/request-records/) | 请求记录、流量分析和 AI 用量 |
+| [运维助手](./operations/assistant/) | 模型连接、只读工具、对话和执行恢复 |
 | [运维](./operations/overview/) | 健康检查、日志、备份、恢复和升级 |
 | [声明式 API](./reference/declarative-api/) | 资源结构、List/Watch、版本和 Status |
 
@@ -47,7 +49,8 @@ API 与 AI 是 Route 和 Service 的类型，不形成两套平行资源。AI Ro
 | 访问治理 | Caller 密钥、Route 授权、IP 访问限制、请求限流和 Token 额度 |
 | 插件扩展 | 插件源、安装、升级、依赖检查和卸载 |
 | 观测分析 | 请求记录、响应分布、耗时趋势、资源排行和模型 Token 用量 |
+| 运维辅助 | 基于当前配置和观测数据的只读查询、流量分析和故障定位 |
 
 :::note
-Ingate 当前处于 `0.x` 阶段。本文档只描述已经实现的能力。MCP、Agent 编排和 Kubernetes CRD 等内容不在当前范围。
+Ingate 当前处于 `0.x` 阶段。本文档只描述已经实现的能力。用户自定义 MCP 工具、写操作审批、多 Agent 编排、定时自动化和 Kubernetes CRD 等内容不在当前范围。
 :::

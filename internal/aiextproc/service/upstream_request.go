@@ -38,7 +38,7 @@ func (s *streamState) handleUpstreamHeaders(
 	if err != nil {
 		return nil, err
 	}
-	apiKey, err := s.processor.apiKeys.APIKey(selected.id)
+	apiKey, err := s.processor.apiKeySource.APIKey(selected.id, selected.protocol)
 	if err != nil {
 		return nil, err
 	}

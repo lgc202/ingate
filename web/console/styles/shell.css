@@ -1,0 +1,101 @@
+/* 产品控制台外壳 */
+.console-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 242px minmax(0, 1fr);
+  background: var(--bg);
+  transition: grid-template-columns 180ms ease;
+}
+
+.console-shell.is-collapsed { grid-template-columns: 76px minmax(0, 1fr); }
+.console-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  color: #d7d9e2;
+  background:
+    radial-gradient(circle at 24% 0, rgba(72, 88, 184, 0.19), transparent 28%),
+    linear-gradient(180deg, var(--sidebar), var(--sidebar-2));
+  border-right: 1px solid #292c36;
+  overflow: hidden;
+}
+
+.console-brand { height: 78px; padding: 18px; display: flex; align-items: center; gap: 11px; border-bottom: 1px solid #2b2e37; }
+.brand-mark { width: 36px; height: 36px; flex: 0 0 auto; }
+.console-brand-copy { min-width: 0; flex: 1; display: grid; gap: 2px; }
+.console-brand-copy strong { color: #fff; font-size: 1.1rem; letter-spacing: 0.01em; }
+.console-brand-copy span { color: #8f94a3; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; }
+.sidebar-collapse { width: 29px; height: 29px; border: 0; border-radius: 8px; display: grid; place-items: center; background: transparent; color: #7f8492; cursor: pointer; }
+.sidebar-collapse:hover { color: #fff; background: #2a2d37; }
+.sidebar-collapse svg { width: 17px; height: 17px; }
+.is-collapsed .console-brand { justify-content: center; padding-inline: 12px; }
+.is-collapsed .sidebar-collapse { position: absolute; top: 64px; width: 24px; height: 24px; background: #2a2d37; border: 1px solid #3a3e4a; }
+
+.console-navigation { flex: 1; overflow-y: auto; padding: 18px 10px; scrollbar-width: none; }
+.nav-group + .nav-group { margin-top: 14px; }
+.nav-group-label { padding: 0 10px 6px; color: #696e7c; font-size: 0.69rem; font-weight: 700; letter-spacing: 0.1em; }
+.nav-item { position: relative; min-height: 38px; display: flex; align-items: center; gap: 11px; padding: 0 11px; border-radius: 9px; color: #a4a8b4; font-size: 0.84rem; font-weight: 600; text-decoration: none; transition: 150ms ease; }
+.nav-item + .nav-item { margin-top: 2px; }
+.nav-item svg { width: 17px; height: 17px; flex: 0 0 auto; }
+.nav-item:hover { color: #f0f1f6; background: rgba(255,255,255,0.05); }
+.nav-item.is-active { color: #fff; background: #30333e; box-shadow: inset 3px 0 0 var(--orange); }
+.nav-item.is-active svg { color: #aeb9ff; }
+.is-collapsed .nav-group + .nav-group { margin-top: 8px; padding-top: 8px; border-top: 1px solid #292c35; }
+.is-collapsed .nav-item { justify-content: center; padding: 0; }
+.is-collapsed .nav-item.is-active { box-shadow: inset 2px 0 0 var(--orange); }
+
+.sidebar-footer { padding: 12px; display: grid; gap: 10px; border-top: 1px solid #292c35; }
+.system-version { padding: 0 3px; color: #686e7d; font-size: .64rem; font-weight: 650; letter-spacing: .02em; }
+.session-user { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; }
+.session-user > span { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 9px; color: #fff; background: #3b4160; font-size: .75rem; font-weight: 800; }
+.session-user > strong { overflow: hidden; color: #c8cbd5; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+.session-user > button { width: 27px; height: 27px; display: grid; place-items: center; border: 0; border-radius: 7px; color: #777d8d; background: transparent; cursor: pointer; }
+.session-user > button:hover { color: #fff; background: #2a2d37; }
+.session-user > button svg { width: 14px; }
+.is-collapsed .session-user { display: flex; justify-content: center; }
+
+.console-workspace { min-width: 0; min-height: 100vh; }
+.console-workspace.is-assistant {
+  height: 100dvh;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 64px minmax(0, 1fr);
+  overflow: hidden;
+}
+.workspace-header { position: sticky; top: 0; z-index: 30; height: 64px; padding: 0 30px; display: flex; align-items: center; justify-content: space-between; gap: 20px; background: rgba(250,249,246,0.9); border-bottom: 1px solid #dfded8; backdrop-filter: blur(16px); }
+.breadcrumb { display: flex; align-items: center; gap: 7px; color: #8b8e96; font-size: 0.8rem; }
+.breadcrumb svg { width: 13px; height: 13px; color: #b0b2b8; }
+.breadcrumb strong { color: var(--text); }
+.command-search { width: 280px; height: 36px; padding: 0 11px; display: flex; align-items: center; gap: 8px; border: 1px solid #dad9d3; border-radius: 9px; background: rgba(255,255,255,0.82); color: #8c8f98; }
+.command-search > svg { width: 15px; }
+.command-search input { width: 100%; height: 32px; border: 0; outline: 0; color: var(--text); background: transparent; font-size: .72rem; }
+.header-icon { position: relative; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid #dad9d3; border-radius: 9px; background: rgba(255,255,255,0.82); color: #626670; cursor: pointer; }
+.header-icon svg { width: 16px; }
+.header-icon i { position: absolute; top: 7px; right: 8px; width: 6px; height: 6px; border: 2px solid #fff; border-radius: 50%; background: var(--orange); }
+.workspace-content { padding: 28px 30px 50px; }
+.console-workspace.is-assistant .workspace-content {
+  min-height: 0;
+  overflow: hidden;
+}
+.console-workspace.is-assistant .content-grid {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.workspace-content .content-grid { gap: 18px; }
+.workspace-content .topbar { min-height: 52px; padding-bottom: 14px; border-color: #deddd8; }
+.workspace-content .page-title { font-size: 1.48rem; }
+.workspace-content .panel { padding: 0; border-color: #dfded9; border-radius: 14px; box-shadow: var(--shadow-soft); }
+.workspace-content .panel-header { min-height: auto; margin: 0; padding: 15px 18px; background: #fafaf8; }
+.workspace-content .panel-body { padding: 18px; }
+
+.surface-card { min-width: 0; border: 1px solid #deded8; border-radius: 15px; background: #fff; box-shadow: var(--shadow-soft); }
+.surface-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.surface-heading h3, .catalog-heading h3 { margin: 3px 0 0; font-size: 1rem; letter-spacing: -0.01em; }
+.surface-heading > a, .surface-heading > div + button, .detail-section-heading button { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: var(--accent); font-size: 0.78rem; font-weight: 700; text-decoration: none; cursor: pointer; }
+.surface-heading > a svg { width: 14px; }
+.eyebrow { display: block; color: #8a8d95; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; }
+.mono { font-family: "SFMono-Regular", Consolas, monospace; }

@@ -23,33 +23,55 @@ services:
 
   ai-extproc:
     image: ingate/ai-extproc:${INGATE_IMAGE_TAG:-dev}
+    environment:
+      INGATE_APISERVER_BEARER_TOKEN: "${INGATE_APISERVER_BEARER_TOKEN:-ingate-dev-control-plane-token-change-me}"
     build:
       <<: *ingate-build
       target: ai-extproc
 
   authz:
     image: ingate/authz:${INGATE_IMAGE_TAG:-dev}
+    environment:
+      INGATE_APISERVER_BEARER_TOKEN: "${INGATE_APISERVER_BEARER_TOKEN:-ingate-dev-control-plane-token-change-me}"
     build:
       <<: *ingate-build
       target: authz
 
   apiserver:
     image: ingate/apiserver:${INGATE_IMAGE_TAG:-dev}
+    environment:
+      INGATE_APISERVER_BEARER_TOKEN: "${INGATE_APISERVER_BEARER_TOKEN:-ingate-dev-control-plane-token-change-me}"
     build:
       <<: *ingate-build
       target: apiserver
 
   controller:
     image: ingate/controller:${INGATE_IMAGE_TAG:-dev}
+    environment:
+      INGATE_APISERVER_BEARER_TOKEN: "${INGATE_APISERVER_BEARER_TOKEN:-ingate-dev-control-plane-token-change-me}"
     build:
       <<: *ingate-build
       target: controller
 
   admin-api:
     image: ingate/admin-api:${INGATE_IMAGE_TAG:-dev}
+    environment:
+      INGATE_APISERVER_BEARER_TOKEN: "${INGATE_APISERVER_BEARER_TOKEN:-ingate-dev-control-plane-token-change-me}"
     build:
       <<: *ingate-build
       target: admin-api
+
+  assistant-migrate:
+    image: ingate/assistant:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: assistant
+
+  assistant:
+    image: ingate/assistant:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: assistant
 
   console:
     image: ingate/console:${INGATE_IMAGE_TAG:-dev}

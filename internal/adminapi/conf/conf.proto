@@ -18,24 +18,32 @@ message Server {
     string addr = 1;
     google.protobuf.Duration timeout = 2;
   }
+  message GRPC {
+    // addr 是内部组件访问 Admin API 的 gRPC 地址。
+    string addr = 1;
+    google.protobuf.Duration timeout = 2;
+  }
   HTTP http = 1;
   // shutdown_timeout 是等待在途管理请求结束的最长时间
   google.protobuf.Duration shutdown_timeout = 2;
+  GRPC grpc = 3;
 }
 
 message Data {
+  message TLS {
+    bool enabled = 1;
+    string ca_file = 2;
+    string cert_file = 3;
+    string key_file = 4;
+    string server_name = 5;
+  }
   message APIServer {
     string master = 1;
     string kubeconfig = 2;
+    // bearer_token 认证 Admin API 到声明式 API 的内部请求
+    string bearer_token = 3;
   }
   message Analytics {
-    message TLS {
-      bool enabled = 1;
-      string ca_file = 2;
-      string cert_file = 3;
-      string key_file = 4;
-      string server_name = 5;
-    }
     // addr 是 ingate-analytics 查询 gRPC 地址
     string addr = 1;
     // timeout 限制 Admin API 等待单次分析查询的时间
@@ -48,6 +56,8 @@ message Data {
     string addr = 1;
     // timeout 限制 Admin API 等待单次实时额度查询的时间
     google.protobuf.Duration timeout = 2;
+    // tls 保护 Admin API 到 AI ExtProc 的内部查询链路
+    TLS tls = 3;
   }
   message PluginCatalog {
     // official_source_url 是官方插件目录地址；为空时只使用用户创建的插件源

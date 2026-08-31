@@ -8,7 +8,9 @@ import (
 	kratos "github.com/go-kratos/kratos/v3"
 	"github.com/google/wire"
 
+	controllerbiz "github.com/lgc202/ingate/internal/controller/biz"
 	"github.com/lgc202/ingate/internal/controller/conf"
+	controllerdata "github.com/lgc202/ingate/internal/controller/data"
 	controllerserver "github.com/lgc202/ingate/internal/controller/server"
 )
 
@@ -22,18 +24,9 @@ func wireApp(
 	serviceInstanceID,
 ) (*kratos.App, error) {
 	panic(wire.Build(
-		newAPIClient,
-		newResourceWatcher,
-		newStatusWriter,
-		newWasmModuleStore,
-		asWasmModuleStore,
-		newSnapshotCache,
-		newXDSPublisher,
-		newDelivery,
-		newController,
-		newXDSService,
-		controllerserver.NewHTTPServer,
-		controllerserver.NewGRPCServer,
+		controllerbiz.ProviderSet,
+		controllerdata.ProviderSet,
+		controllerserver.ProviderSet,
 		newKratosApp,
 	))
 }

@@ -8,14 +8,14 @@ import (
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 )
 
-// messageSide 表示 ExtProc 响应对应 HTTP 请求侧还是响应侧
-// 使用专用类型避免调用点出现无法直接理解的 true/false
-type messageSide uint8
-
 const (
 	requestMessage messageSide = iota
 	responseMessage
 )
+
+// messageSide 表示 ExtProc 响应对应 HTTP 请求侧还是响应侧
+// 使用专用类型避免调用点出现无法直接理解的 true/false
+type messageSide uint8
 
 // headersResponse 构造请求侧或响应侧的 HeaderResponse
 // ExtProc 协议要求每个收到的阶段消息都返回同类型响应，不能用一个通用消息代替

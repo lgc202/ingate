@@ -3,88 +3,236 @@ package route
 import (
 	"strings"
 
+	"github.com/go-kratos/kratos/v3/errors"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
-func forwarding(
-	upstreams []*adminv1.RouteUpstream,
-	ai *adminv1.AIRoute,
-) ([]resource.UpstreamRef, *resource.AIRoute, error) {
-	if ai != nil {
-		if len(upstreams) != 0 {
-			return nil, nil, adminservice.BadRequest("AI 路由不能同时配置普通目标服务")
-		}
-		aiRoute, err := aiForwarding(ai)
-		return nil, aiRoute, err
-	}
-	if len(upstreams) == 0 {
-		return nil, nil, adminservice.BadRequest("至少需要配置一个目标服务")
+func parseForwarding(forwarding *adminv1.RouteForwarding) ([]resource.UpstreamRef, *resource.AIRoute, error) {
+	if forwarding == nil {
+		return nil, nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"请选择路由转发方式",
+		)
 	}
 
-	refs := make([]resource.UpstreamRef, 0, len(upstreams))
-	seen := make(map[string]struct{}, len(upstreams))
-	for _, input := range upstreams {
-		if input == nil {
-			return nil, nil, adminservice.BadRequest("目标服务不能为空")
+	switch kind := forwarding.GetKind().(type) {
+	case *adminv1.RouteForwarding_Service:
+		serviceRefs, err := parseServiceTargets(kind.Service.GetTargets())
+		if err != nil {
+			return nil, nil, err
 		}
-		id := strings.TrimSpace(input.GetUpstreamId())
-		if _, exists := seen[id]; exists {
-			return nil, nil, adminservice.BadRequest("目标服务不能重复")
+		return serviceRefs, nil, nil
+	case *adminv1.RouteForwarding_Ai:
+		aiRoute, err := parseAIRoute(kind.Ai)
+		if err != nil {
+			return nil, nil, err
 		}
-		seen[id] = struct{}{}
-		refs = append(refs, resource.UpstreamRef{Name: id, Weight: int(input.GetWeight())})
+		return nil, aiRoute, nil
+	default:
+		return nil, nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"请选择路由转发方式",
+		)
 	}
-	return refs, nil, nil
 }
 
-func aiForwarding(input *adminv1.AIRoute) (*resource.AIRoute, error) {
-	models := make([]resource.AIModel, 0, len(input.GetModels()))
-	seenModels := make(map[string]struct{}, len(input.GetModels()))
-	for _, modelInput := range input.GetModels() {
-		if modelInput == nil {
-			return nil, adminservice.BadRequest("客户端模型不能为空")
-		}
-		name := strings.TrimSpace(modelInput.GetName())
-		if name == "" || name != modelInput.GetName() {
-			return nil, adminservice.BadRequest("客户端模型名不能为空或包含首尾空格")
-		}
-		if _, exists := seenModels[name]; exists {
-			return nil, adminservice.BadRequest("客户端模型名不能重复")
-		}
-		seenModels[name] = struct{}{}
+func parseServiceTargets(targets []*adminv1.ServiceTarget) ([]resource.UpstreamRef, error) {
+	if len(targets) == 0 {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"至少需要配置一个目标服务",
+		)
+	}
+	if len(targets) > routeconfig.MaxServiceTargets {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"目标服务数量超过限制",
+		)
+	}
 
-		targets, err := aiModelTargets(modelInput.GetTargets())
+	serviceRefs := make([]resource.UpstreamRef, len(targets))
+	seenServiceIDs := make(map[string]bool, len(targets))
+	for i, target := range targets {
+		if target == nil {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"目标服务不能为空",
+			)
+		}
+		serviceID, valid := resourceconfig.NormalizeID(target.GetServiceId())
+		if !valid {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"目标服务 ID 不正确",
+			)
+		}
+		if seenServiceIDs[serviceID] {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"目标服务不能重复",
+			)
+		}
+		weight := int(target.GetWeight())
+		if weight < routeconfig.MinTargetWeight || weight > routeconfig.MaxTargetWeight {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"目标服务权重超出允许范围",
+			)
+		}
+		seenServiceIDs[serviceID] = true
+		serviceRefs[i] = resource.UpstreamRef{Name: serviceID, Weight: weight}
+	}
+	return serviceRefs, nil
+}
+
+func parseAIRoute(aiRoute *adminv1.AIRoute) (*resource.AIRoute, error) {
+	if aiRoute == nil || len(aiRoute.GetModels()) == 0 {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"至少需要配置一个客户端模型",
+		)
+	}
+	modelInputs := aiRoute.GetModels()
+	if len(modelInputs) > routeconfig.MaxAIModels {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"客户端模型数量超过限制",
+		)
+	}
+
+	models := make([]resource.AIModel, len(modelInputs))
+	seenModelNames := make(map[string]bool, len(modelInputs))
+	for i, modelInput := range modelInputs {
+		if modelInput == nil {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"客户端模型不能为空",
+			)
+		}
+		modelName := strings.TrimSpace(modelInput.GetName())
+		if !routeconfig.IsValidModelName(modelName) || modelName != modelInput.GetName() {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"客户端模型名格式不正确",
+			)
+		}
+		if seenModelNames[modelName] {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"客户端模型名不能重复",
+			)
+		}
+		seenModelNames[modelName] = true
+
+		targets, err := parseAIModelTargets(modelInput.GetTargets())
 		if err != nil {
 			return nil, err
 		}
-		models = append(models, resource.AIModel{Name: name, Targets: targets})
+		models[i] = resource.AIModel{Name: modelName, Targets: targets}
 	}
 	return &resource.AIRoute{Models: models}, nil
 }
 
-func aiModelTargets(inputs []*adminv1.AIModelTarget) ([]resource.AIModelTarget, error) {
-	targets := make([]resource.AIModelTarget, 0, len(inputs))
-	seen := make(map[string]struct{}, len(inputs))
-	for _, input := range inputs {
-		if input == nil {
-			return nil, adminservice.BadRequest("模型线路不能为空")
-		}
-		upstreamID := strings.TrimSpace(input.GetUpstreamId())
-		model := strings.TrimSpace(input.GetModel())
-		if model == "" || model != input.GetModel() {
-			return nil, adminservice.BadRequest("真实模型名不能为空或包含首尾空格")
-		}
-		if _, exists := seen[upstreamID]; exists {
-			return nil, adminservice.BadRequest("同一个客户端模型不能重复选择模型服务")
-		}
-		seen[upstreamID] = struct{}{}
-		targets = append(targets, resource.AIModelTarget{
-			UpstreamRef: upstreamID,
-			Model:       model,
-			Weight:      int(input.GetWeight()),
-		})
+func parseAIModelTargets(targets []*adminv1.AIModelTarget) ([]resource.AIModelTarget, error) {
+	if len(targets) == 0 {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"至少需要配置一条模型线路",
+		)
 	}
-	return targets, nil
+	if len(targets) > routeconfig.MaxAIModelTargets {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"模型线路数量超过限制",
+		)
+	}
+
+	modelTargets := make([]resource.AIModelTarget, len(targets))
+	seenServiceIDs := make(map[string]bool, len(targets))
+	for i, target := range targets {
+		if target == nil {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"模型线路不能为空",
+			)
+		}
+		serviceID, valid := resourceconfig.NormalizeID(target.GetServiceId())
+		if !valid {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"模型服务 ID 不正确",
+			)
+		}
+		actualModel := strings.TrimSpace(target.GetModel())
+		if !routeconfig.IsValidModelName(actualModel) || actualModel != target.GetModel() {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"真实模型名格式不正确",
+			)
+		}
+		if seenServiceIDs[serviceID] {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"同一个客户端模型不能重复选择模型服务",
+			)
+		}
+		weight := int(target.GetWeight())
+		if weight < routeconfig.MinTargetWeight || weight > routeconfig.MaxTargetWeight {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"模型线路权重超出允许范围",
+			)
+		}
+		seenServiceIDs[serviceID] = true
+		modelTargets[i] = resource.AIModelTarget{
+			UpstreamRef: serviceID,
+			Model:       actualModel,
+			Weight:      weight,
+		}
+	}
+	return modelTargets, nil
+}
+
+func forwardingResponse(spec resource.RouteSpec) *adminv1.RouteForwarding {
+	if spec.AI != nil {
+		return &adminv1.RouteForwarding{
+			Kind: &adminv1.RouteForwarding_Ai{Ai: aiRouteResponse(spec.AI)},
+		}
+	}
+
+	targets := make([]*adminv1.ServiceTarget, len(spec.UpstreamRefs))
+	for i, serviceRef := range spec.UpstreamRefs {
+		targets[i] = &adminv1.ServiceTarget{
+			ServiceId: serviceRef.Name,
+			Weight:    uint32(serviceRef.Weight),
+		}
+	}
+	return &adminv1.RouteForwarding{
+		Kind: &adminv1.RouteForwarding_Service{
+			Service: &adminv1.ServiceForwarding{Targets: targets},
+		},
+	}
+}
+
+func aiRouteResponse(aiRoute *resource.AIRoute) *adminv1.AIRoute {
+	models := make([]*adminv1.AIModel, len(aiRoute.Models))
+	for i, model := range aiRoute.Models {
+		modelResponse := &adminv1.AIModel{
+			Name:    model.Name,
+			Targets: make([]*adminv1.AIModelTarget, len(model.Targets)),
+		}
+		for j, target := range model.Targets {
+			modelResponse.Targets[j] = &adminv1.AIModelTarget{
+				ServiceId: target.UpstreamRef,
+				Model:     target.Model,
+				Weight:    uint32(target.Weight),
+			}
+		}
+		models[i] = modelResponse
+	}
+	return &adminv1.AIRoute{Models: models}
 }

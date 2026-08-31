@@ -9,12 +9,13 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
 const (
 	httpGRPCAccessLoggerName = "envoy.access_loggers.http_grpc"
 	alsClusterName           = "ingate-system-als"
-	alsLogName               = "ingate"
 	alsBufferSizeBytes       = 64 * 1024
 	alsFlushInterval         = time.Second
 )
@@ -26,7 +27,7 @@ const (
 func buildHTTPAccessLog() (*accesslogv3.AccessLog, error) {
 	configuration := &grpcaccesslogv3.HttpGrpcAccessLogConfig{
 		CommonConfig: &grpcaccesslogv3.CommonGrpcAccessLogConfig{
-			LogName: alsLogName,
+			LogName: requestrecord.StreamName,
 			GrpcService: &corev3.GrpcService{
 				TargetSpecifier: &corev3.GrpcService_EnvoyGrpc_{
 					EnvoyGrpc: &corev3.GrpcService_EnvoyGrpc{ClusterName: alsClusterName},

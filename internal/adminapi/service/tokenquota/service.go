@@ -1,4 +1,4 @@
-// Package tokenquota 提供调用方模型 Token 额度管理 API
+// Package tokenquota 提供调用方模型 Token 额度管理 API。
 package tokenquota
 
 import (
@@ -11,16 +11,17 @@ import (
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
 
-// Service 实现 TokenQuotaPolicy 管理 API
+// Service 实现 TokenQuotaPolicy 管理 API。
 type Service struct {
-	policies *tokenquotabiz.Service
+	policies *tokenquotabiz.Usecase
 }
 
-// NewService 创建 TokenQuotaPolicy 协议服务
-func NewService(policies *tokenquotabiz.Service) *Service {
+// NewService 创建 TokenQuotaPolicy 协议服务。
+func NewService(policies *tokenquotabiz.Usecase) *Service {
 	return &Service{policies: policies}
 }
 
+// ListTokenQuotaPolicies 返回满足筛选条件的 Token 额度策略。
 func (s *Service) ListTokenQuotaPolicies(
 	ctx context.Context,
 	request *adminv1.ListTokenQuotaPoliciesRequest,
@@ -33,16 +34,17 @@ func (s *Service) ListTokenQuotaPolicies(
 	if err != nil {
 		return nil, err
 	}
-	response := &adminv1.ListTokenQuotaPoliciesResponse{
-		Policies:   make([]*adminv1.TokenQuotaPolicy, 0, len(page.Policies)),
+	policies := make([]*adminv1.TokenQuotaPolicy, len(page.Items))
+	for i := range page.Items {
+		policies[i] = tokenQuotaPolicyResponse(&page.Items[i], page.TargetNames)
+	}
+	return &adminv1.ListTokenQuotaPoliciesResponse{
+		Policies:   policies,
 		NextCursor: page.NextCursor,
-	}
-	for i := range page.Policies {
-		response.Policies = append(response.Policies, tokenQuotaPolicyResponse(&page.Policies[i], page.TargetNames))
-	}
-	return response, nil
+	}, nil
 }
 
+// GetTokenQuotaPolicy 返回指定 Token 额度策略。
 func (s *Service) GetTokenQuotaPolicy(
 	ctx context.Context,
 	request *adminv1.GetTokenQuotaPolicyRequest,
@@ -54,11 +56,18 @@ func (s *Service) GetTokenQuotaPolicy(
 	return tokenQuotaPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// CreateTokenQuotaPolicy 创建 Token 额度策略。
 func (s *Service) CreateTokenQuotaPolicy(
 	ctx context.Context,
 	request *adminv1.CreateTokenQuotaPolicyRequest,
 ) (*adminv1.TokenQuotaPolicy, error) {
-	spec, err := createSpec(request)
+	spec, err := parseTokenQuotaPolicySpec(
+		request.GetName(),
+		request.GetEnabled(),
+		request.GetTargets(),
+		request.GetTimeZone(),
+		request.GetLimits(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -69,21 +78,34 @@ func (s *Service) CreateTokenQuotaPolicy(
 	return tokenQuotaPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// UpdateTokenQuotaPolicy 完整替换 Token 额度策略配置。
 func (s *Service) UpdateTokenQuotaPolicy(
 	ctx context.Context,
 	request *adminv1.UpdateTokenQuotaPolicyRequest,
 ) (*adminv1.TokenQuotaPolicy, error) {
-	spec, err := updateSpec(request)
+	spec, err := parseTokenQuotaPolicySpec(
+		request.GetName(),
+		request.GetEnabled(),
+		request.GetTargets(),
+		request.GetTimeZone(),
+		request.GetLimits(),
+	)
 	if err != nil {
 		return nil, err
 	}
-	view, err := s.policies.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	view, err := s.policies.Replace(
+		ctx,
+		request.GetId(),
+		request.GetVersion(),
+		spec,
+	)
 	if err != nil {
 		return nil, err
 	}
 	return tokenQuotaPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// DeleteTokenQuotaPolicy 删除 Token 额度策略。
 func (s *Service) DeleteTokenQuotaPolicy(
 	ctx context.Context,
 	request *adminv1.DeleteTokenQuotaPolicyRequest,
@@ -94,7 +116,7 @@ func (s *Service) DeleteTokenQuotaPolicy(
 	return &emptypb.Empty{}, nil
 }
 
-// GetCallerTokenQuotaUsage 查询调用方当前实际执行的 Token 额度
+// GetCallerTokenQuotaUsage 返回调用方当前实际执行的 Token 额度。
 func (s *Service) GetCallerTokenQuotaUsage(
 	ctx context.Context,
 	request *adminv1.GetCallerTokenQuotaUsageRequest,

@@ -1,4 +1,3 @@
-// Package server 装配 Analytics 的 gRPC、HTTP 和 Kafka 请求记录消费循环
 package server
 
 import (
@@ -13,18 +12,22 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/lgc202/ingate/internal/analytics/conf"
-	"github.com/lgc202/ingate/internal/analytics/data/clickhouse"
 )
+
+// StorePinger 定义 Analytics 就绪检查所需的请求存储连通性。
+type StorePinger interface {
+	Ping(context.Context) error
+}
 
 type pinger interface {
 	Ping(context.Context) error
 }
 
-// NewHTTPServer 创建健康检查、就绪检查和 Prometheus 指标服务
+// NewHTTPServer 创建健康检查、就绪检查和 Prometheus 指标服务。
 func NewHTTPServer(
 	config *conf.Server,
 	consumer *RequestConsumer,
-	clickHouse *clickhouse.Store,
+	store StorePinger,
 ) *kratoshttp.Server {
 	httpConfig := config.GetHttp()
 	server := kratoshttp.NewServer(
@@ -33,7 +36,7 @@ func NewHTTPServer(
 		kratoshttp.Timeout(httpConfig.GetTimeout().AsDuration()),
 	)
 	server.HandleFunc("/healthz", health)
-	server.HandleFunc("/readyz", ready(httpConfig.GetTimeout().AsDuration(), consumer, clickHouse))
+	server.HandleFunc("/readyz", ready(httpConfig.GetTimeout().AsDuration(), consumer, store))
 	server.Handle("/metrics", metricsHandler(consumer.counters))
 	return server
 }
@@ -43,7 +46,7 @@ func health(response http.ResponseWriter, _ *http.Request) {
 	writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// ready 在同一个请求期限内确认 Kafka 和 ClickHouse 当前都可访问
+// ready 在同一个请求期限内确认 Kafka 和 ClickHouse 当前都可访问。
 func ready(timeout time.Duration, kafka pinger, clickHouse pinger) http.HandlerFunc {
 	return func(response http.ResponseWriter, request *http.Request) {
 		ctx, cancel := context.WithTimeout(request.Context(), timeout)
@@ -66,7 +69,7 @@ func ready(timeout time.Duration, kafka pinger, clickHouse pinger) http.HandlerF
 	}
 }
 
-// metricsHandler 使用进程独立 Registry 暴露 Go 指标和请求记录处理计数
+// metricsHandler 使用进程独立 Registry 暴露 Go 指标和请求记录处理计数。
 func metricsHandler(counters func() requestCounters) http.Handler {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(
@@ -90,14 +93,21 @@ func metricsHandler(counters func() requestCounters) http.Handler {
 			Name:      "records_invalid_total",
 			Help:      "Malformed request record messages discarded from Kafka.",
 		}, func() float64 { return float64(counters().invalid) }),
+		prometheus.NewCounterFunc(prometheus.CounterOpts{
+			Namespace: "ingate",
+			Subsystem: "analytics",
+			Name:      "records_duplicate_total",
+			Help:      "Duplicate request record messages discarded within a Kafka poll batch.",
+		}, func() float64 { return float64(counters().duplicate) }),
 	)
 
 	// 使用独立 Registry，避免依赖库隐式注册与业务无关的全局指标
 	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{EnableOpenMetrics: true})
 }
 
-func writeJSON(response http.ResponseWriter, status int, value any) {
+func writeJSON(response http.ResponseWriter, statusCode int, value any) {
 	response.Header().Set("Content-Type", "application/json")
-	response.WriteHeader(status)
+	response.WriteHeader(statusCode)
+	// 响应头已经发出，客户端断开导致的编码错误无法再转换为另一份 HTTP 响应。
 	_ = json.NewEncoder(response).Encode(value)
 }

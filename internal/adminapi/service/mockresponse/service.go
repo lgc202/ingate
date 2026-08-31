@@ -1,4 +1,4 @@
-// Package mockresponse 提供模拟响应策略管理 API
+// Package mockresponse 提供模拟响应策略管理 API。
 package mockresponse
 
 import (
@@ -11,16 +11,17 @@ import (
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
 
-// Service 实现模拟响应策略管理 API
+// Service 实现模拟响应策略管理 API。
 type Service struct {
-	policies *mockresponsebiz.Service
+	policies *mockresponsebiz.Usecase
 }
 
-// NewService 创建模拟响应策略协议服务
-func NewService(policies *mockresponsebiz.Service) *Service {
+// NewService 创建模拟响应策略协议服务。
+func NewService(policies *mockresponsebiz.Usecase) *Service {
 	return &Service{policies: policies}
 }
 
+// ListMockResponsePolicies 返回满足筛选条件的模拟响应策略。
 func (s *Service) ListMockResponsePolicies(
 	ctx context.Context,
 	request *adminv1.ListMockResponsePoliciesRequest,
@@ -33,16 +34,17 @@ func (s *Service) ListMockResponsePolicies(
 	if err != nil {
 		return nil, err
 	}
-	response := &adminv1.ListMockResponsePoliciesResponse{
-		Policies:   make([]*adminv1.MockResponsePolicy, 0, len(page.Policies)),
+	policies := make([]*adminv1.MockResponsePolicy, len(page.Items))
+	for i := range page.Items {
+		policies[i] = mockResponsePolicyResponse(&page.Items[i], page.TargetNames)
+	}
+	return &adminv1.ListMockResponsePoliciesResponse{
+		Policies:   policies,
 		NextCursor: page.NextCursor,
-	}
-	for i := range page.Policies {
-		response.Policies = append(response.Policies, policyResponse(&page.Policies[i], page.TargetNames))
-	}
-	return response, nil
+	}, nil
 }
 
+// GetMockResponsePolicy 返回指定模拟响应策略。
 func (s *Service) GetMockResponsePolicy(
 	ctx context.Context,
 	request *adminv1.GetMockResponsePolicyRequest,
@@ -51,14 +53,23 @@ func (s *Service) GetMockResponsePolicy(
 	if err != nil {
 		return nil, err
 	}
-	return policyResponse(view.Policy, view.TargetNames), nil
+	return mockResponsePolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// CreateMockResponsePolicy 创建并启用模拟响应策略。
 func (s *Service) CreateMockResponsePolicy(
 	ctx context.Context,
 	request *adminv1.CreateMockResponsePolicyRequest,
 ) (*adminv1.MockResponsePolicy, error) {
-	spec, err := createSpec(request)
+	spec, err := parseMockResponsePolicySpec(
+		request.GetName(),
+		true,
+		request.GetTargets(),
+		request.GetStatusCode(),
+		request.GetContentType(),
+		request.GetHeaders(),
+		request.GetBody(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -66,24 +77,39 @@ func (s *Service) CreateMockResponsePolicy(
 	if err != nil {
 		return nil, err
 	}
-	return policyResponse(view.Policy, view.TargetNames), nil
+	return mockResponsePolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// UpdateMockResponsePolicy 完整替换模拟响应策略配置。
 func (s *Service) UpdateMockResponsePolicy(
 	ctx context.Context,
 	request *adminv1.UpdateMockResponsePolicyRequest,
 ) (*adminv1.MockResponsePolicy, error) {
-	spec, err := updateSpec(request)
+	spec, err := parseMockResponsePolicySpec(
+		request.GetName(),
+		request.GetEnabled(),
+		request.GetTargets(),
+		request.GetStatusCode(),
+		request.GetContentType(),
+		request.GetHeaders(),
+		request.GetBody(),
+	)
 	if err != nil {
 		return nil, err
 	}
-	view, err := s.policies.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	view, err := s.policies.Replace(
+		ctx,
+		request.GetId(),
+		request.GetVersion(),
+		spec,
+	)
 	if err != nil {
 		return nil, err
 	}
-	return policyResponse(view.Policy, view.TargetNames), nil
+	return mockResponsePolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// DeleteMockResponsePolicy 删除模拟响应策略。
 func (s *Service) DeleteMockResponsePolicy(
 	ctx context.Context,
 	request *adminv1.DeleteMockResponsePolicyRequest,

@@ -3,11 +3,12 @@ package service
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 // selectedModelService 是 Envoy 完成负载均衡后交给 upstream ExtProc 的非敏感线路信息
@@ -40,11 +41,11 @@ func selectedModelServiceFromAttributes(
 }
 
 func (s selectedModelService) validate() error {
-	if strings.TrimSpace(s.id) == "" {
-		return errors.New("service ID must not be empty")
+	if !resourceconfig.IsCanonicalID(s.id) {
+		return errors.New("service ID must be a canonical UUID")
 	}
-	if strings.TrimSpace(s.model) == "" {
-		return errors.New("upstream model must not be empty")
+	if !routeconfig.IsValidModelName(s.model) {
+		return errors.New("upstream model is invalid")
 	}
 	switch s.protocol {
 	case aiprotocol.UpstreamProtocolOpenAI, aiprotocol.UpstreamProtocolAnthropic:

@@ -1,7 +1,8 @@
-// Package data 装配 Analytics 使用的数据访问实现
+// Package data 装配 Analytics 使用的数据访问实现。
 package data
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/google/wire"
@@ -13,7 +14,7 @@ import (
 	"github.com/lgc202/ingate/internal/analytics/data/clickhouse"
 )
 
-// ProviderSet 把同一个 ClickHouse Store 绑定为请求写入、请求查询和流量查询实现
+// ProviderSet 把同一个 ClickHouse Store 绑定为请求写入、请求查询和流量查询实现。
 var ProviderSet = wire.NewSet(
 	NewClickHouseStore,
 	wire.Bind(new(aiusage.QueryStore), new(*clickhouse.Store)),
@@ -22,14 +23,15 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(traffic.QueryStore), new(*clickhouse.Store)),
 )
 
-// NewClickHouseStore 创建 ClickHouse 存储，并把连接释放交给 Wire cleanup
+// NewClickHouseStore 创建 ClickHouse 存储，并把连接释放交给 Wire cleanup。
 //
-// Kratos 只停止 Server，Wire cleanup 负责关闭不属于 Server 的数据库连接池
+// Kratos 只停止 Server，Wire cleanup 负责关闭不属于 Server 的数据库连接池。
 func NewClickHouseStore(
+	ctx context.Context,
 	config *conf.Data_ClickHouse,
 	logger *slog.Logger,
 ) (*clickhouse.Store, func(), error) {
-	store, err := clickhouse.NewStore(config)
+	store, err := clickhouse.NewStore(ctx, config)
 	if err != nil {
 		return nil, nil, err
 	}

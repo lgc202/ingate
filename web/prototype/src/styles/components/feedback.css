@@ -1,0 +1,125 @@
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 200;
+  min-height: 42px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 9px;
+  color: #fff;
+  background: var(--charcoal);
+  box-shadow: var(--shadow-float);
+  font-size: 0.66rem;
+  font-weight: 800;
+  animation: toast-in 220ms ease both;
+}
+
+.app-error {
+  min-height: 100vh;
+  padding: 48px;
+  display: grid;
+  place-content: center;
+  justify-items: start;
+  gap: 12px;
+  color: var(--charcoal);
+  background: var(--canvas);
+}
+.app-error span {
+  color: var(--orange);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.app-error h1,
+.app-error p {
+  margin: 0;
+}
+.app-error p {
+  color: var(--muted);
+}
+.app-error button {
+  min-height: 42px;
+  margin-top: 8px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 9px;
+  color: #fff;
+  background: var(--charcoal);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.toast svg {
+  width: 14px;
+  color: #79c6b3;
+}
+@keyframes toast-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+.confirm-layer {
+  position: fixed;
+  inset: 0 0 0 238px;
+  z-index: 240;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(20, 22, 23, 0.58);
+  backdrop-filter: blur(4px);
+  animation: veil-in 150ms ease both;
+}
+.app-shell.is-collapsed .confirm-layer {
+  left: 72px;
+}
+.confirm-dialog {
+  width: min(480px, 100%);
+  padding: 28px;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 18px;
+  border: 1px solid #d8d3c8;
+  border-radius: 15px;
+  background: var(--paper);
+  box-shadow: 0 24px 70px rgba(18, 22, 21, 0.32);
+  animation: confirm-in 180ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+@keyframes confirm-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+.confirm-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--red);
+  background: var(--red-soft);
+}
+.confirm-icon svg {
+  width: 20px;
+}
+.confirm-copy h2 {
+  margin: 5px 0 7px;
+  font-size: 1.12rem;
+  letter-spacing: -0.025em;
+}
+.confirm-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.65;
+}
+.confirm-dialog footer {
+  grid-column: 1 / -1;
+  padding-top: 5px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

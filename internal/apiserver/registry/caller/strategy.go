@@ -13,6 +13,7 @@ import (
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 type strategy struct {
@@ -21,10 +22,6 @@ type strategy struct {
 
 type statusStrategy struct {
 	strategy
-}
-
-func newStrategy(typer runtime.ObjectTyper) strategy {
-	return strategy{Strategy: apiregistry.NewStrategy(typer)}
 }
 
 func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
@@ -36,10 +33,6 @@ func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
 
 func (strategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	return validateCaller(obj.(*resource.Caller))
-}
-
-func (strategy) Canonicalize(obj runtime.Object) {
-	canonicalizeCallerSpec(&obj.(*resource.Caller).Spec)
 }
 
 func (strategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
@@ -56,10 +49,6 @@ func (strategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.E
 	return validateCaller(obj.(*resource.Caller))
 }
 
-func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
-	return statusStrategy{strategy: newStrategy(typer)}
-}
-
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return apiregistry.SpecResetFields()
 }
@@ -71,17 +60,31 @@ func (statusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 	metav1.ResetObjectMetaForStatus(&newCaller.ObjectMeta, &oldCaller.ObjectMeta)
 }
 
-func (statusStrategy) ValidateUpdate(context.Context, runtime.Object, runtime.Object) field.ErrorList {
-	return nil
+func (statusStrategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.ErrorList {
+	caller := obj.(*resource.Caller)
+	return apiregistry.ValidateResourceStatus(caller.Status, caller.Generation)
+}
+
+func newStrategy(typer runtime.ObjectTyper) strategy {
+	return strategy{Strategy: apiregistry.NewStrategy(typer)}
+}
+
+func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
+	return statusStrategy{strategy: newStrategy(typer)}
 }
 
 func canonicalizeCallerSpec(spec *resource.CallerSpec) {
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
 	for i := range spec.RouteRefs {
-		spec.RouteRefs[i] = strings.TrimSpace(spec.RouteRefs[i])
+		if routeID, valid := resourceconfig.NormalizeID(spec.RouteRefs[i]); valid {
+			spec.RouteRefs[i] = routeID
+		}
 	}
 	slices.Sort(spec.RouteRefs)
 	for i := range spec.AccessKeys {
+		if accessKeyID, valid := resourceconfig.NormalizeID(spec.AccessKeys[i].ID); valid {
+			spec.AccessKeys[i].ID = accessKeyID
+		}
 		spec.AccessKeys[i].DisplayName = strings.TrimSpace(spec.AccessKeys[i].DisplayName)
 		spec.AccessKeys[i].SecretDigest = strings.ToLower(strings.TrimSpace(spec.AccessKeys[i].SecretDigest))
 	}

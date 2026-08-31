@@ -3,5 +3,5 @@
 // +k8s:conversion-gen=github.com/lgc202/ingate/internal/pkg/apis/gateway
 // +groupName=gateway.ingate.io
 
-// Package v1 定义 gateway.ingate.io/v1 API 资源
+// Package v1 定义 gateway.ingate.io/v1 API 资源。
 package v1

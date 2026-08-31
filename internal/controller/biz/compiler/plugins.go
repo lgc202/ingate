@@ -20,7 +20,8 @@ type listenerFilterConfig struct {
 
 func buildHTTPFilters(config listenerFilterConfig) ([]*hcmv3.HttpFilter, error) {
 	filters := make([]*hcmv3.HttpFilter, 0, 4+len(config.wasm))
-	// 顺序决定同一请求的执行语义：先拒绝非法来源并完成调用方识别，再执行治理策略，最后进入 AI 协议处理
+	// 顺序决定同一请求的执行语义：先拒绝非法来源并完成调用方识别，
+	// 再执行治理策略，最后进入 AI 协议处理。
 	if config.ipRestriction {
 		filter, err := buildIPRestrictionHTTPFilter()
 		if err != nil {

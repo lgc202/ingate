@@ -1,6 +1,8 @@
 package caller
 
 import (
+	"slices"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	callerbiz "github.com/lgc202/ingate/internal/adminapi/biz/caller"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
@@ -8,20 +10,22 @@ import (
 )
 
 func callerResponse(caller *resource.Caller) *adminv1.Caller {
-	response := &adminv1.Caller{
+	accessKeys := make([]*adminv1.AccessKey, len(caller.Spec.AccessKeys))
+	for i, accessKey := range caller.Spec.AccessKeys {
+		accessKeys[i] = accessKeyResponse(accessKey)
+	}
+	return &adminv1.Caller{
 		Id:         caller.Name,
 		Name:       caller.Spec.DisplayName,
 		Enabled:    caller.Spec.Enabled,
-		RouteIds:   append([]string(nil), caller.Spec.RouteRefs...),
+		RouteIds:   slices.Clone(caller.Spec.RouteRefs),
+		AccessKeys: accessKeys,
 		Version:    caller.Generation,
 		CreatedAt:  adminservice.Timestamp(caller.CreationTimestamp.Time),
-		UpdatedAt:  adminservice.Timestamp(adminservice.ResourceUpdatedAt(caller.Annotations)),
-		AccessKeys: make([]*adminv1.AccessKey, 0, len(caller.Spec.AccessKeys)),
+		UpdatedAt: adminservice.Timestamp(
+			adminservice.ResourceUpdatedAt(caller.Annotations),
+		),
 	}
-	for _, key := range caller.Spec.AccessKeys {
-		response.AccessKeys = append(response.AccessKeys, accessKeyResponse(key))
-	}
-	return response
 }
 
 func accessKeyResponse(key resource.AccessKey) *adminv1.AccessKey {
@@ -37,7 +41,7 @@ func accessKeyResponse(key resource.AccessKey) *adminv1.AccessKey {
 	return response
 }
 
-func issuedKeyResponse(issued callerbiz.IssuedKey) *adminv1.IssuedAccessKey {
+func issuedAccessKeyResponse(issued callerbiz.IssuedAccessKey) *adminv1.IssuedAccessKey {
 	return &adminv1.IssuedAccessKey{
 		AccessKey: accessKeyResponse(issued.AccessKey),
 		Secret:    issued.Secret,

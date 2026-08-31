@@ -2,7 +2,9 @@ package xds
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -11,6 +13,8 @@ import (
 
 	"github.com/lgc202/ingate/internal/controller/biz/delivery"
 )
+
+var _ sotwv3.Callbacks = (*Callbacks)(nil)
 
 type sentKey struct {
 	streamID int64
@@ -23,11 +27,12 @@ type sentResponse struct {
 	nonce   string
 }
 
-// Callbacks 记录 SotW stream、Node 和已发送响应，并用 nonce 识别 ACK/NACK
+// Callbacks 记录 SotW stream、Node 和已发送响应，并用 nonce 识别 ACK/NACK。
 //
-// Callbacks 可被多个 SotW stream 并发调用
+// Callbacks 可被多个 SotW stream 并发调用。
 type Callbacks struct {
 	handleEvent func(context.Context, delivery.XDSEvent) error
+	logger      *slog.Logger
 
 	mu          sync.Mutex
 	sent        map[sentKey]sentResponse
@@ -37,12 +42,14 @@ type Callbacks struct {
 	streamContexts map[int64]context.Context
 }
 
-var _ sotwv3.Callbacks = (*Callbacks)(nil)
-
-// NewCallbacks 创建 SotW callback registry
-func NewCallbacks(handleEvent func(context.Context, delivery.XDSEvent) error) *Callbacks {
+// NewCallbacks 创建 SotW callback registry。
+func NewCallbacks(
+	handleEvent func(context.Context, delivery.XDSEvent) error,
+	logger *slog.Logger,
+) *Callbacks {
 	return &Callbacks{
 		handleEvent:    handleEvent,
+		logger:         logger,
 		sent:           make(map[sentKey]sentResponse),
 		streamNodes:    make(map[int64]string),
 		nodeStreams:    make(map[string]int64),
@@ -50,7 +57,7 @@ func NewCallbacks(handleEvent func(context.Context, delivery.XDSEvent) error) *C
 	}
 }
 
-// OnStreamOpen 上报 SotW stream 建立事件
+// OnStreamOpen 上报 SotW stream 建立事件。
 func (c *Callbacks) OnStreamOpen(ctx context.Context, streamID int64, typeURL string) error {
 	c.mu.Lock()
 	c.streamContexts[streamID] = ctx
@@ -63,10 +70,11 @@ func (c *Callbacks) OnStreamOpen(ctx context.Context, streamID int64, typeURL st
 	})
 }
 
-// OnStreamClosed 只根据本地 registry 清理 stream，不依赖外部传入的 Node
+// OnStreamClosed 只根据本地 registry 清理 stream，不依赖外部传入的 Node。
 func (c *Callbacks) OnStreamClosed(streamID int64, _ *corev3.Node) {
 	c.mu.Lock()
 	nodeID := c.streamNodes[streamID]
+	streamCtx := c.streamContexts[streamID]
 	delete(c.streamNodes, streamID)
 	delete(c.streamContexts, streamID)
 	if nodeID != "" && c.nodeStreams[nodeID] == streamID {
@@ -79,23 +87,38 @@ func (c *Callbacks) OnStreamClosed(streamID int64, _ *corev3.Node) {
 	}
 	c.mu.Unlock()
 
-	// SotW close callback 没有错误返回值，只能忽略事件处理错误
-	_ = c.handleEvent(context.Background(), delivery.XDSEvent{
+	if streamCtx == nil {
+		streamCtx = context.Background()
+	} else {
+		// close callback 没有 context；保留流级日志字段，但不能继承已经触发的取消。
+		streamCtx = context.WithoutCancel(streamCtx)
+	}
+	event := delivery.XDSEvent{
 		Kind:     delivery.EventStreamClosed,
 		StreamID: streamID,
 		NodeID:   nodeID,
-	})
+	}
+	if err := c.handleEvent(streamCtx, event); !expectedCallbackError(err) {
+		c.logger.WarnContext(streamCtx, "handle xDS stream close failed",
+			"err", err,
+			"stream_id", streamID,
+			"envoy_node_id", nodeID,
+		)
+	}
 }
 
-// OnStreamRequest 注册 Node，并按最新已发送 nonce 分类 ACK/NACK
+// OnStreamRequest 在首个请求注册 Node，并按最新已发送 nonce 分类 ACK/NACK。
 func (c *Callbacks) OnStreamRequest(streamID int64, request *discoveryv3.DiscoveryRequest) error {
 	nodeID := request.GetNode().GetId()
-	if nodeID == "" {
-		return fmt.Errorf("xDS stream %d requires a non-empty node ID", streamID)
-	}
-
 	c.mu.Lock()
 	registeredNodeID, registered := c.streamNodes[streamID]
+	if nodeID == "" {
+		if !registered {
+			c.mu.Unlock()
+			return fmt.Errorf("xDS stream %d requires a non-empty node ID in its first request", streamID)
+		}
+		nodeID = registeredNodeID
+	}
 	if registered && registeredNodeID != nodeID {
 		c.mu.Unlock()
 		return fmt.Errorf("xDS stream %d is registered for node %q, got %q", streamID, registeredNodeID, nodeID)
@@ -152,7 +175,7 @@ func (c *Callbacks) OnStreamRequest(streamID int64, request *discoveryv3.Discove
 	return c.handleEvent(ctx, event)
 }
 
-// OnStreamResponse 记录 go-control-plane 已生成的最终 nonce 和 version
+// OnStreamResponse 记录 go-control-plane 已生成的最终 nonce 和 version。
 func (c *Callbacks) OnStreamResponse(
 	_ context.Context,
 	streamID int64,
@@ -173,12 +196,24 @@ func (c *Callbacks) OnStreamResponse(
 	if streamCtx == nil {
 		streamCtx = context.Background()
 	}
-	// SotW response callback 没有错误返回值，只能忽略事件处理错误
-	_ = c.handleEvent(streamCtx, delivery.XDSEvent{
+	event := delivery.XDSEvent{
 		Kind:     delivery.EventResponseSent,
 		StreamID: streamID,
 		NodeID:   nodeID,
 		TypeURL:  response.GetTypeUrl(),
 		Version:  sent.version,
-	})
+	}
+	if err := c.handleEvent(streamCtx, event); !expectedCallbackError(err) {
+		c.logger.WarnContext(streamCtx, "handle xDS response event failed",
+			"err", err,
+			"stream_id", streamID,
+			"envoy_node_id", nodeID,
+			"type_url", response.GetTypeUrl(),
+			"version", sent.version,
+		)
+	}
+}
+
+func expectedCallbackError(err error) bool {
+	return err == nil || errors.Is(err, context.Canceled) || errors.Is(err, delivery.ErrStopped)
 }

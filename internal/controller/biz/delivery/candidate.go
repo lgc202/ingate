@@ -40,7 +40,11 @@ func (d *Delivery) handleSubmit(ctx context.Context, result compiler.Result, has
 		if configsEqual(d.state.candidate.config, result.Config) {
 			d.state.candidate.resources = cloneResourceGenerations(result.ResourceGenerations)
 			d.state.candidate.policyTargets = clonePolicyTargets(result.PolicyTargets)
-			d.state.candidate.failurePolicyTargets = affectedPolicyTargets(d.state.active, result.ResourceGenerations, result.PolicyTargets)
+			d.state.candidate.failurePolicyTargets = affectedPolicyTargets(
+				d.state.active,
+				result.ResourceGenerations,
+				result.PolicyTargets,
+			)
 			if d.state.lastFailure != nil {
 				d.state.lastFailure.Resources = cloneResourceGenerations(result.ResourceGenerations)
 				d.state.lastFailure.PolicyTargets = clonePolicyTargets(d.state.candidate.failurePolicyTargets)
@@ -78,7 +82,12 @@ func (d *Delivery) handleCancelCandidate(ctx context.Context) error {
 		failurePolicyTargets = clonePolicyTargets(d.state.lastFailure.PolicyTargets)
 	}
 	d.state.lastFailure = nil
-	return d.restoreFallback(ctx, "cancel candidate after desired configuration changed", failureResources, failurePolicyTargets)
+	return d.restoreFallback(
+		ctx,
+		"cancel candidate after desired configuration changed",
+		failureResources,
+		failurePolicyTargets,
+	)
 }
 
 func (d *Delivery) setCandidate(result compiler.Result) {

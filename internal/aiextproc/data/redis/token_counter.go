@@ -1,11 +1,13 @@
-// Package redis 保存 AI ExtProc 的实时 Token 额度计数
+// Package redis 保存 AI ExtProc 的实时 Token 额度计数。
 package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -31,18 +33,21 @@ end
 return 1
 `)
 
-// TokenCounter 使用 Redis 保存当前自然周期内的实时 Token 使用量
+// TokenCounter 使用 Redis 保存当前自然周期内的实时 Token 使用量。
 type TokenCounter struct {
 	client           *redisclient.Client
 	operationTimeout time.Duration
 
 	ready   atomic.Bool
-	started chan struct{}
+	running atomic.Bool
 	done    chan struct{}
-	cancel  context.CancelFunc
+
+	lifecycleMu sync.Mutex
+	cancel      context.CancelFunc
+	stopping    bool
 }
 
-// NewTokenCounter 创建 Redis Token 计数器
+// NewTokenCounter 创建 Redis Token 计数器。
 func NewTokenCounter(config *conf.Data_Redis) *TokenCounter {
 	client := redisclient.NewClient(&redisclient.Options{
 		Addr:         strings.TrimSpace(config.GetAddress()),
@@ -55,18 +60,25 @@ func NewTokenCounter(config *conf.Data_Redis) *TokenCounter {
 	return &TokenCounter{
 		client:           client,
 		operationTimeout: config.GetOperationTimeout().AsDuration(),
-		started:          make(chan struct{}),
 		done:             make(chan struct{}),
 	}
 }
 
-// Start 验证 Redis 可用后持续探测连接状态
+// Start 验证 Redis 可用后持续探测连接状态。
 func (c *TokenCounter) Start(ctx context.Context) error {
+	if !c.running.CompareAndSwap(false, true) {
+		return errors.New("redis token counter is already running")
+	}
 	runCtx, cancel := context.WithCancel(ctx)
-	c.cancel = cancel
-	close(c.started)
 	defer close(c.done)
 	defer cancel()
+	c.lifecycleMu.Lock()
+	c.cancel = cancel
+	stopping := c.stopping
+	c.lifecycleMu.Unlock()
+	if stopping {
+		cancel()
+	}
 	defer c.ready.Store(false)
 	defer func() {
 		_ = c.client.Close()
@@ -89,43 +101,40 @@ func (c *TokenCounter) Start(ctx context.Context) error {
 	}
 }
 
-func (c *TokenCounter) ping(ctx context.Context) error {
-	pingCtx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
-	return c.client.Ping(pingCtx).Err()
-}
-
-// Stop 停止计数器并关闭 Redis 连接池
+// Stop 停止计数器并关闭 Redis 连接池。
 func (c *TokenCounter) Stop(ctx context.Context) error {
-	select {
-	case <-c.started:
-	case <-c.done:
+	c.lifecycleMu.Lock()
+	c.stopping = true
+	cancel := c.cancel
+	c.lifecycleMu.Unlock()
+	if cancel == nil {
 		return nil
-	case <-ctx.Done():
-		return ctx.Err()
 	}
-	c.cancel()
+	cancel()
 	select {
 	case <-c.done:
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("stop Redis token counter: %w", ctx.Err())
 	}
 }
 
-// Ready 表示 Redis 首次连接已经建立且最近一次额度操作成功
+// Ready 表示 Redis 首次连接以及最近一次探测或额度操作均成功。
 func (c *TokenCounter) Ready() bool {
 	return c.ready.Load()
 }
 
-// Read 批量读取一次调用命中的全部额度周期
+// Read 批量读取一次调用命中的全部额度周期。
 func (c *TokenCounter) Read(ctx context.Context, buckets []tokenquota.Bucket) ([]int64, error) {
 	keys := bucketKeys(buckets)
 	operationCtx, cancel := context.WithTimeout(ctx, c.operationTimeout)
 	values, err := c.client.MGet(operationCtx, keys...).Result()
 	cancel()
 	if err != nil {
-		c.ready.Store(false)
+		// 单个请求取消不代表 Redis 不可用，不能让客户端断开污染进程就绪状态。
+		if ctx.Err() == nil {
+			c.ready.Store(false)
+		}
 		return nil, fmt.Errorf("read Redis token counters: %w", err)
 	}
 	c.ready.Store(true)
@@ -148,7 +157,7 @@ func (c *TokenCounter) Read(ctx context.Context, buckets []tokenquota.Bucket) ([
 	return used, nil
 }
 
-// Add 原子累加一次调用命中的全部额度周期
+// Add 原子累加一次调用命中的全部额度周期。
 func (c *TokenCounter) Add(ctx context.Context, buckets []tokenquota.Bucket, tokens int64) error {
 	keys := bucketKeys(buckets)
 	arguments := make([]any, 1, len(buckets)+1)
@@ -160,11 +169,19 @@ func (c *TokenCounter) Add(ctx context.Context, buckets []tokenquota.Bucket, tok
 	err := addTokensScript.Run(operationCtx, c.client, keys, arguments...).Err()
 	cancel()
 	if err != nil {
-		c.ready.Store(false)
+		if ctx.Err() == nil {
+			c.ready.Store(false)
+		}
 		return fmt.Errorf("add Redis token counters: %w", err)
 	}
 	c.ready.Store(true)
 	return nil
+}
+
+func (c *TokenCounter) ping(ctx context.Context) error {
+	pingCtx, cancel := context.WithTimeout(ctx, c.operationTimeout)
+	defer cancel()
+	return c.client.Ping(pingCtx).Err()
 }
 
 func bucketKeys(buckets []tokenquota.Bucket) []string {

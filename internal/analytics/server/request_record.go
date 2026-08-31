@@ -1,6 +1,9 @@
 package server
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -9,24 +12,88 @@ import (
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	requestbiz "github.com/lgc202/ingate/internal/analytics/biz/request"
+	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
+	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
-// decodeRequestRecords 解码一个 Kafka 批次，并统计无法通过协议校验的消息
-func decodeRequestRecords(messages []*kgo.Record) ([]requestbiz.Record, int) {
-	records := make([]requestbiz.Record, 0, len(messages))
-	invalid := 0
-	for _, message := range messages {
-		record := new(alsv1.RequestRecord)
-		if err := proto.Unmarshal(message.Value, record); err != nil || !validRecord(record) {
-			invalid++
-			continue
-		}
-		records = append(records, domainRecord(record))
-	}
-	return records, invalid
+type decodedRecords struct {
+	records         []requestbiz.Record
+	invalidCount    int
+	duplicateCount  int
+	firstInvalidErr error
 }
 
-// domainRecord 在 Kafka 边界把传输协议转换为 Analytics 领域记录
+// decodeRequestRecords 解码一个 Kafka 批次，并统计无效和重复消息。
+func decodeRequestRecords(messages []*kgo.Record) decodedRecords {
+	decoded := decodedRecords{records: make([]requestbiz.Record, 0, len(messages))}
+	seen := make(map[string]*alsv1.RequestRecord, len(messages))
+	for _, message := range messages {
+		record, err := decodeRequestRecord(message)
+		if err != nil {
+			decoded.invalidCount++
+			if decoded.firstInvalidErr == nil {
+				decoded.firstInvalidErr = err
+			}
+			continue
+		}
+		if previous, exists := seen[record.GetId()]; exists {
+			if proto.Equal(previous, record) {
+				decoded.duplicateCount++
+			} else {
+				decoded.invalidCount++
+				if decoded.firstInvalidErr == nil {
+					decoded.firstInvalidErr = errors.New("request record ID is reused with different content")
+				}
+			}
+			continue
+		}
+		seen[record.GetId()] = record
+		decoded.records = append(decoded.records, domainRecord(record))
+	}
+	return decoded
+}
+
+func decodeRequestRecord(message *kgo.Record) (*alsv1.RequestRecord, error) {
+	if message == nil {
+		return nil, errors.New("kafka message is nil")
+	}
+	if len(message.Value) > requestrecord.MaxEncodedBytes {
+		return nil, errors.New("request record exceeds the encoded size limit")
+	}
+	record := new(alsv1.RequestRecord)
+	if err := proto.Unmarshal(message.Value, record); err != nil {
+		return nil, fmt.Errorf("decode request record protobuf: %w", err)
+	}
+	if !validRequestRecordEnvelope(message, record) {
+		return nil, errors.New("request record Kafka envelope is invalid")
+	}
+	if err := validateRecord(record); err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func validRequestRecordEnvelope(message *kgo.Record, record *alsv1.RequestRecord) bool {
+	return bytes.Equal(message.Key, []byte(record.GetId())) &&
+		hasHeader(message.Headers, requestrecord.ContentTypeHeader, requestrecord.ContentType) &&
+		hasHeader(message.Headers, requestrecord.MessageTypeHeader, requestrecord.MessageType)
+}
+
+func hasHeader(headers []kgo.RecordHeader, key, value string) bool {
+	found := false
+	for _, header := range headers {
+		if header.Key != key {
+			continue
+		}
+		if found || !bytes.Equal(header.Value, []byte(value)) {
+			return false
+		}
+		found = true
+	}
+	return found
+}
+
+// domainRecord 在 Kafka 边界把传输协议转换为 Analytics 领域记录。
 func domainRecord(record *alsv1.RequestRecord) requestbiz.Record {
 	return requestbiz.Record{
 		ID:                  record.GetId(),
@@ -87,17 +154,15 @@ func cloneUint64(value *uint64) *uint64 {
 	return &cloned
 }
 
-// validRecord 校验跨进程协议边界上 ClickHouse 列类型和查询所需的最小字段
-func validRecord(record *alsv1.RequestRecord) bool {
-	if record.GetId() == "" || record.GetStartedAt() == nil || record.GetStartedAt().CheckValid() != nil {
-		return false
+// validateRecord 校验跨进程协议边界上 ClickHouse 列类型和查询所需的最小字段。
+func validateRecord(record *alsv1.RequestRecord) error {
+	if err := requestrecord.Validate(record); err != nil {
+		return err
 	}
-	if record.GetDuration() != nil && (record.GetDuration().CheckValid() != nil || record.GetDuration().AsDuration() < 0) {
-		return false
+	startedAt := record.GetStartedAt().AsTime()
+	// 查询游标使用 Unix 纳秒；超出其可表示范围会发生整数环绕，必须在 Kafka 边界拒绝。
+	if !analyticsconfig.IsSupportedTime(startedAt) {
+		return errors.New("request record start time is outside the supported range")
 	}
-	if record.GetTimeToFirstByte() != nil &&
-		(record.GetTimeToFirstByte().CheckValid() != nil || record.GetTimeToFirstByte().AsDuration() < 0) {
-		return false
-	}
-	return record.GetStatusCode() <= 65535 && record.GetUpstreamAttempts() <= 65535
+	return nil
 }

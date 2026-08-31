@@ -1,4 +1,4 @@
-// Package xds 提供 Envoy 配置发布所需的 ADS 服务
+// Package xds 提供 Envoy 配置发布所需的 ADS 服务。
 package xds
 
 import (
@@ -11,15 +11,15 @@ import (
 	sotwv3 "github.com/envoyproxy/go-control-plane/pkg/server/sotw/v3"
 )
 
-// Service 在 Controller 进程内提供 State-of-the-World ADS 协议实现
+var _ discoveryv3.AggregatedDiscoveryServiceServer = (*Service)(nil)
+
+// Service 在 Controller 进程内提供 State-of-the-World ADS 协议实现。
 type Service struct {
 	discoveryv3.UnimplementedAggregatedDiscoveryServiceServer
 	sotw sotwv3.Server
 }
 
-var _ discoveryv3.AggregatedDiscoveryServiceServer = (*Service)(nil)
-
-// NewService 创建共享 Snapshot Cache 和 ACK/NACK 回调的 ADS 服务
+// NewService 创建共享 Snapshot Cache 和 ACK/NACK 回调的 ADS 服务。
 func NewService(watcher cachev3.ConfigWatcher, callbacks sotwv3.Callbacks, logger log.Logger) *Service {
 	return &Service{
 		sotw: sotwv3.NewServer(
@@ -34,7 +34,9 @@ func NewService(watcher cachev3.ConfigWatcher, callbacks sotwv3.Callbacks, logge
 	}
 }
 
-// StreamAggregatedResources 将 ADS stream 交给 go-control-plane SotW handler
-func (s *Service) StreamAggregatedResources(stream discoveryv3.AggregatedDiscoveryService_StreamAggregatedResourcesServer) error {
+// StreamAggregatedResources 将 ADS stream 交给 go-control-plane SotW handler。
+func (s *Service) StreamAggregatedResources(
+	stream discoveryv3.AggregatedDiscoveryService_StreamAggregatedResourcesServer,
+) error {
 	return s.sotw.StreamHandler(stream, resource.AnyType)
 }

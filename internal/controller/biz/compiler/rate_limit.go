@@ -19,11 +19,17 @@ type compiledRateLimitPolicy struct {
 	targets []gatewayv1.PolicyTargetRef
 }
 
-func (c *compilation) compileRateLimitPolicies() map[string]compiledRateLimitPolicy {
-	result := make(map[string]compiledRateLimitPolicy)
+func (c *compilation) compileRateLimitPolicies() []compiledRateLimitPolicy {
+	result := make([]compiledRateLimitPolicy, 0, len(c.rateLimitPolicies))
 	for _, policyID := range slices.Sorted(maps.Keys(c.rateLimitPolicies)) {
 		policy := c.rateLimitPolicies[policyID]
-		targets := c.validPolicyTargets(gatewayv1.KindRateLimitPolicy, policyID, policy.Spec.TargetRefs)
+		targets := c.validPolicyTargets(
+			gatewayv1.KindRateLimitPolicy,
+			policyID,
+			policy.Spec.TargetRefs,
+			gatewayv1.KindGateway,
+			gatewayv1.KindRoute,
+		)
 		if !policy.Spec.Enabled {
 			continue
 		}
@@ -31,11 +37,11 @@ func (c *compilation) compileRateLimitPolicies() map[string]compiledRateLimitPol
 		if !valid {
 			continue
 		}
-		result[policyID] = compiledRateLimitPolicy{
-			source:  newResourceGeneration(gatewayv1.KindRateLimitPolicy, policy.Name, policy.UID, policy.Generation),
+		result = append(result, compiledRateLimitPolicy{
+			source:  newResourceGeneration(gatewayv1.KindRateLimitPolicy, policy),
 			rule:    rule,
 			targets: targets,
-		}
+		})
 	}
 	return result
 }
@@ -50,39 +56,70 @@ func (c *compilation) rateLimitRule(policy *gatewayv1.RateLimitPolicy) (extauthz
 	}
 	valid := true
 	if rule.Requests < 1 || rule.Requests > gatewayv1.RateLimitMaxRequests {
-		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q has invalid request limit", policy.Name))
+		c.addResourceError(
+			gatewayv1.KindRateLimitPolicy,
+			policy.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("rate limit policy %q has invalid request limit", policy.Name),
+		)
 		valid = false
 	}
 	if rule.WindowSeconds < 1 || rule.WindowSeconds > gatewayv1.RateLimitMaxWindowSeconds {
-		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q has invalid window", policy.Name))
+		c.addResourceError(
+			gatewayv1.KindRateLimitPolicy,
+			policy.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("rate limit policy %q has invalid window", policy.Name),
+		)
 		valid = false
 	}
 	switch rule.Subject {
 	case extauthz.RateLimitSubjectShared, extauthz.RateLimitSubjectIP:
 		if rule.HeaderName != "" {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q only accepts headerName for Header subject", policy.Name))
+			c.addResourceError(
+				gatewayv1.KindRateLimitPolicy,
+				policy.Name,
+				ReasonInvalidSpec,
+				fmt.Sprintf(
+					"rate limit policy %q only accepts headerName for Header subject",
+					policy.Name,
+				),
+			)
 			valid = false
 		}
 	case extauthz.RateLimitSubjectHeader:
 		if !httpguts.ValidHeaderFieldName(rule.HeaderName) {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q has invalid subject header", policy.Name))
+			c.addResourceError(
+				gatewayv1.KindRateLimitPolicy,
+				policy.Name,
+				ReasonInvalidSpec,
+				fmt.Sprintf("rate limit policy %q has invalid subject header", policy.Name),
+			)
 			valid = false
 		}
 	default:
-		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonUnsupported, fmt.Sprintf("rate limit policy %q uses unsupported subject %q", policy.Name, policy.Spec.Subject.Type))
+		c.addResourceError(
+			gatewayv1.KindRateLimitPolicy,
+			policy.Name,
+			ReasonUnsupported,
+			fmt.Sprintf(
+				"rate limit policy %q uses unsupported subject %q",
+				policy.Name,
+				policy.Spec.Subject.Type,
+			),
+		)
 		valid = false
 	}
 	return rule, valid
 }
 
 func matchingRateLimitPolicies(
-	policies map[string]compiledRateLimitPolicy,
+	policies []compiledRateLimitPolicy,
 	key policyRouteKey,
 ) ([]extauthz.RateLimitRule, []matchedPolicyTarget) {
 	rules := make([]extauthz.RateLimitRule, 0)
 	targets := make([]matchedPolicyTarget, 0)
-	for _, policyID := range slices.Sorted(maps.Keys(policies)) {
-		compiled := policies[policyID]
+	for _, compiled := range policies {
 		scope, matchedTargets := matchingPolicyTargets(compiled.targets, key)
 		if len(matchedTargets) == 0 {
 			continue

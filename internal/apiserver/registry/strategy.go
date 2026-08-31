@@ -10,15 +10,15 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
 )
 
-// Strategy 提供所有集群级 Ingate 资源共用的 generic-apiserver 策略行为
+// Strategy 提供所有集群级 Ingate 资源共用的 generic-apiserver 策略行为。
 //
-// 资源自己的类型转换、默认值和校验仍由各 registry 子包实现
+// 资源自己的类型转换、默认值和校验仍由各 registry 子包实现。
 type Strategy struct {
 	runtime.ObjectTyper
 	names.NameGenerator
 }
 
-// NewStrategy 创建不支持 update-create 和无条件更新的集群级资源策略
+// NewStrategy 创建不支持 update-create 和无条件更新的集群级资源策略。
 func NewStrategy(typer runtime.ObjectTyper) Strategy {
 	return Strategy{
 		ObjectTyper:   typer,
@@ -26,37 +26,44 @@ func NewStrategy(typer runtime.ObjectTyper) Strategy {
 	}
 }
 
-// NamespaceScoped 表示当前 Ingate 只维护一个配置域，资源不划分命名空间
+// NamespaceScoped 表示当前 Ingate 只维护一个配置域，资源不划分命名空间。
 func (Strategy) NamespaceScoped() bool {
 	return false
 }
 
-// GetResetFields 阻止主资源接口直接写入 status
+// GetResetFields 阻止主资源接口直接写入 status。
 func (Strategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return resetFields("status")
 }
 
-// WarningsOnCreate 当前没有需要通过 Kubernetes warning header 返回的提示
+// Canonicalize 不再重复处理已经在 PrepareForCreate 或 PrepareForUpdate 中规范化的资源。
+//
+// 规范化必须早于校验和 Generation 比较，不能延后到 generic-apiserver
+// 调用该方法时再执行。
+func (Strategy) Canonicalize(runtime.Object) {
+}
+
+// WarningsOnCreate 当前没有需要通过 Kubernetes warning header 返回的提示。
 func (Strategy) WarningsOnCreate(context.Context, runtime.Object) []string {
 	return nil
 }
 
-// AllowCreateOnUpdate 禁止通过更新不存在的 ID 隐式创建资源
+// AllowCreateOnUpdate 禁止通过更新不存在的 ID 隐式创建资源。
 func (Strategy) AllowCreateOnUpdate() bool {
 	return false
 }
 
-// WarningsOnUpdate 当前没有需要通过 Kubernetes warning header 返回的提示
+// WarningsOnUpdate 当前没有需要通过 Kubernetes warning header 返回的提示。
 func (Strategy) WarningsOnUpdate(context.Context, runtime.Object, runtime.Object) []string {
 	return nil
 }
 
-// AllowUnconditionalUpdate 要求更新请求携带当前 resourceVersion，避免覆盖并发修改
+// AllowUnconditionalUpdate 要求更新请求携带当前 resourceVersion，避免覆盖并发修改。
 func (Strategy) AllowUnconditionalUpdate() bool {
 	return false
 }
 
-// SpecResetFields 阻止 status 子资源接口修改 spec
+// SpecResetFields 阻止 status 子资源接口修改 spec。
 func SpecResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return resetFields("spec")
 }

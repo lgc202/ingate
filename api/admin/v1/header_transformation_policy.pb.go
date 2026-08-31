@@ -655,11 +655,12 @@ var File_admin_v1_header_transformation_policy_proto protoreflect.FileDescriptor
 
 const file_admin_v1_header_transformation_policy_proto_rawDesc = "" +
 	"\n" +
-	"+admin/v1/header_transformation_policy.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa5\x01\n" +
+	"+admin/v1/header_transformation_policy.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb2\x01\n" +
 	"\x18HeaderTransformationRule\x12V\n" +
-	"\toperation\x18\x01 \x01(\x0e2..ingate.admin.v1.HeaderTransformationOperationB\b\xbaH\x05\x82\x01\x02\x10\x01R\toperation\x12\x1b\n" +
-	"\x04name\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12\x14\n" +
-	"\x05value\x18\x03 \x01(\tR\x05value\"\x95\x04\n" +
+	"\toperation\x18\x01 \x01(\x0e2..ingate.admin.v1.HeaderTransformationOperationB\b\xbaH\x05\x82\x01\x02\x10\x01R\toperation\x12\x1e\n" +
+	"\x04name\x18\x02 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01(\x80\x02R\x04name\x12\x1e\n" +
+	"\x05value\x18\x03 \x01(\tB\b\xbaH\x05r\x03(\x80@R\x05value\"\x95\x04\n" +
 	"\x1aHeaderTransformationPolicy\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -688,20 +689,22 @@ const file_admin_v1_header_transformation_policy_proto_rawDesc = "" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
 	"nextCursor\"@\n" +
 	"$GetHeaderTransformationPolicyRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xa4\x02\n" +
-	"'CreateHeaderTransformationPolicyRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12:\n" +
-	"\atargets\x18\x02 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12N\n" +
-	"\rrequest_rules\x18\x03 \x03(\v2).ingate.admin.v1.HeaderTransformationRuleR\frequestRules\x12P\n" +
-	"\x0eresponse_rules\x18\x04 \x03(\v2).ingate.admin.v1.HeaderTransformationRuleR\rresponseRules\"\x94\x03\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xc6\x02\n" +
+	"'CreateHeaderTransformationPolicyRequest\x12\x1e\n" +
+	"\x04name\x18\x01 \x01(\tB\n" +
+	"\xbaH\ar\x05 \x01(\x80\x02R\x04name\x12E\n" +
+	"\atargets\x18\x02 \x03(\v2 .ingate.admin.v1.PolicyTargetRefB\t\xbaH\x06\x92\x01\x03\x10\x80\x02R\atargets\x12X\n" +
+	"\rrequest_rules\x18\x03 \x03(\v2).ingate.admin.v1.HeaderTransformationRuleB\b\xbaH\x05\x92\x01\x02\x10@R\frequestRules\x12Z\n" +
+	"\x0eresponse_rules\x18\x04 \x03(\v2).ingate.admin.v1.HeaderTransformationRuleB\b\xbaH\x05\x92\x01\x02\x10@R\rresponseRules\"\xb6\x03\n" +
 	"'UpdateHeaderTransformationPolicyRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12!\n" +
-	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\x12\x1b\n" +
-	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12%\n" +
-	"\aenabled\x18\x04 \x01(\bB\x06\xbaH\x03\xc8\x01\x01H\x00R\aenabled\x88\x01\x01\x12:\n" +
-	"\atargets\x18\x05 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12N\n" +
-	"\rrequest_rules\x18\x06 \x03(\v2).ingate.admin.v1.HeaderTransformationRuleR\frequestRules\x12P\n" +
-	"\x0eresponse_rules\x18\a \x03(\v2).ingate.admin.v1.HeaderTransformationRuleR\rresponseRulesB\n" +
+	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\x12\x1e\n" +
+	"\x04name\x18\x03 \x01(\tB\n" +
+	"\xbaH\ar\x05 \x01(\x80\x02R\x04name\x12%\n" +
+	"\aenabled\x18\x04 \x01(\bB\x06\xbaH\x03\xc8\x01\x01H\x00R\aenabled\x88\x01\x01\x12E\n" +
+	"\atargets\x18\x05 \x03(\v2 .ingate.admin.v1.PolicyTargetRefB\t\xbaH\x06\x92\x01\x03\x10\x80\x02R\atargets\x12X\n" +
+	"\rrequest_rules\x18\x06 \x03(\v2).ingate.admin.v1.HeaderTransformationRuleB\b\xbaH\x05\x92\x01\x02\x10@R\frequestRules\x12Z\n" +
+	"\x0eresponse_rules\x18\a \x03(\v2).ingate.admin.v1.HeaderTransformationRuleB\b\xbaH\x05\x92\x01\x02\x10@R\rresponseRulesB\n" +
 	"\n" +
 	"\b_enabled\"f\n" +
 	"'DeleteHeaderTransformationPolicyRequest\x12\x18\n" +

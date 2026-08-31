@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -Eeuo pipefail
+umask 077
 
 readonly REPOSITORY="lgc202/ingate"
 readonly ARCHIVE_NAME="ingate-compose.tar.gz"
@@ -75,6 +76,9 @@ DESTINATION="${DESTINATION:-$PWD/ingate}"
 
 command -v curl >/dev/null 2>&1 || fail "curl is required"
 command -v tar >/dev/null 2>&1 || fail "tar is required"
+if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+  fail "sha256sum or shasum is required"
+fi
 command -v docker >/dev/null 2>&1 || fail "Docker is required"
 docker compose version >/dev/null 2>&1 || fail "Docker Compose v2 is required"
 docker info >/dev/null 2>&1 || fail "Docker daemon is unavailable or inaccessible"
@@ -115,18 +119,25 @@ curl --fail --location --silent --show-error --retry 3 \
 
 if command -v sha256sum >/dev/null 2>&1; then
   (cd "$TEMP_DIR" && sha256sum --check "$ARCHIVE_NAME.sha256")
-elif command -v shasum >/dev/null 2>&1; then
-  (cd "$TEMP_DIR" && shasum -a 256 --check "$ARCHIVE_NAME.sha256")
 else
-  fail "sha256sum or shasum is required"
+  (cd "$TEMP_DIR" && shasum -a 256 --check "$ARCHIVE_NAME.sha256")
 fi
 
 tar -xzf "$TEMP_DIR/$ARCHIVE_NAME" -C "$DESTINATION" --strip-components=1
 
 ADMIN_PASSWORD="$(random_hex 12)"
 SESSION_SECRET="$(random_hex 32)"
+APISERVER_BEARER_TOKEN="$(random_hex 32)"
+MYSQL_PASSWORD="$(random_hex 24)"
+MYSQL_ROOT_PASSWORD="$(random_hex 24)"
+CLICKHOUSE_PASSWORD="$(random_hex 24)"
 set_env INGATE_ADMIN_PASSWORD "$ADMIN_PASSWORD" "$DESTINATION/.env"
 set_env INGATE_SESSION_SECRET "$SESSION_SECRET" "$DESTINATION/.env"
+set_env INGATE_APISERVER_BEARER_TOKEN "$APISERVER_BEARER_TOKEN" "$DESTINATION/.env"
+set_env INGATE_MYSQL_PASSWORD "$MYSQL_PASSWORD" "$DESTINATION/.env"
+set_env INGATE_MYSQL_ROOT_PASSWORD "$MYSQL_ROOT_PASSWORD" "$DESTINATION/.env"
+set_env INGATE_CLICKHOUSE_PASSWORD "$CLICKHOUSE_PASSWORD" "$DESTINATION/.env"
+chmod 600 "$DESTINATION/.env"
 
 if [[ "$START_AFTER_INSTALL" == true ]]; then
   "$DESTINATION/bin/start.sh"

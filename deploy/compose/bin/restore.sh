@@ -61,6 +61,7 @@ done
 rm -rf "$ROOT/bin" "$ROOT/docker"
 cp "$CONTENT/install/VERSION" "$CONTENT/install/.env" "$CONTENT/install/compose.yaml" "$CONTENT/install/README.md" "$ROOT/"
 cp -R "$CONTENT/install/bin" "$CONTENT/install/docker" "$ROOT/"
+chmod 600 "$ROOT/.env"
 
 "${COMPOSE[@]}" up -d --wait --wait-timeout "${INGATE_WAIT_TIMEOUT:-300}"
 echo "Ingate restored from $ARCHIVE"
