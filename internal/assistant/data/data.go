@@ -29,7 +29,7 @@ var ProviderSet = wire.NewSet(
 	NewChatModelFactory,
 	wire.Bind(new(agenttool.QuerySource), new(*adminapi.Client)),
 	wire.Bind(new(agenttool.ChangeWriter), new(*adminapi.Client)),
-	wire.Bind(new(agentbiz.CheckPointStore), new(*mysql.CheckpointStore)),
+	wire.Bind(new(agentbiz.CheckpointStore), new(*mysql.CheckpointStore)),
 	wire.Bind(new(changebiz.Store), new(*mysql.Store)),
 	wire.Bind(new(changebiz.ProposalStore), new(*mysql.Store)),
 	wire.Bind(new(conversation.Store), new(*mysql.Store)),

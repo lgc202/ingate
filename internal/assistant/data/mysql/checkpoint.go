@@ -9,7 +9,7 @@ import (
 	"github.com/lgc202/ingate/internal/assistant/data/mysql/db"
 )
 
-// CheckpointStore 只暴露 Eino 要求的 Get、Set、Delete，避免这些通用方法名
+// CheckpointStore 只暴露 Eino Runner 要求的 Get 和 Set，避免这些通用方法名
 // 污染同时承担会话存储职责的 Store API。
 type CheckpointStore struct {
 	store *Store
@@ -45,14 +45,6 @@ func (s *CheckpointStore) Set(ctx context.Context, executionID string, checkpoin
 		Checkpoint:  checkpoint,
 	}); err != nil {
 		return fmt.Errorf("store assistant checkpoint: %w", err)
-	}
-	return nil
-}
-
-// Delete 清理已经正常结束或取消的 Eino checkpoint。
-func (s *CheckpointStore) Delete(ctx context.Context, executionID string) error {
-	if err := s.store.queries.DeleteCheckpoint(ctx, executionID); err != nil {
-		return fmt.Errorf("delete assistant checkpoint: %w", err)
 	}
 	return nil
 }

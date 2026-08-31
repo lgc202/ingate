@@ -1,75 +1,10 @@
-// Package agent 实现 Ingate 运维 Agent 的模型循环、工具调度和执行事件。
 package agent
 
 import (
 	"context"
-	"errors"
 
-	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
 	changebiz "github.com/lgc202/ingate/internal/assistant/biz/change"
 )
-
-// CheckPointStore 是 Eino 中断恢复所需的持久化边界。
-// 实现同时提供 Delete 时，Eino 会在执行正常结束后主动清理 checkpoint。
-type CheckPointStore interface {
-	Get(context.Context, string) ([]byte, bool, error)
-	Set(context.Context, string, []byte) error
-}
-
-const (
-	// RoleUser 表示来自管理员的上下文消息。
-	RoleUser Role = iota + 1
-	// RoleAssistant 表示此前由 Agent 生成的上下文消息。
-	RoleAssistant
-)
-
-var (
-	// ErrModelNotConfigured 表示当前没有可用于运维助手的模型连接。
-	ErrModelNotConfigured = errors.New("assistant model is not configured")
-	// ErrToolUnavailable 表示工具所依赖的 Ingate 内部服务当前不可用。
-	ErrToolUnavailable = errors.New("assistant tool is unavailable")
-	// ErrIterationLimit 表示模型未能在限定轮数内结束工具调用循环。
-	ErrIterationLimit = errors.New("assistant exceeded the model iteration limit")
-)
-
-// Role 表示进入模型上下文的消息角色。
-// 工具消息由 Eino 在单次循环内维护，不属于跨执行恢复的持久对话。
-type Role uint8
-
-// Message 是 Agent 恢复上下文时需要的最小消息结构。
-// ID、会话归属和创建时间属于存储事实，不应进入模型循环协议。
-type Message struct {
-	Role    Role
-	Content string
-}
-
-// Request 是一次 Agent 执行的不可变请求。
-// 历史消息由执行编排层一次性读取，Agent 循环只在内存中追加模型和工具消息。
-type Request struct {
-	CheckpointID string
-	Messages     []Message
-	Resume       *Resume
-}
-
-// Resume 指定要恢复的 Eino 中断及管理员提交的结构化决定。
-type Resume struct {
-	InterruptID string
-	Result      *agenttool.ApprovalResult
-}
-
-// Response 是 Agent 自然结束后产生的用户可见响应。
-// 工具参数和原始工具结果属于循环上下文，不会通过该对象进入持久消息。
-type Response struct {
-	Content          string
-	ReasoningContent string
-	Interruption     *ApprovalInterruption
-}
-
-// ApprovalInterruption 是当前执行唯一允许暴露给审批流程的根中断。
-type ApprovalInterruption struct {
-	InterruptID string
-	Request     agenttool.ApprovalRequest
-}
 
 // Event 是 Agent 循环对外发布的封闭事件集合。
 //

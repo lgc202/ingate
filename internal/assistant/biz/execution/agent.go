@@ -28,8 +28,8 @@ func agentRequest(
 	messages []conversation.HistoryMessage,
 ) (agentbiz.Request, error) {
 	request := agentbiz.Request{
-		CheckpointID: executionID,
-		Messages:     make([]agentbiz.Message, 0, len(messages)),
+		ExecutionID: executionID,
+		Messages:    make([]agentbiz.Message, 0, len(messages)),
 	}
 	if resume != nil {
 		request.Resume = &agentbiz.Resume{
