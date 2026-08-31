@@ -26,6 +26,9 @@ func (c *responseCollector) consume(ctx context.Context, event *adk.AgentEvent) 
 		return errors.New("agent returned a nil event")
 	}
 	if event.Err != nil {
+		if errors.Is(event.Err, adk.ErrExceedMaxIterations) {
+			return fmt.Errorf("%w: %w", ErrIterationLimit, event.Err)
+		}
 		return fmt.Errorf("execute Eino agent: %w", event.Err)
 	}
 	if err := validateAction(event.Action); err != nil {

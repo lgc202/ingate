@@ -18,6 +18,8 @@ var (
 	ErrModelNotConfigured = errors.New("assistant model is not configured")
 	// ErrToolUnavailable 表示工具所依赖的 Ingate 内部服务当前不可用。
 	ErrToolUnavailable = errors.New("assistant tool is unavailable")
+	// ErrIterationLimit 表示模型未能在限定轮数内结束工具调用循环。
+	ErrIterationLimit = errors.New("assistant exceeded the model iteration limit")
 )
 
 // Role 表示进入模型上下文的消息角色。

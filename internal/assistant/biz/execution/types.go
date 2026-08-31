@@ -61,6 +61,8 @@ const (
 	FailureModelUnavailable FailureCode = "MODEL_UNAVAILABLE"
 	// FailureToolUnavailable 表示 Agent 工具依赖当前不可用。
 	FailureToolUnavailable FailureCode = "TOOL_UNAVAILABLE"
+	// FailureIterationLimit 表示模型未能在限定轮数内完成回答。
+	FailureIterationLimit FailureCode = "AGENT_ITERATION_LIMIT"
 	// FailureWorkerLost 表示持有任务的后台实例失去租约。
 	FailureWorkerLost FailureCode = "WORKER_LOST"
 	// FailureWorkerStopped 表示后台实例在执行过程中停止。

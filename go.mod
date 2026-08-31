@@ -7,9 +7,9 @@ require (
 	buf.build/go/protovalidate v1.2.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/anthropics/anthropic-sdk-go v1.56.0
-	github.com/cloudwego/eino v0.7.11
-	github.com/cloudwego/eino-ext/components/model/claude v0.1.12
-	github.com/cloudwego/eino-ext/components/model/openai v0.1.6
+	github.com/cloudwego/eino v0.9.17
+	github.com/cloudwego/eino-ext/components/model/claude v0.1.25
+	github.com/cloudwego/eino-ext/components/model/openai v0.1.13
 	github.com/envoyproxy/go-control-plane v0.14.0
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0
 	github.com/go-kratos/kratos/v3 v3.0.0
@@ -79,7 +79,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
-	github.com/cloudwego/eino-ext/libs/acl/openai v0.1.10 // indirect
+	github.com/cloudwego/eino-ext/libs/acl/openai v0.1.17 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
@@ -124,7 +124,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/meguminnnnnnnnn/go-openai v0.1.1 // indirect
+	github.com/meguminnnnnnnnn/go-openai v0.1.2 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
