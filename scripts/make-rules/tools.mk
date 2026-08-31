@@ -30,7 +30,7 @@ GOLANGCI_LINT_VERSION := v2.13.2
 GOLANGCI_LINT_PACKAGE := github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 ACTIONLINT_VERSION := v1.7.12
 ACTIONLINT_PACKAGE := github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION)
-GOVULNCHECK_VERSION := v1.1.4
+GOVULNCHECK_VERSION := v1.7.0
 GOVULNCHECK_PACKAGE := golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 GO_TOOL_PREREQUISITES := \
 	$(PROJECT_ROOT)/scripts/make-rules/golang.mk \
