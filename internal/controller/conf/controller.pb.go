@@ -109,7 +109,7 @@ type Server struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// grpc 暴露 Envoy ADS 服务
 	Grpc *Server_GRPC `protobuf:"bytes,1,opt,name=grpc,proto3" json:"grpc,omitempty"`
-	// http 暴露健康检查和就绪检查
+	// http 暴露 /healthz、/readyz 和 /metrics 运维端点。
 	Http *Server_HTTP `protobuf:"bytes,2,opt,name=http,proto3" json:"http,omitempty"`
 	// shutdown_timeout 是等待 Controller 各执行循环停止的最长时间
 	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,3,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
@@ -226,9 +226,9 @@ func (x *Data) GetWasm() *Data_Wasm {
 // Delivery 定义 Candidate 配置的确认和回退期限
 type Delivery struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// candidate_ack_timeout 是 Envoy 首次收到 Candidate 后的 ACK 等待时间
+	// candidate_ack_timeout 是 Envoy 首次收到 Candidate 后等待所有已连接实例接受的时间
 	CandidateAckTimeout *durationpb.Duration `protobuf:"bytes,1,opt,name=candidate_ack_timeout,json=candidateAckTimeout,proto3" json:"candidate_ack_timeout,omitempty"`
-	// nack_rollback_timeout 是 NACK 后恢复 Active 配置的最长等待时间
+	// nack_rollback_timeout 是 NACK 或 ACK 超时后恢复 Active 配置的最长等待时间
 	NackRollbackTimeout *durationpb.Duration `protobuf:"bytes,2,opt,name=nack_rollback_timeout,json=nackRollbackTimeout,proto3" json:"nack_rollback_timeout,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
@@ -435,7 +435,7 @@ func (x *Server_GRPC) GetAddr() string {
 
 type Server_HTTP struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// addr 是健康检查的 HTTP 监听地址
+	// addr 是 /healthz、/readyz 和 /metrics 运维端点的 HTTP 监听地址。
 	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
 	// timeout 限制单次运维 HTTP 请求处理时间
 	Timeout       *durationpb.Duration `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`

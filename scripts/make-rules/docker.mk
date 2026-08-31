@@ -19,6 +19,12 @@ docker-up: docker-artifacts ## 构建并启动开发联调环境
 docker-down: ## 停止开发联调环境
 	@$(COMPOSE) down
 
+.PHONY: docker-reset
+docker-reset: docker-artifacts ## 删除开发环境数据卷并重新构建联调环境
+	@$(COMPOSE) build
+	@$(COMPOSE) down --volumes --remove-orphans
+	@$(COMPOSE) up -d --remove-orphans
+
 .PHONY: docker-logs
 docker-logs: ## 持续查看开发联调环境日志
 	@$(COMPOSE) logs -f

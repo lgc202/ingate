@@ -54,7 +54,7 @@ func (c *Bootstrap) Validate() error {
 		return errors.New("etcd config is required")
 	}
 	if err := validateEtcd(c.GetData().GetEtcd()); err != nil {
-		return err
+		return fmt.Errorf("validate etcd config: %w", err)
 	}
 
 	logging := c.GetLogging()

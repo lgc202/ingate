@@ -34,11 +34,17 @@ const (
 //
 // ConversationService 提供运维助手的会话与消息查询接口。
 type ConversationServiceClient interface {
+	// ListConversations 按最近活动时间返回当前管理员的会话。
 	ListConversations(ctx context.Context, in *ListConversationsRequest, opts ...grpc.CallOption) (*ListConversationsResponse, error)
+	// GetConversation 返回当前管理员可见的单个会话。
 	GetConversation(ctx context.Context, in *GetConversationRequest, opts ...grpc.CallOption) (*Conversation, error)
+	// CreateConversation 为当前管理员创建一个会话。
 	CreateConversation(ctx context.Context, in *CreateConversationRequest, opts ...grpc.CallOption) (*Conversation, error)
+	// UpdateConversation 更新当前管理员会话的标题。
 	UpdateConversation(ctx context.Context, in *UpdateConversationRequest, opts ...grpc.CallOption) (*Conversation, error)
+	// DeleteConversation 删除当前管理员的会话及其关联记录。
 	DeleteConversation(ctx context.Context, in *DeleteConversationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// ListMessages 按创建时间返回会话中的持久消息。
 	ListMessages(ctx context.Context, in *ListMessagesRequest, opts ...grpc.CallOption) (*ListMessagesResponse, error)
 }
 
@@ -116,11 +122,17 @@ func (c *conversationServiceClient) ListMessages(ctx context.Context, in *ListMe
 //
 // ConversationService 提供运维助手的会话与消息查询接口。
 type ConversationServiceServer interface {
+	// ListConversations 按最近活动时间返回当前管理员的会话。
 	ListConversations(context.Context, *ListConversationsRequest) (*ListConversationsResponse, error)
+	// GetConversation 返回当前管理员可见的单个会话。
 	GetConversation(context.Context, *GetConversationRequest) (*Conversation, error)
+	// CreateConversation 为当前管理员创建一个会话。
 	CreateConversation(context.Context, *CreateConversationRequest) (*Conversation, error)
+	// UpdateConversation 更新当前管理员会话的标题。
 	UpdateConversation(context.Context, *UpdateConversationRequest) (*Conversation, error)
+	// DeleteConversation 删除当前管理员的会话及其关联记录。
 	DeleteConversation(context.Context, *DeleteConversationRequest) (*emptypb.Empty, error)
+	// ListMessages 按创建时间返回会话中的持久消息。
 	ListMessages(context.Context, *ListMessagesRequest) (*ListMessagesResponse, error)
 }
 
@@ -326,9 +338,13 @@ const (
 //
 // AgentExecutionService 管理一次用户请求从排队到完成的异步执行。
 type AgentExecutionServiceClient interface {
+	// CreateAgentExecution 为会话创建一次异步 Agent 执行。
 	CreateAgentExecution(ctx context.Context, in *CreateAgentExecutionRequest, opts ...grpc.CallOption) (*AgentExecution, error)
+	// GetAgentExecution 返回当前管理员可见的单次执行。
 	GetAgentExecution(ctx context.Context, in *GetAgentExecutionRequest, opts ...grpc.CallOption) (*AgentExecution, error)
+	// ListAgentExecutionSteps 返回一次执行中已持久的模型和工具步骤。
 	ListAgentExecutionSteps(ctx context.Context, in *ListAgentExecutionStepsRequest, opts ...grpc.CallOption) (*ListAgentExecutionStepsResponse, error)
+	// CancelAgentExecution 请求取消排队中或运行中的执行。
 	CancelAgentExecution(ctx context.Context, in *CancelAgentExecutionRequest, opts ...grpc.CallOption) (*AgentExecution, error)
 }
 
@@ -386,9 +402,13 @@ func (c *agentExecutionServiceClient) CancelAgentExecution(ctx context.Context, 
 //
 // AgentExecutionService 管理一次用户请求从排队到完成的异步执行。
 type AgentExecutionServiceServer interface {
+	// CreateAgentExecution 为会话创建一次异步 Agent 执行。
 	CreateAgentExecution(context.Context, *CreateAgentExecutionRequest) (*AgentExecution, error)
+	// GetAgentExecution 返回当前管理员可见的单次执行。
 	GetAgentExecution(context.Context, *GetAgentExecutionRequest) (*AgentExecution, error)
+	// ListAgentExecutionSteps 返回一次执行中已持久的模型和工具步骤。
 	ListAgentExecutionSteps(context.Context, *ListAgentExecutionStepsRequest) (*ListAgentExecutionStepsResponse, error)
+	// CancelAgentExecution 请求取消排队中或运行中的执行。
 	CancelAgentExecution(context.Context, *CancelAgentExecutionRequest) (*AgentExecution, error)
 }
 
@@ -542,7 +562,9 @@ const (
 //
 // ModelConnectionService 管理运维助手当前生效的模型连接。
 type ModelConnectionServiceClient interface {
+	// GetModelConnection 返回当前模型连接的非敏感信息。
 	GetModelConnection(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ModelConnection, error)
+	// UpdateModelConnection 校验并替换当前模型连接。
 	UpdateModelConnection(ctx context.Context, in *UpdateModelConnectionRequest, opts ...grpc.CallOption) (*ModelConnection, error)
 }
 
@@ -580,7 +602,9 @@ func (c *modelConnectionServiceClient) UpdateModelConnection(ctx context.Context
 //
 // ModelConnectionService 管理运维助手当前生效的模型连接。
 type ModelConnectionServiceServer interface {
+	// GetModelConnection 返回当前模型连接的非敏感信息。
 	GetModelConnection(context.Context, *emptypb.Empty) (*ModelConnection, error)
+	// UpdateModelConnection 校验并替换当前模型连接。
 	UpdateModelConnection(context.Context, *UpdateModelConnectionRequest) (*ModelConnection, error)
 }
 

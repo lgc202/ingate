@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
 )
 
 const (
@@ -125,6 +127,11 @@ func observationTimeRange(hours int32, startValue, endValue string) (time.Time, 
 		return time.Time{}, time.Time{}, invalidInputf(
 			"time range cannot exceed %d hours",
 			maxObservationHours,
+		)
+	}
+	if !analyticsconfig.IsValidQueryRange(startTime, endTime) {
+		return time.Time{}, time.Time{}, invalidInputf(
+			"time range is outside the supported analysis range",
 		)
 	}
 	return startTime, endTime, nil

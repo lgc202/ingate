@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -11,7 +12,7 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
-// ObserveOpenAIResponse 从完整的 OpenAI 兼容响应中提取运行信息
+// ObserveOpenAIResponse 从完整的 OpenAI 兼容响应中提取运行信息。
 // 解析失败不影响上游响应透传，因此返回值只表达是否获得了新信息。
 func ObserveOpenAIResponse(body []byte) (ResponseMetadata, bool) {
 	if !gjson.ValidBytes(body) {
@@ -19,35 +20,50 @@ func ObserveOpenAIResponse(body []byte) (ResponseMetadata, bool) {
 	}
 
 	var metadata ResponseMetadata
-	if model := gjson.GetBytes(body, "model"); model.Type == gjson.String && routeconfig.IsValidModelName(model.String()) {
+	model := gjson.GetBytes(body, "model")
+	if model.Type == gjson.String && routeconfig.IsValidModelName(model.String()) {
 		metadata.ResponseModel = model.String()
 	}
 	if reason := gjson.GetBytes(body, "choices.0.finish_reason"); reason.Type == gjson.String {
 		metadata.FinishReason = reason.String()
 	}
+	hasMetadata := metadata.ResponseModel != "" || metadata.FinishReason != ""
 
-	input, hasInput := tokenCount(gjson.GetBytes(body, "usage.prompt_tokens"))
-	output, hasOutput := tokenCount(gjson.GetBytes(body, "usage.completion_tokens"))
-	total, hasTotal := tokenCount(gjson.GetBytes(body, "usage.total_tokens"))
-	if hasInput || hasOutput || hasTotal {
-		if !hasTotal {
-			if input > math.MaxUint64-output {
-				return metadata, metadata.ResponseModel != "" || metadata.FinishReason != ""
-			}
-			total = input + output
-		} else if total < input || total < output {
-			return metadata, metadata.ResponseModel != "" || metadata.FinishReason != ""
+	promptTokenValue := gjson.GetBytes(body, "usage.prompt_tokens")
+	completionTokenValue := gjson.GetBytes(body, "usage.completion_tokens")
+	totalTokenValue := gjson.GetBytes(body, "usage.total_tokens")
+	promptTokens, hasPromptTokens := tokenCount(promptTokenValue)
+	completionTokens, hasCompletionTokens := tokenCount(completionTokenValue)
+	totalTokens, hasTotalTokens := tokenCount(totalTokenValue)
+	if (promptTokenValue.Exists() && !hasPromptTokens) ||
+		(completionTokenValue.Exists() && !hasCompletionTokens) ||
+		(totalTokenValue.Exists() && !hasTotalTokens) {
+		return metadata, hasMetadata
+	}
+	if hasPromptTokens || hasCompletionTokens || hasTotalTokens {
+		// OpenAI usage 必须同时给出输入和输出 Token；只拿部分字段推导会静默少结算。
+		if !hasPromptTokens || !hasCompletionTokens {
+			return metadata, hasMetadata
+		}
+		if promptTokens > math.MaxUint64-completionTokens {
+			return metadata, hasMetadata
+		}
+		calculatedTotal := promptTokens + completionTokens
+		if !hasTotalTokens {
+			totalTokens = calculatedTotal
+		} else if totalTokens != calculatedTotal {
+			return metadata, hasMetadata
 		}
 		metadata.Usage = Usage{
-			InputTokens:  input,
-			OutputTokens: output,
-			TotalTokens:  total,
+			InputTokens:  promptTokens,
+			OutputTokens: completionTokens,
+			TotalTokens:  totalTokens,
 			Found:        true,
 			Final:        true,
 		}
 	}
 
-	return metadata, metadata.ResponseModel != "" || metadata.FinishReason != "" || metadata.Usage.Found
+	return metadata, hasMetadata || metadata.Usage.Found
 }
 
 // RewriteOpenAIResponseModel 把上游响应中的真实模型名恢复为 Route 对外发布的稳定模型名。
@@ -67,10 +83,11 @@ func RewriteOpenAIResponseModel(body []byte, clientModel string) ([]byte, bool, 
 }
 
 func tokenCount(value gjson.Result) (uint64, bool) {
-	if !value.Exists() || value.Type != gjson.Number || value.Int() < 0 {
+	if !value.Exists() || value.Type != gjson.Number {
 		return 0, false
 	}
-	return value.Uint(), true
+	parsed, err := strconv.ParseUint(value.Raw, 10, 64)
+	return parsed, err == nil
 }
 
 func mergeResponseMetadata(target *ResponseMetadata, update ResponseMetadata) {

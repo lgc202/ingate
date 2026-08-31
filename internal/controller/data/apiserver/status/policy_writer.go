@@ -10,6 +10,7 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 func (w *Writer) updateRateLimitPolicy(
@@ -39,6 +40,8 @@ func (w *Writer) updateRateLimitPolicy(
 			conditions,
 			deliveryState,
 			targets,
+			gatewayv1.KindGateway,
+			gatewayv1.KindRoute,
 		)
 		conditions = policyConditions(conditions, source, targetStatuses)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) &&
@@ -87,6 +90,8 @@ func (w *Writer) updateIPRestrictionPolicy(
 			conditions,
 			deliveryState,
 			targets,
+			gatewayv1.KindGateway,
+			gatewayv1.KindRoute,
 		)
 		conditions = policyConditions(conditions, source, targetStatuses)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) &&
@@ -135,6 +140,7 @@ func (w *Writer) updateHeaderTransformationPolicy(
 			conditions,
 			deliveryState,
 			targets,
+			gatewayv1.KindRoute,
 		)
 		conditions = policyConditions(conditions, source, targetStatuses)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) &&
@@ -183,6 +189,7 @@ func (w *Writer) updateMockResponsePolicy(
 			conditions,
 			deliveryState,
 			targets,
+			gatewayv1.KindRoute,
 		)
 		conditions = policyConditions(conditions, source, targetStatuses)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) &&

@@ -26,11 +26,17 @@ const OperationConversationServiceListMessages = "/ingate.assistant.v1.Conversat
 const OperationConversationServiceUpdateConversation = "/ingate.assistant.v1.ConversationService/UpdateConversation"
 
 type ConversationServiceHTTPServer interface {
+	// CreateConversation CreateConversation 为当前管理员创建一个会话。
 	CreateConversation(context.Context, *CreateConversationRequest) (*Conversation, error)
+	// DeleteConversation DeleteConversation 删除当前管理员的会话及其关联记录。
 	DeleteConversation(context.Context, *DeleteConversationRequest) (*emptypb.Empty, error)
+	// GetConversation GetConversation 返回当前管理员可见的单个会话。
 	GetConversation(context.Context, *GetConversationRequest) (*Conversation, error)
+	// ListConversations ListConversations 按最近活动时间返回当前管理员的会话。
 	ListConversations(context.Context, *ListConversationsRequest) (*ListConversationsResponse, error)
+	// ListMessages ListMessages 按创建时间返回会话中的持久消息。
 	ListMessages(context.Context, *ListMessagesRequest) (*ListMessagesResponse, error)
+	// UpdateConversation UpdateConversation 更新当前管理员会话的标题。
 	UpdateConversation(context.Context, *UpdateConversationRequest) (*Conversation, error)
 }
 
@@ -171,11 +177,17 @@ func _ConversationService_ListMessages0_HTTP_Handler(srv ConversationServiceHTTP
 }
 
 type ConversationServiceHTTPClient interface {
+	// CreateConversation CreateConversation 为当前管理员创建一个会话。
 	CreateConversation(ctx context.Context, req *CreateConversationRequest, opts ...http.CallOption) (rsp *Conversation, err error)
+	// DeleteConversation DeleteConversation 删除当前管理员的会话及其关联记录。
 	DeleteConversation(ctx context.Context, req *DeleteConversationRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
+	// GetConversation GetConversation 返回当前管理员可见的单个会话。
 	GetConversation(ctx context.Context, req *GetConversationRequest, opts ...http.CallOption) (rsp *Conversation, err error)
+	// ListConversations ListConversations 按最近活动时间返回当前管理员的会话。
 	ListConversations(ctx context.Context, req *ListConversationsRequest, opts ...http.CallOption) (rsp *ListConversationsResponse, err error)
+	// ListMessages ListMessages 按创建时间返回会话中的持久消息。
 	ListMessages(ctx context.Context, req *ListMessagesRequest, opts ...http.CallOption) (rsp *ListMessagesResponse, err error)
+	// UpdateConversation UpdateConversation 更新当前管理员会话的标题。
 	UpdateConversation(ctx context.Context, req *UpdateConversationRequest, opts ...http.CallOption) (rsp *Conversation, err error)
 }
 
@@ -187,6 +199,7 @@ func NewConversationServiceHTTPClient(client *http.Client) ConversationServiceHT
 	return &ConversationServiceHTTPClientImpl{client}
 }
 
+// CreateConversation CreateConversation 为当前管理员创建一个会话。
 func (c *ConversationServiceHTTPClientImpl) CreateConversation(ctx context.Context, in *CreateConversationRequest, opts ...http.CallOption) (*Conversation, error) {
 	var out Conversation
 	pattern := "/assistant/v1/conversations"
@@ -204,6 +217,7 @@ func (c *ConversationServiceHTTPClientImpl) CreateConversation(ctx context.Conte
 	return &out, nil
 }
 
+// DeleteConversation DeleteConversation 删除当前管理员的会话及其关联记录。
 func (c *ConversationServiceHTTPClientImpl) DeleteConversation(ctx context.Context, in *DeleteConversationRequest, opts ...http.CallOption) (*emptypb.Empty, error) {
 	var out emptypb.Empty
 	pattern := "/assistant/v1/conversations/{id}"
@@ -220,6 +234,7 @@ func (c *ConversationServiceHTTPClientImpl) DeleteConversation(ctx context.Conte
 	return &out, nil
 }
 
+// GetConversation GetConversation 返回当前管理员可见的单个会话。
 func (c *ConversationServiceHTTPClientImpl) GetConversation(ctx context.Context, in *GetConversationRequest, opts ...http.CallOption) (*Conversation, error) {
 	var out Conversation
 	pattern := "/assistant/v1/conversations/{id}"
@@ -236,6 +251,7 @@ func (c *ConversationServiceHTTPClientImpl) GetConversation(ctx context.Context,
 	return &out, nil
 }
 
+// ListConversations ListConversations 按最近活动时间返回当前管理员的会话。
 func (c *ConversationServiceHTTPClientImpl) ListConversations(ctx context.Context, in *ListConversationsRequest, opts ...http.CallOption) (*ListConversationsResponse, error) {
 	var out ListConversationsResponse
 	pattern := "/assistant/v1/conversations"
@@ -252,6 +268,7 @@ func (c *ConversationServiceHTTPClientImpl) ListConversations(ctx context.Contex
 	return &out, nil
 }
 
+// ListMessages ListMessages 按创建时间返回会话中的持久消息。
 func (c *ConversationServiceHTTPClientImpl) ListMessages(ctx context.Context, in *ListMessagesRequest, opts ...http.CallOption) (*ListMessagesResponse, error) {
 	var out ListMessagesResponse
 	pattern := "/assistant/v1/conversations/{conversation_id}/messages"
@@ -268,6 +285,7 @@ func (c *ConversationServiceHTTPClientImpl) ListMessages(ctx context.Context, in
 	return &out, nil
 }
 
+// UpdateConversation UpdateConversation 更新当前管理员会话的标题。
 func (c *ConversationServiceHTTPClientImpl) UpdateConversation(ctx context.Context, in *UpdateConversationRequest, opts ...http.CallOption) (*Conversation, error) {
 	var out Conversation
 	pattern := "/assistant/v1/conversations/{id}"
@@ -291,9 +309,13 @@ const OperationAgentExecutionServiceGetAgentExecution = "/ingate.assistant.v1.Ag
 const OperationAgentExecutionServiceListAgentExecutionSteps = "/ingate.assistant.v1.AgentExecutionService/ListAgentExecutionSteps"
 
 type AgentExecutionServiceHTTPServer interface {
+	// CancelAgentExecution CancelAgentExecution 请求取消排队中或运行中的执行。
 	CancelAgentExecution(context.Context, *CancelAgentExecutionRequest) (*AgentExecution, error)
+	// CreateAgentExecution CreateAgentExecution 为会话创建一次异步 Agent 执行。
 	CreateAgentExecution(context.Context, *CreateAgentExecutionRequest) (*AgentExecution, error)
+	// GetAgentExecution GetAgentExecution 返回当前管理员可见的单次执行。
 	GetAgentExecution(context.Context, *GetAgentExecutionRequest) (*AgentExecution, error)
+	// ListAgentExecutionSteps ListAgentExecutionSteps 返回一次执行中已持久的模型和工具步骤。
 	ListAgentExecutionSteps(context.Context, *ListAgentExecutionStepsRequest) (*ListAgentExecutionStepsResponse, error)
 }
 
@@ -394,9 +416,13 @@ func _AgentExecutionService_CancelAgentExecution0_HTTP_Handler(srv AgentExecutio
 }
 
 type AgentExecutionServiceHTTPClient interface {
+	// CancelAgentExecution CancelAgentExecution 请求取消排队中或运行中的执行。
 	CancelAgentExecution(ctx context.Context, req *CancelAgentExecutionRequest, opts ...http.CallOption) (rsp *AgentExecution, err error)
+	// CreateAgentExecution CreateAgentExecution 为会话创建一次异步 Agent 执行。
 	CreateAgentExecution(ctx context.Context, req *CreateAgentExecutionRequest, opts ...http.CallOption) (rsp *AgentExecution, err error)
+	// GetAgentExecution GetAgentExecution 返回当前管理员可见的单次执行。
 	GetAgentExecution(ctx context.Context, req *GetAgentExecutionRequest, opts ...http.CallOption) (rsp *AgentExecution, err error)
+	// ListAgentExecutionSteps ListAgentExecutionSteps 返回一次执行中已持久的模型和工具步骤。
 	ListAgentExecutionSteps(ctx context.Context, req *ListAgentExecutionStepsRequest, opts ...http.CallOption) (rsp *ListAgentExecutionStepsResponse, err error)
 }
 
@@ -408,6 +434,7 @@ func NewAgentExecutionServiceHTTPClient(client *http.Client) AgentExecutionServi
 	return &AgentExecutionServiceHTTPClientImpl{client}
 }
 
+// CancelAgentExecution CancelAgentExecution 请求取消排队中或运行中的执行。
 func (c *AgentExecutionServiceHTTPClientImpl) CancelAgentExecution(ctx context.Context, in *CancelAgentExecutionRequest, opts ...http.CallOption) (*AgentExecution, error) {
 	var out AgentExecution
 	pattern := "/assistant/v1/executions/{id}:cancel"
@@ -425,6 +452,7 @@ func (c *AgentExecutionServiceHTTPClientImpl) CancelAgentExecution(ctx context.C
 	return &out, nil
 }
 
+// CreateAgentExecution CreateAgentExecution 为会话创建一次异步 Agent 执行。
 func (c *AgentExecutionServiceHTTPClientImpl) CreateAgentExecution(ctx context.Context, in *CreateAgentExecutionRequest, opts ...http.CallOption) (*AgentExecution, error) {
 	var out AgentExecution
 	pattern := "/assistant/v1/conversations/{conversation_id}/executions"
@@ -442,6 +470,7 @@ func (c *AgentExecutionServiceHTTPClientImpl) CreateAgentExecution(ctx context.C
 	return &out, nil
 }
 
+// GetAgentExecution GetAgentExecution 返回当前管理员可见的单次执行。
 func (c *AgentExecutionServiceHTTPClientImpl) GetAgentExecution(ctx context.Context, in *GetAgentExecutionRequest, opts ...http.CallOption) (*AgentExecution, error) {
 	var out AgentExecution
 	pattern := "/assistant/v1/executions/{id}"
@@ -458,6 +487,7 @@ func (c *AgentExecutionServiceHTTPClientImpl) GetAgentExecution(ctx context.Cont
 	return &out, nil
 }
 
+// ListAgentExecutionSteps ListAgentExecutionSteps 返回一次执行中已持久的模型和工具步骤。
 func (c *AgentExecutionServiceHTTPClientImpl) ListAgentExecutionSteps(ctx context.Context, in *ListAgentExecutionStepsRequest, opts ...http.CallOption) (*ListAgentExecutionStepsResponse, error) {
 	var out ListAgentExecutionStepsResponse
 	pattern := "/assistant/v1/executions/{execution_id}/steps"
@@ -478,7 +508,9 @@ const OperationModelConnectionServiceGetModelConnection = "/ingate.assistant.v1.
 const OperationModelConnectionServiceUpdateModelConnection = "/ingate.assistant.v1.ModelConnectionService/UpdateModelConnection"
 
 type ModelConnectionServiceHTTPServer interface {
+	// GetModelConnection GetModelConnection 返回当前模型连接的非敏感信息。
 	GetModelConnection(context.Context, *emptypb.Empty) (*ModelConnection, error)
+	// UpdateModelConnection UpdateModelConnection 校验并替换当前模型连接。
 	UpdateModelConnection(context.Context, *UpdateModelConnectionRequest) (*ModelConnection, error)
 }
 
@@ -527,7 +559,9 @@ func _ModelConnectionService_UpdateModelConnection0_HTTP_Handler(srv ModelConnec
 }
 
 type ModelConnectionServiceHTTPClient interface {
+	// GetModelConnection GetModelConnection 返回当前模型连接的非敏感信息。
 	GetModelConnection(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *ModelConnection, err error)
+	// UpdateModelConnection UpdateModelConnection 校验并替换当前模型连接。
 	UpdateModelConnection(ctx context.Context, req *UpdateModelConnectionRequest, opts ...http.CallOption) (rsp *ModelConnection, err error)
 }
 
@@ -539,6 +573,7 @@ func NewModelConnectionServiceHTTPClient(client *http.Client) ModelConnectionSer
 	return &ModelConnectionServiceHTTPClientImpl{client}
 }
 
+// GetModelConnection GetModelConnection 返回当前模型连接的非敏感信息。
 func (c *ModelConnectionServiceHTTPClientImpl) GetModelConnection(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*ModelConnection, error) {
 	var out ModelConnection
 	pattern := "/assistant/v1/model-connection"
@@ -555,6 +590,7 @@ func (c *ModelConnectionServiceHTTPClientImpl) GetModelConnection(ctx context.Co
 	return &out, nil
 }
 
+// UpdateModelConnection UpdateModelConnection 校验并替换当前模型连接。
 func (c *ModelConnectionServiceHTTPClientImpl) UpdateModelConnection(ctx context.Context, in *UpdateModelConnectionRequest, opts ...http.CallOption) (*ModelConnection, error) {
 	var out ModelConnection
 	pattern := "/assistant/v1/model-connection"

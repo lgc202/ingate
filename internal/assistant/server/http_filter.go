@@ -56,6 +56,15 @@ func requestIDFilter() kratoshttp.FilterFunc {
 	}
 }
 
+func responseNoStoreFilter() kratoshttp.FilterFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			response.Header().Set("Cache-Control", "no-store")
+			next.ServeHTTP(response, request)
+		})
+	}
+}
+
 func requestBodyLimitFilter() kratoshttp.FilterFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
@@ -76,7 +85,6 @@ func recoveryFilter(logger *slog.Logger) kratoshttp.FilterFunc {
 						"request_id", request.Header.Get(requestid.Header),
 						"method", request.Method,
 						"path", request.URL.Path,
-						"panic", recovered,
 						"stack", string(debug.Stack()),
 					)
 					// SSE 已经发送响应头后不能再编码一份 HTTP 错误，只能结束连接。

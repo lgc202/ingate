@@ -30,42 +30,42 @@ type RejectionReason uint8
 
 // ModelCall 是请求记录中的模型映射和 Token 用量。
 type ModelCall struct {
-	ClientModel      string
-	UpstreamModel    string
-	UpstreamProtocol string
-	ResponseModel    string
-	FinishReason     string
-	InputTokens      *uint64
-	OutputTokens     *uint64
-	TotalTokens      *uint64
+	ClientModel     string
+	TargetModel     string
+	ServiceProtocol string
+	ResponseModel   string
+	FinishReason    string
+	InputTokens     *uint64
+	OutputTokens    *uint64
+	TotalTokens     *uint64
 }
 
 // Record 是控制台排障使用的单次请求元数据。
 type Record struct {
-	ID               string
-	RequestID        string
-	StartedAt        time.Time
-	Duration         *time.Duration
-	TimeToFirstByte  *time.Duration
-	ClientIP         string
-	Method           string
-	Host             string
-	Path             string
-	StatusCode       uint32
-	Outcome          Outcome
-	RequestBytes     uint64
-	ResponseBytes    uint64
-	GatewayID        string
-	RouteID          string
-	ServiceID        string
-	Protocol         string
-	RejectionReason  RejectionReason
-	UpstreamAttempts uint32
-	UpstreamAddress  string
-	ProxyInstanceID  string
-	CallerID         string
-	AccessKeyID      string
-	ModelCall        *ModelCall
+	ID              string
+	RequestID       string
+	StartedAt       time.Time
+	Duration        *time.Duration
+	TimeToFirstByte *time.Duration
+	ClientIP        string
+	Method          string
+	Host            string
+	Path            string
+	StatusCode      uint32
+	Outcome         Outcome
+	RequestBytes    uint64
+	ResponseBytes   uint64
+	GatewayID       string
+	RouteID         string
+	ServiceID       string
+	Protocol        string
+	RejectionReason RejectionReason
+	ServiceAttempts uint32
+	ServiceAddress  string
+	ProxyInstanceID string
+	CallerID        string
+	AccessKeyID     string
+	ModelCall       *ModelCall
 }
 
 // Summary 是请求记录列表展示所需的最小字段集。

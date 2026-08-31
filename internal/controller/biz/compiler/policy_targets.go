@@ -15,6 +15,7 @@ func (c *compilation) validPolicyTargets(
 	policyKind gatewayv1.Kind,
 	policyID string,
 	targets []gatewayv1.PolicyTargetRef,
+	allowedTargetKinds ...gatewayv1.Kind,
 ) []gatewayv1.PolicyTargetRef {
 	if len(targets) > policyconfig.MaxTargets {
 		c.addResourceError(
@@ -29,9 +30,7 @@ func (c *compilation) validPolicyTargets(
 	validTargets := make([]gatewayv1.PolicyTargetRef, 0, len(targets))
 	seen := make(map[string]bool, len(targets))
 	for _, target := range targets {
-		switch target.Kind {
-		case gatewayv1.KindGateway, gatewayv1.KindRoute:
-		default:
+		if !slices.Contains(allowedTargetKinds, target.Kind) {
 			c.addResourceError(
 				policyKind,
 				policyID,

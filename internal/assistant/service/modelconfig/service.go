@@ -14,13 +14,15 @@ import (
 	modelconfigbiz "github.com/lgc202/ingate/internal/assistant/biz/modelconfig"
 )
 
+var _ assistantv1.ModelConnectionServiceHTTPServer = (*Service)(nil)
+
 // Service 实现模型连接的产品协议。
 type Service struct {
-	connections *modelconfigbiz.Service
+	connections *modelconfigbiz.Usecase
 }
 
 // NewService 创建模型连接协议服务。
-func NewService(connections *modelconfigbiz.Service) *Service {
+func NewService(connections *modelconfigbiz.Usecase) *Service {
 	return &Service{connections: connections}
 }
 

@@ -21,7 +21,7 @@ Ingate 使用官方 Envoy 作为唯一数据平面。控制面把声明式资源
 2. Admin API 完成产品协议校验和业务规则检查，再调用 API Server
 3. API Server 提供资源 CRUD、List/Watch、版本和 Status，并且是 etcd 的唯一访问者
 4. Controller Watch 当前资源集合，编译完整 Envoy Listener、Route、Cluster 和 Secret
-5. 配置通过完整性校验后成为 Active 配置，并通过 xDS 下发到 Envoy
+5. 配置通过完整性校验后作为 Candidate 通过 xDS 下发；所有当前已连接的 Envoy 实例都接受后才成为 Active，任一 NACK 或 ACK 超时都恢复上一个 Active 配置
 6. Controller 把资源是否进入当前有效配置写回 Status
 
 声明式资源是配置事实来源。Controller 不把派生配置或 Last Good 写入 etcd，重启后从资源重新全量编译。

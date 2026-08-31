@@ -23,7 +23,13 @@ func (c *compilation) compileRateLimitPolicies() []compiledRateLimitPolicy {
 	result := make([]compiledRateLimitPolicy, 0, len(c.rateLimitPolicies))
 	for _, policyID := range slices.Sorted(maps.Keys(c.rateLimitPolicies)) {
 		policy := c.rateLimitPolicies[policyID]
-		targets := c.validPolicyTargets(gatewayv1.KindRateLimitPolicy, policyID, policy.Spec.TargetRefs)
+		targets := c.validPolicyTargets(
+			gatewayv1.KindRateLimitPolicy,
+			policyID,
+			policy.Spec.TargetRefs,
+			gatewayv1.KindGateway,
+			gatewayv1.KindRoute,
+		)
 		if !policy.Spec.Enabled {
 			continue
 		}

@@ -21,11 +21,11 @@ func parseForwarding(forwarding *adminv1.RouteForwarding) ([]resource.UpstreamRe
 
 	switch kind := forwarding.GetKind().(type) {
 	case *adminv1.RouteForwarding_Service:
-		upstreamRefs, err := parseServiceTargets(kind.Service.GetTargets())
+		serviceRefs, err := parseServiceTargets(kind.Service.GetTargets())
 		if err != nil {
 			return nil, nil, err
 		}
-		return upstreamRefs, nil, nil
+		return serviceRefs, nil, nil
 	case *adminv1.RouteForwarding_Ai:
 		aiRoute, err := parseAIRoute(kind.Ai)
 		if err != nil {

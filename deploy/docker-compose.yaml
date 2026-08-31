@@ -101,12 +101,12 @@ services:
     environment:
       CLICKHOUSE_DB: ingate
       CLICKHOUSE_USER: ingate
-      CLICKHOUSE_PASSWORD: ingate-dev
+      CLICKHOUSE_PASSWORD: "${INGATE_CLICKHOUSE_PASSWORD:-ingate-dev}"
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - clickhouse-data:/var/lib/clickhouse
     healthcheck:
-      test: ["CMD", "clickhouse-client", "--user", "ingate", "--password", "ingate-dev", "--query", "SELECT 1"]
+      test: ["CMD-SHELL", "clickhouse-client --user ingate --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1'"]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -136,6 +136,8 @@ services:
     depends_on:
       clickhouse:
         condition: service_healthy
+    environment:
+      INGATE_CLICKHOUSE_PASSWORD: "${INGATE_CLICKHOUSE_PASSWORD:-ingate-dev}"
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-analytics.yaml:/opt/ingate/analytics/configs/config.yaml:ro"
     restart: "no"
@@ -150,6 +152,8 @@ services:
         condition: service_healthy
       analytics-migrate:
         condition: service_completed_successfully
+    environment:
+      INGATE_CLICKHOUSE_PASSWORD: "${INGATE_CLICKHOUSE_PASSWORD:-ingate-dev}"
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-analytics.yaml:/opt/ingate/analytics/configs/config.yaml:ro"
     healthcheck:

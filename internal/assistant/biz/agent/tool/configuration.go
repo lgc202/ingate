@@ -107,7 +107,7 @@ func getRouteConfiguration(
 	services := make([]serviceInfo, 0, len(configuration.Services))
 	for _, service := range configuration.Services {
 		serviceNames[service.ID] = service.Name
-		services = append(services, serviceInfoFromResource(service))
+		services = append(services, serviceInfo(service))
 	}
 	targets := make([]routeTargetInfo, 0, len(configuration.Targets))
 	for _, target := range configuration.Targets {

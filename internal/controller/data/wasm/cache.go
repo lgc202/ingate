@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -28,40 +29,77 @@ func (s *Store) cachedSource(
 	ctx context.Context,
 	sourceURL string,
 	expectedSHA string,
-) (compiler.WasmModule, bool) {
+) (compiler.WasmModule, bool, error) {
 	pointerPath := s.sourcePointerPath(sourceURL, expectedSHA)
 	moduleSHA, ok := readSourcePointer(pointerPath)
 	if !ok {
-		return compiler.WasmModule{}, false
+		return compiler.WasmModule{}, false, nil
 	}
 	if !wasmconfig.IsValidSHA256Digest(moduleSHA) {
-		_ = os.Remove(pointerPath)
-		return compiler.WasmModule{}, false
+		if err := removeCacheFile(pointerPath); err != nil {
+			return compiler.WasmModule{}, false, fmt.Errorf("remove invalid Wasm source pointer: %w", err)
+		}
+		return compiler.WasmModule{}, false, nil
 	}
-	if !s.cachedModuleValid(ctx, moduleSHA) {
-		_ = os.Remove(pointerPath)
-		_ = os.Remove(s.modulePath(moduleSHA))
-		return compiler.WasmModule{}, false
+	valid, err := s.cachedModuleValid(ctx, moduleSHA)
+	if err != nil {
+		return compiler.WasmModule{}, false, err
+	}
+	if !valid {
+		if err := removeCacheFile(s.modulePath(moduleSHA)); err != nil {
+			return compiler.WasmModule{}, false, fmt.Errorf("remove invalid cached Wasm module: %w", err)
+		}
+		if err := removeCacheFile(pointerPath); err != nil {
+			return compiler.WasmModule{}, false, fmt.Errorf("remove invalid Wasm source pointer: %w", err)
+		}
+		return compiler.WasmModule{}, false, nil
 	}
 	s.touchModule(moduleSHA)
-	return compiler.WasmModule{Path: s.modulePath(moduleSHA), SHA256: moduleSHA}, true
+	return compiler.WasmModule{Path: s.modulePath(moduleSHA), SHA256: moduleSHA}, true, nil
 }
 
-// cachedModuleValid 在进程重启后首次复用磁盘文件时重新验证内容寻址约束
-// 同一进程已经 Resolve 的模块由内存索引复用，不会在每次资源收敛时重复计算摘要
-func (s *Store) cachedModuleValid(ctx context.Context, moduleSHA string) bool {
-	file, err := os.Open(s.modulePath(moduleSHA))
-	if err != nil {
-		return false
+// cachedModuleValid 在进程重启后首次复用磁盘文件时重新验证内容寻址约束。
+// 同一进程已经 Resolve 的模块由内存索引复用，不会在每次资源收敛时重复计算摘要。
+func (s *Store) cachedModuleValid(ctx context.Context, moduleSHA string) (bool, error) {
+	path := s.modulePath(moduleSHA)
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
 	}
-	moduleBytes, readErr := readModule(file, s.maxModuleSize)
+	if err != nil {
+		return false, fmt.Errorf("inspect cached Wasm module: %w", err)
+	}
+	if !info.Mode().IsRegular() || info.Size() > s.maxModuleSize {
+		return false, nil
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return false, fmt.Errorf("open cached Wasm module: %w", err)
+	}
+	moduleBytes, readErr := io.ReadAll(io.LimitReader(file, s.maxModuleSize+1))
 	closeErr := file.Close()
-	if readErr != nil || closeErr != nil || sha256Digest(moduleBytes) != moduleSHA {
-		return false
+	if readErr != nil {
+		return false, fmt.Errorf("read cached Wasm module: %w", readErr)
+	}
+	if closeErr != nil {
+		return false, fmt.Errorf("close cached Wasm module: %w", closeErr)
+	}
+	if int64(len(moduleBytes)) > s.maxModuleSize {
+		return false, nil
+	}
+	if sha256Digest(moduleBytes) != moduleSHA {
+		return false, nil
 	}
 	validationCtx, cancel := context.WithTimeout(ctx, s.pullTimeout)
 	defer cancel()
-	return validateWasm(validationCtx, moduleBytes) == nil
+	if err := validateWasm(validationCtx, moduleBytes); err != nil {
+		if validationCtx.Err() != nil {
+			return false, fmt.Errorf("validate cached Wasm module: %w", validationCtx.Err())
+		}
+		return false, nil
+	}
+	return true, nil
 }
 
 func (s *Store) moduleExists(moduleSHA string) bool {
@@ -80,6 +118,14 @@ func readSourcePointer(path string) (string, bool) {
 		return "", false
 	}
 	return strings.TrimSpace(string(pointer)), true
+}
+
+func removeCacheFile(path string) error {
+	err := os.Remove(path)
+	if err == nil || errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
 }
 
 func (s *Store) touchModule(moduleSHA string) {

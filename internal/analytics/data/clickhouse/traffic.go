@@ -110,7 +110,11 @@ func (s *Store) QueryTrafficTrend(
 		trafficAggregates,
 		s.minuteMetricsTable,
 	)
-	args := []any{query.Filter.StartTime, query.Filter.EndTime}
+	args := []any{
+		query.Filter.StartTime.UnixNano(),
+		query.Filter.StartTime,
+		query.Filter.EndTime,
+	}
 	args = appendTrafficFilters(&statement, args, query.Filter)
 	statement.WriteString(" GROUP BY bucket ORDER BY bucket")
 
@@ -368,18 +372,22 @@ func appendTrafficFilters(statement *strings.Builder, args []any, filter traffic
 
 // timeBucketExpression 把受控枚举映射为 ClickHouse 时间分桶表达式。
 func timeBucketExpression(bucket traffic.TimeBucket) (string, error) {
+	var expression string
 	switch bucket {
 	case traffic.TimeBucketMinute:
-		return "started_at", nil
+		expression = "started_at"
 	case traffic.TimeBucketFiveMinutes:
-		return "toStartOfInterval(started_at, INTERVAL 5 MINUTE)", nil
+		expression = "toStartOfInterval(started_at, INTERVAL 5 MINUTE)"
 	case traffic.TimeBucketHour:
-		return "toStartOfHour(started_at)", nil
+		expression = "toStartOfHour(started_at)"
 	case traffic.TimeBucketDay:
-		return "toStartOfDay(started_at)", nil
+		expression = "toStartOfDay(started_at)"
 	default:
 		return "", fmt.Errorf("unsupported traffic time bucket %d", bucket)
 	}
+	// 自然时间桶的首个部分桶可能早于查询起点。用实际覆盖起点作为标签，
+	// 既保留 UTC 自然桶，也保证所有返回点都位于左闭右开的查询范围内。
+	return "greatest(" + expression + ", fromUnixTimestamp64Nano(?, 'UTC'))", nil
 }
 
 // trafficDimensionColumn 把受控资源维度映射为 ClickHouse 列名。

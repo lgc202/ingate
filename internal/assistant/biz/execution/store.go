@@ -7,10 +7,10 @@ import (
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 )
 
-// ServiceStore 是面向 HTTP API 的持久化边界。
+// Store 是执行 Usecase 需要的持久化边界。
 // 它只暴露用户能够发起的操作，
 // 不把后台任务的领取、租约和终态提交能力带入请求链路。
-type ServiceStore interface {
+type Store interface {
 	CreateExecution(context.Context, string, string, string) (Execution, error)
 	GetExecution(context.Context, string, string) (Execution, error)
 	ListExecutionSteps(context.Context, string, string) ([]Step, error)

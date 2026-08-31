@@ -14,7 +14,7 @@ func (c *Client) ListServices(
 	ctx context.Context,
 	query agenttool.ResourceListQuery,
 ) (agenttool.ServicePage, error) {
-	result, err := c.services.ListUpstreams(ctx, &adminv1.ListUpstreamsRequest{
+	result, err := c.services.ListServices(ctx, &adminv1.ListServicesRequest{
 		Query: query.Text,
 		Limit: query.Limit,
 	})
@@ -25,8 +25,8 @@ func (c *Client) ListServices(
 		return agenttool.ServicePage{}, errors.New("list services from Admin API: empty response")
 	}
 
-	services := make([]agenttool.Service, 0, len(result.GetUpstreams()))
-	for _, service := range result.GetUpstreams() {
+	services := make([]agenttool.Service, 0, len(result.GetServices()))
+	for _, service := range result.GetServices() {
 		if err := validateServiceResponse(service); err != nil {
 			return agenttool.ServicePage{}, err
 		}
@@ -38,7 +38,7 @@ func (c *Client) ListServices(
 	}, nil
 }
 
-func serviceFromAPI(service *adminv1.Upstream) agenttool.Service {
+func serviceFromAPI(service *adminv1.Service) agenttool.Service {
 	return agenttool.Service{
 		ID:            service.GetId(),
 		Name:          service.GetName(),
@@ -51,7 +51,7 @@ func serviceFromAPI(service *adminv1.Upstream) agenttool.Service {
 	}
 }
 
-func serviceType(service *adminv1.Upstream) string {
+func serviceType(service *adminv1.Service) string {
 	if service.GetModel() != nil {
 		return "model"
 	}
@@ -69,7 +69,7 @@ func modelProtocol(protocol adminv1.ModelProtocol) string {
 	}
 }
 
-func validateServiceResponse(service *adminv1.Upstream) error {
+func validateServiceResponse(service *adminv1.Service) error {
 	if service == nil || !validResourceID(service.GetId()) || service.GetName() == "" ||
 		len(service.GetEndpoints()) == 0 {
 		return errors.New("invalid service returned by Admin API")

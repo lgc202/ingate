@@ -27,9 +27,9 @@ const (
 	maxStreamEventIDBytes   = 64
 )
 
-// executionStreamHandler 负责执行事件的 SSE 路由、连接生命周期和边界日志。
-type executionStreamHandler struct {
-	executions *executionbiz.Service
+// StreamHandler 负责执行事件的 SSE 路由、连接生命周期和边界日志。
+type StreamHandler struct {
+	executions *executionbiz.Usecase
 	config     *conf.Stream
 	logger     *slog.Logger
 }
@@ -41,11 +41,11 @@ type sseWriter struct {
 
 // NewStreamHandler 创建 Assistant 事件流处理器，供进程装配层注入 HTTP Server。
 func NewStreamHandler(
-	executions *executionbiz.Service,
+	executions *executionbiz.Usecase,
 	config *conf.Stream,
 	logger *slog.Logger,
-) *executionStreamHandler {
-	return &executionStreamHandler{executions: executions, config: config, logger: logger}
+) *StreamHandler {
+	return &StreamHandler{executions: executions, config: config, logger: logger}
 }
 
 func newSSEWriter(response http.ResponseWriter) (*sseWriter, error) {
@@ -56,12 +56,12 @@ func newSSEWriter(response http.ResponseWriter) (*sseWriter, error) {
 	return &sseWriter{response: response, flusher: flusher}, nil
 }
 
-func (h *executionStreamHandler) register(server *kratoshttp.Server) {
+func (h *StreamHandler) register(server *kratoshttp.Server) {
 	router := server.Route("/")
 	router.GET("/assistant/v1/executions/{id}/events", h.events)
 }
 
-func (h *executionStreamHandler) events(ctx kratoshttp.Context) error {
+func (h *StreamHandler) events(ctx kratoshttp.Context) error {
 	actorID, err := identity.ValidateActorID(ctx.Request().Header.Get(adminidentity.Header))
 	if err != nil {
 		return err
@@ -171,7 +171,7 @@ func terminalEvent(item executionbiz.Execution) (executionbiz.StreamEvent, bool)
 	}
 }
 
-func (h *executionStreamHandler) logReadFailure(
+func (h *StreamHandler) logReadFailure(
 	ctx context.Context,
 	request *http.Request,
 	executionID string,
@@ -189,7 +189,7 @@ func (h *executionStreamHandler) logReadFailure(
 
 func (w *sseWriter) start() {
 	w.response.Header().Set("Content-Type", "text/event-stream")
-	w.response.Header().Set("Cache-Control", "no-cache")
+	w.response.Header().Set("Cache-Control", "no-cache, no-store")
 	w.response.Header().Set("X-Accel-Buffering", "no")
 	w.response.WriteHeader(http.StatusOK)
 	w.flusher.Flush()

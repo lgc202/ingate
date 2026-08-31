@@ -12,6 +12,8 @@ import (
 	"github.com/lgc202/ingate/internal/assistant/biz"
 	"github.com/lgc202/ingate/internal/assistant/conf"
 	"github.com/lgc202/ingate/internal/assistant/data"
+	"github.com/lgc202/ingate/internal/assistant/data/mysql"
+	redisdata "github.com/lgc202/ingate/internal/assistant/data/redis"
 	"github.com/lgc202/ingate/internal/assistant/server"
 	"github.com/lgc202/ingate/internal/assistant/service"
 )
@@ -32,6 +34,8 @@ func wireApp(
 		biz.ProviderSet,
 		service.ProviderSet,
 		server.ProviderSet,
+		wire.Bind(new(server.DatabasePinger), new(*mysql.Store)),
+		wire.Bind(new(server.EventStorePinger), new(*redisdata.EventStore)),
 		newKratosApp,
 	))
 }

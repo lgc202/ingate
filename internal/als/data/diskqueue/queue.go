@@ -38,7 +38,7 @@ type pendingUsage struct {
 // 启动时扫描未确认记录恢复计数；队列损坏会直接阻止服务启动，
 // 避免悄悄跳过尚未投递的数据。
 func NewQueue(config *conf.Data_DiskQueue) (*Queue, error) {
-	log, err := wal.Open(config.GetPath(), &wal.Options{
+	queueLog, err := wal.Open(config.GetPath(), &wal.Options{
 		NoSync:           !config.GetSync(),
 		SegmentSize:      int(config.GetSegmentBytes()),
 		LogFormat:        wal.Binary,
@@ -48,12 +48,14 @@ func NewQueue(config *conf.Data_DiskQueue) (*Queue, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open disk queue: %w", err)
 	}
-	usage, err := scanPendingUsage(log)
+	usage, err := scanPendingUsage(queueLog)
 	if err != nil {
-		_ = log.Close()
+		if closeErr := queueLog.Close(); closeErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("close disk queue after scan failed: %w", closeErr))
+		}
 		return nil, err
 	}
-	queue := &Queue{log: log, maxBytes: config.GetMaxBytes()}
+	queue := &Queue{log: queueLog, maxBytes: config.GetMaxBytes()}
 	queue.pending.Store(&usage)
 	return queue, nil
 }
@@ -76,7 +78,8 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 	if err != nil {
 		return fmt.Errorf("read last queue index: %w", err)
 	}
-	if uint64(len(records)) > math.MaxUint64-last {
+	// 最大序列号留作 TruncateFront 清空队列时的右边界，避免确认位置加一溢出。
+	if uint64(len(records)) >= math.MaxUint64-last {
 		return errors.New("disk queue sequence is exhausted")
 	}
 	usage := q.pending.Load()
@@ -207,21 +210,24 @@ func (q *Queue) Pending() (int64, int64) {
 
 // Close 将磁盘队列缓冲同步并关闭文件。
 func (q *Queue) Close() error {
-	return q.log.Close()
+	if err := q.log.Close(); err != nil {
+		return fmt.Errorf("close disk queue: %w", err)
+	}
+	return nil
 }
 
-func scanPendingUsage(log *wal.Log) (pendingUsage, error) {
-	first, err := log.FirstIndex()
+func scanPendingUsage(queueLog *wal.Log) (pendingUsage, error) {
+	first, err := queueLog.FirstIndex()
 	if err != nil {
 		return pendingUsage{}, fmt.Errorf("read first queue index: %w", err)
 	}
-	last, err := log.LastIndex()
+	last, err := queueLog.LastIndex()
 	if err != nil {
 		return pendingUsage{}, fmt.Errorf("read last queue index: %w", err)
 	}
 	var usage pendingUsage
 	for index := first; index <= last; index++ {
-		value, err := log.Read(index)
+		value, err := queueLog.Read(index)
 		if err != nil {
 			return pendingUsage{}, fmt.Errorf("read disk queue sequence %d: %w", index, err)
 		}

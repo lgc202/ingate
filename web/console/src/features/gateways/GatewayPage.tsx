@@ -26,7 +26,6 @@ import { formatDateTime, resourceStateLabel, resourceStateTone, type ResourceSta
 import type { Gateway, GatewayListener, GatewayProtocol } from '@/domain/gateway';
 import { gatewayProtocolLabel } from '@/domain/gateway';
 import type { PolicyWorkspace } from '@/domain/policy';
-import { policyTargetsResource } from '@/domain/policy';
 import { GovernancePolicyPanel } from '@/features/policies/GovernancePolicyPanel';
 import { ResourceTrafficSignal, useResourceTrafficOverview } from '@/features/traffic/ResourceTrafficSignal';
 import { ResourceTrafficSummary } from '@/features/traffic/ResourceTrafficSummary';
@@ -79,7 +78,6 @@ export function GatewayPage() {
 
   const certificateList = certificates.data?.certificates ?? [];
   const referencingRoutes = (gatewayID: string) => routes.data?.routes.filter((route) => route.gatewayIDs.includes(gatewayID)) ?? [];
-  const referencingPolicies = (gatewayID: string) => policies.data?.policies.filter((policy) => policyTargetsResource(policy, 'Gateway', gatewayID)) ?? [];
   const setDetail = (gateway?: Gateway) => {
     const next = new URLSearchParams(searchParams);
     if (gateway) next.set('detail', gateway.id);

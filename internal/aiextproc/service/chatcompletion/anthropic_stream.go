@@ -179,7 +179,10 @@ func (s *AnthropicStream) convertEvent(event []byte) ([]byte, bool, error) {
 			return nil, false, fmt.Errorf("unmarshal anthropic content_block_delta: %w", err)
 		}
 		if delta.Delta.Type != "text_delta" {
-			return nil, false, nil
+			return nil, false, fmt.Errorf(
+				"anthropic stream contains unsupported content delta %q",
+				delta.Delta.Type,
+			)
 		}
 		role := ""
 		if !s.roleSent {
@@ -187,6 +190,30 @@ func (s *AnthropicStream) convertEvent(event []byte) ([]byte, bool, error) {
 			s.roleSent = true
 		}
 		return s.textChunk(role, delta.Delta.Text)
+
+	case "content_block_start":
+		if !s.started {
+			return nil, false, errors.New("anthropic content_block_start preceded message_start")
+		}
+		var start anthropic.ContentBlockStartEvent
+		if err := json.Unmarshal(data, &start); err != nil {
+			return nil, false, fmt.Errorf("unmarshal anthropic content_block_start: %w", err)
+		}
+		if start.ContentBlock.Type != "text" {
+			return nil, false, fmt.Errorf(
+				"anthropic stream contains unsupported content block %q",
+				start.ContentBlock.Type,
+			)
+		}
+		if start.ContentBlock.Text == "" {
+			return nil, false, nil
+		}
+		role := ""
+		if !s.roleSent {
+			role = "assistant"
+			s.roleSent = true
+		}
+		return s.textChunk(role, start.ContentBlock.Text)
 
 	case "message_delta":
 		if !s.started {
@@ -240,7 +267,7 @@ func (s *AnthropicStream) convertEvent(event []byte) ([]byte, bool, error) {
 		s.finished = true
 		return output, false, nil
 
-	case "ping", "content_block_start", "content_block_stop":
+	case "ping", "content_block_stop":
 		return nil, false, nil
 
 	default:

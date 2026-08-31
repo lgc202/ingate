@@ -12,8 +12,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/lgc202/ingate/internal/analytics/conf"
-	"github.com/lgc202/ingate/internal/analytics/data/clickhouse"
 )
+
+// StorePinger 定义 Analytics 就绪检查所需的请求存储连通性。
+type StorePinger interface {
+	Ping(context.Context) error
+}
 
 type pinger interface {
 	Ping(context.Context) error
@@ -23,7 +27,7 @@ type pinger interface {
 func NewHTTPServer(
 	config *conf.Server,
 	consumer *RequestConsumer,
-	clickHouse *clickhouse.Store,
+	store StorePinger,
 ) *kratoshttp.Server {
 	httpConfig := config.GetHttp()
 	server := kratoshttp.NewServer(
@@ -32,7 +36,7 @@ func NewHTTPServer(
 		kratoshttp.Timeout(httpConfig.GetTimeout().AsDuration()),
 	)
 	server.HandleFunc("/healthz", health)
-	server.HandleFunc("/readyz", ready(httpConfig.GetTimeout().AsDuration(), consumer, clickHouse))
+	server.HandleFunc("/readyz", ready(httpConfig.GetTimeout().AsDuration(), consumer, store))
 	server.Handle("/metrics", metricsHandler(consumer.counters))
 	return server
 }
@@ -104,5 +108,6 @@ func metricsHandler(counters func() requestCounters) http.Handler {
 func writeJSON(response http.ResponseWriter, statusCode int, value any) {
 	response.Header().Set("Content-Type", "application/json")
 	response.WriteHeader(statusCode)
+	// 响应头已经发出，客户端断开导致的编码错误无法再转换为另一份 HTTP 响应。
 	_ = json.NewEncoder(response).Encode(value)
 }

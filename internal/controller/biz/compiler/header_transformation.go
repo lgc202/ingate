@@ -44,7 +44,12 @@ func (c *compilation) compileHeaderTransformationPolicies() []compiledHeaderTran
 	result := make([]compiledHeaderTransformationPolicy, 0, len(c.headerTransformationPolicies))
 	for _, policyID := range slices.Sorted(maps.Keys(c.headerTransformationPolicies)) {
 		policy := c.headerTransformationPolicies[policyID]
-		targets := c.validPolicyTargets(gatewayv1.KindHeaderTransformationPolicy, policyID, policy.Spec.TargetRefs)
+		targets := c.validPolicyTargets(
+			gatewayv1.KindHeaderTransformationPolicy,
+			policyID,
+			policy.Spec.TargetRefs,
+			gatewayv1.KindRoute,
+		)
 		if !policy.Spec.Enabled {
 			continue
 		}

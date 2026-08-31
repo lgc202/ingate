@@ -893,8 +893,9 @@ func (x *ListConversationsResponse) GetNextCursor() string {
 
 // GetConversationRequest 指定当前管理员要读取的会话。
 type GetConversationRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是目标会话标识。
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1038,8 +1039,9 @@ func (x *UpdateConversationRequest) GetTitle() string {
 
 // DeleteConversationRequest 指定要删除的会话。
 type DeleteConversationRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是目标会话标识。
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1147,8 +1149,9 @@ func (x *ListMessagesRequest) GetCursor() string {
 
 // ListMessagesResponse 返回一页持久消息和后续游标。
 type ListMessagesResponse struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	Messages []*Message             `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// messages 按创建时间正序排列。
+	Messages []*Message `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
 	// next_cursor 为空时表示没有下一页。
 	NextCursor    string `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1201,8 +1204,9 @@ func (x *ListMessagesResponse) GetNextCursor() string {
 
 // GetAgentExecutionRequest 指定要查询的执行。
 type GetAgentExecutionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是目标执行标识。
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1246,8 +1250,9 @@ func (x *GetAgentExecutionRequest) GetId() string {
 
 // ListAgentExecutionStepsRequest 指定要查询执行步骤的执行。
 type ListAgentExecutionStepsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ExecutionId   string                 `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// execution_id 是目标执行标识。
+	ExecutionId   string `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1291,8 +1296,9 @@ func (x *ListAgentExecutionStepsRequest) GetExecutionId() string {
 
 // ListAgentExecutionStepsResponse 按 sequence 返回已经持久化的步骤。
 type ListAgentExecutionStepsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Steps         []*AgentExecutionStep  `protobuf:"bytes,1,rep,name=steps,proto3" json:"steps,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// steps 按执行内的稳定序号排列。
+	Steps         []*AgentExecutionStep `protobuf:"bytes,1,rep,name=steps,proto3" json:"steps,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1391,8 +1397,9 @@ func (x *CreateAgentExecutionRequest) GetContent() string {
 
 // CancelAgentExecutionRequest 指定要取消的排队中或运行中执行。
 type CancelAgentExecutionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是目标执行标识。
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1579,7 +1586,8 @@ type UpdateModelConnectionRequest struct {
 	// timeout_seconds 是单次模型请求超时。
 	TimeoutSeconds uint32 `protobuf:"varint,7,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
 	// max_output_tokens 是单次回答允许生成的最大 Token 数。
-	MaxOutputTokens       uint32 `protobuf:"varint,8,opt,name=max_output_tokens,json=maxOutputTokens,proto3" json:"max_output_tokens,omitempty"`
+	MaxOutputTokens uint32 `protobuf:"varint,8,opt,name=max_output_tokens,json=maxOutputTokens,proto3" json:"max_output_tokens,omitempty"`
+	// reasoning_budget_tokens 是 Anthropic 扩展思考预算，0 表示关闭。
 	ReasoningBudgetTokens uint32 `protobuf:"varint,9,opt,name=reasoning_budget_tokens,json=reasoningBudgetTokens,proto3" json:"reasoning_budget_tokens,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache

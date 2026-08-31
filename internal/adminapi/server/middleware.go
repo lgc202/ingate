@@ -26,13 +26,12 @@ func serverMiddleware(logger *slog.Logger) []middleware.Middleware {
 }
 
 func recoveryMiddleware(logger *slog.Logger) middleware.Middleware {
-	// Kratos recovery 会记录完整请求；管理请求可能包含证书私钥，因此只记录 panic 和堆栈。
+	// Kratos recovery 会记录完整请求；管理请求可能包含证书私钥，因此只记录堆栈。
 	return func(next middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, request any) (reply any, err error) {
 			defer func() {
-				if recovered := recover(); recovered != nil {
+				if recover() != nil {
 					logger.ErrorContext(ctx, "panic recovered",
-						"panic", recovered,
 						"stack", string(debug.Stack()),
 					)
 					err = kerrors.InternalServer(

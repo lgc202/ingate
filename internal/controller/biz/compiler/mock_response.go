@@ -35,7 +35,12 @@ func (c *compilation) compileMockResponsePolicies() []compiledMockResponsePolicy
 	result := make([]compiledMockResponsePolicy, 0, len(c.mockResponsePolicies))
 	for _, policyID := range slices.Sorted(maps.Keys(c.mockResponsePolicies)) {
 		policy := c.mockResponsePolicies[policyID]
-		targets := c.validPolicyTargets(gatewayv1.KindMockResponsePolicy, policyID, policy.Spec.TargetRefs)
+		targets := c.validPolicyTargets(
+			gatewayv1.KindMockResponsePolicy,
+			policyID,
+			policy.Spec.TargetRefs,
+			gatewayv1.KindRoute,
+		)
 		if !policy.Spec.Enabled {
 			continue
 		}

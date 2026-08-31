@@ -19,15 +19,15 @@ const (
 	maxLimit     = 100
 )
 
+var _ assistantv1.ConversationServiceHTTPServer = (*Service)(nil)
+
 // Service 实现助手会话和消息查询协议。
 type Service struct {
-	assistantv1.UnimplementedConversationServiceServer
-
-	conversations *conversationbiz.Service
+	conversations *conversationbiz.Usecase
 }
 
 // NewService 创建会话协议服务。
-func NewService(conversations *conversationbiz.Service) *Service {
+func NewService(conversations *conversationbiz.Usecase) *Service {
 	return &Service{conversations: conversations}
 }
 

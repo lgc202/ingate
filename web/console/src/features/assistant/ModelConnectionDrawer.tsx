@@ -77,7 +77,7 @@ export function ModelConnectionDrawer({ connection, open, onClose, onSaved }: Mo
           ? form.reasoningBudgetTokens
           : 0,
       };
-      if (form.apiKey.trim()) input.apiKey = form.apiKey.trim();
+      if (form.apiKey) input.apiKey = form.apiKey;
       onSaved(await updateModelConnection(input));
       onClose();
     } catch (cause) {
@@ -161,6 +161,7 @@ export function ModelConnectionDrawer({ connection, open, onClose, onSaved }: Mo
               <input
                 className="input"
                 value={form.model}
+                maxLength={160}
                 placeholder="例如 qwen-max"
                 onChange={(event) => setForm((current) => ({ ...current, model: event.target.value }))}
               />
@@ -171,6 +172,7 @@ export function ModelConnectionDrawer({ connection, open, onClose, onSaved }: Mo
                 className="input"
                 type="url"
                 value={form.endpoint}
+                maxLength={2048}
                 placeholder={form.mode === 'MODEL_CONNECTION_MODE_INGATE'
                   ? '例如 http://envoy:8080/v1'
                   : '模型服务的 API 地址'}
@@ -184,6 +186,7 @@ export function ModelConnectionDrawer({ connection, open, onClose, onSaved }: Mo
                 type="password"
                 autoComplete="new-password"
                 value={form.apiKey}
+                maxLength={4096}
                 disabled={form.clearApiKey}
                 placeholder={connection.apiKeyConfigured ? '已配置，留空表示不修改' : '未配置'}
                 onChange={(event) => setForm((current) => ({ ...current, apiKey: event.target.value }))}
@@ -302,12 +305,29 @@ function validateConnection(form: ConnectionForm): string {
   if (!form.model.trim()) return '请输入模型名称';
   if (!form.endpoint.trim()) return '请输入服务地址';
   try {
-    new URL(form.endpoint.trim());
+    const endpoint = new URL(form.endpoint.trim());
+    if ((endpoint.protocol !== 'http:' && endpoint.protocol !== 'https:')
+      || endpoint.username
+      || endpoint.password
+      || endpoint.search
+      || endpoint.hash) {
+      return '服务地址必须是不含凭据、查询参数或片段的 HTTP 地址';
+    }
   } catch {
     return '服务地址格式不正确';
   }
-  if (form.timeoutSeconds < 1 || form.timeoutSeconds > 1800) return '请求超时必须在 1 到 1800 秒之间';
-  if (form.maxOutputTokens < 1 || form.maxOutputTokens > 1000000) return '最大输出 Token 超出有效范围';
+  if (form.endpoint.trim().length > 2048) return '服务地址不能超过 2048 个字符';
+  if (form.model.trim().length > 160) return '模型名称不能超过 160 个字符';
+  if (form.apiKey.length > 4096) return '访问密钥不能超过 4096 个字符';
+  if (!Number.isInteger(form.timeoutSeconds) || form.timeoutSeconds < 1 || form.timeoutSeconds > 1800) {
+    return '请求超时必须是 1 到 1800 之间的整数秒';
+  }
+  if (!Number.isInteger(form.maxOutputTokens)
+    || form.maxOutputTokens < 1
+    || form.maxOutputTokens > 1000000) {
+    return '最大输出 Token 必须是 1 到 1000000 之间的整数';
+  }
+  if (!Number.isInteger(form.reasoningBudgetTokens)) return '思考预算 Token 必须是整数';
   if (form.mode === 'MODEL_CONNECTION_MODE_DIRECT'
     && form.protocol === 'MODEL_PROTOCOL_ANTHROPIC'
     && form.reasoningBudgetTokens !== 0

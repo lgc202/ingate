@@ -107,15 +107,18 @@ func (c *Callbacks) OnStreamClosed(streamID int64, _ *corev3.Node) {
 	}
 }
 
-// OnStreamRequest 注册 Node，并按最新已发送 nonce 分类 ACK/NACK。
+// OnStreamRequest 在首个请求注册 Node，并按最新已发送 nonce 分类 ACK/NACK。
 func (c *Callbacks) OnStreamRequest(streamID int64, request *discoveryv3.DiscoveryRequest) error {
 	nodeID := request.GetNode().GetId()
-	if nodeID == "" {
-		return fmt.Errorf("xDS stream %d requires a non-empty node ID", streamID)
-	}
-
 	c.mu.Lock()
 	registeredNodeID, registered := c.streamNodes[streamID]
+	if nodeID == "" {
+		if !registered {
+			c.mu.Unlock()
+			return fmt.Errorf("xDS stream %d requires a non-empty node ID in its first request", streamID)
+		}
+		nodeID = registeredNodeID
+	}
 	if registered && registeredNodeID != nodeID {
 		c.mu.Unlock()
 		return fmt.Errorf("xDS stream %d is registered for node %q, got %q", streamID, registeredNodeID, nodeID)

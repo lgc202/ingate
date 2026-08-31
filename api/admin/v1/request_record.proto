@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package ingate.admin.v1;
 
-import "admin/v1/upstream.proto";
+import "admin/v1/service.proto";
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/duration.proto";
@@ -48,8 +48,8 @@ enum RequestRejectionReason {
 message AIModelCall {
   // client_model 是调用方请求中使用的稳定模型名
   string client_model = 1;
-  // upstream_model 是 AI Route 选中线路配置的真实模型名
-  string upstream_model = 2;
+  // target_model 是 AI Route 选中目标所配置的实际模型名
+  string target_model = 2;
   // protocol 是模型 Service 使用的厂商 API 协议
   ModelProtocol protocol = 3;
   // response_model 是模型服务在响应中声明的模型名
@@ -104,10 +104,10 @@ message RequestRecord {
   string protocol = 17;
   // rejection_reason 是网关主动拒绝请求时可向用户解释的原因
   RequestRejectionReason rejection_reason = 18;
-  // upstream_attempts 是包含首次转发在内的服务请求次数
-  uint32 upstream_attempts = 19;
-  // upstream_address 是最终处理请求的服务地址
-  string upstream_address = 20;
+  // service_attempts 是包含首次转发在内的服务请求次数
+  uint32 service_attempts = 19;
+  // service_address 是最终处理请求的服务地址
+  string service_address = 20;
   // proxy_instance_id 是处理请求的数据面实例标识
   string proxy_instance_id = 21 [json_name = "proxyInstanceID"];
   // ai_model_call 仅在请求经过 AI Route 时存在

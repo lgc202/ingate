@@ -10,6 +10,8 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
+const contentSecurityPolicy = "default-src 'self'; base-uri 'none'; connect-src 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+
 // responseState 记录响应是否已经开始，并保留代理流式响应需要的 Flush 能力。
 type responseState struct {
 	http.ResponseWriter
@@ -52,6 +54,19 @@ func requestID() kratoshttp.FilterFunc {
 	}
 }
 
+func browserSecurity() kratoshttp.FilterFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			response.Header().Set("Content-Security-Policy", contentSecurityPolicy)
+			response.Header().Set("Permissions-Policy", "camera=(), geolocation=(), microphone=()")
+			response.Header().Set("Referrer-Policy", "no-referrer")
+			response.Header().Set("X-Content-Type-Options", "nosniff")
+			response.Header().Set("X-Frame-Options", "DENY")
+			next.ServeHTTP(response, request)
+		})
+	}
+}
+
 func recovery(logger *slog.Logger) kratoshttp.FilterFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
@@ -63,7 +78,6 @@ func recovery(logger *slog.Logger) kratoshttp.FilterFunc {
 						"request_id", request.Header.Get(requestid.Header),
 						"method", request.Method,
 						"path", request.URL.Path,
-						"panic", recovered,
 						"stack", string(debug.Stack()),
 					)
 					if !state.headerWritten {

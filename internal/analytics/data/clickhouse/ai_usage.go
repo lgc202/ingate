@@ -76,7 +76,11 @@ func (s *Store) QueryAIUsageTrend(
 		aiUsageAggregates,
 		s.modelUsageTable,
 	)
-	args := []any{query.Filter.StartTime, query.Filter.EndTime}
+	args := []any{
+		query.Filter.StartTime.UnixNano(),
+		query.Filter.StartTime,
+		query.Filter.EndTime,
+	}
 	args = appendAIUsageFilters(&statement, args, query.Filter)
 	statement.WriteString(" GROUP BY bucket ORDER BY bucket")
 
@@ -222,18 +226,21 @@ func appendAIUsageFilters(statement *strings.Builder, args []any, filter aiusage
 }
 
 func aiUsageTimeBucketExpression(bucket aiusage.TimeBucket) (string, error) {
+	var expression string
 	switch bucket {
 	case aiusage.TimeBucketMinute:
-		return "started_at", nil
+		expression = "started_at"
 	case aiusage.TimeBucketFiveMinutes:
-		return "toStartOfInterval(started_at, INTERVAL 5 MINUTE)", nil
+		expression = "toStartOfInterval(started_at, INTERVAL 5 MINUTE)"
 	case aiusage.TimeBucketHour:
-		return "toStartOfHour(started_at)", nil
+		expression = "toStartOfHour(started_at)"
 	case aiusage.TimeBucketDay:
-		return "toStartOfDay(started_at)", nil
+		expression = "toStartOfDay(started_at)"
 	default:
 		return "", fmt.Errorf("unsupported AI usage time bucket %d", bucket)
 	}
+	// 首个自然时间桶可能只覆盖查询起点之后的一部分，用实际覆盖起点作为标签。
+	return "greatest(" + expression + ", fromUnixTimestamp64Nano(?, 'UTC'))", nil
 }
 
 func aiUsageDimensionColumn(dimension aiusage.Dimension) (string, error) {

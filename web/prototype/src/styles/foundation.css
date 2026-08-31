@@ -1,0 +1,62 @@
+:root {
+  color-scheme: light;
+  font-family:
+    "Avenir Next", "IBM Plex Sans", "Noto Sans SC", "PingFang SC", sans-serif;
+  color: #242729;
+  background: #eeece5;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+  --ink: #242729;
+  --muted: #777b79;
+  --faint: #a3a5a0;
+  --canvas: #f3f1ea;
+  --paper: #fffef9;
+  --paper-2: #f8f6ef;
+  --line: #ddd9cf;
+  --line-dark: #cac5b9;
+  --charcoal: #1b1e20;
+  --charcoal-2: #25292b;
+  --orange: #ed693c;
+  --orange-soft: #fff0e8;
+  --blue: #3555b7;
+  --blue-soft: #edf1ff;
+  --teal: #287a6c;
+  --teal-soft: #e8f5f1;
+  --amber: #a66520;
+  --amber-soft: #fff4de;
+  --red: #b6463a;
+  --red-soft: #ffebe7;
+  --shadow: 0 10px 32px rgba(39, 38, 34, 0.07);
+  --shadow-float: 0 28px 70px rgba(24, 26, 27, 0.22);
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--canvas);
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(53, 85, 183, 0.45);
+  outline-offset: 2px;
+}
+code {
+  font-family: "SFMono-Regular", Consolas, monospace;
+}

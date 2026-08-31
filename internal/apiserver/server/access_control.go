@@ -48,7 +48,7 @@ func configureAccessControl(
 		readyzPath,
 	})
 	if err != nil {
-		return fmt.Errorf("create API Server health authorizer: %w", err)
+		return fmt.Errorf("create API server health authorizer: %w", err)
 	}
 	config.Authorization.Authorizer = authorizerunion.New(
 		healthAuthorizer,

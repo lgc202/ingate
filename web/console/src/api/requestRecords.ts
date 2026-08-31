@@ -1,8 +1,8 @@
 import { apiRequest, setQueryParameter } from './client';
+import { listCallers } from './callers';
 import { listGateways } from './gateways';
 import { listRoutes } from './routes';
-import { listUpstreams } from './upstreams';
-import { listCallers } from './callers';
+import { listServices } from './services';
 import type {
   RequestRecord,
   RequestRecordFilters,
@@ -45,11 +45,16 @@ export async function getRequestRecord(id: string, startedAt: string): Promise<R
 }
 
 export async function getRequestRecordWorkspace(): Promise<RequestRecordWorkspace> {
-  const [gateways, routes, services, callers] = await Promise.all([listGateways(), listRoutes(), listUpstreams(), listCallers()]);
+  const [gateways, routes, services, callers] = await Promise.all([
+    listGateways(),
+    listRoutes(),
+    listServices(),
+    listCallers(),
+  ]);
   return {
     gateways: gateways.gateways.map(({ id, name }) => ({ id, name })),
     routes: routes.routes.map(({ id, name, accessMode }) => ({ id, name, accessMode })),
-    services: services.upstreams.map(({ id, name }) => ({ id, name })),
+    services: services.services.map(({ id, name }) => ({ id, name })),
     callers: callers.map(({ id, name, accessKeys }) => ({
       id,
       name,

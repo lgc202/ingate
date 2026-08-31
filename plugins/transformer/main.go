@@ -84,10 +84,12 @@ type httpContext struct {
 	responseOperations []headerOperation
 }
 
+// NewPluginContext 为每个 Root ID 创建独立插件上下文。
 func (*vmContext) NewPluginContext(uint32) types.PluginContext {
 	return &pluginContext{}
 }
 
+// OnPluginStart 读取并校验当前插件实例的 Header 转换配置。
 func (p *pluginContext) OnPluginStart(int) types.OnPluginStartStatus {
 	rawConfig, err := proxywasm.GetPluginConfiguration()
 	if err != nil {
@@ -116,7 +118,7 @@ func (p *pluginContext) OnPluginStart(int) types.OnPluginStartStatus {
 	return types.OnPluginStartStatusOK
 }
 
-// NewHttpContext 为每条 HTTP 流创建独立上下文
+// NewHttpContext 为每条 HTTP 流创建独立上下文。
 //
 //nolint:staticcheck // 方法名由 Proxy-Wasm SDK 接口定义，不能按 Go 缩写规则改名
 func (p *pluginContext) NewHttpContext(uint32) types.HttpContext {
@@ -248,7 +250,7 @@ func (o operation) compile(rule headerRule) (headerOperation, error) {
 	return headerOperation{kind: o, key: key, value: value}, nil
 }
 
-// applyOperations 直接操作完整 Header 列表，以保留重复 Header 的顺序和值
+// applyOperations 直接操作完整 Header 列表，以保留重复 Header 的顺序和值。
 func applyOperations(headers [][2]string, operations []headerOperation) [][2]string {
 	for _, operation := range operations {
 		switch operation.kind {

@@ -132,6 +132,7 @@ func RewriteAnthropicRequest(body []byte, upstreamModel string) (UpstreamRequest
 func anthropicMessages(source []openAIMessage) ([]anthropic.MessageParam, []anthropic.TextBlockParam, error) {
 	messages := make([]anthropic.MessageParam, 0, len(source))
 	var system []anthropic.TextBlockParam
+	conversationStarted := false
 	for _, message := range source {
 		text, err := messageText(message.Content)
 		if err != nil {
@@ -140,10 +141,17 @@ func anthropicMessages(source []openAIMessage) ([]anthropic.MessageParam, []anth
 		switch message.Role {
 		case "system", "developer":
 			// Anthropic 把系统指令放在顶层，不能作为普通 message 发送
+			if conversationStarted {
+				return nil, nil, invalidRequest(
+					"system and developer messages must precede conversation messages for anthropic upstream",
+				)
+			}
 			system = append(system, anthropic.TextBlockParam{Text: text})
 		case "user":
+			conversationStarted = true
 			messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(text)))
 		case "assistant":
+			conversationStarted = true
 			messages = append(messages, anthropic.NewAssistantMessage(anthropic.NewTextBlock(text)))
 		default:
 			return nil, nil, invalidRequest("message role is not supported by the anthropic upstream")

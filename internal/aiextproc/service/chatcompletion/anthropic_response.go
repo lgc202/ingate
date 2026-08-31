@@ -65,11 +65,16 @@ func RewriteAnthropicResponse(body []byte, clientModel string) ([]byte, Response
 	usage.Final = usage.Found
 	finishReason := openAIFinishReason(source.StopReason)
 	var content strings.Builder
-	for _, block := range source.Content {
-		// 当前请求侧只接受文本，因此响应侧也只输出文本块，避免伪造工具调用语义
-		if block.Type == "text" {
-			content.WriteString(block.Text)
+	for index, block := range source.Content {
+		// 当前请求侧只接受文本；静默丢弃其他内容会生成语义不完整的成功响应。
+		if block.Type != "text" {
+			return nil, ResponseMetadata{}, fmt.Errorf(
+				"unmarshal anthropic response: content block %d has unsupported type %q",
+				index,
+				block.Type,
+			)
 		}
+		content.WriteString(block.Text)
 	}
 
 	converted, err := json.Marshal(openAIResponse{

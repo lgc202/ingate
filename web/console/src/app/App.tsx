@@ -7,8 +7,8 @@ const GatewayPage = lazy(() => import('@/features/gateways/GatewayPage')
   .then((module) => ({ default: module.GatewayPage })));
 const RoutePage = lazy(() => import('@/features/routes/RoutePage')
   .then((module) => ({ default: module.RoutePage })));
-const UpstreamPage = lazy(() => import('@/features/upstreams/UpstreamPage')
-  .then((module) => ({ default: module.UpstreamPage })));
+const ServicePage = lazy(() => import('@/features/services/ServicePage')
+  .then((module) => ({ default: module.ServicePage })));
 const CertificatePage = lazy(() => import('@/features/certificates/CertificatePage')
   .then((module) => ({ default: module.CertificatePage })));
 const PolicyPage = lazy(() => import('@/features/policies/PolicyPage')
@@ -34,7 +34,7 @@ export default function App() {
           <Route index element={<Navigate to="/gateways" replace />} />
           <Route path="gateways" element={<GatewayPage />} />
           <Route path="routes" element={<RoutePage />} />
-          <Route path="services" element={<UpstreamPage />} />
+          <Route path="services" element={<ServicePage />} />
           <Route path="certificates" element={<CertificatePage />} />
           <Route path="policies" element={<PolicyPage />} />
           <Route path="plugins" element={<PluginPage />} />

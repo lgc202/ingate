@@ -29,19 +29,19 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL
 	if err != nil {
 		return nil, nil, err
 	}
-	service := conversation.NewService(store)
-	conversationService := conversation2.NewService(service)
+	usecase := conversation.NewUsecase(store)
+	service := conversation2.NewService(usecase)
 	eventStore, cleanup2, err := data.NewEventStore(contextContext, data_Redis, stream, logger)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
-	executionService := execution.NewService(store, eventStore)
-	service2 := execution2.NewService(executionService)
-	modelconfigService := modelconfig.NewService(store)
-	service3 := modelconfig2.NewService(modelconfigService)
-	executionStreamHandler := server.NewStreamHandler(executionService, stream, logger)
-	httpServer := server.NewHTTPServer(confServer, conversationService, service2, service3, executionStreamHandler, store, eventStore, logger)
+	executionUsecase := execution.NewUsecase(store, eventStore)
+	executionService := execution2.NewService(executionUsecase)
+	modelconfigUsecase := modelconfig.NewUsecase(store)
+	modelconfigService := modelconfig2.NewService(modelconfigUsecase)
+	streamHandler := server.NewStreamHandler(executionUsecase, stream, logger)
+	httpServer := server.NewHTTPServer(confServer, service, executionService, modelconfigService, streamHandler, store, eventStore, logger)
 	client, cleanup3, err := data.NewAdminClient(contextContext, adminAPI, logger)
 	if err != nil {
 		cleanup2()
@@ -49,7 +49,7 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL
 		return nil, nil, err
 	}
 	chatModelFactory := data.NewChatModelFactory()
-	agentAgent, err := agent.New(modelconfigService, client, chatModelFactory)
+	agentAgent, err := agent.New(modelconfigUsecase, client, chatModelFactory)
 	if err != nil {
 		cleanup3()
 		cleanup2()

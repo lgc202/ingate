@@ -7,7 +7,7 @@ Ingate 的服务配置、健康检查、结构化日志和优雅退出保持部�
 
 ## 安装目录
 
-安装脚本默认把版本固定的 Compose 文件、配置与操作脚本放在执行安装命令时所在目录的 `ingate` 子目录。也可以把目标目录作为第一个参数传给安装脚本。安装目录中的 `.env` 保存当前 Ingate 版本、管理凭据、内部控制面令牌和宿主机端口。该文件不应提交到版本库或提供给外部客户端。
+安装脚本默认把版本固定的 Compose 文件、配置与操作脚本放在执行安装命令时所在目录的 `ingate` 子目录。也可以把目标目录作为第一个参数传给安装脚本。安装目录中的 `.env` 保存当前 Ingate 版本、管理凭据、内部控制面令牌和宿主机端口，安装器会将它限制为当前用户可读写。该文件不应提交到版本库或提供给外部客户端。
 
 常用命令：
 
@@ -29,13 +29,16 @@ cd <安装目录>
 
 ## 健康检查
 
-各 Go 组件统一提供：
+各组件按职责提供以下运维端点：
 
-- `/healthz`：进程可以响应 HTTP
-- `/readyz`：组件已经具备接收业务流量或查询的条件
-- `/metrics`：Prometheus 文本指标
+| 组件 | 健康与指标端点 |
+| --- | --- |
+| Console、Admin API | `/healthz` |
+| Assistant | `/healthz`、`/readyz` |
+| Controller、Authz、AI ExtProc、ALS、Analytics | `/healthz`、`/readyz`、`/metrics` |
+| API Server | `/healthz`、`/livez`、`/readyz`；内部指标端点需要认证 |
 
-Compose 使用 `/readyz` 判断健康状态。健康检查请求属于高频基础探测，不会按普通业务请求输出 INFO 访问日志。
+Compose 对 Controller、Authz 等具有依赖就绪语义的组件使用 `/readyz` 判断健康状态，对 Console 和 Admin API 使用 `/healthz`。健康检查请求属于高频基础探测，不会按普通业务请求输出 INFO 访问日志。
 
 查看容器状态：
 
@@ -62,7 +65,7 @@ docker compose logs -f ingate-controller
 ./bin/restore.sh ./backups/ingate-YYYYMMDD-HHMMSS.tar.gz
 ```
 
-备份会短暂停止写入，归档当前 Release 文件、`.env` 和 Ingate 持久化 Volume，再恢复原运行状态。归档覆盖：
+备份会短暂停止写入，归档当前 Release 文件、`.env` 和 Ingate 持久化 Volume，再恢复原运行状态。备份包含管理凭据和内部密钥，脚本会将归档权限限制为当前用户可读。归档覆盖：
 
 - etcd 声明式资源与证书
 - MySQL 中的 Assistant 会话、执行记录和模型连接

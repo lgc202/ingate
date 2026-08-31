@@ -17,14 +17,14 @@ import (
 )
 
 const (
-	// 表名由内置迁移和查询代码共同维护，不允许部署配置任意替换
-	requestTableName       = "request_records"
-	modelCallTableName     = "model_calls"
-	minuteMetricsTableName = "request_metrics_1m"
-	minuteMetricsViewName  = "request_metrics_1m_mv"
-	modelUsageTableName    = "model_usage_1m"
-	modelUsageViewName     = "model_usage_1m_mv"
-	requiredSchemaObjects  = 6
+	// 表名由内置迁移和查询代码共同维护，不允许部署配置任意替换。
+	requestTableName          = "request_records"
+	modelCallTableName        = "model_calls"
+	minuteMetricsTableName    = "request_metrics_1m"
+	minuteMetricsViewName     = "request_metrics_1m_mv"
+	modelUsageTableName       = "model_usage_1m"
+	modelUsageViewName        = "model_usage_1m_mv"
+	requiredSchemaObjectCount = 6
 
 	minimumClickHouseMajor = 26
 	minimumClickHouseMinor = 1
@@ -48,7 +48,8 @@ type Store struct {
 
 // NewStore 创建 ClickHouse 存储并确认服务版本与迁移结果兼容。
 //
-// 服务启动只验证依赖能力和表结构，不隐式执行 DDL；部署过程应先运行 -migrate。
+// 字段、引擎和视图定义只由不可变迁移管理。服务启动只验证依赖能力、
+// 迁移版本和必要对象，不隐式执行 DDL；部署过程应先运行 -migrate。
 func NewStore(ctx context.Context, config *conf.Data_ClickHouse) (*Store, error) {
 	writeTimeout := config.GetWriteTimeout().AsDuration()
 	queryTimeout := config.GetQueryTimeout().AsDuration()
@@ -63,7 +64,7 @@ func NewStore(ctx context.Context, config *conf.Data_ClickHouse) (*Store, error)
 		modelCallTable:     config.GetDatabase() + "." + modelCallTableName,
 		minuteMetricsTable: config.GetDatabase() + "." + minuteMetricsTableName,
 		modelUsageTable:    config.GetDatabase() + "." + modelUsageTableName,
-		// 查询与写入共用连接池，连接数允许时为控制台查询保留一个连接
+		// 查询与写入共用连接池，连接数允许时为控制台查询保留一个连接。
 		writeConcurrency: max(1, int(config.GetMaxOpenConnections())-1),
 		writeTimeout:     writeTimeout,
 		queryTimeout:     queryTimeout,
@@ -116,7 +117,40 @@ func (s *Store) checkInstallation(ctx context.Context) error {
 		)
 	}
 
-	var objects uint64
+	if err := s.checkSchemaVersion(ctx); err != nil {
+		return err
+	}
+	return s.checkSchemaObjects(ctx)
+}
+
+func (s *Store) checkSchemaVersion(ctx context.Context) error {
+	query := fmt.Sprintf(`
+SELECT maxIf(version_id, is_applied = 1)
+FROM %s.%s`, s.database, schemaMigrationTableName)
+	var appliedVersion int64
+	if err := s.connection.QueryRow(ctx, query).Scan(&appliedVersion); err != nil {
+		return fmt.Errorf("read ClickHouse analytics schema version: %w", err)
+	}
+	switch {
+	case appliedVersion < requiredSchemaVersion:
+		return fmt.Errorf(
+			"ClickHouse analytics schema is at version %d, but version %d is required; run ingate-analytics -migrate",
+			appliedVersion,
+			requiredSchemaVersion,
+		)
+	case appliedVersion > requiredSchemaVersion:
+		return fmt.Errorf(
+			"ClickHouse analytics schema version %d is newer than supported version %d",
+			appliedVersion,
+			requiredSchemaVersion,
+		)
+	default:
+		return nil
+	}
+}
+
+func (s *Store) checkSchemaObjects(ctx context.Context) error {
+	var objectCount uint64
 	if err := s.connection.QueryRow(ctx, `
 SELECT count()
 FROM system.tables
@@ -128,10 +162,10 @@ WHERE database = ? AND name IN (?, ?, ?, ?, ?, ?)`,
 		minuteMetricsViewName,
 		modelUsageTableName,
 		modelUsageViewName,
-	).Scan(&objects); err != nil {
+	).Scan(&objectCount); err != nil {
 		return fmt.Errorf("check ClickHouse analytics schema: %w", err)
 	}
-	if objects != requiredSchemaObjects {
+	if objectCount != requiredSchemaObjectCount {
 		return errors.New("ClickHouse analytics schema is incomplete; run ingate-analytics -migrate")
 	}
 	return nil

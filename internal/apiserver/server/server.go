@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/google/wire"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
@@ -23,6 +24,9 @@ import (
 )
 
 const serverName = "ingate-apiserver"
+
+// ProviderSet 提供 API Server 的 Kubernetes Generic API Server 实现。
+var ProviderSet = wire.NewSet(New)
 
 // Server 让 Kubernetes Generic API Server 接入 Kratos 生命周期。
 type Server struct {
@@ -110,7 +114,7 @@ func New(
 // Start 阻塞运行 Generic API Server，直到 Kratos 调用 Stop。
 func (s *Server) Start(ctx context.Context) error {
 	if !s.running.CompareAndSwap(false, true) {
-		return errors.New("API Server is already running")
+		return errors.New("API server is already running")
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -141,7 +145,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	case <-s.done:
 		return nil
 	case <-ctx.Done():
-		return fmt.Errorf("stop API Server: %w", ctx.Err())
+		return fmt.Errorf("stop API server: %w", ctx.Err())
 	}
 }
 

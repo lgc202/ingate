@@ -61,10 +61,12 @@ type httpContext struct {
 	body       []byte
 }
 
+// NewPluginContext 为每个 Root ID 创建独立插件上下文。
 func (*vmContext) NewPluginContext(uint32) types.PluginContext {
 	return &pluginContext{}
 }
 
+// OnPluginStart 读取并保存当前插件实例的固定响应配置。
 func (p *pluginContext) OnPluginStart(int) types.OnPluginStartStatus {
 	rawConfig, err := proxywasm.GetPluginConfiguration()
 	if err != nil {
@@ -86,7 +88,7 @@ func (p *pluginContext) OnPluginStart(int) types.OnPluginStartStatus {
 	return types.OnPluginStartStatusOK
 }
 
-// NewHttpContext 为每条 HTTP 流保存只读响应配置
+// NewHttpContext 为每条 HTTP 流保存只读响应配置。
 //
 //nolint:staticcheck // 方法名由 Proxy-Wasm SDK 接口定义，不能按 Go 缩写规则改名
 func (p *pluginContext) NewHttpContext(uint32) types.HttpContext {

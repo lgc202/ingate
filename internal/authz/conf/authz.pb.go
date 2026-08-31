@@ -22,12 +22,15 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Bootstrap 定义 ingate-authz 的完整进程配置
+// Bootstrap 定义 ingate-authz 的完整进程配置。
 type Bootstrap struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Server        *Server                `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
-	Logging       *Logging               `protobuf:"bytes,2,opt,name=logging,proto3" json:"logging,omitempty"`
-	Data          *Data                  `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// server 定义进程监听地址和退出超时。
+	Server *Server `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
+	// logging 定义结构化日志行为。
+	Logging *Logging `protobuf:"bytes,2,opt,name=logging,proto3" json:"logging,omitempty"`
+	// data 定义声明式资源与 Redis 的连接方式。
+	Data          *Data `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -83,11 +86,13 @@ func (x *Bootstrap) GetData() *Data {
 	return nil
 }
 
-// Data 定义 Caller 配置来源
+// Data 定义 Caller 配置来源。
 type Data struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Apiserver     *Data_APIServer        `protobuf:"bytes,1,opt,name=apiserver,proto3" json:"apiserver,omitempty"`
-	Redis         *Data_Redis            `protobuf:"bytes,2,opt,name=redis,proto3" json:"redis,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// apiserver 定义声明式 API Server 连接参数。
+	Apiserver *Data_APIServer `protobuf:"bytes,1,opt,name=apiserver,proto3" json:"apiserver,omitempty"`
+	// redis 定义共享请求计数使用的 Redis 连接参数。
+	Redis         *Data_Redis `protobuf:"bytes,2,opt,name=redis,proto3" json:"redis,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -136,12 +141,15 @@ func (x *Data) GetRedis() *Data_Redis {
 	return nil
 }
 
-// Server 定义 Envoy External Authorization 和运维入口
+// Server 定义 Envoy External Authorization 和运维入口。
 type Server struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Grpc            *Server_GRPC           `protobuf:"bytes,1,opt,name=grpc,proto3" json:"grpc,omitempty"`
-	Http            *Server_HTTP           `protobuf:"bytes,2,opt,name=http,proto3" json:"http,omitempty"`
-	ShutdownTimeout *durationpb.Duration   `protobuf:"bytes,3,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// grpc 定义 Envoy External Authorization 服务。
+	Grpc *Server_GRPC `protobuf:"bytes,1,opt,name=grpc,proto3" json:"grpc,omitempty"`
+	// http 定义健康检查、就绪检查与指标服务。
+	Http *Server_HTTP `protobuf:"bytes,2,opt,name=http,proto3" json:"http,omitempty"`
+	// shutdown_timeout 限制进程优雅退出的等待时间。
+	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,3,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -197,12 +205,15 @@ func (x *Server) GetShutdownTimeout() *durationpb.Duration {
 	return nil
 }
 
-// Logging 定义结构化日志格式与级别
+// Logging 定义结构化日志格式与级别。
 type Logging struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Format        string                 `protobuf:"bytes,1,opt,name=format,proto3" json:"format,omitempty"`
-	Level         string                 `protobuf:"bytes,2,opt,name=level,proto3" json:"level,omitempty"`
-	AddSource     bool                   `protobuf:"varint,3,opt,name=add_source,json=addSource,proto3" json:"add_source,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// format 是日志编码格式。
+	Format string `protobuf:"bytes,1,opt,name=format,proto3" json:"format,omitempty"`
+	// level 是最低输出级别。
+	Level string `protobuf:"bytes,2,opt,name=level,proto3" json:"level,omitempty"`
+	// add_source 控制日志是否包含源码位置。
+	AddSource     bool `protobuf:"varint,3,opt,name=add_source,json=addSource,proto3" json:"add_source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -259,10 +270,12 @@ func (x *Logging) GetAddSource() bool {
 }
 
 type Data_APIServer struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	Master     string                 `protobuf:"bytes,1,opt,name=master,proto3" json:"master,omitempty"`
-	Kubeconfig string                 `protobuf:"bytes,2,opt,name=kubeconfig,proto3" json:"kubeconfig,omitempty"`
-	// bearer_token 认证 Authz 到声明式 API 的内部请求
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// master 是声明式 API Server 地址。
+	Master string `protobuf:"bytes,1,opt,name=master,proto3" json:"master,omitempty"`
+	// kubeconfig 是访问声明式 API Server 的客户端配置文件。
+	Kubeconfig string `protobuf:"bytes,2,opt,name=kubeconfig,proto3" json:"kubeconfig,omitempty"`
+	// bearer_token 认证 Authz 到声明式 API 的内部请求。
 	BearerToken   string `protobuf:"bytes,3,opt,name=bearer_token,json=bearerToken,proto3" json:"bearer_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -321,15 +334,15 @@ func (x *Data_APIServer) GetBearerToken() string {
 
 type Data_Redis struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// address 是共享请求计数使用的 Redis 地址
+	// address 是共享请求计数使用的 Redis 地址。
 	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	// password 为空表示 Redis 未启用认证
+	// password 为空表示 Redis 未启用认证。
 	Password string `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
-	// database 是请求限流使用的逻辑数据库
+	// database 是请求限流使用的逻辑数据库。
 	Database int32 `protobuf:"varint,3,opt,name=database,proto3" json:"database,omitempty"`
-	// dial_timeout 限制建立 Redis 连接的时间
+	// dial_timeout 限制建立 Redis 连接的时间。
 	DialTimeout *durationpb.Duration `protobuf:"bytes,4,opt,name=dial_timeout,json=dialTimeout,proto3" json:"dial_timeout,omitempty"`
-	// operation_timeout 限制单次限流计数的时间
+	// operation_timeout 限制单次限流计数的时间。
 	OperationTimeout *durationpb.Duration `protobuf:"bytes,5,opt,name=operation_timeout,json=operationTimeout,proto3" json:"operation_timeout,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
@@ -402,9 +415,9 @@ func (x *Data_Redis) GetOperationTimeout() *durationpb.Duration {
 
 type Server_GRPC struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// addr 是 Envoy 连接的 gRPC 监听地址
+	// addr 是 Envoy 连接的 gRPC 监听地址。
 	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
-	// tls 保护 Envoy 到 Authz 的调用方凭据和准入结果
+	// tls 保护 Envoy 到 Authz 的调用方凭据和准入结果。
 	Tls           *Server_GRPC_TLS `protobuf:"bytes,2,opt,name=tls,proto3" json:"tls,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -455,9 +468,11 @@ func (x *Server_GRPC) GetTls() *Server_GRPC_TLS {
 }
 
 type Server_HTTP struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Addr          string                 `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
-	Timeout       *durationpb.Duration   `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// addr 是运维 HTTP 服务的监听地址。
+	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
+	// timeout 限制运维 HTTP 请求的处理时间。
+	Timeout       *durationpb.Duration `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -508,13 +523,13 @@ func (x *Server_HTTP) GetTimeout() *durationpb.Duration {
 
 type Server_GRPC_TLS struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// enabled 控制 Authz gRPC 服务是否启用 TLS
+	// enabled 控制 Authz gRPC 服务是否启用 TLS。
 	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	// cert_file 是服务端证书链文件
+	// cert_file 是服务端证书链文件。
 	CertFile string `protobuf:"bytes,2,opt,name=cert_file,json=certFile,proto3" json:"cert_file,omitempty"`
-	// key_file 是服务端私钥文件
+	// key_file 是服务端私钥文件。
 	KeyFile string `protobuf:"bytes,3,opt,name=key_file,json=keyFile,proto3" json:"key_file,omitempty"`
-	// client_ca_file 非空时启用 mTLS 并只信任该 CA 签发的 Envoy 客户端证书
+	// client_ca_file 非空时启用 mTLS 并只信任该 CA 签发的 Envoy 客户端证书。
 	ClientCaFile  string `protobuf:"bytes,4,opt,name=client_ca_file,json=clientCaFile,proto3" json:"client_ca_file,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

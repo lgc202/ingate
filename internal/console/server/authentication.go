@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	sessionCookieName = "ingate_session"
-	maxLoginBodyBytes = 16 << 10
+	sessionCookieName     = "ingate_session"
+	maxLoginBodyBytes     = 16 << 10
+	maxSessionCookieBytes = 512
 )
 
 // SessionAuth 为单管理员控制台签发和校验无状态会话。
@@ -74,6 +75,7 @@ func (a *SessionAuth) HandleSession(response http.ResponseWriter, request *http.
 // Protect 验证管理 API 会话，并把可信管理员身份传给内部 Admin API。
 func (a *SessionAuth) Protect(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Cache-Control", "no-store")
 		request.Header.Del(adminidentity.Header)
 		username, ok := a.currentUser(request)
 		if !ok {
@@ -143,7 +145,7 @@ func (a *SessionAuth) currentUser(request *http.Request) (string, bool) {
 		return a.username, true
 	}
 	cookie, err := request.Cookie(sessionCookieName)
-	if err != nil {
+	if err != nil || len(cookie.Value) > maxSessionCookieBytes {
 		return "", false
 	}
 	payloadText, signatureText, ok := strings.Cut(cookie.Value, ".")

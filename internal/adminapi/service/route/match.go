@@ -31,46 +31,59 @@ func parseRouteMatch(config *adminv1.RouteMatch) (resource.RouteMatch, error) {
 			"路由路径必须是以 / 开头且不包含查询参数或片段的请求路径",
 		)
 	}
-	methods := config.GetMethods()
+	methods, err := parseHTTPMethods(config.GetMethods())
+	if err != nil {
+		return resource.RouteMatch{}, err
+	}
+	headers, err := parseHeaderMatches(config.GetHeaders())
+	if err != nil {
+		return resource.RouteMatch{}, err
+	}
+	return resource.RouteMatch{
+		Path:    resource.PathMatch{Type: pathType, Value: pathValue},
+		Methods: methods,
+		Headers: headers,
+	}, nil
+}
+
+func parseHTTPMethods(methods []adminv1.HTTPMethod) ([]string, error) {
 	if len(methods) > routeconfig.MaxHTTPMethods {
-		return resource.RouteMatch{}, errors.BadRequest(
+		return nil, errors.BadRequest(
 			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
 			"路由匹配的 HTTP 方法过多",
 		)
 	}
-	headers := config.GetHeaders()
-	if len(headers) > routeconfig.MaxHeaderMatches {
-		return resource.RouteMatch{}, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"路由匹配的 Header 条件过多",
-		)
-	}
-
-	match := resource.RouteMatch{
-		Path:    resource.PathMatch{Type: pathType, Value: pathValue},
-		Methods: make([]string, len(methods)),
-		Headers: make([]resource.HeaderMatch, len(headers)),
-	}
+	parsed := make([]string, len(methods))
 	seenMethods := make(map[string]bool, len(methods))
 	for i, method := range methods {
 		httpMethod, err := parseHTTPMethod(method)
 		if err != nil {
-			return resource.RouteMatch{}, err
+			return nil, err
 		}
 		if seenMethods[httpMethod] {
-			return resource.RouteMatch{}, errors.BadRequest(
+			return nil, errors.BadRequest(
 				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
 				"HTTP 方法不能重复",
 			)
 		}
 		seenMethods[httpMethod] = true
-		match.Methods[i] = httpMethod
+		parsed[i] = httpMethod
 	}
+	return parsed, nil
+}
 
+func parseHeaderMatches(headers []*adminv1.HeaderMatch) ([]resource.HeaderMatch, error) {
+	if len(headers) > routeconfig.MaxHeaderMatches {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"路由匹配的 Header 条件过多",
+		)
+	}
+	parsed := make([]resource.HeaderMatch, len(headers))
 	seenHeaders := make(map[string]bool, len(headers))
 	for i, header := range headers {
 		if header == nil {
-			return resource.RouteMatch{}, errors.BadRequest(
+			return nil, errors.BadRequest(
 				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
 				"Header 匹配条件不能为空",
 			)
@@ -78,21 +91,21 @@ func parseRouteMatch(config *adminv1.RouteMatch) (resource.RouteMatch, error) {
 		name := httpheader.NormalizeName(header.GetName())
 		value := httpheader.NormalizeValue(header.GetValue())
 		if !httpheader.IsValidName(name) || value == "" || !httpheader.IsValidValue(value) {
-			return resource.RouteMatch{}, errors.BadRequest(
+			return nil, errors.BadRequest(
 				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
 				"Header 匹配条件的名称或值格式不正确",
 			)
 		}
 		if seenHeaders[name] {
-			return resource.RouteMatch{}, errors.BadRequest(
+			return nil, errors.BadRequest(
 				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
 				"同一个 Header 只能匹配一次",
 			)
 		}
 		seenHeaders[name] = true
-		match.Headers[i] = resource.HeaderMatch{Name: name, Value: value}
+		parsed[i] = resource.HeaderMatch{Name: name, Value: value}
 	}
-	return match, nil
+	return parsed, nil
 }
 
 func parsePathMatchType(matchType adminv1.RoutePathMatchType) (resource.PathMatchType, error) {

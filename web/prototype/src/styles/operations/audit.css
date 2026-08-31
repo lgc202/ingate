@@ -1,0 +1,97 @@
+.audit-card {
+  padding: 0 15px 18px;
+}
+.audit-card .table-toolbar {
+  margin: 0 -15px 12px;
+}
+.audit-card .table-toolbar > span {
+  color: var(--muted);
+  font-size: 0.58rem;
+}
+.audit-date {
+  min-height: 35px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 800;
+}
+.audit-date i {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.audit-row {
+  width: 100%;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  position: relative;
+  min-height: 82px;
+  padding: 11px 0 11px 43px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 100px;
+  align-items: center;
+  gap: 10px;
+}
+.audit-row:hover {
+  background: color-mix(in srgb, var(--blue-soft) 42%, transparent);
+}
+.audit-row > span {
+  position: absolute;
+  left: 0;
+  width: 31px;
+  height: 31px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+.audit-row > span svg {
+  width: 13px;
+}
+.audit-row > i {
+  position: absolute;
+  top: 42px;
+  bottom: -11px;
+  left: 15px;
+  width: 1px;
+  background: var(--line);
+}
+.audit-row > div:first-of-type {
+  display: grid;
+  gap: 3px;
+}
+.audit-row > div:first-of-type > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.audit-row strong {
+  font-size: 0.64rem;
+}
+.audit-row p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.59rem;
+}
+.audit-row small {
+  color: var(--faint);
+  font-size: 0.53rem;
+}
+.audit-row > div:last-of-type {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+.audit-row time {
+  color: var(--muted);
+  font-family: monospace;
+  font-size: 0.55rem;
+}

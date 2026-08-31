@@ -11,7 +11,7 @@ const (
 	TrafficDimensionGateway TrafficDimension = "gateway"
 	// TrafficDimensionRoute 按路由汇总流量。
 	TrafficDimensionRoute TrafficDimension = "route"
-	// TrafficDimensionService 按上游服务汇总流量。
+	// TrafficDimensionService 按 Service 汇总流量。
 	TrafficDimensionService TrafficDimension = "service"
 )
 
@@ -213,25 +213,25 @@ type Failure struct {
 
 // RequestRecord 是一次请求的排障元数据，不包含请求内容、凭据和内部服务地址。
 type RequestRecord struct {
-	RecordID         string
-	StartedAt        time.Time
-	Duration         time.Duration
-	TimeToFirstByte  *time.Duration
-	Method           string
-	Host             string
-	Path             string
-	StatusCode       uint32
-	Outcome          string
-	RequestBytes     uint64
-	ResponseBytes    uint64
-	GatewayID        string
-	RouteID          string
-	ServiceID        string
-	Protocol         string
-	RejectionReason  string
-	UpstreamAttempts uint32
-	AIModelCall      *AIModelCall
-	CallerID         string
+	RecordID        string
+	StartedAt       time.Time
+	Duration        time.Duration
+	TimeToFirstByte *time.Duration
+	Method          string
+	Host            string
+	Path            string
+	StatusCode      uint32
+	Outcome         string
+	RequestBytes    uint64
+	ResponseBytes   uint64
+	GatewayID       string
+	RouteID         string
+	ServiceID       string
+	Protocol        string
+	RejectionReason string
+	ServiceAttempts uint32
+	AIModelCall     *AIModelCall
+	CallerID        string
 }
 
 // CallerTokenQuota 汇总一个调用方当前实际执行的 Token 额度。
@@ -258,7 +258,7 @@ type TokenQuotaUsage struct {
 // AIModelCall 是一次 AI 请求由模型服务返回的调用结果。
 type AIModelCall struct {
 	ClientModel   string
-	UpstreamModel string
+	TargetModel   string
 	Protocol      string
 	ResponseModel string
 	FinishReason  string

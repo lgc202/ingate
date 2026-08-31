@@ -21,7 +21,7 @@ func newScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	gatewayinstall.Install(scheme)
 
-	// discovery、watch 和错误响应使用 Kubernetes 的无组版本元类型
+	// discovery、watch 和错误响应使用 Kubernetes 的无组版本元类型。
 	unversionedVersion := schema.GroupVersion{Group: "", Version: "v1"}
 	metav1.AddToGroupVersion(scheme, unversionedVersion)
 	scheme.AddUnversionedTypes(unversionedVersion,

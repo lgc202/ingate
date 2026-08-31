@@ -12,13 +12,14 @@ func (d *Delivery) handleXDSEvent(ctx context.Context, event XDSEvent) error {
 		if _, exists := d.state.streams[event.StreamID]; !exists {
 			d.state.streams[event.StreamID] = &streamState{
 				nodeID:           event.NodeID,
-				versions:         make(map[string]*ackProgress),
+				versions:         make(map[string]*responseProgress),
 				acceptedVersions: make(map[string]string),
 			}
 		}
 		return nil
 	case EventStreamClosed:
 		delete(d.state.streams, event.StreamID)
+		d.activateAcceptedCandidate()
 		return nil
 	case EventResponseSent:
 		d.handleResponseSent(event)
@@ -46,7 +47,6 @@ func (d *Delivery) handleResponseSent(event XDSEvent) {
 	}
 	progress := stream.progress(event.Version)
 	progress.sent[event.TypeURL] = true
-	progress.acked[event.TypeURL] = false
 
 	candidate := d.state.candidate
 	if candidate.timer == nil {
@@ -89,12 +89,7 @@ func (d *Delivery) handleACK(event XDSEvent) {
 	if progress == nil || !progress.sent[event.TypeURL] {
 		return
 	}
-	progress.acked[event.TypeURL] = true
 	stream.recordAccepted(event.TypeURL, event.Version)
-	if stream.fullyACKed(event.Version, d.state.candidate.requiredTypes) {
-		d.activateCandidate()
-		return
-	}
 	d.activateAcceptedCandidate()
 }
 
@@ -119,11 +114,18 @@ func (d *Delivery) activateAcceptedCandidate() {
 	if d.state.candidate == nil {
 		return
 	}
+	connectedStreams := 0
 	for _, stream := range d.state.streams {
-		if stream.fullyAccepted(d.state.candidate.version, d.state.candidate.requiredTypes) {
-			d.activateCandidate()
+		if stream.nodeID == "" {
+			continue
+		}
+		connectedStreams++
+		if !stream.fullyAccepted(d.state.candidate.version, d.state.candidate.requiredTypes) {
 			return
 		}
+	}
+	if connectedStreams > 0 {
+		d.activateCandidate()
 	}
 }
 
@@ -140,7 +142,6 @@ func (d *Delivery) handleNACK(ctx context.Context, event XDSEvent) error {
 		return nil
 	}
 
-	progress.acked[event.TypeURL] = false
 	resources := cloneResourceGenerations(d.state.candidate.resources)
 	policyTargets := clonePolicyTargets(d.state.candidate.failurePolicyTargets)
 	d.recordFailure(FailureRejected, resources, policyTargets)
@@ -155,10 +156,18 @@ func (d *Delivery) handleNACK(ctx context.Context, event XDSEvent) error {
 	return nil
 }
 
-func (d *Delivery) handleACKTimeout(version string, sequence uint64) {
+func (d *Delivery) handleACKTimeout(ctx context.Context, version string, sequence uint64) error {
 	candidate := d.state.candidate
 	if candidate == nil || candidate.version != version || candidate.sequence != sequence {
-		return
+		return nil
 	}
-	d.recordFailure(FailureDelivery, candidate.resources, candidate.failurePolicyTargets)
+	resources := cloneResourceGenerations(candidate.resources)
+	policyTargets := clonePolicyTargets(candidate.failurePolicyTargets)
+	d.recordFailure(FailureDelivery, resources, policyTargets)
+	return d.restoreFallback(
+		ctx,
+		fmt.Sprintf("rollback candidate %q after ACK timeout", version),
+		resources,
+		policyTargets,
+	)
 }

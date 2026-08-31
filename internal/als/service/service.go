@@ -56,7 +56,7 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 			return status.Error(codes.InvalidArgument, "envoy node identity is required")
 		}
 		if tcpLogs := message.GetTcpLogs(); tcpLogs != nil {
-			// Ingate 当前只代理 HTTP 流量，忽略意外的 TCP 记录比主动断开整条 ALS 流更安全
+			// Ingate 当前只代理 HTTP 流量，忽略意外的 TCP 记录比主动断开整条 ALS 流更安全。
 			s.recorder.Discard(len(tcpLogs.GetLogEntry()))
 			continue
 		}
@@ -65,22 +65,27 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 			continue
 		}
 		records := make([]*alsv1.RequestRecord, 0, len(entries))
-		discarded := 0
+		discardedCount := 0
+		var firstParseErr error
 		for _, entry := range entries {
 			record, err := parseRequestRecord(nodeID, entry)
 			if err != nil {
-				// 单条坏记录不应拖累同批有效记录，更不能让 Envoy 因 gRPC 失败反复重连
-				discarded++
+				// 单条坏记录不应拖累同批有效记录，更不能让 Envoy 因 gRPC 失败反复重连。
+				discardedCount++
+				if firstParseErr == nil {
+					firstParseErr = err
+				}
 				continue
 			}
 			records = append(records, record)
 		}
-		if discarded > 0 {
-			s.recorder.Discard(discarded)
+		if discardedCount > 0 {
+			s.recorder.Discard(discardedCount)
 			s.logger.WarnContext(
 				stream.Context(),
 				"invalid HTTP access log entries discarded",
-				"count", discarded,
+				"err", firstParseErr,
+				"count", discardedCount,
 				"envoy_node_id", nodeID,
 			)
 		}

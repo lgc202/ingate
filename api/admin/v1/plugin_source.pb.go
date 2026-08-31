@@ -650,9 +650,9 @@ const file_admin_v1_plugin_source_proto_rawDesc = "" +
 	"\x19ListPluginSourcesResponse\x127\n" +
 	"\asources\x18\x01 \x03(\v2\x1d.ingate.admin.v1.PluginSourceR\asources\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
-	"nextCursor\"1\n" +
-	"\x16GetPluginSourceRequest\x12\x17\n" +
-	"\x02id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x02id\"\x8c\x01\n" +
+	"nextCursor\"2\n" +
+	"\x16GetPluginSourceRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x8c\x01\n" +
 	"\x19CreatePluginSourceRequest\x12\x1e\n" +
 	"\x04name\x18\x01 \x01(\tB\n" +
 	"\xbaH\ar\x05 \x01(\x80\x02R\x04name\x12\x1c\n" +
@@ -673,9 +673,9 @@ const file_admin_v1_plugin_source_proto_rawDesc = "" +
 	"\b_enabled\"X\n" +
 	"\x19DeletePluginSourceRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12!\n" +
-	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\"2\n" +
-	"\x17SyncPluginSourceRequest\x12\x17\n" +
-	"\x02id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x02id*\xd9\x01\n" +
+	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\"3\n" +
+	"\x17SyncPluginSourceRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id*\xd9\x01\n" +
 	"\x15PluginSourceSyncState\x12(\n" +
 	"$PLUGIN_SOURCE_SYNC_STATE_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1ePLUGIN_SOURCE_SYNC_STATE_READY\x10\x01\x12\"\n" +

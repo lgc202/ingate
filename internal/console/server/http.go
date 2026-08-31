@@ -29,6 +29,7 @@ func NewHTTPServer(
 		// Assistant 使用 SSE 长连接；普通管理请求的超时由后端服务控制。
 		kratoshttp.Filter(
 			recovery(logger),
+			browserSecurity(),
 			requestID(),
 		),
 	)

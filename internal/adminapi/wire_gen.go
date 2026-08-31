@@ -9,7 +9,6 @@ package adminapi
 import (
 	"context"
 	"github.com/go-kratos/kratos/v3"
-	"github.com/google/wire"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	"github.com/lgc202/ingate/internal/adminapi/biz/aiusage"
 	"github.com/lgc202/ingate/internal/adminapi/biz/caller"
@@ -22,9 +21,9 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	"github.com/lgc202/ingate/internal/adminapi/biz/request"
 	"github.com/lgc202/ingate/internal/adminapi/biz/route"
+	"github.com/lgc202/ingate/internal/adminapi/biz/service"
 	"github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
 	"github.com/lgc202/ingate/internal/adminapi/biz/traffic"
-	"github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/biz/wasmplugin"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	"github.com/lgc202/ingate/internal/adminapi/data/aiextproc"
@@ -44,9 +43,9 @@ import (
 	ratelimit2 "github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	request2 "github.com/lgc202/ingate/internal/adminapi/service/request"
 	route2 "github.com/lgc202/ingate/internal/adminapi/service/route"
+	"github.com/lgc202/ingate/internal/adminapi/service/servicemanagement"
 	tokenquota2 "github.com/lgc202/ingate/internal/adminapi/service/tokenquota"
 	traffic2 "github.com/lgc202/ingate/internal/adminapi/service/traffic"
-	upstream2 "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 	wasmplugin2 "github.com/lgc202/ingate/internal/adminapi/service/wasmplugin"
 	"log/slog"
 )
@@ -60,7 +59,7 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data *conf
 	}
 	aiUsageRepository := analytics.NewAIUsageRepository(clientConn)
 	usecase := aiusage.NewUsecase(aiUsageRepository)
-	service := aiusage2.NewService(usecase)
+	aiusageService := aiusage2.NewService(usecase)
 	versionedInterface, err := apiserver.NewClient(data)
 	if err != nil {
 		cleanup()
@@ -83,8 +82,8 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data *conf
 	upstreamStore := apiserver.NewUpstreamStore(versionedInterface)
 	routeUsecase := route.NewUsecase(routeStore, gatewayStore, upstreamStore, callerStore, policyUsageFinder)
 	routeService := route2.NewService(routeUsecase)
-	upstreamUsecase := upstream.NewUsecase(upstreamStore, routeStore)
-	upstreamService := upstream2.NewService(upstreamUsecase)
+	serviceUsecase := service.NewUsecase(upstreamStore, routeStore)
+	servicemanagementService := servicemanagement.NewService(serviceUsecase)
 	certificateUsecase := certificate.NewUsecase(certificateStore, gatewayStore)
 	certificateService := certificate2.NewService(certificateUsecase)
 	ratelimitUsecase := ratelimit.NewUsecase(rateLimitPolicyStore, gatewayStore, routeStore)
@@ -119,7 +118,7 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data *conf
 	wasmpluginService := wasmplugin2.NewService(wasmpluginUsecase)
 	pluginsourceUsecase := pluginsource.NewUsecase(pluginSourceStore, catalog)
 	pluginsourceService := pluginsource2.NewService(pluginsourceUsecase)
-	services := server.NewServices(service, callerService, gatewayService, routeService, upstreamService, certificateService, ratelimitService, iprestrictionService, requestService, trafficService, tokenquotaService, healthService, headertransformationService, mockresponseService, wasmpluginService, pluginsourceService)
+	services := server.NewServices(aiusageService, callerService, gatewayService, routeService, servicemanagementService, certificateService, ratelimitService, iprestrictionService, requestService, trafficService, tokenquotaService, healthService, headertransformationService, mockresponseService, wasmpluginService, pluginsourceService)
 	httpServer := server.NewHTTPServer(confServer, logger, services)
 	grpcServer := server.NewGRPCServer(confServer, logger, services)
 	app := newKratosApp(logger, confServer, httpServer, grpcServer, catalog, adminapiServiceInstanceID)
@@ -128,12 +127,3 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data *conf
 		cleanup()
 	}, nil
 }
-
-// wire.go:
-
-// Admin API 按资源拆成 biz 子包，而子包依赖根 biz 的共享边界；
-// 根包不能反向导入子包，因此由应用装配文件汇总各资源用例。
-var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, biz.NewPluginUsageFinder, biz.NewPluginInstallationChecker, wire.Bind(new(wasmplugin.PolicyUsageLister), new(*biz.PluginUsageFinder)), aiusage.NewUsecase, caller.NewUsecase, gateway.NewUsecase, headertransformation.NewUsecase, mockresponse.NewUsecase, route.NewUsecase, upstream.NewUsecase, certificate.NewUsecase, ratelimit.NewUsecase, iprestriction.NewUsecase, pluginsource.NewUsecase, request.NewUsecase, traffic.NewUsecase, tokenquota.NewUsecase, wasmplugin.NewUsecase)
-
-// service 子包同样依赖根 service 的协议转换能力，由应用装配文件统一汇总。
-var serviceProviderSet = wire.NewSet(aiusage2.NewService, caller2.NewService, gateway2.NewService, headertransformation2.NewService, mockresponse2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, pluginsource2.NewService, request2.NewService, traffic2.NewService, tokenquota2.NewService, health.NewService, wasmplugin2.NewService)

@@ -12,6 +12,7 @@ linters:
     - errorlint
     - govet
     - ineffassign
+    - misspell
     - nolintlint
     - staticcheck
     - unused

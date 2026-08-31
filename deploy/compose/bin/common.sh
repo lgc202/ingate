@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -Eeuo pipefail
+umask 077
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 COMPOSE=(
@@ -39,13 +40,18 @@ env_value() {
 set_env_value() {
   local key="$1"
   local value="$2"
-  local temporary="$ROOT/.env.tmp"
-  awk -v key="$key" -v value="$value" '
+  local temporary
+  temporary="$(mktemp "$ROOT/.env.XXXXXX")"
+  if ! awk -v key="$key" -v value="$value" '
     BEGIN { found = 0 }
     index($0, key "=") == 1 { print key "=" value; found = 1; next }
     { print }
     END { if (!found) print key "=" value }
-  ' "$ROOT/.env" > "$temporary"
+  ' "$ROOT/.env" > "$temporary"; then
+    rm -f "$temporary"
+    return 1
+  fi
+  chmod 600 "$temporary"
   mv "$temporary" "$ROOT/.env"
 }
 

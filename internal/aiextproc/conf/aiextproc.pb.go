@@ -146,7 +146,7 @@ type Server struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// grpc 接收 Envoy External Processing 双向流
 	Grpc *Server_GRPC `protobuf:"bytes,1,opt,name=grpc,proto3" json:"grpc,omitempty"`
-	// http 暴露 healthz 和 readyz
+	// http 暴露 /healthz、/readyz 和 /metrics 运维端点。
 	Http *Server_HTTP `protobuf:"bytes,2,opt,name=http,proto3" json:"http,omitempty"`
 	// shutdown_timeout 是等待现有 External Processing 流退出的最长时间
 	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,3,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
@@ -469,7 +469,7 @@ func (x *Server_GRPC) GetTls() *Server_GRPC_TLS {
 
 type Server_HTTP struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// addr 是健康检查和就绪检查的 HTTP 地址
+	// addr 是 /healthz、/readyz 和 /metrics 运维端点的 HTTP 监听地址。
 	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
 	// timeout 限制单次运维 HTTP 请求处理时间
 	Timeout       *durationpb.Duration `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`

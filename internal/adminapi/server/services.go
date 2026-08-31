@@ -13,9 +13,9 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	requestservice "github.com/lgc202/ingate/internal/adminapi/service/request"
 	"github.com/lgc202/ingate/internal/adminapi/service/route"
+	"github.com/lgc202/ingate/internal/adminapi/service/servicemanagement"
 	"github.com/lgc202/ingate/internal/adminapi/service/tokenquota"
 	trafficservice "github.com/lgc202/ingate/internal/adminapi/service/traffic"
-	"github.com/lgc202/ingate/internal/adminapi/service/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/service/wasmplugin"
 )
 
@@ -26,7 +26,7 @@ type Services struct {
 	caller               *caller.Service
 	gateway              *gateway.Service
 	route                *route.Service
-	upstream             *upstream.Service
+	service              *servicemanagement.Service
 	certificate          *certificate.Service
 	rateLimit            *ratelimit.Service
 	ipRestriction        *iprestriction.Service
@@ -46,7 +46,7 @@ func NewServices(
 	callerService *caller.Service,
 	gatewayService *gateway.Service,
 	routeService *route.Service,
-	upstreamService *upstream.Service,
+	serviceManagement *servicemanagement.Service,
 	certificateService *certificate.Service,
 	rateLimitService *ratelimit.Service,
 	ipRestrictionService *iprestriction.Service,
@@ -64,7 +64,7 @@ func NewServices(
 		caller:               callerService,
 		gateway:              gatewayService,
 		route:                routeService,
-		upstream:             upstreamService,
+		service:              serviceManagement,
 		certificate:          certificateService,
 		rateLimit:            rateLimitService,
 		ipRestriction:        ipRestrictionService,

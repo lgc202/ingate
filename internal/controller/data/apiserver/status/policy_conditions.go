@@ -25,10 +25,6 @@ func policyConditions(
 		return conditions
 	}
 	if len(targets) == 0 {
-		programmed := currentCondition(conditions, gatewayv1.ConditionProgrammed, resource.Generation)
-		if programmed == nil || programmed.Status != metav1.ConditionTrue {
-			return conditions
-		}
 		meta.SetStatusCondition(&conditions, newCondition(
 			gatewayv1.ConditionProgrammed,
 			resource.Generation,
@@ -97,6 +93,7 @@ func policyTargetStatuses(
 	policyConditions []metav1.Condition,
 	deliveryState deliveryIndex,
 	targets map[resourceKey]compiler.ResourceGeneration,
+	allowedTargetKinds ...gatewayv1.Kind,
 ) []gatewayv1.PolicyTargetStatus {
 	if len(targetRefs) > policyconfig.MaxTargets {
 		targetRefs = targetRefs[:policyconfig.MaxTargets]
@@ -115,7 +112,14 @@ func policyTargetStatuses(
 			message: messageTargetResolved,
 		}
 		target, exists := targets[resourceKey{kind: targetRef.Kind, name: targetRef.Name}]
-		if !exists {
+		switch {
+		case !slices.Contains(allowedTargetKinds, targetRef.Kind):
+			resolved = conditionDecision{
+				status:  metav1.ConditionFalse,
+				reason:  gatewayv1.ReasonUnsupported,
+				message: fmt.Sprintf("Policy target kind %q is not supported", targetRef.Kind),
+			}
+		case !exists:
 			resolved = conditionDecision{
 				status:  metav1.ConditionFalse,
 				reason:  gatewayv1.ReasonReferenceNotFound,

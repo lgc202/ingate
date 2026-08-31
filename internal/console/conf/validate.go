@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/lgc202/ingate/internal/pkg/adminidentity"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
@@ -48,8 +49,8 @@ func validateAuthentication(config *Server_Authentication) error {
 	if config == nil {
 		return errors.New("console authentication config is required")
 	}
-	if config.GetSessionTtl() == nil || config.GetSessionTtl().AsDuration() <= 0 {
-		return errors.New("console authentication session TTL must be greater than zero")
+	if config.GetSessionTtl() == nil || config.GetSessionTtl().AsDuration() < time.Second {
+		return errors.New("console authentication session TTL must be at least one second")
 	}
 	if !adminidentity.IsValid(config.GetUsername()) {
 		return errors.New("console authentication username is invalid")

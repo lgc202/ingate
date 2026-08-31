@@ -234,12 +234,13 @@ export function FilterTabs<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="filter-tabs" role="tablist">
+    <div className="filter-tabs">
       {options.map((option) => (
         <button
           key={option.value}
           className={value === option.value ? "is-active" : ""}
           type="button"
+          aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
         >
           {option.label}
@@ -296,6 +297,7 @@ export function SearchField({
     <label className="search-field">
       <Search />
       <input
+        aria-label={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -488,7 +490,7 @@ export function Toast({
     return () => window.clearTimeout(timer);
   }, [onDone]);
   return (
-    <div className="toast">
+    <div className="toast" role="status" aria-live="polite">
       <CheckCircle2 />
       {message}
     </div>

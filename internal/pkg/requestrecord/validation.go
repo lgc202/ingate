@@ -2,6 +2,7 @@ package requestrecord
 
 import (
 	"errors"
+	"math"
 
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -54,6 +55,10 @@ func Validate(record *alsv1.RequestRecord) error {
 	if (record.GetCallerId() == "") != (record.GetAccessKeyId() == "") {
 		return errors.New("request record caller identity is incomplete")
 	}
+	if record.GetRouteId() == "" &&
+		(record.GetUpstreamId() != "" || record.GetCallerId() != "" || record.GetAiModelCall() != nil) {
+		return errors.New("request record contains associations without a route identity")
+	}
 	return validateModelCall(record.GetUpstreamId(), record.GetAiModelCall())
 }
 
@@ -90,13 +95,20 @@ func validateModelCall(upstreamID string, call *alsv1.AIModelCall) error {
 	hasUpstreamResult := call.GetUpstreamModel() != "" || protocol != "" ||
 		call.GetResponseModel() != "" || call.GetFinishReason() != "" ||
 		call.InputTokens != nil || call.OutputTokens != nil || call.TotalTokens != nil
-	if hasUpstreamResult &&
+	if (upstreamID != "" || hasUpstreamResult) &&
 		(upstreamID == "" || call.GetUpstreamModel() == "" || protocol == "") {
 		return errors.New("request record AI upstream identity is incomplete")
 	}
+	if call.InputTokens != nil && call.OutputTokens != nil &&
+		call.GetInputTokens() > math.MaxUint64-call.GetOutputTokens() {
+		return errors.New("request record AI token usage exceeds the supported range")
+	}
 	if call.TotalTokens != nil {
-		if call.InputTokens != nil && call.GetTotalTokens() < call.GetInputTokens() ||
-			call.OutputTokens != nil && call.GetTotalTokens() < call.GetOutputTokens() {
+		minimumTotal := max(call.GetInputTokens(), call.GetOutputTokens())
+		if call.InputTokens != nil && call.OutputTokens != nil {
+			minimumTotal = call.GetInputTokens() + call.GetOutputTokens()
+		}
+		if call.GetTotalTokens() < minimumTotal {
 			return errors.New("request record AI token usage is inconsistent")
 		}
 	}

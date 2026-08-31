@@ -116,7 +116,7 @@ message CreateWasmPluginRequest {
   ];
   string source_id = 2 [
     json_name = "sourceID",
-    (buf.validate.field).string.min_len = 1
+    (buf.validate.field).string.uuid = true
   ];
 }
 

@@ -45,7 +45,7 @@ func parseRouteSpec(displayName string, config *adminv1.RouteConfig) (resource.R
 	if err != nil {
 		return resource.RouteSpec{}, err
 	}
-	upstreamRefs, aiRoute, err := parseForwarding(config.GetForwarding())
+	serviceRefs, aiRoute, err := parseForwarding(config.GetForwarding())
 	if err != nil {
 		return resource.RouteSpec{}, err
 	}
@@ -68,7 +68,7 @@ func parseRouteSpec(displayName string, config *adminv1.RouteConfig) (resource.R
 		GatewayRefs:            gatewayRefs,
 		Hostnames:              hostnames,
 		Match:                  match,
-		UpstreamRefs:           upstreamRefs,
+		UpstreamRefs:           serviceRefs,
 		AI:                     aiRoute,
 		HostRewrite:            hostRewrite,
 		RequestHeaderModifier:  requestHeaderModifier,

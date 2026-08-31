@@ -1,7 +1,7 @@
-import { createContext, FormEvent, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { LogIn } from 'lucide-react';
 import { errorMessage } from '@/api/errors';
-import { getSession, login, logout, Session } from './session';
+import { getSession, login, logout, type Session } from './session';
 
 interface SessionContextValue {
   session: Session;
@@ -13,11 +13,15 @@ const SessionContext = createContext<SessionContextValue | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialError, setInitialError] = useState('');
 
   useEffect(() => {
     void getSession()
       .then(setSession)
-      .catch(() => setSession({ authenticated: false, username: '' }))
+      .catch((cause) => {
+        setSession({ authenticated: false, username: '' });
+        setInitialError(errorMessage(cause, '无法连接 Ingate'));
+      })
       .finally(() => setLoading(false));
 
     const handleUnauthorized = () => setSession({ authenticated: false, username: '' });
@@ -34,7 +38,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   } : null, [session]);
 
   if (loading) return <SessionLoading />;
-  if (!session?.authenticated) return <LoginPage onAuthenticated={setSession} />;
+  if (!session?.authenticated) {
+    return (
+      <LoginPage
+        initialError={initialError}
+        onAuthenticated={(authenticatedSession) => {
+          setInitialError('');
+          setSession(authenticatedSession);
+        }}
+      />
+    );
+  }
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
@@ -44,11 +58,17 @@ export function useSession(): SessionContextValue {
   return value;
 }
 
-function LoginPage({ onAuthenticated }: { onAuthenticated: (session: Session) => void }) {
+function LoginPage({
+  initialError,
+  onAuthenticated,
+}: {
+  initialError: string;
+  onAuthenticated: (session: Session) => void;
+}) {
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(initialError);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

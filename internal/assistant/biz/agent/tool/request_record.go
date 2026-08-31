@@ -42,14 +42,14 @@ type requestRecordInfo struct {
 	ServiceID             string           `json:"service_id,omitempty"`
 	Protocol              string           `json:"protocol,omitempty"`
 	RejectionReason       string           `json:"rejection_reason,omitempty"`
-	UpstreamAttempts      uint32           `json:"upstream_attempts"`
+	ServiceAttempts       uint32           `json:"service_attempts"`
 	AIModelCall           *aiModelCallInfo `json:"ai_model_call,omitempty"`
 	CallerID              string           `json:"caller_id,omitempty"`
 }
 
 type aiModelCallInfo struct {
 	ClientModel   string  `json:"client_model,omitempty"`
-	UpstreamModel string  `json:"upstream_model,omitempty"`
+	TargetModel   string  `json:"target_model,omitempty"`
 	Protocol      string  `json:"protocol,omitempty"`
 	ResponseModel string  `json:"response_model,omitempty"`
 	FinishReason  string  `json:"finish_reason,omitempty"`
@@ -135,7 +135,7 @@ func requestRecordInfoFromRecord(record RequestRecord) *requestRecordInfo {
 		ServiceID:             record.ServiceID,
 		Protocol:              record.Protocol,
 		RejectionReason:       record.RejectionReason,
-		UpstreamAttempts:      record.UpstreamAttempts,
+		ServiceAttempts:       record.ServiceAttempts,
 		AIModelCall:           aiModelCallInfoFromRecord(record.AIModelCall),
 		CallerID:              record.CallerID,
 	}
@@ -155,7 +155,7 @@ func aiModelCallInfoFromRecord(call *AIModelCall) *aiModelCallInfo {
 	}
 	return &aiModelCallInfo{
 		ClientModel:   call.ClientModel,
-		UpstreamModel: call.UpstreamModel,
+		TargetModel:   call.TargetModel,
 		Protocol:      call.Protocol,
 		ResponseModel: call.ResponseModel,
 		FinishReason:  call.FinishReason,

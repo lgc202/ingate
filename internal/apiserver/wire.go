@@ -20,5 +20,5 @@ func wireApp(
 	*slog.Logger,
 	serviceInstanceID,
 ) (*kratos.App, error) {
-	panic(wire.Build(server.New, newKratosApp))
+	panic(wire.Build(server.ProviderSet, newKratosApp))
 }

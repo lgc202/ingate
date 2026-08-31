@@ -15,7 +15,12 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/clickhouseclient"
 )
 
-const schemaMigrationTableName = "ingate_schema_migrations"
+const (
+	schemaMigrationTableName = "ingate_schema_migrations"
+	// requiredSchemaVersion 必须与 migrations 目录中的最高版本保持一致。
+	// 已发布的 migration 不得原地修改，表结构变更必须追加新版本。
+	requiredSchemaVersion int64 = 2
+)
 
 // migrationFiles 随 Analytics 二进制发布，部署时不依赖源码目录。
 //
@@ -50,6 +55,15 @@ func Migrate(ctx context.Context, config *conf.Data_ClickHouse) (applied int, er
 	)
 	if err != nil {
 		return 0, fmt.Errorf("create ClickHouse migration provider: %w", err)
+	}
+	migrationSources := provider.ListSources()
+	embeddedVersion := migrationSources[len(migrationSources)-1].Version
+	if embeddedVersion != requiredSchemaVersion {
+		return 0, fmt.Errorf(
+			"embedded ClickHouse migrations end at version %d, but Analytics requires version %d",
+			embeddedVersion,
+			requiredSchemaVersion,
+		)
 	}
 	results, err := provider.Up(ctx)
 	if err != nil {

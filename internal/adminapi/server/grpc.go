@@ -27,7 +27,7 @@ func (s *Services) registerGRPC(server *kratosgrpc.Server) {
 	adminv1.RegisterCallerServiceServer(server, s.caller)
 	adminv1.RegisterGatewayServiceServer(server, s.gateway)
 	adminv1.RegisterRouteServiceServer(server, s.route)
-	adminv1.RegisterUpstreamServiceServer(server, s.upstream)
+	adminv1.RegisterServiceManagementServiceServer(server, s.service)
 	adminv1.RegisterCertificateServiceServer(server, s.certificate)
 	adminv1.RegisterRateLimitPolicyServiceServer(server, s.rateLimit)
 	adminv1.RegisterIPRestrictionPolicyServiceServer(server, s.ipRestriction)

@@ -116,20 +116,36 @@ export async function streamAgentExecution(
   });
   if (response.status === 401) window.dispatchEvent(new Event('ingate:unauthorized'));
   if (!response.ok || !response.body) throw await responseError(response);
+  if (!response.headers.get('Content-Type')?.toLowerCase().startsWith('text/event-stream')) {
+    throw new Error('服务返回了无法识别的事件流');
+  }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    buffer += decoder.decode(value, { stream: !done });
-    const frames = buffer.replaceAll('\r\n', '\n').split('\n\n');
-    buffer = frames.pop() ?? '';
-    for (const frame of frames) {
-      const event = parseSSEFrame(frame);
-      if (event) onEvent(event);
+  let completed = false;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const frames = buffer.replaceAll('\r\n', '\n').split('\n\n');
+      buffer = frames.pop() ?? '';
+      for (const frame of frames) {
+        const event = parseSSEFrame(frame);
+        if (event) onEvent(event);
+      }
+      if (!done) continue;
+
+      if (buffer) {
+        const event = parseSSEFrame(buffer);
+        if (event) onEvent(event);
+      }
+      completed = true;
+      break;
     }
-    if (done) break;
+  } finally {
+    if (!completed) await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
   }
 }
 

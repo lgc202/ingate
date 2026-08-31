@@ -148,7 +148,7 @@ func (c *Client) resourceName(
 		gateway, err := c.gateways.GetGateway(ctx, &adminv1.GetGatewayRequest{Id: resourceID})
 		return resourceNameResult(dimension, resourceID, gateway.GetId(), gateway.GetName(), err)
 	case agenttool.TrafficDimensionService:
-		service, err := c.services.GetUpstream(ctx, &adminv1.GetUpstreamRequest{Id: resourceID})
+		service, err := c.services.GetService(ctx, &adminv1.GetServiceRequest{Id: resourceID})
 		return resourceNameResult(dimension, resourceID, service.GetId(), service.GetName(), err)
 	default:
 		route, err := c.routes.GetRoute(ctx, &adminv1.GetRouteRequest{Id: resourceID})

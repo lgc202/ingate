@@ -34,8 +34,12 @@
 ## 代码边界
 
 - Admin API 保持 Kratos `server / service / biz / data` 分层：装配、协议、业务和外部访问各归其位
+- `biz` 中跨资源、仓储或外部边界编排业务规则的入口统一命名为 `Usecase`、`NewUsecase` 和 `usecase.go`；具有明确领域角色的类型则直接使用 `Compiler`、`Delivery`、`Authorizer`、`Limiter`、`Recorder` 等角色名和对应文件名
+- `Service`、`NewService` 和 `service.go` 只表示协议实现或适配，通常位于 `service` 层；不得用它们泛指业务编排器、存储或后台任务
+- 文件名应与文件内的主要领域角色或职责一致；除 `service/service.go` 层入口或主类型确为协议 `Service` 外，不使用 `service.go`、`handler.go` 等无法表达真实职责的泛化文件名
 - 各层公开的 Wire `ProviderSet` 统一声明在包入口文件中，例如 `biz/biz.go`、`data/data.go`、`server/server.go` 和 `service/service.go`
 - `api/admin/v1` Proto 是 Console 的产品协议，使用 `id` 表达主键、`name` 表达展示名称
+- 对外产品协议、Console 和用户文档统一使用 `Service`；`Upstream` 只用于声明式资源和数据面内部表达，不得泄漏到 Admin API 或产品界面
 - 请求格式在 service 校验；同名、引用、版本和运行状态等系统规则在 biz 校验
 - 强类型 Policy 表达用户意图，具体由 Envoy、插件或外部服务执行，但执行细节不能进入用户协议
 - 插件页面只管理来源和生命周期，插件提供的业务配置仍由对应策略承载

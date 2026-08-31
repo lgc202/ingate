@@ -61,7 +61,7 @@ func listServices(
 	}
 	items := make([]serviceInfo, 0, len(result.Items))
 	for _, service := range result.Items {
-		items = append(items, serviceInfoFromResource(service))
+		items = append(items, serviceInfo(service))
 	}
 	return serviceToolOutput{
 		Summary: fmt.Sprintf("找到 %d 个服务", len(items)),
@@ -70,8 +70,4 @@ func listServices(
 		HasMore: result.HasMore,
 		Items:   items,
 	}, nil
-}
-
-func serviceInfoFromResource(service Service) serviceInfo {
-	return serviceInfo(service)
 }

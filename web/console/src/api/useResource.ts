@@ -75,6 +75,8 @@ export function useResource<T>(load: () => Promise<T>, options?: ResourceOptions
 
   useEffect(() => {
     if (optionsRef.current?.enabled === false) {
+      requestVersion.current++;
+      setState((current) => ({ ...current, loading: false }));
       return;
     }
     void reload();

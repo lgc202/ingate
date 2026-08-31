@@ -76,8 +76,8 @@ func (s *Store) List(
 	ctx context.Context,
 	actorID string,
 	limit int,
-	cursor *conversation.ConversationCursor,
-) (conversation.ConversationPage, error) {
+	cursor *conversation.Cursor,
+) (conversation.Page, error) {
 	updatedAt := time.Date(9999, 12, 31, 23, 59, 59, 999999000, time.UTC)
 	id := "~"
 	if cursor != nil {
@@ -92,19 +92,19 @@ func (s *Store) List(
 		Limit:       int32(limit + 1),
 	})
 	if err != nil {
-		return conversation.ConversationPage{}, fmt.Errorf("list conversations: %w", err)
+		return conversation.Page{}, fmt.Errorf("list conversations: %w", err)
 	}
-	page := conversation.ConversationPage{Items: make([]conversation.Conversation, 0, min(len(rows), limit))}
+	page := conversation.Page{Items: make([]conversation.Conversation, 0, min(len(rows), limit))}
 	for _, row := range rows[:min(len(rows), limit)] {
 		item, err := conversationFromDB(row)
 		if err != nil {
-			return conversation.ConversationPage{}, fmt.Errorf("restore conversation: %w", err)
+			return conversation.Page{}, fmt.Errorf("restore conversation: %w", err)
 		}
 		page.Items = append(page.Items, item)
 	}
 	if len(rows) > limit {
 		last := page.Items[len(page.Items)-1]
-		page.NextCursor = &conversation.ConversationCursor{UpdatedAt: last.UpdatedAt, ID: last.ID}
+		page.NextCursor = &conversation.Cursor{UpdatedAt: last.UpdatedAt, ID: last.ID}
 	}
 	return page, nil
 }

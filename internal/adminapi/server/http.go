@@ -40,7 +40,7 @@ func (s *Services) registerHTTP(server *kratoshttp.Server) {
 	adminv1.RegisterCallerServiceHTTPServer(server, s.caller)
 	adminv1.RegisterGatewayServiceHTTPServer(server, s.gateway)
 	adminv1.RegisterRouteServiceHTTPServer(server, s.route)
-	adminv1.RegisterUpstreamServiceHTTPServer(server, s.upstream)
+	adminv1.RegisterServiceManagementServiceHTTPServer(server, s.service)
 	adminv1.RegisterCertificateServiceHTTPServer(server, s.certificate)
 	adminv1.RegisterRateLimitPolicyServiceHTTPServer(server, s.rateLimit)
 	adminv1.RegisterIPRestrictionPolicyServiceHTTPServer(server, s.ipRestriction)

@@ -2,9 +2,7 @@ package apiserver
 
 import (
 	"context"
-	"fmt"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 
@@ -58,15 +56,6 @@ func replaceResourceSpec[T resourceObject[T]](
 		updated = next
 		return nil
 	})
-	if apierrors.IsConflict(err) {
-		var zero T
-		return zero, fmt.Errorf(
-			"replace %s %q after conflict retries: %w",
-			kind,
-			name,
-			err,
-		)
-	}
 	return updated, resourceError("replace", kind, name, err)
 }
 
@@ -104,13 +93,5 @@ func deleteResource[T resourceObject[T]](
 		refreshRequired = err != nil
 		return err
 	})
-	if apierrors.IsConflict(err) {
-		return fmt.Errorf(
-			"delete %s %q after conflict retries: %w",
-			kind,
-			name,
-			err,
-		)
-	}
 	return resourceError("delete", kind, name, err)
 }

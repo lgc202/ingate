@@ -114,38 +114,38 @@ export function OverviewPage() {
             <span>4 个步骤</span>
           </header>
           <div className="quick-start-steps">
-          <Link to="/services">
-            <i>1</i>
-            <div>
-              <strong>接入服务</strong>
-              <small>配置 HTTP、模型或 MCP 连接</small>
-            </div>
-            <span>{services.length} 个</span>
-          </Link>
-          <Link to="/routes">
-            <i>2</i>
-            <div>
-              <strong>创建路由</strong>
-              <small>决定客户端如何访问服务</small>
-            </div>
-            <ArrowRight />
-          </Link>
-          <Link to="/callers">
-            <i>3</i>
-            <div>
-              <strong>授权调用方</strong>
-              <small>签发密钥并选择可访问能力</small>
-            </div>
-            <ArrowRight />
-          </Link>
-          <Link to="/requests">
-            <i>4</i>
-            <div>
-              <strong>发送并排障</strong>
-              <small>复制 curl，查看单次执行过程</small>
-            </div>
-            <ArrowRight />
-          </Link>
+            <Link to="/services">
+              <i>1</i>
+              <div>
+                <strong>接入服务</strong>
+                <small>配置 HTTP、模型或 MCP 连接</small>
+              </div>
+              <span>{services.length} 个</span>
+            </Link>
+            <Link to="/routes">
+              <i>2</i>
+              <div>
+                <strong>创建路由</strong>
+                <small>决定客户端如何访问服务</small>
+              </div>
+              <ArrowRight />
+            </Link>
+            <Link to="/callers">
+              <i>3</i>
+              <div>
+                <strong>授权调用方</strong>
+                <small>签发密钥并选择可访问能力</small>
+              </div>
+              <ArrowRight />
+            </Link>
+            <Link to="/requests">
+              <i>4</i>
+              <div>
+                <strong>发送并排障</strong>
+                <small>复制 curl，查看单次执行过程</small>
+              </div>
+              <ArrowRight />
+            </Link>
           </div>
         </section>
       ) : null}

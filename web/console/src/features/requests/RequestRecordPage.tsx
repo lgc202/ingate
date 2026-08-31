@@ -23,7 +23,7 @@ import {
   formatTokenCount,
 } from '@/domain/requestRecord';
 import { localDateTime, roundUpToMinute } from '@/domain/timeRange';
-import { modelProtocolLabel } from '@/domain/upstream';
+import { modelProtocolLabel } from '@/domain/service';
 
 const methodOptions = ['', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 const pageSizeOptions = [10, 20, 50];
@@ -229,8 +229,8 @@ function RequestDetail({ record, names, namesReady }: { record: RequestRecord; n
         <ResourceDetailItem label="网关" id={record.gatewayID} names={names.gateways} path="/gateways" deletedLabel={namesReady ? '已删除的网关' : '名称加载中'} />
         <ResourceDetailItem label="路由" id={record.routeID} names={names.routes} path="/routes" deletedLabel={namesReady ? '已删除的路由' : '名称加载中'} />
         {record.serviceID ? <ResourceDetailItem label="服务" id={record.serviceID} names={names.services} path="/services" deletedLabel={namesReady ? '已删除的服务' : '名称加载中'} /> : <DetailItem label="服务" value="未转发" />}
-        <DetailItem label="最终服务地址" value={record.upstreamAddress || '-'} />
-        <DetailItem label="转发尝试" value={record.upstreamAttempts ? `${record.upstreamAttempts} 次` : '-'} />
+        <DetailItem label="最终服务地址" value={record.serviceAddress || '-'} />
+        <DetailItem label="转发尝试" value={record.serviceAttempts ? `${record.serviceAttempts} 次` : '-'} />
       </DetailSection>
     </div>
   );
@@ -424,14 +424,14 @@ function formatFilterRange(filters: RequestRecordFilters): string {
 }
 
 function actualModel(call: NonNullable<RequestRecord['aiModelCall']>): string {
-  if (call.responseModel && call.responseModel !== call.upstreamModel) {
-    return `${call.responseModel}（配置 ${call.upstreamModel}）`;
+  if (call.responseModel && call.responseModel !== call.targetModel) {
+    return `${call.responseModel}（配置 ${call.targetModel}）`;
   }
-  return call.responseModel || call.upstreamModel || '-';
+  return call.responseModel || call.targetModel || '-';
 }
 
 function modelMapping(call: NonNullable<RequestRecord['aiModelCall']>): string {
-  const actual = call.responseModel || call.upstreamModel;
+  const actual = call.responseModel || call.targetModel;
   if (!call.clientModel) return actual || '模型调用';
   if (!actual || actual === call.clientModel) return call.clientModel;
   return `${call.clientModel} → ${actual}`;

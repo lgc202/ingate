@@ -38,7 +38,13 @@ func (c *compilation) compileIPRestrictionPolicies() []compiledIPRestrictionPoli
 	result := make([]compiledIPRestrictionPolicy, 0, len(c.ipRestrictionPolicies))
 	for _, policyID := range slices.Sorted(maps.Keys(c.ipRestrictionPolicies)) {
 		policy := c.ipRestrictionPolicies[policyID]
-		targets := c.validPolicyTargets(gatewayv1.KindIPRestrictionPolicy, policyID, policy.Spec.TargetRefs)
+		targets := c.validPolicyTargets(
+			gatewayv1.KindIPRestrictionPolicy,
+			policyID,
+			policy.Spec.TargetRefs,
+			gatewayv1.KindGateway,
+			gatewayv1.KindRoute,
+		)
 		if !policy.Spec.Enabled {
 			continue
 		}

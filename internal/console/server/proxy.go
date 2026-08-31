@@ -64,6 +64,7 @@ func newReverseProxy(
 		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 	}
 	proxy.ModifyResponse = func(response *http.Response) error {
+		response.Header.Set("Cache-Control", "no-store")
 		// Console 已将同一个请求 ID 写入响应，避免复制后端 Header 后出现重复值。
 		response.Header.Del(requestid.Header)
 		// 内部服务不得覆盖 Console 的会话 Cookie，也不向浏览器暴露后端实现标识。

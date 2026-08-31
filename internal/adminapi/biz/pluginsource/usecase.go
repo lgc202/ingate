@@ -17,8 +17,8 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
-// OfficialSourceID 是进程配置中官方插件源的稳定标识。
-const OfficialSourceID = "official"
+// OfficialSourceID 是进程配置中官方插件源的稳定资源标识。
+const OfficialSourceID = "00000000-0000-5000-8000-000000000001"
 
 const (
 	// SyncStateReady 表示最近一次同步成功。
@@ -171,6 +171,7 @@ func (uc *Usecase) Create(ctx context.Context, spec resource.PluginSourceSpec) (
 		return Source{}, err
 	}
 	uc.catalog.InvalidateSource(source)
+	// 持久化成功不依赖远程目录可用性；同步结果由来源观测状态表达。
 	_ = uc.catalog.SyncSource(ctx, source.Name)
 	return uc.sourceFromResource(source), nil
 }
@@ -194,7 +195,7 @@ func (uc *Usecase) Replace(
 		return Source{}, err
 	}
 	uc.catalog.InvalidateSource(source)
-	// 停用也通过同步边界更新进程内状态，保留来源名称供已安装插件展示。
+	// 同步边界也处理停用状态；持久化成功不依赖远程目录可用性。
 	_ = uc.catalog.SyncSource(ctx, sourceID)
 	return uc.sourceFromResource(source), nil
 }
@@ -268,17 +269,17 @@ func (uc *Usecase) sourceFromResource(source *resource.PluginSource) Source {
 	}
 }
 
-func (filter ListFilter) matches(source Source) bool {
-	if filter.Query != "" && !strings.Contains(
+func (f ListFilter) matches(source Source) bool {
+	if f.Query != "" && !strings.Contains(
 		strings.ToLower(source.DisplayName+" "+source.URL),
-		filter.Query,
+		f.Query,
 	) {
 		return false
 	}
-	if filter.Enabled != nil && source.Enabled != *filter.Enabled {
+	if f.Enabled != nil && source.Enabled != *f.Enabled {
 		return false
 	}
-	return filter.State == "" || source.Observation.State == filter.State
+	return f.State == "" || source.Observation.State == f.State
 }
 
 func compareSources(left, right Source) int {

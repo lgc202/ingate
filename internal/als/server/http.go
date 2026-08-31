@@ -154,5 +154,6 @@ func boolMetric(value bool) float64 {
 func writeJSON(response http.ResponseWriter, statusCode int, value any) {
 	response.Header().Set("Content-Type", "application/json")
 	response.WriteHeader(statusCode)
+	// 响应头已经发出，客户端断开导致的编码错误无法再转换为另一份 HTTP 响应。
 	_ = json.NewEncoder(response).Encode(value)
 }

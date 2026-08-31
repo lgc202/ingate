@@ -64,14 +64,14 @@ message Server {
     TLS tls = 2;
   }
   message HTTP {
-    // addr 是健康检查和就绪检查的 HTTP 地址
+    // addr 是 /healthz、/readyz 和 /metrics 运维端点的 HTTP 监听地址。
     string addr = 1;
     // timeout 限制单次运维 HTTP 请求处理时间
     google.protobuf.Duration timeout = 2;
   }
   // grpc 接收 Envoy External Processing 双向流
   GRPC grpc = 1;
-  // http 暴露 healthz 和 readyz
+  // http 暴露 /healthz、/readyz 和 /metrics 运维端点。
   HTTP http = 2;
   // shutdown_timeout 是等待现有 External Processing 流退出的最长时间
   google.protobuf.Duration shutdown_timeout = 3;

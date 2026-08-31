@@ -39,7 +39,7 @@ type ChatModelFactory func(
 // Agent 组合运维指令、当前模型连接和 Ingate 只读工具。
 // 实例可以并发使用；每次执行的消息、事件和中间状态都保存在方法栈内。
 type Agent struct {
-	connections     *modelconfig.Service
+	connections     *modelconfig.Usecase
 	createChatModel ChatModelFactory
 	tools           []einotool.BaseTool
 	instruction     string
@@ -47,7 +47,7 @@ type Agent struct {
 
 // New 创建运维 Agent，并在进程启动时完成工具定义的静态装配。
 func New(
-	connections *modelconfig.Service,
+	connections *modelconfig.Usecase,
 	source agenttool.QuerySource,
 	createChatModel ChatModelFactory,
 ) (*Agent, error) {

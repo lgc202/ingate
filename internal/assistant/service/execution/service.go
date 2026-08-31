@@ -14,15 +14,15 @@ import (
 	"github.com/lgc202/ingate/internal/assistant/service/identity"
 )
 
+var _ assistantv1.AgentExecutionServiceHTTPServer = (*Service)(nil)
+
 // Service 实现执行创建、查询和取消协议。
 type Service struct {
-	assistantv1.UnimplementedAgentExecutionServiceServer
-
-	executions *executionbiz.Service
+	executions *executionbiz.Usecase
 }
 
 // NewService 创建 Agent 执行协议服务。
-func NewService(executions *executionbiz.Service) *Service {
+func NewService(executions *executionbiz.Usecase) *Service {
 	return &Service{executions: executions}
 }
 

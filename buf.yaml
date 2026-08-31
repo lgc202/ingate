@@ -8,6 +8,7 @@ modules:
   - path: internal/analytics
   - path: internal/aiextproc/conf
   - path: internal/authz/conf
+  - path: internal/console/conf
   - path: internal/controller/conf
 deps:
   - buf.build/bufbuild/protovalidate

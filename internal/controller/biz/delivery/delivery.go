@@ -317,8 +317,9 @@ func (d *Delivery) handleCommand(ctx context.Context, command command) error {
 	case commandXDSEvent:
 		return d.handleXDSEvent(ctx, command.event)
 	case commandACKTimeout:
-		d.handleACKTimeout(command.version, command.sequence)
-		return nil
+		rollbackCtx, cancel := context.WithTimeout(ctx, d.options.NACKRollbackTimeout)
+		defer cancel()
+		return d.handleACKTimeout(rollbackCtx, command.version, command.sequence)
 	default:
 		return fmt.Errorf("unknown delivery command %d", command.kind)
 	}

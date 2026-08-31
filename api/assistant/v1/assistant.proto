@@ -11,27 +11,33 @@ option go_package = "github.com/lgc202/ingate/api/assistant/v1;v1";
 
 // ConversationService 提供运维助手的会话与消息查询接口。
 service ConversationService {
+  // ListConversations 按最近活动时间返回当前管理员的会话。
   rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse) {
     option (google.api.http) = {get: "/assistant/v1/conversations"};
   }
+  // GetConversation 返回当前管理员可见的单个会话。
   rpc GetConversation(GetConversationRequest) returns (Conversation) {
     option (google.api.http) = {get: "/assistant/v1/conversations/{id}"};
   }
+  // CreateConversation 为当前管理员创建一个会话。
   rpc CreateConversation(CreateConversationRequest) returns (Conversation) {
     option (google.api.http) = {
       post: "/assistant/v1/conversations"
       body: "*"
     };
   }
+  // UpdateConversation 更新当前管理员会话的标题。
   rpc UpdateConversation(UpdateConversationRequest) returns (Conversation) {
     option (google.api.http) = {
       patch: "/assistant/v1/conversations/{id}"
       body: "*"
     };
   }
+  // DeleteConversation 删除当前管理员的会话及其关联记录。
   rpc DeleteConversation(DeleteConversationRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {delete: "/assistant/v1/conversations/{id}"};
   }
+  // ListMessages 按创建时间返回会话中的持久消息。
   rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse) {
     option (google.api.http) = {get: "/assistant/v1/conversations/{conversation_id}/messages"};
   }
@@ -39,18 +45,22 @@ service ConversationService {
 
 // AgentExecutionService 管理一次用户请求从排队到完成的异步执行。
 service AgentExecutionService {
+  // CreateAgentExecution 为会话创建一次异步 Agent 执行。
   rpc CreateAgentExecution(CreateAgentExecutionRequest) returns (AgentExecution) {
     option (google.api.http) = {
       post: "/assistant/v1/conversations/{conversation_id}/executions"
       body: "*"
     };
   }
+  // GetAgentExecution 返回当前管理员可见的单次执行。
   rpc GetAgentExecution(GetAgentExecutionRequest) returns (AgentExecution) {
     option (google.api.http) = {get: "/assistant/v1/executions/{id}"};
   }
+  // ListAgentExecutionSteps 返回一次执行中已持久的模型和工具步骤。
   rpc ListAgentExecutionSteps(ListAgentExecutionStepsRequest) returns (ListAgentExecutionStepsResponse) {
     option (google.api.http) = {get: "/assistant/v1/executions/{execution_id}/steps"};
   }
+  // CancelAgentExecution 请求取消排队中或运行中的执行。
   rpc CancelAgentExecution(CancelAgentExecutionRequest) returns (AgentExecution) {
     option (google.api.http) = {
       post: "/assistant/v1/executions/{id}:cancel"
@@ -61,9 +71,11 @@ service AgentExecutionService {
 
 // ModelConnectionService 管理运维助手当前生效的模型连接。
 service ModelConnectionService {
+  // GetModelConnection 返回当前模型连接的非敏感信息。
   rpc GetModelConnection(google.protobuf.Empty) returns (ModelConnection) {
     option (google.api.http) = {get: "/assistant/v1/model-connection"};
   }
+  // UpdateModelConnection 校验并替换当前模型连接。
   rpc UpdateModelConnection(UpdateModelConnectionRequest) returns (ModelConnection) {
     option (google.api.http) = {
       put: "/assistant/v1/model-connection"
@@ -236,6 +248,7 @@ message ListConversationsResponse {
 
 // GetConversationRequest 指定当前管理员要读取的会话。
 message GetConversationRequest {
+  // id 是目标会话标识。
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
 
@@ -257,6 +270,7 @@ message UpdateConversationRequest {
 
 // DeleteConversationRequest 指定要删除的会话。
 message DeleteConversationRequest {
+  // id 是目标会话标识。
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
 
@@ -272,6 +286,7 @@ message ListMessagesRequest {
 
 // ListMessagesResponse 返回一页持久消息和后续游标。
 message ListMessagesResponse {
+  // messages 按创建时间正序排列。
   repeated Message messages = 1;
   // next_cursor 为空时表示没有下一页。
   string next_cursor = 2;
@@ -279,16 +294,19 @@ message ListMessagesResponse {
 
 // GetAgentExecutionRequest 指定要查询的执行。
 message GetAgentExecutionRequest {
+  // id 是目标执行标识。
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
 
 // ListAgentExecutionStepsRequest 指定要查询执行步骤的执行。
 message ListAgentExecutionStepsRequest {
+  // execution_id 是目标执行标识。
   string execution_id = 1 [(buf.validate.field).string.uuid = true];
 }
 
 // ListAgentExecutionStepsResponse 按 sequence 返回已经持久化的步骤。
 message ListAgentExecutionStepsResponse {
+  // steps 按执行内的稳定序号排列。
   repeated AgentExecutionStep steps = 1;
 }
 
@@ -305,6 +323,7 @@ message CreateAgentExecutionRequest {
 
 // CancelAgentExecutionRequest 指定要取消的排队中或运行中执行。
 message CancelAgentExecutionRequest {
+  // id 是目标执行标识。
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
 
@@ -374,6 +393,7 @@ message UpdateModelConnectionRequest {
       lte: 1000000
     }
   ];
+  // reasoning_budget_tokens 是 Anthropic 扩展思考预算，0 表示关闭。
   uint32 reasoning_budget_tokens = 9 [
     json_name = "reasoningBudgetTokens",
     (buf.validate.field).uint32.lte = 999999

@@ -8,10 +8,11 @@
 - `ingate-controller.yaml`
 - `ingate-console.yaml`
 - `ingate-ai-extproc.yaml`
+- `ingate-authz.yaml`
 - `ingate-als.yaml`
 - `ingate-analytics.yaml`
 
-服务通过 `--config` 指定配置文件，通过 `--version` 输出构建版本。所有组件直接读取完整 YAML，不为每个字段维护环境变量覆盖规则。不同部署环境应提供对应配置文件，敏感配置由部署系统生成或挂载到配置文件中。
+服务通过 `--config` 指定配置文件，通过 `--version` 输出构建版本。普通配置只从完整 YAML 读取，不为每个字段维护环境变量覆盖规则；YAML 中显式写出的 `${NAME}` 或 `${NAME:default}` 占位符才会从对应的 `INGATE_NAME` 环境变量解析。不同部署环境应提供对应配置文件，并通过显式占位符或部署系统挂载敏感配置。仓库内带默认值的控制面令牌和数据库密码只用于本地开发，不能复制到正式环境。
 
 Docker Compose 的容器专用配置放在 `deploy/docker/configs`，它们使用容器服务名连接依赖。不要把容器地址写回这里的直接运行配置。
 

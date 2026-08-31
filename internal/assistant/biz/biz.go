@@ -1,4 +1,4 @@
-// Package biz 装配运维助手的业务服务。
+// Package biz 装配运维助手的业务用例和领域执行器。
 package biz
 
 import (
@@ -10,12 +10,12 @@ import (
 	"github.com/lgc202/ingate/internal/assistant/biz/modelconfig"
 )
 
-// ProviderSet 汇总运维助手的业务服务。
+// ProviderSet 汇总运维助手的业务用例和领域执行器。
 var ProviderSet = wire.NewSet(
-	conversation.NewService,
-	execution.NewService,
+	conversation.NewUsecase,
+	execution.NewUsecase,
 	execution.NewExecutor,
-	modelconfig.NewService,
+	modelconfig.NewUsecase,
 	agent.New,
 	wire.Bind(new(execution.Agent), new(*agent.Agent)),
 )

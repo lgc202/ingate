@@ -1,13 +1,17 @@
 import { ChevronRight, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Suspense, useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { errorMessage } from '@/api/errors';
 import { getHealth } from '@/api/health';
 import { navigation, navigationItems } from '@/app/navigation';
+import { Toast } from '@/components/ui';
 import { useSession } from '@/features/auth/SessionProvider';
 
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
   const [version, setVersion] = useState('');
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState('');
   const { session, signOut } = useSession();
   const location = useLocation();
   const currentPage = navigationItems.find((item) => location.pathname.startsWith(item.to));
@@ -20,6 +24,18 @@ export function AppShell() {
       .then((health) => setVersion(health.version))
       .catch(() => setVersion(''));
   }, []);
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    setSignOutError('');
+    try {
+      await signOut();
+    } catch (cause) {
+      setSignOutError(errorMessage(cause, '退出登录失败'));
+      setSigningOut(false);
+    }
+  };
 
   return (
     <div className={`console-shell ${collapsed ? 'is-collapsed' : ''}`}>
@@ -66,9 +82,9 @@ export function AppShell() {
           <div className="session-user" title={collapsed ? session.username : undefined}>
             <span>{session.username.slice(0, 1).toUpperCase()}</span>
             {!collapsed ? <strong>{session.username}</strong> : null}
-            {!collapsed ? (
-              <button type="button" aria-label="退出登录" onClick={() => void signOut()}><LogOut /></button>
-            ) : null}
+            <button type="button" aria-label="退出登录" disabled={signingOut} onClick={() => void handleSignOut()}>
+              <LogOut aria-hidden="true" />
+            </button>
           </div>
         </div>
       </aside>
@@ -88,6 +104,7 @@ export function AppShell() {
           </Suspense>
         </main>
       </div>
+      <Toast message={signOutError} tone="error" onClose={() => setSignOutError('')} />
     </div>
   );
 }

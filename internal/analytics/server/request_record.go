@@ -2,6 +2,8 @@ package server
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -14,36 +16,61 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
+type decodedRecords struct {
+	records         []requestbiz.Record
+	invalidCount    int
+	duplicateCount  int
+	firstInvalidErr error
+}
+
 // decodeRequestRecords 解码一个 Kafka 批次，并统计无效和重复消息。
-func decodeRequestRecords(messages []*kgo.Record) ([]requestbiz.Record, int, int) {
-	records := make([]requestbiz.Record, 0, len(messages))
+func decodeRequestRecords(messages []*kgo.Record) decodedRecords {
+	decoded := decodedRecords{records: make([]requestbiz.Record, 0, len(messages))}
 	seen := make(map[string]*alsv1.RequestRecord, len(messages))
-	invalid := 0
-	duplicates := 0
 	for _, message := range messages {
-		if message == nil || len(message.Value) > requestrecord.MaxEncodedBytes {
-			invalid++
-			continue
-		}
-		record := new(alsv1.RequestRecord)
-		if err := proto.Unmarshal(message.Value, record); err != nil ||
-			!validRequestRecordEnvelope(message, record) ||
-			!validRecord(record) {
-			invalid++
+		record, err := decodeRequestRecord(message)
+		if err != nil {
+			decoded.invalidCount++
+			if decoded.firstInvalidErr == nil {
+				decoded.firstInvalidErr = err
+			}
 			continue
 		}
 		if previous, exists := seen[record.GetId()]; exists {
 			if proto.Equal(previous, record) {
-				duplicates++
+				decoded.duplicateCount++
 			} else {
-				invalid++
+				decoded.invalidCount++
+				if decoded.firstInvalidErr == nil {
+					decoded.firstInvalidErr = errors.New("request record ID is reused with different content")
+				}
 			}
 			continue
 		}
 		seen[record.GetId()] = record
-		records = append(records, domainRecord(record))
+		decoded.records = append(decoded.records, domainRecord(record))
 	}
-	return records, invalid, duplicates
+	return decoded
+}
+
+func decodeRequestRecord(message *kgo.Record) (*alsv1.RequestRecord, error) {
+	if message == nil {
+		return nil, errors.New("kafka message is nil")
+	}
+	if len(message.Value) > requestrecord.MaxEncodedBytes {
+		return nil, errors.New("request record exceeds the encoded size limit")
+	}
+	record := new(alsv1.RequestRecord)
+	if err := proto.Unmarshal(message.Value, record); err != nil {
+		return nil, fmt.Errorf("decode request record protobuf: %w", err)
+	}
+	if !validRequestRecordEnvelope(message, record) {
+		return nil, errors.New("request record Kafka envelope is invalid")
+	}
+	if err := validateRecord(record); err != nil {
+		return nil, err
+	}
+	return record, nil
 }
 
 func validRequestRecordEnvelope(message *kgo.Record, record *alsv1.RequestRecord) bool {
@@ -127,12 +154,15 @@ func cloneUint64(value *uint64) *uint64 {
 	return &cloned
 }
 
-// validRecord 校验跨进程协议边界上 ClickHouse 列类型和查询所需的最小字段。
-func validRecord(record *alsv1.RequestRecord) bool {
-	if requestrecord.Validate(record) != nil {
-		return false
+// validateRecord 校验跨进程协议边界上 ClickHouse 列类型和查询所需的最小字段。
+func validateRecord(record *alsv1.RequestRecord) error {
+	if err := requestrecord.Validate(record); err != nil {
+		return err
 	}
 	startedAt := record.GetStartedAt().AsTime()
 	// 查询游标使用 Unix 纳秒；超出其可表示范围会发生整数环绕，必须在 Kafka 边界拒绝。
-	return analyticsconfig.IsSupportedTime(startedAt)
+	if !analyticsconfig.IsSupportedTime(startedAt) {
+		return errors.New("request record start time is outside the supported range")
+	}
+	return nil
 }

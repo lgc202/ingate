@@ -110,7 +110,11 @@ func (s *Store) Resolve(ctx context.Context, plugin *gatewayv1.WasmPlugin) (comp
 	}
 
 	if plugin.Spec.PullPolicy == gatewayv1.WasmPluginPullIfNotPresent {
-		if module, ok := s.cachedSource(ctx, plugin.Spec.URL, plugin.Spec.SHA256); ok {
+		module, ok, err := s.cachedSource(ctx, plugin.Spec.URL, plugin.Spec.SHA256)
+		if err != nil {
+			return compiler.WasmModule{}, err
+		}
+		if ok {
 			s.resolved[generation] = module
 			return module, nil
 		}

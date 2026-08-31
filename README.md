@@ -44,7 +44,7 @@ Ingate 不依赖 Kubernetes，不维护 Envoy 私有分支，也不为其他数�
 
 ## 快速开始
 
-安装不需要源码、Go 或 Node.js。请先准备 Bash、curl、tar、Docker Engine 和 Docker Compose v2：
+安装不需要源码、Go 或 Node.js。请先准备 Bash、curl、tar、`sha256sum`（Linux）或 `shasum`（macOS）、Docker Engine 和 Docker Compose v2：
 
 ```bash
 curl -fsSL https://github.com/lgc202/ingate/releases/latest/download/install.sh | bash
@@ -154,10 +154,11 @@ make docker-ps
 常用命令：
 
 ```bash
-make generate  # 生成 Proto、资源客户端、OpenAPI 和 Wire 代码
-make lint      # 检查 Go、Proto 和 GitHub Actions
-make test      # 编译全部 Go package
-make verify    # 执行提交前完整检查
+make generate      # 生成 Proto、资源客户端、OpenAPI 和 Wire 代码
+make lint          # 检查 Go、Proto 和 GitHub Actions
+make test          # 编译全部 Go package
+make verify        # 执行提交前完整检查
+make docker-reset  # 删除本地数据卷并重建开发联调环境
 ```
 
 更多命令可以通过 `make help` 查看。配置文件位于 [`configs`](configs)，本地 Compose 配置位于 [`deploy/docker`](deploy/docker)。

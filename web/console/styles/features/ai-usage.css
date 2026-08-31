@@ -1,0 +1,59 @@
+/* AI 用量沿用观测页面的筛选与信息密度，强调模型调用和 Token 两类事实 */
+.ai-usage-error-state { min-height: 120px; display: grid; place-content: center; justify-items: center; gap: 12px; color: #707681; font-size: .76rem; }
+.ai-usage-error-state p { margin: 0; }
+.ai-usage-filter-warning { grid-column: 1 / -1; min-height: 34px; padding: 8px 10px; display: flex; align-items: center; border: 1px solid #ead7b9; border-radius: 8px; color: #8b5a1b; background: #fff8eb; font-size: .7rem; }
+.ai-usage-metric-card.is-input > span { color: #3047c7; background: #eef0ff; }
+.ai-usage-metric-card.is-output > span { color: #b65f28; background: #fff0e7; }
+.ai-usage-metric-card.is-total > span { color: #167d69; background: #e9f6f2; }
+
+.ai-usage-trend-chart { min-height: 274px; padding-top: 8px; }
+.ai-usage-chart-plot { position: relative; margin-left: 52px; }
+.ai-usage-trend-chart svg { width: 100%; height: 230px; display: block; overflow: visible; cursor: crosshair; }
+.ai-usage-grid-line { stroke: #e7e8e5; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ai-usage-trend-line { fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.ai-usage-trend-line.is-input { stroke: #4057d5; }
+.ai-usage-trend-line.is-output { stroke: #cf7437; }
+.ai-usage-trend-line.is-calls { stroke: #4057d5; }
+.ai-usage-chart-hit-area { fill: transparent; pointer-events: all; }
+.ai-usage-hover-line { stroke: #9ba4ca; stroke-width: 1; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; pointer-events: none; }
+.ai-usage-trend-dot { fill: #fff; stroke-width: 2.2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.ai-usage-trend-dot.is-input { stroke: #4057d5; }
+.ai-usage-trend-dot.is-output { stroke: #cf7437; }
+.ai-usage-trend-dot.is-calls { fill: #4057d5; stroke: #fff; }
+.ai-usage-chart-scale { position: absolute; top: 10px; bottom: 10px; left: -52px; width: 42px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; color: #8e939e; font-size: .65rem; font-variant-numeric: tabular-nums; }
+.ai-usage-chart-labels { margin: 5px 0 0 52px; display: flex; justify-content: space-between; color: #8e939e; font-size: .65rem; font-variant-numeric: tabular-nums; }
+.ai-usage-chart-legend { position: absolute; z-index: 2; top: 8px; right: 10px; padding: 4px 7px; display: flex; align-items: center; gap: 11px; border: 1px solid rgba(224,226,232,.9); border-radius: 7px; color: #737986; background: rgba(255,255,255,.92); font-size: .62rem; font-weight: 700; pointer-events: none; }
+.ai-usage-chart-legend span { display: flex; align-items: center; gap: 5px; }
+.ai-usage-chart-legend i { width: 14px; border-top: 2px solid; }
+.ai-usage-chart-legend i.is-input { border-color: #4057d5; }
+.ai-usage-chart-legend i.is-output { border-color: #cf7437; }
+.ai-usage-chart-tooltip { position: absolute; z-index: 4; top: 8px; min-width: 176px; padding: 9px 11px; transform: translateX(-50%); border: 1px solid #dfe1e8; border-radius: 9px; color: #292e38; background: rgba(255,255,255,.97); box-shadow: 0 8px 22px rgba(43,49,68,.12); backdrop-filter: blur(8px); pointer-events: none; }
+.ai-usage-chart-tooltip time { display: block; margin-bottom: 6px; color: #858b96; font-size: .64rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.ai-usage-chart-tooltip > div { display: flex; align-items: baseline; gap: 7px; }
+.ai-usage-chart-tooltip > div strong { color: #3047c7; font-size: .95rem; font-variant-numeric: tabular-nums; }
+.ai-usage-chart-tooltip > div span { color: #737986; font-size: .64rem; }
+.ai-usage-chart-tooltip dl { margin: 0; display: grid; gap: 5px; }
+.ai-usage-chart-tooltip > div + dl { margin-top: 7px; padding-top: 6px; border-top: 1px solid #e9eaf0; }
+.ai-usage-chart-tooltip dl div { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.ai-usage-chart-tooltip dt, .ai-usage-chart-tooltip dd { margin: 0; font-size: .63rem; }
+.ai-usage-chart-tooltip dt { display: flex; align-items: center; gap: 5px; color: #858b96; }
+.ai-usage-chart-tooltip dt i { width: 7px; height: 7px; border-radius: 50%; background: #4057d5; }
+.ai-usage-chart-tooltip dt i.is-output { background: #cf7437; }
+.ai-usage-chart-tooltip dd { color: #454b56; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ai-usage-chart-empty { min-height: 274px; display: grid; place-content: center; justify-items: center; gap: 8px; color: #92969f; font-size: .76rem; }
+.ai-usage-chart-empty svg { width: 22px; }
+
+.ai-usage-ranking-controls { display: flex; align-items: center; gap: 8px; }
+.ai-usage-ranking-controls label { height: 36px; padding: 0 4px 0 10px; display: flex; align-items: center; gap: 7px; border: 1px solid #e0e2e8; border-radius: 8px; color: #7b808a; background: #fff; font-size: .68rem; font-weight: 700; }
+.ai-usage-ranking-controls select { min-width: 108px; border: 0; outline: 0; color: #343a46; background: transparent; font: inherit; cursor: pointer; }
+.ai-usage-ranking-table { min-width: 1000px; }
+.ai-usage-ranking-table th:first-child { width: 24%; }
+.ai-usage-ranking-table tbody td { font-variant-numeric: tabular-nums; }
+.ai-usage-ranking-table tbody td:first-child strong { display: block; overflow: hidden; max-width: 320px; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+.ai-usage-ranking-table tbody td:nth-child(6) strong { font-size: .75rem; }
+
+@media (max-width: 720px) {
+  .ai-usage-ranking-controls { align-items: stretch; flex-direction: column; }
+  .ai-usage-ranking-controls label { justify-content: space-between; }
+  .ai-usage-chart-tooltip { min-width: 164px; }
+}

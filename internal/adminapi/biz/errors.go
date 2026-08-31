@@ -1,4 +1,4 @@
-// Package biz 定义 ingate-admin-api 的业务规则和数据访问边界。
+// Package biz 定义 Admin API 的共享业务规则和数据访问边界。
 package biz
 
 import (

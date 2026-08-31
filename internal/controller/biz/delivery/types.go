@@ -11,7 +11,7 @@ import (
 const (
 	// BaselineVersion 是没有可服务配置时发布的固定空配置版本。
 	BaselineVersion = "ingate/baseline"
-	// DefaultACKTimeout 是 Candidate 首次发送后的默认 ACK 等待时间。
+	// DefaultACKTimeout 是 Candidate 首次发送后等待所有已连接 Envoy 接受的默认时间。
 	DefaultACKTimeout = 30 * time.Second
 	// DefaultNACKRollbackTimeout 是同步恢复旧配置的默认最长等待时间。
 	DefaultNACKRollbackTimeout = 3 * time.Second

@@ -51,16 +51,16 @@ type HistoryMessage struct {
 	Content string
 }
 
-// ConversationCursor 是按更新时间倒序翻页的稳定游标。
-type ConversationCursor struct {
+// Cursor 是按更新时间倒序翻页的稳定会话游标。
+type Cursor struct {
 	UpdatedAt time.Time
 	ID        string
 }
 
-// ConversationPage 是一次会话分页查询结果。
-type ConversationPage struct {
+// Page 是一次会话分页查询结果。
+type Page struct {
 	Items      []Conversation
-	NextCursor *ConversationCursor
+	NextCursor *Cursor
 }
 
 // MessageCursor 以创建时间和 ID 唯一确定消息分页位置。

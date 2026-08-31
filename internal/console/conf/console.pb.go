@@ -22,14 +22,14 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Bootstrap 定义 ingate-console 的完整进程配置
+// Bootstrap 定义 ingate-console 的完整进程配置。
 type Bootstrap struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// server 定义控制台 HTTP 入口和静态资源目录
+	// server 定义控制台 HTTP 入口和静态资源目录。
 	Server *Server `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
-	// data 定义控制台依赖的管理 API
+	// data 定义控制台依赖的管理 API。
 	Data *Data `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
-	// logging 定义进程日志行为
+	// logging 定义进程日志行为。
 	Logging       *Logging `protobuf:"bytes,3,opt,name=logging,proto3" json:"logging,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -86,16 +86,16 @@ func (x *Bootstrap) GetLogging() *Logging {
 	return nil
 }
 
-// Server 定义控制台 HTTP 服务配置
+// Server 定义控制台 HTTP 服务配置。
 type Server struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// http 定义控制台唯一的网络入口
+	// http 定义控制台唯一的网络入口。
 	Http *Server_HTTP `protobuf:"bytes,1,opt,name=http,proto3" json:"http,omitempty"`
-	// console_dir 是前端构建产物目录
+	// console_dir 是前端构建产物目录。
 	ConsoleDir string `protobuf:"bytes,2,opt,name=console_dir,json=consoleDir,proto3" json:"console_dir,omitempty"`
-	// shutdown_timeout 是等待在途请求结束的最长时间
+	// shutdown_timeout 是等待在途请求结束的最长时间。
 	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,3,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
-	// authentication 保护控制台管理 API
+	// authentication 保护控制台管理 API。
 	Authentication *Server_Authentication `protobuf:"bytes,4,opt,name=authentication,proto3" json:"authentication,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -159,12 +159,12 @@ func (x *Server) GetAuthentication() *Server_Authentication {
 	return nil
 }
 
-// Data 定义 Console 访问的后端服务
+// Data 定义 Console 访问的后端服务。
 type Data struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// admin_api 接收控制台发起的管理请求
+	// admin_api 接收控制台发起的管理请求。
 	AdminApi *Data_AdminAPI `protobuf:"bytes,1,opt,name=admin_api,json=adminApi,proto3" json:"admin_api,omitempty"`
-	// assistant 接收运维助手的会话与流式请求
+	// assistant 接收运维助手的会话与流式请求。
 	Assistant     *Data_Assistant `protobuf:"bytes,2,opt,name=assistant,proto3" json:"assistant,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -214,14 +214,14 @@ func (x *Data) GetAssistant() *Data_Assistant {
 	return nil
 }
 
-// Logging 定义结构化日志格式与级别
+// Logging 定义结构化日志格式与级别。
 type Logging struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// format 支持 json 和 text
+	// format 支持 json 和 text。
 	Format string `protobuf:"bytes,1,opt,name=format,proto3" json:"format,omitempty"`
-	// level 支持 debug、info、warn 和 error
+	// level 支持 debug、info、warn 和 error。
 	Level string `protobuf:"bytes,2,opt,name=level,proto3" json:"level,omitempty"`
-	// add_source 控制日志是否包含调用位置
+	// add_source 控制日志是否包含调用位置。
 	AddSource     bool `protobuf:"varint,3,opt,name=add_source,json=addSource,proto3" json:"add_source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -278,19 +278,20 @@ func (x *Logging) GetAddSource() bool {
 	return false
 }
 
+// Authentication 定义单管理员会话认证。
 type Server_Authentication struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// enabled 控制管理控制台是否要求登录
+	// enabled 控制管理控制台是否要求登录。
 	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	// username 是单管理员登录名
+	// username 是单管理员登录名。
 	Username string `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
-	// password 是单管理员密码，应通过 INGATE_ADMIN_PASSWORD 环境变量注入
+	// password 是单管理员密码，应通过 INGATE_ADMIN_PASSWORD 环境变量注入。
 	Password string `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
-	// session_secret 用于签署 HttpOnly 会话 Cookie，应通过环境变量注入随机值
+	// session_secret 用于签署 HttpOnly 会话 Cookie，应通过环境变量注入随机值。
 	SessionSecret string `protobuf:"bytes,4,opt,name=session_secret,json=sessionSecret,proto3" json:"session_secret,omitempty"`
-	// session_ttl 是一次登录的有效时间
+	// session_ttl 是一次登录的有效时间。
 	SessionTtl *durationpb.Duration `protobuf:"bytes,5,opt,name=session_ttl,json=sessionTtl,proto3" json:"session_ttl,omitempty"`
-	// secure_cookie 要求浏览器只通过 HTTPS 发送会话 Cookie
+	// secure_cookie 要求浏览器只通过 HTTPS 发送会话 Cookie。
 	SecureCookie  bool `protobuf:"varint,6,opt,name=secure_cookie,json=secureCookie,proto3" json:"secure_cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -368,9 +369,10 @@ func (x *Server_Authentication) GetSecureCookie() bool {
 	return false
 }
 
+// HTTP 定义 Console 的网络入口。
 type Server_HTTP struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// addr 是控制台和管理 API 代理的监听地址
+	// addr 是控制台和管理 API 代理的监听地址。
 	Addr          string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -413,9 +415,10 @@ func (x *Server_HTTP) GetAddr() string {
 	return ""
 }
 
+// AdminAPI 定义 Admin API 代理目标。
 type Data_AdminAPI struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// base_url 是 ingate-admin-api 的内部 HTTP 地址
+	// base_url 是 ingate-admin-api 的内部 HTTP 地址。
 	BaseUrl       string `protobuf:"bytes,1,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -458,9 +461,10 @@ func (x *Data_AdminAPI) GetBaseUrl() string {
 	return ""
 }
 
+// Assistant 定义运维助手代理目标。
 type Data_Assistant struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// base_url 是 ingate-assistant 的内部 HTTP 地址
+	// base_url 是 ingate-assistant 的内部 HTTP 地址。
 	BaseUrl       string `protobuf:"bytes,1,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

@@ -214,7 +214,10 @@ func (c *Catalog) fetchManifest(
 			err,
 		)
 	}
-	defer func() { _ = response.Body.Close() }()
+	defer func() {
+		// 响应体已完整读取或不再消费；关闭阶段的传输错误不改变同步结果。
+		_ = response.Body.Close()
+	}()
 
 	switch response.StatusCode {
 	case http.StatusNotModified:

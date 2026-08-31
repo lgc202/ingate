@@ -1,0 +1,423 @@
+.form-section > .text-action {
+  margin-top: 10px;
+}
+.load-balance-field {
+  margin-top: 13px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+.weight-summary {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+}
+.weight-summary span {
+  color: var(--muted);
+  font-size: 0.57rem;
+}
+.weight-summary strong {
+  font-size: 0.78rem;
+}
+.weight-summary strong.is-warning {
+  color: var(--red);
+}
+.discovery-result {
+  margin-top: 10px;
+  padding: 11px;
+  display: grid;
+  gap: 7px;
+  border: 1px solid #cfe0db;
+  border-radius: 8px;
+  background: var(--teal-soft);
+}
+.discovery-result > strong {
+  font-size: 0.62rem;
+}
+.model-price-editor {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--paper);
+  overflow: hidden;
+}
+.model-price-editor > header {
+  min-height: 58px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #f8f6ef;
+}
+.model-price-editor header div {
+  display: grid;
+  gap: 2px;
+}
+.model-price-editor header strong {
+  font-size: 0.64rem;
+}
+.model-price-editor header small,
+.model-price-editor header > span {
+  color: var(--muted);
+  font-size: 0.54rem;
+}
+.model-price-toolbar {
+  min-height: 52px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+}
+.model-price-toolbar .search-field {
+  flex: 1;
+}
+.model-price-toolbar > span {
+  color: var(--muted);
+  font-size: 0.55rem;
+  white-space: nowrap;
+}
+.model-price-list {
+  max-height: 310px;
+  overflow-y: auto;
+}
+.model-price-list > div {
+  min-height: 61px;
+  padding: 9px 12px;
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) repeat(3, 112px);
+  align-items: end;
+  gap: 9px;
+  border-top: 1px solid var(--line);
+}
+.model-price-editor label {
+  display: grid;
+  gap: 4px;
+}
+.model-price-editor label span {
+  color: var(--muted);
+  font-size: 0.52rem;
+}
+.model-price-editor input {
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--line-dark);
+  border-radius: 7px;
+  background: #fff;
+  font-size: 0.62rem;
+}
+.failover-picker {
+  margin: 12px;
+  padding: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.failover-picker legend {
+  padding: 0 5px;
+  color: var(--muted);
+  font-size: 0.56rem;
+}
+.failover-picker label {
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 6px;
+  background: #f3f1eb;
+  font-size: 0.56rem;
+  cursor: pointer;
+}
+.listener-editor,
+.binding-editor,
+.model-mapping-editor {
+  display: grid;
+  gap: 10px;
+}
+.binding-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 34px;
+  align-items: end;
+  gap: 8px;
+}
+.binding-row label {
+  display: grid;
+  gap: 6px;
+}
+.binding-row label > span {
+  color: #656966;
+  font-size: 0.61rem;
+  font-weight: 750;
+}
+.binding-row label > small {
+  color: var(--red);
+  font-size: 0.53rem;
+}
+.binding-row input,
+.binding-row select {
+  width: 100%;
+  height: 39px;
+  padding: 0 10px;
+  border: 1px solid var(--line-dark);
+  border-radius: 8px;
+  background: var(--paper);
+  font-size: 0.66rem;
+}
+.binding-row > button {
+  width: 34px;
+  height: 39px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--red);
+  background: var(--paper);
+  cursor: pointer;
+}
+.binding-row > button svg {
+  width: 13px;
+}
+.binding-row > button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.input-method-selector {
+  width: fit-content;
+  margin: 15px 0 12px;
+  padding: 3px;
+  display: flex;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #ebe8df;
+}
+.input-method-selector button {
+  min-width: 102px;
+  height: 32px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.69rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.input-method-selector button.is-selected {
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: 0 2px 7px rgba(39, 38, 34, 0.08);
+}
+.certificate-files {
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fbfaf5;
+}
+.certificate-files input[type="file"] {
+  height: auto;
+  padding: 9px;
+}
+.model-mapping-editor > article {
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+}
+.model-mapping-editor > article > header {
+  margin-bottom: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.model-mapping-editor > article > header strong {
+  font-size: 0.64rem;
+}
+.model-mapping-editor > article > header button {
+  padding: 4px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--red);
+  background: var(--red-soft);
+  font-size: 0.53rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.model-mapping-editor > article > header svg {
+  width: 10px;
+}
+.model-mapping-editor > article > .text-action {
+  margin: 11px 0;
+}
+.certificate-preview {
+  margin-top: 13px;
+}
+.certificate-preview dd {
+  flex-wrap: wrap;
+}
+.quota-list .budget-row + .budget-row {
+  border-top: 1px solid var(--line);
+}
+.budget-row > div > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.budget-row b.is-exhausted {
+  background: var(--red);
+}
+
+.debug-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
+  gap: 13px;
+}
+.debug-console,
+.execution-panel {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+}
+.debug-context {
+  margin-bottom: 13px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.61rem;
+}
+.debug-context .status {
+  margin-left: auto;
+}
+.debug-console label {
+  margin-bottom: 13px;
+  display: grid;
+  gap: 6px;
+}
+.debug-console label > span {
+  color: var(--muted);
+  font-size: 0.61rem;
+  font-weight: 750;
+}
+.endpoint-input {
+  min-height: 38px;
+  padding-left: 9px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.endpoint-input code {
+  flex: 1;
+  overflow: hidden;
+  font-size: 0.61rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.copy-button {
+  height: 36px;
+  padding: 0 9px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  color: var(--blue);
+  background: #f8f8f5;
+  font-size: 0.58rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.copy-button svg {
+  width: 11px;
+}
+.debug-response {
+  margin-top: 13px;
+  padding: 11px;
+  display: flex;
+  gap: 9px;
+  border-radius: 8px;
+  color: var(--teal);
+  background: var(--teal-soft);
+}
+.debug-response > svg {
+  width: 18px;
+}
+.debug-response div {
+  display: grid;
+  gap: 2px;
+}
+.debug-response strong {
+  font-size: 0.64rem;
+}
+.debug-response p {
+  margin: 0;
+  color: #66827a;
+  font-size: 0.57rem;
+}
+.execution-panel {
+  background: #252a2c;
+  color: #f3f2ed;
+}
+.execution-panel .eyebrow {
+  color: #7d8581;
+}
+.execution-step {
+  position: relative;
+  min-height: 68px;
+  padding: 14px 0 10px 35px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.execution-step > i {
+  position: absolute;
+  top: 13px;
+  left: 0;
+  width: 23px;
+  height: 23px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #1e2424;
+  background: #8fd1c0;
+  font-size: 0.55rem;
+  font-style: normal;
+  font-weight: 900;
+}
+.execution-step > i::after {
+  content: "";
+  position: absolute;
+  top: 23px;
+  width: 1px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.13);
+}
+.execution-step:last-child > i::after {
+  display: none;
+}
+.execution-step div {
+  display: grid;
+  gap: 3px;
+}
+.execution-step strong {
+  font-size: 0.62rem;
+}
+.execution-step span,
+.execution-step small {
+  color: #8f9793;
+  font-size: 0.54rem;
+}
+.execution-step small {
+  text-align: right;
+}

@@ -16,9 +16,9 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
 	"github.com/lgc202/ingate/internal/adminapi/biz/route"
+	servicebiz "github.com/lgc202/ingate/internal/adminapi/biz/service"
 	"github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
 	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
-	"github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/biz/wasmplugin"
 	dataaiextproc "github.com/lgc202/ingate/internal/adminapi/data/aiextproc"
 	dataanalytics "github.com/lgc202/ingate/internal/adminapi/data/analytics"
@@ -57,8 +57,8 @@ var apiserverProviderSet = wire.NewSet(
 	wire.Bind(new(route.GatewayReader), new(*apiserver.GatewayStore)),
 	wire.Bind(new(route.ServiceReader), new(*apiserver.UpstreamStore)),
 	wire.Bind(new(route.CallerLister), new(*apiserver.CallerStore)),
-	wire.Bind(new(upstream.Store), new(*apiserver.UpstreamStore)),
-	wire.Bind(new(upstream.RouteLister), new(*apiserver.RouteStore)),
+	wire.Bind(new(servicebiz.Store), new(*apiserver.UpstreamStore)),
+	wire.Bind(new(servicebiz.RouteLister), new(*apiserver.RouteStore)),
 	wire.Bind(new(certificate.Store), new(*apiserver.CertificateStore)),
 	wire.Bind(new(certificate.GatewayLister), new(*apiserver.GatewayStore)),
 	wire.Bind(new(ratelimit.Store), new(*apiserver.RateLimitPolicyStore)),

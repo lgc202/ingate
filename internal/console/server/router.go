@@ -27,12 +27,33 @@ func NewRouter(
 	router.Handle("/assistant/v1", auth.Protect(assistantProxy))
 	router.Handle("/assistant/v1/", auth.Protect(assistantProxy))
 	router.Handle(
-		"/assets/",
-		http.StripPrefix("/assets/", http.FileServer(http.Dir(filepath.Join(consoleDir, "assets")))),
+		"GET /assets/",
+		cacheImmutable(http.StripPrefix(
+			"/assets/",
+			http.FileServer(http.Dir(filepath.Join(consoleDir, "assets"))),
+		)),
 	)
+	faviconFile := filepath.Join(consoleDir, "favicon.svg")
+	router.HandleFunc("GET /favicon.svg", func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Cache-Control", "public, max-age=3600")
+		http.ServeFile(response, request, faviconFile)
+	})
 	indexFile := filepath.Join(consoleDir, "index.html")
 	router.HandleFunc("/", func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet && request.Method != http.MethodHead {
+			response.Header().Set("Allow", "GET, HEAD")
+			http.Error(response, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		response.Header().Set("Cache-Control", "no-cache")
 		http.ServeFile(response, request, indexFile)
 	})
 	return router
+}
+
+func cacheImmutable(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		next.ServeHTTP(response, request)
+	})
 }

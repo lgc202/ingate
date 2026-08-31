@@ -21,14 +21,14 @@ type cursorValue struct {
 	ID        string    `json:"id"`
 }
 
-func formatConversationCursor(cursor *conversationbiz.ConversationCursor) (string, error) {
+func formatConversationCursor(cursor *conversationbiz.Cursor) (string, error) {
 	if cursor == nil {
 		return "", nil
 	}
 	return formatCursor(cursor.UpdatedAt, cursor.ID)
 }
 
-func parseConversationCursor(value string) (*conversationbiz.ConversationCursor, error) {
+func parseConversationCursor(value string) (*conversationbiz.Cursor, error) {
 	if value == "" {
 		return nil, nil
 	}
@@ -36,7 +36,7 @@ func parseConversationCursor(value string) (*conversationbiz.ConversationCursor,
 	if err != nil {
 		return nil, err
 	}
-	return &conversationbiz.ConversationCursor{
+	return &conversationbiz.Cursor{
 		UpdatedAt: cursor.Timestamp,
 		ID:        cursor.ID,
 	}, nil

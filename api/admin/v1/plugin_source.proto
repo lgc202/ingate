@@ -77,7 +77,7 @@ message ListPluginSourcesResponse {
 }
 
 message GetPluginSourceRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.uuid = true];
 }
 
 message CreatePluginSourceRequest {
@@ -112,5 +112,5 @@ message DeletePluginSourceRequest {
 }
 
 message SyncPluginSourceRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.uuid = true];
 }

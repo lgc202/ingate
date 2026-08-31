@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -114,25 +115,25 @@ func requestOutcome(outcome agenttool.FailureOutcome) adminv1.RequestOutcome {
 
 func requestRecordFromAPI(record *adminv1.RequestRecord) agenttool.RequestRecord {
 	return agenttool.RequestRecord{
-		RecordID:         record.GetId(),
-		StartedAt:        protoTime(record.GetStartedAt()),
-		Duration:         protoDuration(record.GetDuration()),
-		TimeToFirstByte:  optionalProtoDuration(record.GetTimeToFirstByte()),
-		Method:           record.GetMethod(),
-		Host:             record.GetHost(),
-		Path:             record.GetPath(),
-		StatusCode:       record.GetStatusCode(),
-		Outcome:          requestOutcomeFromAPI(record.GetOutcome()),
-		RequestBytes:     record.GetRequestBytes(),
-		ResponseBytes:    record.GetResponseBytes(),
-		GatewayID:        record.GetGatewayId(),
-		RouteID:          record.GetRouteId(),
-		ServiceID:        record.GetServiceId(),
-		Protocol:         record.GetProtocol(),
-		RejectionReason:  rejectionReasonFromAPI(record.GetRejectionReason()),
-		UpstreamAttempts: record.GetUpstreamAttempts(),
-		AIModelCall:      aiModelCallFromAPI(record.GetAiModelCall()),
-		CallerID:         record.GetCallerId(),
+		RecordID:        record.GetId(),
+		StartedAt:       protoTime(record.GetStartedAt()),
+		Duration:        protoDuration(record.GetDuration()),
+		TimeToFirstByte: optionalProtoDuration(record.GetTimeToFirstByte()),
+		Method:          record.GetMethod(),
+		Host:            record.GetHost(),
+		Path:            record.GetPath(),
+		StatusCode:      record.GetStatusCode(),
+		Outcome:         requestOutcomeFromAPI(record.GetOutcome()),
+		RequestBytes:    record.GetRequestBytes(),
+		ResponseBytes:   record.GetResponseBytes(),
+		GatewayID:       record.GetGatewayId(),
+		RouteID:         record.GetRouteId(),
+		ServiceID:       record.GetServiceId(),
+		Protocol:        record.GetProtocol(),
+		RejectionReason: rejectionReasonFromAPI(record.GetRejectionReason()),
+		ServiceAttempts: record.GetServiceAttempts(),
+		AIModelCall:     aiModelCallFromAPI(record.GetAiModelCall()),
+		CallerID:        record.GetCallerId(),
 	}
 }
 
@@ -166,7 +167,7 @@ func aiModelCallFromAPI(call *adminv1.AIModelCall) *agenttool.AIModelCall {
 	}
 	return &agenttool.AIModelCall{
 		ClientModel:   call.GetClientModel(),
-		UpstreamModel: call.GetUpstreamModel(),
+		TargetModel:   call.GetTargetModel(),
 		Protocol:      modelProtocol(call.GetProtocol()),
 		ResponseModel: call.GetResponseModel(),
 		FinishReason:  call.GetFinishReason(),
@@ -244,7 +245,7 @@ func validateRequestRecordResponse(
 	}
 	statusCode := record.GetStatusCode()
 	if statusCode > 65_535 || statusCode > 0 && statusCode < 100 ||
-		record.GetUpstreamAttempts() > 65_535 {
+		record.GetServiceAttempts() > 65_535 {
 		return fmt.Errorf("request record %s contains invalid HTTP result metadata", recordID)
 	}
 	if reason := record.GetRejectionReason(); reason !=
@@ -278,7 +279,7 @@ func validateAIModelCallResponse(call *adminv1.AIModelCall, serviceID string) er
 	if !routeconfig.IsValidModelName(call.GetClientModel()) {
 		return errors.New("AI client model is invalid")
 	}
-	for _, model := range []string{call.GetUpstreamModel(), call.GetResponseModel()} {
+	for _, model := range []string{call.GetTargetModel(), call.GetResponseModel()} {
 		if model != "" && !routeconfig.IsValidModelName(model) {
 			return errors.New("AI model name is invalid")
 		}
@@ -289,17 +290,23 @@ func validateAIModelCallResponse(call *adminv1.AIModelCall, serviceID string) er
 		protocol != adminv1.ModelProtocol_MODEL_PROTOCOL_ANTHROPIC {
 		return errors.New("AI model protocol is invalid")
 	}
-	hasUpstreamResult := call.GetUpstreamModel() != "" ||
+	hasServiceResult := call.GetTargetModel() != "" ||
 		protocol != adminv1.ModelProtocol_MODEL_PROTOCOL_UNSPECIFIED ||
 		call.GetResponseModel() != "" || call.GetFinishReason() != "" ||
 		call.InputTokens != nil || call.OutputTokens != nil || call.TotalTokens != nil
-	if hasUpstreamResult && (serviceID == "" || call.GetUpstreamModel() == "" ||
+	if hasServiceResult && (serviceID == "" || call.GetTargetModel() == "" ||
 		protocol == adminv1.ModelProtocol_MODEL_PROTOCOL_UNSPECIFIED) {
-		return errors.New("AI upstream identity is incomplete")
+		return errors.New("AI service identity is incomplete")
 	}
-	if call.TotalTokens != nil &&
-		(call.InputTokens != nil && call.GetTotalTokens() < call.GetInputTokens() ||
-			call.OutputTokens != nil && call.GetTotalTokens() < call.GetOutputTokens()) {
+	if call.InputTokens != nil && call.OutputTokens != nil &&
+		call.GetInputTokens() > math.MaxUint64-call.GetOutputTokens() {
+		return errors.New("AI token usage exceeds the supported range")
+	}
+	minimumTotal := max(call.GetInputTokens(), call.GetOutputTokens())
+	if call.InputTokens != nil && call.OutputTokens != nil {
+		minimumTotal = call.GetInputTokens() + call.GetOutputTokens()
+	}
+	if call.TotalTokens != nil && call.GetTotalTokens() < minimumTotal {
 		return errors.New("AI token usage is inconsistent")
 	}
 	return nil

@@ -1,6 +1,6 @@
 import { apiListAllByCursor, apiListPageByCursor, apiRequest, type CursorPage, type CursorPagedResponse } from './client';
 import { listGateways } from './gateways';
-import { listUpstreams } from './upstreams';
+import { listServices } from './services';
 import { normalizeResourceState } from '@/domain/common';
 import type {
   AIRoute,
@@ -64,11 +64,11 @@ export async function listRoutePage(input: {
 }
 
 export async function getRouteOptions(): Promise<RouteWorkspace> {
-  const [gatewayList, serviceList] = await Promise.all([listGateways(), listUpstreams()]);
+  const [gatewayList, serviceList] = await Promise.all([listGateways(), listServices()]);
   return {
     routes: [],
     gateways: gatewayList.gateways.map((gateway) => ({ id: gateway.id, name: gateway.name, listeners: gateway.listeners })),
-    services: serviceList.upstreams.map((service) => ({
+    services: serviceList.services.map((service) => ({
       id: service.id,
       name: service.name,
       endpoint: service.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join('、'),

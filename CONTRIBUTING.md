@@ -4,7 +4,7 @@
 
 ## 开发环境
 
-仓库当前使用 Go 1.26、Node.js 24 和 npm 11。Docker Compose 仅用于本地联调。
+仓库当前使用 Go 1.26、Node.js 24 和 npm 11。开发环境中的 Docker Compose 用于本地联调；正式发布另行提供固定版本的 Compose 安装包。
 
 ```bash
 make check-tools
@@ -21,6 +21,8 @@ make tools
 4. 涉及 Go 依赖或安全边界时额外执行 `make vuln`。
 
 `make verify` 会执行 Go、Proto、GitHub Actions 静态检查，验证生成代码，并编译后端与两个前端项目。实际流量行为仍需通过组件联调验证。
+
+`make docker-up` 会保留本地数据卷。当前项目不兼容开发阶段的旧表结构；需要按当前代码重新初始化所有本地数据时，执行 `make docker-reset`。该命令会删除当前 Ingate Compose 项目的全部开发数据卷。
 
 ## 代码与协议
 

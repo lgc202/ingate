@@ -86,9 +86,9 @@ func (c *Client) GetRouteConfiguration(
 	}
 	for index, serviceID := range serviceIDs {
 		group.Go(func() error {
-			service, err := c.services.GetUpstream(
+			service, err := c.services.GetService(
 				lookupCtx,
-				&adminv1.GetUpstreamRequest{Id: serviceID},
+				&adminv1.GetServiceRequest{Id: serviceID},
 			)
 			if err != nil {
 				return queryTargetError(

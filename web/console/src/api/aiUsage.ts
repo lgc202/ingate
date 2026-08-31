@@ -2,7 +2,7 @@ import { apiRequest, setQueryParameter } from './client';
 import { listCallers } from './callers';
 import { listGateways } from './gateways';
 import { listRoutes } from './routes';
-import { listUpstreams } from './upstreams';
+import { listServices } from './services';
 import type { AIUsageAnalysis, AIUsageFilters, AIUsageWorkspace } from '@/domain/aiUsage';
 
 export async function getAIUsageAnalysis(filters: AIUsageFilters): Promise<AIUsageAnalysis> {
@@ -32,11 +32,11 @@ export async function getAIUsageWorkspace(): Promise<AIUsageWorkspace> {
   const [gatewayList, routeList, serviceList, callers] = await Promise.all([
     listGateways(),
     listRoutes(),
-    listUpstreams(),
+    listServices(),
     listCallers(),
   ]);
   const routes = routeList.routes.filter((route) => route.ai);
-  const services = serviceList.upstreams.filter((service) => service.model);
+  const services = serviceList.services.filter((service) => service.model);
   const modelServiceIDs = new Set(services.map((service) => service.id));
   const clientModels = new Set<string>();
   const actualModels = new Set<string>();

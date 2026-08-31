@@ -2,7 +2,7 @@
 
 ## 文档状态
 
-- 状态：实现基线候选稿
+- 状态：已落地
 - 受众：Admin API、Console 和内部客户端的开发者
 - 范围：`ingate-admin-api` 的 HTTP/gRPC 请求从 `service -> biz -> data` 返回到 `server` 的错误流
 - 不包含：Controller 编译诊断、Envoy 请求失败、Analytics 查询结果和 Assistant 工具结果
@@ -93,7 +93,7 @@ service ──调用──> biz <──实现接口── data
 ```go
 return errors.Conflict(
 	adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-	fmt.Sprintf("关联服务 %q 不存在", upstreamID),
+	fmt.Sprintf("关联服务 %q 不存在", serviceID),
 ).WithCause(err)
 ```
 
@@ -121,7 +121,7 @@ RESOURCE_VERSION_CONFLICT = 7;
 
 资源内部成员名称冲突、引用缺失和资源类型不匹配，如果调用方的恢复动作都是修改输入后重试，可以共用 `RESOURCE_CONFLICT`。资源展示名称允许重复，不产生冲突错误。
 
-不得增加 `ROUTE_NAME_CONFLICT`、`UPSTREAM_REFERENCE_MISSING` 等没有独立调用方行为的细粒度 reason。
+不得增加 `ROUTE_NAME_CONFLICT`、`SERVICE_REFERENCE_MISSING` 等没有独立调用方行为的细粒度 reason。
 
 ### 4.2 service
 

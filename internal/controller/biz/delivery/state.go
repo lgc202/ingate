@@ -45,14 +45,13 @@ type candidateState struct {
 	timer                *time.Timer
 }
 
-type ackProgress struct {
-	sent  map[string]bool
-	acked map[string]bool
+type responseProgress struct {
+	sent map[string]bool
 }
 
 type streamState struct {
 	nodeID           string
-	versions         map[string]*ackProgress
+	versions         map[string]*responseProgress
 	acceptedVersions map[string]string
 }
 
@@ -110,33 +109,14 @@ func (s *deliveryState) pruneProgress(versions ...string) {
 	}
 }
 
-func (s *streamState) progress(version string) *ackProgress {
+func (s *streamState) progress(version string) *responseProgress {
 	progress := s.versions[version]
 	if progress != nil {
 		return progress
 	}
-	progress = &ackProgress{
-		sent:  make(map[string]bool),
-		acked: make(map[string]bool),
-	}
+	progress = &responseProgress{sent: make(map[string]bool)}
 	s.versions[version] = progress
 	return progress
-}
-
-func (s *streamState) fullyACKed(version string, required []string) bool {
-	if s.nodeID == "" {
-		return false
-	}
-	progress := s.versions[version]
-	if progress == nil {
-		return false
-	}
-	for _, typeURL := range required {
-		if !progress.sent[typeURL] || !progress.acked[typeURL] {
-			return false
-		}
-	}
-	return true
 }
 
 func (s *streamState) fullyAccepted(version string, required []string) bool {

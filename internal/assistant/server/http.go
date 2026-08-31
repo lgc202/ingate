@@ -11,12 +11,20 @@ import (
 
 	assistantv1 "github.com/lgc202/ingate/api/assistant/v1"
 	"github.com/lgc202/ingate/internal/assistant/conf"
-	"github.com/lgc202/ingate/internal/assistant/data/mysql"
-	redisdata "github.com/lgc202/ingate/internal/assistant/data/redis"
 	conversationservice "github.com/lgc202/ingate/internal/assistant/service/conversation"
 	executionservice "github.com/lgc202/ingate/internal/assistant/service/execution"
 	modelconfigservice "github.com/lgc202/ingate/internal/assistant/service/modelconfig"
 )
+
+// DatabasePinger 定义就绪检查所需的持久存储连通性。
+type DatabasePinger interface {
+	Ping(context.Context) error
+}
+
+// EventStorePinger 定义就绪检查所需的事件存储连通性。
+type EventStorePinger interface {
+	Ping(context.Context) error
+}
 
 type pinger interface {
 	Ping(context.Context) error
@@ -33,9 +41,9 @@ func NewHTTPServer(
 	conversationAPI *conversationservice.Service,
 	executionAPI *executionservice.Service,
 	modelAPI *modelconfigservice.Service,
-	streamHandler *executionStreamHandler,
-	mysqlStore *mysql.Store,
-	eventStore *redisdata.EventStore,
+	streamHandler *StreamHandler,
+	database DatabasePinger,
+	eventStore EventStorePinger,
 	logger *slog.Logger,
 ) *kratoshttp.Server {
 	httpConfig := config.GetHttp()
@@ -43,7 +51,7 @@ func NewHTTPServer(
 		kratoshttp.Network("tcp"),
 		kratoshttp.Address(httpConfig.GetAddr()),
 		// SSE 连接由请求取消和 Stream.read_block 控制，不能套用普通 HTTP 全局超时。
-		kratoshttp.Filter(requestIDFilter(), requestBodyLimitFilter(), recoveryFilter(logger)),
+		kratoshttp.Filter(requestIDFilter(), responseNoStoreFilter(), requestBodyLimitFilter(), recoveryFilter(logger)),
 		kratoshttp.Middleware(httpMiddleware(logger)...),
 		kratoshttp.RequestDecoder(requestDecoder),
 		kratoshttp.ResponseEncoder(responseEncoder),
@@ -54,7 +62,7 @@ func NewHTTPServer(
 	streamHandler.register(server)
 	readiness := readinessHandler{
 		timeout:      httpConfig.GetReadinessTimeout().AsDuration(),
-		dependencies: []pinger{mysqlStore, eventStore},
+		dependencies: []pinger{database, eventStore},
 	}
 	server.HandleFunc("/healthz", live)
 	server.HandleFunc("/readyz", readiness.ready)

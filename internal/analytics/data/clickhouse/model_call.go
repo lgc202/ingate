@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	clickhousego "github.com/ClickHouse/clickhouse-go/v2"
@@ -235,9 +236,24 @@ func scanModelCallRow(rows driver.Rows) (modelCallRow, error) {
 			row.requestRecordID,
 		)
 	}
-	if row.call.TotalTokens != nil &&
-		(row.call.InputTokens != nil && *row.call.TotalTokens < *row.call.InputTokens ||
-			row.call.OutputTokens != nil && *row.call.TotalTokens < *row.call.OutputTokens) {
+	if row.call.InputTokens != nil && row.call.OutputTokens != nil &&
+		*row.call.InputTokens > math.MaxUint64-*row.call.OutputTokens {
+		return modelCallRow{}, fmt.Errorf(
+			"stored model call for request record %q has token counts outside the supported range",
+			row.requestRecordID,
+		)
+	}
+	var minimumTotal uint64
+	if row.call.InputTokens != nil {
+		minimumTotal = *row.call.InputTokens
+	}
+	if row.call.OutputTokens != nil && *row.call.OutputTokens > minimumTotal {
+		minimumTotal = *row.call.OutputTokens
+	}
+	if row.call.InputTokens != nil && row.call.OutputTokens != nil {
+		minimumTotal = *row.call.InputTokens + *row.call.OutputTokens
+	}
+	if row.call.TotalTokens != nil && *row.call.TotalTokens < minimumTotal {
 		return modelCallRow{}, fmt.Errorf(
 			"stored model call for request record %q has inconsistent token counts",
 			row.requestRecordID,

@@ -30,7 +30,7 @@ type Client struct {
 	connection *googlegrpc.ClientConn
 	gateways   adminv1.GatewayServiceClient
 	routes     adminv1.RouteServiceClient
-	services   adminv1.UpstreamServiceClient
+	services   adminv1.ServiceManagementServiceClient
 	traffic    adminv1.TrafficAnalysisServiceClient
 	records    adminv1.RequestRecordServiceClient
 	callers    adminv1.CallerServiceClient
@@ -52,7 +52,7 @@ func New(ctx context.Context, config Config) (*Client, error) {
 		connection: connection,
 		gateways:   adminv1.NewGatewayServiceClient(connection),
 		routes:     adminv1.NewRouteServiceClient(connection),
-		services:   adminv1.NewUpstreamServiceClient(connection),
+		services:   adminv1.NewServiceManagementServiceClient(connection),
 		traffic:    adminv1.NewTrafficAnalysisServiceClient(connection),
 		records:    adminv1.NewRequestRecordServiceClient(connection),
 		callers:    adminv1.NewCallerServiceClient(connection),
