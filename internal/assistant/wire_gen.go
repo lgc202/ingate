@@ -10,12 +10,15 @@ import (
 	"context"
 	"github.com/go-kratos/kratos/v3"
 	"github.com/lgc202/ingate/internal/assistant/biz/agent"
+	"github.com/lgc202/ingate/internal/assistant/biz/change"
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 	"github.com/lgc202/ingate/internal/assistant/biz/execution"
 	"github.com/lgc202/ingate/internal/assistant/biz/modelconfig"
 	"github.com/lgc202/ingate/internal/assistant/conf"
 	"github.com/lgc202/ingate/internal/assistant/data"
+	"github.com/lgc202/ingate/internal/assistant/data/mysql"
 	"github.com/lgc202/ingate/internal/assistant/server"
+	change2 "github.com/lgc202/ingate/internal/assistant/service/change"
 	conversation2 "github.com/lgc202/ingate/internal/assistant/service/conversation"
 	execution2 "github.com/lgc202/ingate/internal/assistant/service/execution"
 	modelconfig2 "github.com/lgc202/ingate/internal/assistant/service/modelconfig"
@@ -31,6 +34,8 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL
 	}
 	usecase := conversation.NewUsecase(store)
 	service := conversation2.NewService(usecase)
+	changeUsecase := change.NewUsecase(store)
+	changeService := change2.NewService(changeUsecase)
 	eventStore, cleanup2, err := data.NewEventStore(contextContext, data_Redis, stream, logger)
 	if err != nil {
 		cleanup()
@@ -41,22 +46,23 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL
 	modelconfigUsecase := modelconfig.NewUsecase(store)
 	modelconfigService := modelconfig2.NewService(modelconfigUsecase)
 	streamHandler := server.NewStreamHandler(executionUsecase, stream, logger)
-	httpServer := server.NewHTTPServer(confServer, service, executionService, modelconfigService, streamHandler, store, eventStore, logger)
+	httpServer := server.NewHTTPServer(confServer, service, changeService, executionService, modelconfigService, streamHandler, store, eventStore, logger)
 	client, cleanup3, err := data.NewAdminClient(contextContext, adminAPI, logger)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
+	checkpointStore := mysql.NewCheckpointStore(store)
 	chatModelFactory := data.NewChatModelFactory()
-	agentAgent, err := agent.New(modelconfigUsecase, client, chatModelFactory)
+	agentAgent, err := agent.New(modelconfigUsecase, client, client, checkpointStore, chatModelFactory)
 	if err != nil {
 		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	executor := execution.NewExecutor(store, eventStore, agentAgent)
+	executor := execution.NewExecutor(store, eventStore, store, agentAgent)
 	executionConsumer := server.NewExecutionConsumer(worker, executor, logger)
 	app := newKratosApp(logger, confServer, httpServer, executionConsumer, assistantServiceInstanceID)
 	return app, func() {

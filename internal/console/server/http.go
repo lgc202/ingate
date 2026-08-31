@@ -27,6 +27,7 @@ func NewHTTPServer(
 		kratoshttp.Network("tcp"),
 		kratoshttp.Address(httpConfig.GetAddr()),
 		// Assistant 使用 SSE 长连接；普通管理请求的超时由后端服务控制。
+		kratoshttp.Timeout(0),
 		kratoshttp.Filter(
 			recovery(logger),
 			browserSecurity(),

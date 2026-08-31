@@ -19,6 +19,13 @@ const (
 	executionStateSucceeded
 	executionStateFailed
 	executionStateCancelled
+	executionStateWaitingApproval
+)
+
+const (
+	executionResumeNone uint8 = iota
+	executionResumeApproved
+	executionResumeRejected
 )
 
 // CreateExecution 原子地保存用户消息并创建排队中的 Agent 执行。
@@ -126,6 +133,20 @@ func (s *Store) CancelExecution(ctx context.Context, actorID, executionID string
 			if rows != 1 {
 				return execution.ErrStateConflict
 			}
+			if locked.ResumeDecision == executionResumeApproved {
+				rows, err = queries.RejectQueuedExecutionChange(ctx, executionID)
+				if err != nil {
+					return fmt.Errorf("reject cancelled queued configuration change: %w", err)
+				}
+				if rows != 1 {
+					return execution.ErrStateConflict
+				}
+			}
+			if locked.ResumeDecision != executionResumeNone {
+				if err := queries.DeleteCheckpoint(ctx, executionID); err != nil {
+					return fmt.Errorf("delete cancelled assistant checkpoint: %w", err)
+				}
+			}
 			result.State = execution.StateCancelled
 			result.FinishedAt = &now
 			if err := queries.TouchConversation(ctx, db.TouchConversationParams{
@@ -146,6 +167,26 @@ func (s *Store) CancelExecution(ctx context.Context, actorID, executionID string
 				return execution.ErrStateConflict
 			}
 			result.CancellationRequested = true
+		case execution.StateWaitingApproval:
+			rows, err := queries.CancelWaitingExecution(ctx, executionID)
+			if err != nil {
+				return fmt.Errorf("cancel waiting assistant execution: %w", err)
+			}
+			if rows != 1 {
+				return execution.ErrStateConflict
+			}
+			if err := queries.RejectPendingExecutionChanges(ctx, executionID); err != nil {
+				return fmt.Errorf("reject pending execution changes: %w", err)
+			}
+			if err := queries.DeleteCheckpoint(ctx, executionID); err != nil {
+				return fmt.Errorf("delete cancelled assistant checkpoint: %w", err)
+			}
+			result.State = execution.StateCancelled
+			now, err := queries.CurrentTime(ctx)
+			if err != nil {
+				return fmt.Errorf("read MySQL time: %w", err)
+			}
+			result.FinishedAt = &now
 		}
 		return nil
 	})
@@ -210,6 +251,8 @@ func executionStateFromDB(state uint8) (execution.State, error) {
 		return execution.StateFailed, nil
 	case executionStateCancelled:
 		return execution.StateCancelled, nil
+	case executionStateWaitingApproval:
+		return execution.StateWaitingApproval, nil
 	default:
 		return "", fmt.Errorf("invalid assistant execution state %d", state)
 	}
@@ -238,9 +281,15 @@ func validateStoredExecution(
 	}
 	switch result.State {
 	case execution.StateQueued:
-		if stored.StartedAt.Valid || stored.FinishedAt.Valid || stored.WorkerID != "" ||
-			stored.LeaseExpiresAt.Valid || result.Model != "" || result.ErrorCode != "" ||
-			result.CancellationRequested {
+		initial := stored.ResumeDecision == executionResumeNone
+		validInitial := initial && !stored.StartedAt.Valid && result.Model == "" &&
+			stored.ResumeInterruptID == "" && stored.ResumeFeedback == ""
+		validResume := !initial && stored.StartedAt.Valid && result.Model != "" &&
+			stored.ResumeInterruptID != "" &&
+			(stored.ResumeDecision == executionResumeApproved && stored.ResumeFeedback == "" ||
+				stored.ResumeDecision == executionResumeRejected)
+		if (!validInitial && !validResume) || stored.FinishedAt.Valid || stored.WorkerID != "" ||
+			stored.LeaseExpiresAt.Valid || result.ErrorCode != "" || result.CancellationRequested {
 			return fmt.Errorf("queued assistant execution %s contains runtime state", stored.ID)
 		}
 	case execution.StateRunning:
@@ -248,15 +297,25 @@ func validateStoredExecution(
 			!stored.LeaseExpiresAt.Valid || result.ErrorCode != "" {
 			return fmt.Errorf("running assistant execution %s is incomplete", stored.ID)
 		}
+	case execution.StateWaitingApproval:
+		if !stored.StartedAt.Valid || stored.FinishedAt.Valid || stored.WorkerID != "" ||
+			stored.LeaseExpiresAt.Valid || result.Model == "" || result.ErrorCode != "" ||
+			result.CancellationRequested || stored.ResumeInterruptID != "" ||
+			stored.ResumeDecision != executionResumeNone || stored.ResumeFeedback != "" {
+			return fmt.Errorf("waiting assistant execution %s is inconsistent", stored.ID)
+		}
 	case execution.StateSucceeded:
 		if !stored.StartedAt.Valid || !stored.FinishedAt.Valid || stored.WorkerID != "" ||
 			stored.LeaseExpiresAt.Valid || result.Model == "" || result.ErrorCode != "" ||
-			result.CancellationRequested {
+			result.CancellationRequested || stored.ResumeInterruptID != "" ||
+			stored.ResumeDecision != executionResumeNone || stored.ResumeFeedback != "" {
 			return fmt.Errorf("succeeded assistant execution %s is inconsistent", stored.ID)
 		}
 	case execution.StateFailed:
 		if !stored.StartedAt.Valid || !stored.FinishedAt.Valid || stored.WorkerID != "" ||
-			stored.LeaseExpiresAt.Valid || !validFailureCode(result.ErrorCode) {
+			stored.LeaseExpiresAt.Valid || !validFailureCode(result.ErrorCode) ||
+			stored.ResumeInterruptID != "" || stored.ResumeDecision != executionResumeNone ||
+			stored.ResumeFeedback != "" {
 			return fmt.Errorf("failed assistant execution %s is inconsistent", stored.ID)
 		}
 	case execution.StateCancelled:

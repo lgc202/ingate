@@ -133,7 +133,8 @@ func streamEventFromRedis(message redisgo.XMessage) (execution.StreamEvent, erro
 		execution.EventContentDelta,
 		execution.EventCompleted,
 		execution.EventFailed,
-		execution.EventCancelled:
+		execution.EventCancelled,
+		execution.EventInterrupted:
 	default:
 		return execution.StreamEvent{}, fmt.Errorf("unsupported Redis stream event type %q", typeText)
 	}

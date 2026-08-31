@@ -9,6 +9,8 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
+
+	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
 )
 
 const maxResponseBytes = 8 << 20
@@ -19,6 +21,7 @@ type responseCollector struct {
 	content   strings.Builder
 	reasoning strings.Builder
 	events    EventSink
+	interrupt *ApprovalInterruption
 }
 
 func (c *responseCollector) consume(ctx context.Context, event *adk.AgentEvent) error {
@@ -31,8 +34,15 @@ func (c *responseCollector) consume(ctx context.Context, event *adk.AgentEvent) 
 		}
 		return fmt.Errorf("execute Eino agent: %w", event.Err)
 	}
-	if err := validateAction(event.Action); err != nil {
+	interrupt, err := validateAction(event.Action)
+	if err != nil {
 		return err
+	}
+	if interrupt != nil {
+		if c.interrupt != nil {
+			return errors.New("agent returned more than one approval interruption")
+		}
+		c.interrupt = interrupt
 	}
 	if event.Output == nil || event.Output.MessageOutput == nil {
 		return nil
@@ -40,25 +50,50 @@ func (c *responseCollector) consume(ctx context.Context, event *adk.AgentEvent) 
 	return c.appendOutput(ctx, event.Output.MessageOutput)
 }
 
-func validateAction(action *adk.AgentAction) error {
+func validateAction(action *adk.AgentAction) (*ApprovalInterruption, error) {
 	if action == nil || action.Exit || action.BreakLoop != nil {
-		return nil
+		return nil, nil
 	}
-	// 当前运维助手是单 Agent，且产品协议尚未提供人工确认与恢复入口。
-	// 与其静默丢弃 ADK Action，不如在能力边界处明确失败。
 	if action.Interrupted != nil {
-		return errors.New("eino agent requested interruption without checkpoint support")
+		return approvalInterruption(action.Interrupted)
 	}
 	if action.TransferToAgent != nil {
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"eino agent requested transfer to unsupported agent %q",
 			action.TransferToAgent.DestAgentName,
 		)
 	}
 	if action.CustomizedAction != nil {
-		return errors.New("eino agent returned an unsupported custom action")
+		return nil, errors.New("eino agent returned an unsupported custom action")
 	}
-	return nil
+	return nil, nil
+}
+
+func approvalInterruption(info *adk.InterruptInfo) (*ApprovalInterruption, error) {
+	if info == nil {
+		return nil, errors.New("agent returned a nil interruption")
+	}
+	var result *ApprovalInterruption
+	for _, interrupt := range info.InterruptContexts {
+		if interrupt == nil || !interrupt.IsRootCause {
+			continue
+		}
+		request, ok := interrupt.Info.(*agenttool.ApprovalRequest)
+		if !ok || request == nil {
+			return nil, fmt.Errorf(
+				"agent returned unsupported root interruption info %T",
+				interrupt.Info,
+			)
+		}
+		if result != nil {
+			return nil, errors.New("agent returned multiple root approval interruptions")
+		}
+		result = &ApprovalInterruption{InterruptID: interrupt.ID, Request: *request}
+	}
+	if result == nil {
+		return nil, errors.New("agent interruption contains no root approval request")
+	}
+	return result, nil
 }
 
 func (c *responseCollector) appendOutput(ctx context.Context, output *adk.MessageVariant) error {
@@ -134,5 +169,6 @@ func (c *responseCollector) build() Response {
 	return Response{
 		Content:          c.content.String(),
 		ReasoningContent: c.reasoning.String(),
+		Interruption:     c.interrupt,
 	}
 }

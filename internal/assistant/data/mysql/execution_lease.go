@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	changebiz "github.com/lgc202/ingate/internal/assistant/biz/change"
 	"github.com/lgc202/ingate/internal/assistant/biz/execution"
 	"github.com/lgc202/ingate/internal/assistant/data/mysql/db"
 )
@@ -44,6 +45,24 @@ func (s *Store) ClaimExecution(
 			ConversationID: row.ConversationID,
 			ActorID:        row.ActorID,
 		}
+		switch row.ResumeDecision {
+		case executionResumeNone:
+			if row.ResumeInterruptID != "" || row.ResumeFeedback != "" {
+				return errors.New("queued assistant execution contains an incomplete resume command")
+			}
+		case executionResumeApproved, executionResumeRejected:
+			if row.ResumeInterruptID == "" ||
+				row.ResumeDecision == executionResumeApproved && row.ResumeFeedback != "" {
+				return errors.New("queued assistant execution contains an invalid resume command")
+			}
+			claim.Resume = &execution.Resume{
+				InterruptID: row.ResumeInterruptID,
+				Approved:    row.ResumeDecision == executionResumeApproved,
+				Feedback:    row.ResumeFeedback,
+			}
+		default:
+			return fmt.Errorf("queued assistant execution contains resume decision %d", row.ResumeDecision)
+		}
 		found = true
 		return nil
 	})
@@ -53,16 +72,33 @@ func (s *Store) ClaimExecution(
 	return claim, found, nil
 }
 
-// SetExecutionModel 记录当前租约实际选中的模型，排队阶段不提前固化在线配置。
-func (s *Store) SetExecutionModel(ctx context.Context, executionID, workerID, model string) error {
-	rows, err := s.queries.SetExecutionModel(ctx, db.SetExecutionModelParams{
+// BindExecutionModel 首次运行时记录模型，恢复时校验同一次执行没有切换模型。
+func (s *Store) BindExecutionModel(ctx context.Context, executionID, workerID, model string) error {
+	rows, err := s.queries.BindExecutionModel(ctx, db.BindExecutionModelParams{
 		Model: model, ID: executionID, WorkerID: workerID,
 	})
 	if err != nil {
-		return fmt.Errorf("set assistant execution model: %w", err)
+		return fmt.Errorf("bind assistant execution model: %w", err)
 	}
-	if rows != 1 {
+	if rows == 1 {
+		return nil
+	}
+	boundModel, err := s.queries.GetBoundExecutionModel(
+		ctx,
+		db.GetBoundExecutionModelParams{ID: executionID, WorkerID: workerID},
+	)
+	if errors.Is(err, sql.ErrNoRows) {
 		return execution.ErrLeaseLost
+	}
+	if err != nil {
+		return fmt.Errorf("get bound assistant execution model: %w", err)
+	}
+	if boundModel != model {
+		return fmt.Errorf(
+			"assistant execution model changed from %q to %q",
+			boundModel,
+			model,
+		)
 	}
 	return nil
 }
@@ -112,6 +148,15 @@ func (s *Store) FailExpiredExecutions(ctx context.Context) (int64, error) {
 		}
 		if err := queries.FailExpiredExecutionSteps(ctx, string(execution.FailureWorkerLost)); err != nil {
 			return fmt.Errorf("fail expired assistant execution steps: %w", err)
+		}
+		if err := queries.MarkExpiredExecutingChangesOutcomeUnknown(
+			ctx,
+			string(changebiz.FailureOutcomeUnknown),
+		); err != nil {
+			return fmt.Errorf("mark interrupted configuration changes outcome unknown: %w", err)
+		}
+		if err := queries.DeleteExpiredExecutionCheckpoints(ctx); err != nil {
+			return fmt.Errorf("delete expired assistant checkpoints: %w", err)
 		}
 		var err error
 		rows, err = queries.FailExpiredExecutions(ctx, string(execution.FailureWorkerLost))

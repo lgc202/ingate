@@ -7,6 +7,7 @@ import (
 	"time"
 
 	agentbiz "github.com/lgc202/ingate/internal/assistant/biz/agent"
+	changebiz "github.com/lgc202/ingate/internal/assistant/biz/change"
 )
 
 const (
@@ -20,9 +21,10 @@ var errExecutionFinished = errors.New("assistant execution finished")
 // Executor 负责领取任务、调用 Agent，并将执行过程收敛为持久终态。
 // 它只由后台执行消费者调用，不进入 HTTP 请求链路。
 type Executor struct {
-	store  ExecutorStore
-	events EventStore
-	agent  Agent
+	store   ExecutorStore
+	events  EventStore
+	changes changebiz.ProposalStore
+	agent   Agent
 }
 
 // executionLease 管理一条已领取任务的执行上下文和续租协程。
@@ -34,8 +36,13 @@ type executionLease struct {
 }
 
 // NewExecutor 创建后台执行编排器。
-func NewExecutor(store ExecutorStore, events EventStore, agent Agent) *Executor {
-	return &Executor{store: store, events: events, agent: agent}
+func NewExecutor(
+	store ExecutorStore,
+	events EventStore,
+	changes changebiz.ProposalStore,
+	agent Agent,
+) *Executor {
+	return &Executor{store: store, events: events, changes: changes, agent: agent}
 }
 
 // ExecuteNext 领取并执行一条排队任务。返回 false 表示当前没有待执行任务。
@@ -128,7 +135,7 @@ func (e *Executor) invokeAgent(
 		}
 		return true, cause
 	}
-	request, err := agentRequest(history)
+	request, err := agentRequest(claim.ID, claim.Resume, history)
 	if err != nil {
 		cause := fmt.Errorf("build assistant request: %w", err)
 		if commitErr := e.finishFailure(ctx, claim, workerID, FailureInternal); commitErr != nil {
@@ -142,6 +149,7 @@ func (e *Executor) invokeAgent(
 	recorder := newEventRecorder(
 		e.store,
 		e.events,
+		e.changes,
 		claim.ID,
 		workerID,
 		leaseDuration,
@@ -163,6 +171,25 @@ func (e *Executor) invokeAgent(
 			return false, errors.Join(err, commitErr)
 		}
 		return true, err
+	}
+	if result.Interruption != nil {
+		if err := e.store.PauseExecution(
+			ctx,
+			claim.ActorID,
+			claim.ID,
+			workerID,
+			*result.Interruption,
+		); err != nil {
+			if errors.Is(err, ErrCancellation) {
+				return false, ErrCancellation
+			}
+			return false, fmt.Errorf("pause assistant execution for approval: %w", err)
+		}
+		_, _ = e.events.Append(ctx, claim.ID, StreamEvent{
+			Type: EventInterrupted,
+			Data: result.Interruption.Request.ChangeID,
+		})
+		return true, nil
 	}
 	message, err := e.store.CompleteExecution(
 		ctx,

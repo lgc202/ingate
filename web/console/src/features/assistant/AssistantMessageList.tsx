@@ -1,23 +1,60 @@
 import type { RefObject } from 'react';
 import { useEffect, useState } from 'react';
-import { Bot, Check, CircleAlert, Copy, LoaderCircle, PencilLine, Settings2, Sparkles, UserRound } from 'lucide-react';
+import {
+  Bot,
+  Check,
+  CircleAlert,
+  Copy,
+  LoaderCircle,
+  Network,
+  PencilLine,
+  Server,
+  Settings2,
+  ShieldCheck,
+  Sparkles,
+  UserRound,
+  X,
+} from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui';
-import type { AgentExecution, AgentExecutionStep, AssistantMessage } from '@/domain/assistant';
-import { executionStateLabel, executionStepLabel } from '@/domain/assistant';
+import type {
+  AgentExecution,
+  AgentExecutionStep,
+  AssistantMessage,
+  ProposedChange,
+} from '@/domain/assistant';
+import {
+  executionStateLabel,
+  executionStepLabel,
+  proposedChangeErrorMessage,
+  proposedChangeStateLabel,
+} from '@/domain/assistant';
 
 const suggestions = [
+  '创建一个名为 public 的网关，监听 HTTP 端口 80',
+  '创建一个名为 orders 的服务，地址是 orders.default.svc，端口 8080',
   '解释 Gateway、Route 和 Service 的关系',
-  '路由没有转发到服务时应该检查什么？',
-  '如何判断请求失败发生在客户端还是服务端？',
 ];
 
 export interface LiveAnswer {
   conversationID: string;
   content: string;
-  reasoning: string;
 }
+
+type TimelineItem =
+  | {
+    id: string;
+    kind: 'message';
+    createdAt: string;
+    message: AssistantMessage;
+  }
+  | {
+    id: string;
+    kind: 'change';
+    createdAt: string;
+    change: ProposedChange;
+  };
 
 interface AssistantMessageListProps {
   messages: AssistantMessage[];
@@ -27,11 +64,15 @@ interface AssistantMessageListProps {
   liveAnswer: LiveAnswer | null;
   execution: AgentExecution | null;
   executionSteps: AgentExecutionStep[];
+  proposedChanges: ProposedChange[];
+  changeDecision: { id: string; action: 'approve' | 'reject' } | null;
   error: string;
   endRef: RefObject<HTMLDivElement | null>;
   onConfigure: () => void;
   onEdit: (message: AssistantMessage) => void;
   onSuggestion: (value: string) => void;
+  onApproveChange: (change: ProposedChange) => void;
+  onRejectChange: (change: ProposedChange) => void;
 }
 
 export function AssistantMessageList({
@@ -42,12 +83,31 @@ export function AssistantMessageList({
   liveAnswer,
   execution,
   executionSteps,
+  proposedChanges,
+  changeDecision,
   error,
   endRef,
   onConfigure,
   onEdit,
   onSuggestion,
+  onApproveChange,
+  onRejectChange,
 }: AssistantMessageListProps) {
+  const timeline: TimelineItem[] = [
+    ...messages.map((message): TimelineItem => ({
+      id: `message:${message.id}`,
+      kind: 'message',
+      createdAt: message.createdAt,
+      message,
+    })),
+    ...proposedChanges.map((change): TimelineItem => ({
+      id: `change:${change.id}`,
+      kind: 'change',
+      createdAt: change.createdAt,
+      change,
+    })),
+  ].sort(compareTimelineItems);
+
   return (
     <div className="assistant-message-list">
       {loading && hasConversation ? <p className="assistant-message-loading">正在加载消息</p> : null}
@@ -58,8 +118,18 @@ export function AssistantMessageList({
           onSuggestion={onSuggestion}
         />
       ) : null}
-      {messages.map((message) => (
-        <MessageBubble key={message.id} message={message} onEdit={onEdit} />
+      {timeline.map((item) => (
+        item.kind === 'message' ? (
+          <MessageBubble key={item.id} message={item.message} onEdit={onEdit} />
+        ) : (
+          <ProposedChangeCard
+            key={item.id}
+            change={item.change}
+            decision={changeDecision?.id === item.change.id ? changeDecision.action : null}
+            onApprove={onApproveChange}
+            onReject={onRejectChange}
+          />
+        )
       ))}
       {liveAnswer || execution ? (
         <LiveAnswerBubble answer={liveAnswer} execution={execution} steps={executionSteps} />
@@ -75,6 +145,19 @@ export function AssistantMessageList({
   );
 }
 
+function compareTimelineItems(left: TimelineItem, right: TimelineItem): number {
+  const timeOrder = timestampSortKey(left.createdAt).localeCompare(timestampSortKey(right.createdAt));
+  if (timeOrder !== 0) return timeOrder;
+  return left.id.localeCompare(right.id);
+}
+
+function timestampSortKey(value: string): string {
+  const match = /^(.*?)(?:\.(\d+))?Z$/.exec(value);
+  if (!match) return value;
+  const fraction = (match[2] ?? '').padEnd(9, '0').slice(0, 9);
+  return `${match[1]}.${fraction}Z`;
+}
+
 function AssistantWelcome({
   configured,
   onConfigure,
@@ -88,7 +171,7 @@ function AssistantWelcome({
     <div className="assistant-welcome">
       <span><Bot aria-hidden="true" /></span>
       <h2>从一个问题开始</h2>
-      <p>询问 Ingate 的资源关系、配置方法与排障思路。当前助手不会直接修改网关资源。</p>
+      <p>查询当前配置和流量，或准备创建 Gateway、普通 HTTP Service 的审批项。未经你批准，助手不会修改系统。</p>
       {!configured ? (
         <Button onClick={onConfigure}>
           <Settings2 className="h-4 w-4" aria-hidden="true" />配置模型连接
@@ -105,6 +188,128 @@ function AssistantWelcome({
       )}
     </div>
   );
+}
+
+function ProposedChangeCard({
+  change,
+  decision,
+  onApprove,
+  onReject,
+}: {
+  change: ProposedChange;
+  decision: 'approve' | 'reject' | null;
+  onApprove: (change: ProposedChange) => void;
+  onReject: (change: ProposedChange) => void;
+}) {
+  const pending = change.state === 'PROPOSED_CHANGE_STATE_PENDING_REVIEW';
+  const executing = change.state === 'PROPOSED_CHANGE_STATE_EXECUTING';
+  const error = proposedChangeErrorMessage(change);
+  return (
+    <article className={`assistant-change is-${change.state.replace('PROPOSED_CHANGE_STATE_', '').toLowerCase()}`}>
+      <header>
+        <span>{change.kind === 'PROPOSED_CHANGE_KIND_CREATE_GATEWAY'
+          ? <Network aria-hidden="true" />
+          : <Server aria-hidden="true" />}</span>
+        <div>
+          <small>配置变更</small>
+          <strong>{change.summary}</strong>
+        </div>
+        <i>{proposedChangeStateLabel(change.state)}</i>
+      </header>
+      {change.createGateway ? <GatewayChangeDetails change={change.createGateway} /> : null}
+      {change.createService ? <ServiceChangeDetails change={change.createService} /> : null}
+      {change.resourceId ? (
+        <p className="assistant-change-result">
+          <Check aria-hidden="true" />资源已创建，ID：<code>{change.resourceId}</code>
+        </p>
+      ) : null}
+      {error ? (
+        <p className="assistant-change-error">
+          <CircleAlert aria-hidden="true" />{error}
+        </p>
+      ) : null}
+      {pending || executing ? (
+        <footer>
+          <span><ShieldCheck aria-hidden="true" />批准后将立即写入当前环境</span>
+          <div>
+            <Button
+              variant="outline"
+              disabled={!pending || decision !== null}
+              onClick={() => onReject(change)}
+            >
+              {decision === 'reject'
+                ? <LoaderCircle className="assistant-spin" aria-hidden="true" />
+                : <X aria-hidden="true" />}
+              {decision === 'reject' ? '提交中' : '拒绝'}
+            </Button>
+            <Button disabled={!pending || decision !== null} onClick={() => onApprove(change)}>
+              {executing || decision === 'approve'
+                ? <LoaderCircle className="assistant-spin" aria-hidden="true" />
+                : <Check aria-hidden="true" />}
+              {executing ? '执行中' : decision === 'approve' ? '提交中' : '批准并创建'}
+            </Button>
+          </div>
+        </footer>
+      ) : null}
+    </article>
+  );
+}
+
+function GatewayChangeDetails({ change }: { change: NonNullable<ProposedChange['createGateway']> }) {
+  return (
+    <dl className="assistant-change-details">
+      <div><dt>名称</dt><dd>{change.name}</dd></div>
+      <div><dt>创建后</dt><dd>{change.enabled ? '立即启用' : '保持停用'}</dd></div>
+      <div className="is-wide">
+        <dt>监听入口</dt>
+        <dd>{change.listeners.map((listener) => (
+          <span key={listener.name}>
+            <code>{listener.name}</code>
+            {listener.protocol === 'PROPOSED_GATEWAY_PROTOCOL_HTTPS' ? 'HTTPS' : 'HTTP'}
+            {' · '}{listener.hostname || '*'}:{listener.port}
+            {listener.certificateID ? ` · 证书 ${listener.certificateID}` : ''}
+          </span>
+        ))}</dd>
+      </div>
+    </dl>
+  );
+}
+
+function ServiceChangeDetails({ change }: { change: NonNullable<ProposedChange['createService']> }) {
+  return (
+    <dl className="assistant-change-details">
+      <div><dt>名称</dt><dd>{change.name}</dd></div>
+      <div>
+        <dt>负载均衡</dt>
+        <dd>{change.loadBalancing === 'PROPOSED_SERVICE_LOAD_BALANCING_LEAST_REQUEST'
+          ? '最少请求'
+          : '轮询'}</dd>
+      </div>
+      <div><dt>连接上游</dt><dd>{change.tlsServerName ? 'HTTPS' : 'HTTP'}</dd></div>
+      <div className="is-wide">
+        <dt>服务端点</dt>
+        <dd>{change.endpoints.map((endpoint) => (
+          <span key={`${endpoint.address}:${endpoint.port}`}>
+            <code>{formatEndpoint(endpoint.address, endpoint.port)}</code>
+            权重 {endpoint.weight}
+          </span>
+        ))}</dd>
+      </div>
+      {change.tlsServerName ? (
+        <div><dt>HTTPS 服务名称</dt><dd>{change.tlsServerName}</dd></div>
+      ) : null}
+      {change.healthCheck ? (
+        <div>
+          <dt>健康检查</dt>
+          <dd>{change.healthCheck.path} · {change.healthCheck.intervalSeconds}s / {change.healthCheck.timeoutSeconds}s</dd>
+        </div>
+      ) : null}
+    </dl>
+  );
+}
+
+function formatEndpoint(address: string, port: number): string {
+  return address.includes(':') ? `[${address}]:${port}` : `${address}:${port}`;
 }
 
 function MessageBubble({
@@ -138,12 +343,6 @@ function MessageBubble({
       <span>{user ? <UserRound aria-hidden="true" /> : <Bot aria-hidden="true" />}</span>
       <div>
         <strong>{user ? '你' : 'Ingate 助手'}</strong>
-        {!user && message.reasoningContent ? (
-          <details className="assistant-reasoning">
-            <summary>思考过程</summary>
-            <p>{message.reasoningContent}</p>
-          </details>
-        ) : null}
         {user ? (
           <p className="assistant-message-content">{message.content}</p>
         ) : (
@@ -181,12 +380,6 @@ function LiveAnswerBubble({
       <div>
         <strong>Ingate 助手</strong>
         {steps.length ? <ExecutionProgress steps={steps} /> : null}
-        {answer?.reasoning ? (
-          <details className="assistant-reasoning" open={!answer.content}>
-            <summary>思考过程</summary>
-            <p>{answer.reasoning}</p>
-          </details>
-        ) : null}
         {answer?.content ? (
           <MarkdownMessage content={answer.content} live />
         ) : (
@@ -221,6 +414,8 @@ function ExecutionProgress({ steps }: { steps: AgentExecutionStep[] }) {
         >
           {step.state === 'AGENT_EXECUTION_STEP_STATE_RUNNING'
             ? <LoaderCircle aria-hidden="true" />
+            : step.state === 'AGENT_EXECUTION_STEP_STATE_WAITING_APPROVAL'
+              ? <ShieldCheck aria-hidden="true" />
             : step.state === 'AGENT_EXECUTION_STEP_STATE_COMPLETED'
               ? <Check aria-hidden="true" />
               : <CircleAlert aria-hidden="true" />}

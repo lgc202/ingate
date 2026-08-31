@@ -17,6 +17,8 @@ const (
 	StateFailed State = "failed"
 	// StateCancelled 表示执行已响应管理员的取消请求。
 	StateCancelled State = "cancelled"
+	// StateWaitingApproval 表示 Eino 已保存 checkpoint，正在等待管理员决定。
+	StateWaitingApproval State = "waiting_approval"
 )
 
 const (
@@ -35,6 +37,8 @@ const (
 	StepStateFailed StepState = "failed"
 	// StepStateCancelled 表示步骤随执行取消而终止。
 	StepStateCancelled StepState = "cancelled"
+	// StepStateWaitingApproval 表示有副作用工具已中断，尚未收到审批结果。
+	StepStateWaitingApproval StepState = "waiting_approval"
 )
 
 const (
@@ -50,6 +54,8 @@ const (
 	EventFailed EventType = "execution.failed"
 	// EventCancelled 表示执行已经取消。
 	EventCancelled EventType = "execution.cancelled"
+	// EventInterrupted 表示执行已经保存 checkpoint 并等待审批。
+	EventInterrupted EventType = "execution.interrupted"
 	// EventStreamFailed 表示事件流无法继续读取，执行状态需要另行查询。
 	EventStreamFailed EventType = "stream.failed"
 )
@@ -135,6 +141,14 @@ type Claim struct {
 	ID             string
 	ConversationID string
 	ActorID        string
+	Resume         *Resume
+}
+
+// Resume 是已经持久化并由后台执行器消费的一次中断恢复命令。
+type Resume struct {
+	InterruptID string
+	Approved    bool
+	Feedback    string
 }
 
 // StreamEvent 是可通过 SSE 重放的单次执行事件。

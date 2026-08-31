@@ -7,7 +7,46 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
+	changebiz "github.com/lgc202/ingate/internal/assistant/biz/change"
 )
+
+// CreateService 执行管理员已经批准的普通 HTTP Service 创建操作。
+func (c *Client) CreateService(
+	ctx context.Context,
+	input changebiz.CreateService,
+) (changebiz.CreatedResource, error) {
+	endpoints := make([]*adminv1.ServiceEndpoint, 0, len(input.Endpoints))
+	for _, endpoint := range input.Endpoints {
+		endpoints = append(endpoints, &adminv1.ServiceEndpoint{
+			Address: endpoint.Address,
+			Port:    endpoint.Port,
+			Weight:  endpoint.Weight,
+		})
+	}
+	request := &adminv1.CreateServiceRequest{
+		Name:          input.Name,
+		Endpoints:     endpoints,
+		LoadBalancing: proposedLoadBalancing(input.LoadBalancing),
+	}
+	if input.TLSServerName != "" {
+		request.Tls = &adminv1.ServiceTLS{ServerName: input.TLSServerName}
+	}
+	if input.HealthCheck != nil {
+		request.HealthCheck = &adminv1.ServiceHealthCheck{
+			Path:            input.HealthCheck.Path,
+			IntervalSeconds: input.HealthCheck.IntervalSeconds,
+			TimeoutSeconds:  input.HealthCheck.TimeoutSeconds,
+		}
+	}
+	result, err := c.services.CreateService(ctx, request)
+	if err != nil {
+		return changebiz.CreatedResource{}, proposedChangeError("create service through Admin API", err)
+	}
+	if result == nil || !validResourceID(result.GetId()) {
+		return changebiz.CreatedResource{}, errors.New("create service through Admin API: invalid response")
+	}
+	return changebiz.CreatedResource{ID: result.GetId()}, nil
+}
 
 // ListServices 查询当前配置域中的普通服务和模型服务。
 func (c *Client) ListServices(
@@ -66,6 +105,17 @@ func modelProtocol(protocol adminv1.ModelProtocol) string {
 		return "anthropic"
 	default:
 		return ""
+	}
+}
+
+func proposedLoadBalancing(policy changebiz.LoadBalancing) adminv1.LoadBalancingPolicy {
+	switch policy {
+	case changebiz.LoadBalancingRoundRobin:
+		return adminv1.LoadBalancingPolicy_LOAD_BALANCING_POLICY_ROUND_ROBIN
+	case changebiz.LoadBalancingLeastRequest:
+		return adminv1.LoadBalancingPolicy_LOAD_BALANCING_POLICY_LEAST_REQUEST
+	default:
+		return adminv1.LoadBalancingPolicy_LOAD_BALANCING_POLICY_UNSPECIFIED
 	}
 }
 

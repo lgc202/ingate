@@ -26,11 +26,12 @@ type ChatModelFactory func(
 	modelconfig.Connection,
 ) (model.ToolCallingChatModel, error)
 
-// Agent 组合运维指令、当前模型连接和 Ingate 只读工具。
+// Agent 组合运维指令、当前模型连接以及 Ingate 查询和变更提案工具。
 // 实例可以并发使用；每次执行的消息、事件和中间状态都保存在方法栈内。
 type Agent struct {
 	connections     *modelconfig.Usecase
 	createChatModel ChatModelFactory
+	checkpoints     CheckPointStore
 	tools           []einotool.BaseTool
 	instruction     string
 }
@@ -39,15 +40,18 @@ type Agent struct {
 func New(
 	connections *modelconfig.Usecase,
 	source agenttool.QuerySource,
+	writer agenttool.ChangeWriter,
+	checkpoints CheckPointStore,
 	createChatModel ChatModelFactory,
 ) (*Agent, error) {
-	tools, err := agenttool.NewTools(source)
+	tools, err := agenttool.NewTools(source, writer)
 	if err != nil {
 		return nil, err
 	}
 	return &Agent{
 		connections:     connections,
 		createChatModel: createChatModel,
+		checkpoints:     checkpoints,
 		tools:           tools,
 		instruction:     strings.TrimSpace(operationsInstruction),
 	}, nil

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	agentbiz "github.com/lgc202/ingate/internal/assistant/biz/agent"
+	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 )
 
@@ -21,9 +22,23 @@ type Completion struct {
 	ReasoningContent string
 }
 
-func agentRequest(messages []conversation.HistoryMessage) (agentbiz.Request, error) {
+func agentRequest(
+	executionID string,
+	resume *Resume,
+	messages []conversation.HistoryMessage,
+) (agentbiz.Request, error) {
 	request := agentbiz.Request{
-		Messages: make([]agentbiz.Message, 0, len(messages)),
+		CheckpointID: executionID,
+		Messages:     make([]agentbiz.Message, 0, len(messages)),
+	}
+	if resume != nil {
+		request.Resume = &agentbiz.Resume{
+			InterruptID: resume.InterruptID,
+			Result: &agenttool.ApprovalResult{
+				Approved: resume.Approved,
+				Feedback: resume.Feedback,
+			},
+		}
 	}
 	for _, message := range messages {
 		var role agentbiz.Role

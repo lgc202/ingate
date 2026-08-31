@@ -6,8 +6,19 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 )
+
+// 运维助手 Eino 中断 checkpoint
+type AssistantAgentCheckpoint struct {
+	// 作为 Eino checkpoint ID 的 Agent 执行 ID
+	ExecutionID string
+	// Eino 序列化的不可解释运行状态
+	Checkpoint []byte
+	// 最近一次中断更新时间，统一使用 UTC
+	UpdatedAt time.Time
+}
 
 // 运维助手 Agent 执行记录
 type AssistantAgentExecution struct {
@@ -15,7 +26,7 @@ type AssistantAgentExecution struct {
 	ID string
 	// 所属会话 ID，由应用事务保证关联有效
 	ConversationID string
-	// 执行状态：1 排队中，2 运行中，3 成功，4 失败，5 已取消
+	// 执行状态：1 排队中，2 运行中，3 成功，4 失败，5 已取消，6 等待审批
 	State uint8
 	// 本次调用实际使用的模型名称；领取前为空
 	Model string
@@ -27,6 +38,12 @@ type AssistantAgentExecution struct {
 	WorkerID string
 	// 执行租约到期时间；仅运行中使用
 	LeaseExpiresAt sql.NullTime
+	// 排队恢复时目标 Eino 中断 ID，首次执行和等待审批时为空
+	ResumeInterruptID string
+	// 恢复决定：0 无，1 批准，2 拒绝
+	ResumeDecision uint8
+	// 拒绝当前中断时交回 Agent 的用户反馈
+	ResumeFeedback string
 	// 执行创建时间，统一使用 UTC
 	CreatedAt time.Time
 	// 模型调用开始时间；排队中为空
@@ -45,7 +62,7 @@ type AssistantAgentExecutionStep struct {
 	Sequence uint32
 	// 步骤类型：1 模型调用，2 工具调用
 	Kind uint8
-	// 步骤状态：1 执行中，2 完成，3 失败，4 已取消
+	// 步骤状态：1 执行中，2 完成，3 失败，4 已取消，5 等待审批
 	State uint8
 	// 模型或工具的稳定名称
 	Name string
@@ -115,4 +132,36 @@ type AssistantModelConnection struct {
 	ReasoningBudgetTokens uint32
 	// 配置最后更新时间，统一使用 UTC
 	UpdatedAt time.Time
+}
+
+// 运维助手提出并由管理员审批的配置变更
+type AssistantProposedChange struct {
+	// 配置变更 ID，使用 UUID
+	ID string
+	// 所属会话 ID，由应用事务保证关联有效
+	ConversationID string
+	// 生成该变更的 Agent 执行 ID
+	ExecutionID string
+	// 生成该变更的工具调用 ID
+	CallID string
+	// 恢复该工具调用所需的 Eino 根中断 ID
+	InterruptID string
+	// 操作类型：1 创建 Gateway，2 创建普通 HTTP Service
+	Kind uint8
+	// 状态：1 待审批，2 执行中，3 成功，4 已拒绝，5 失败，6 结果不确定
+	State uint8
+	// 经过脱敏且可向管理员展示的变更摘要
+	Summary string
+	// 经过业务校验的不可变配置快照，不包含凭据
+	ProposalJson json.RawMessage
+	// 成功创建的资源 ID，其他状态为空
+	ResourceID string
+	// 失败或结果不确定时的稳定错误码
+	ErrorCode string
+	// 提案创建时间，统一使用 UTC
+	CreatedAt time.Time
+	// 管理员批准或拒绝时间
+	DecidedAt sql.NullTime
+	// 执行进入终态的时间
+	FinishedAt sql.NullTime
 }

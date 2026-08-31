@@ -9,6 +9,7 @@ import (
 
 	agentbiz "github.com/lgc202/ingate/internal/assistant/biz/agent"
 	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
+	changebiz "github.com/lgc202/ingate/internal/assistant/biz/change"
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 	executionbiz "github.com/lgc202/ingate/internal/assistant/biz/execution"
 	"github.com/lgc202/ingate/internal/assistant/biz/modelconfig"
@@ -22,10 +23,15 @@ import (
 // ProviderSet 将持久化、事件流、资源查询和模型 SDK 绑定到调用方声明的依赖边界。
 var ProviderSet = wire.NewSet(
 	NewMySQLStore,
+	mysql.NewCheckpointStore,
 	NewEventStore,
 	NewAdminClient,
 	NewChatModelFactory,
 	wire.Bind(new(agenttool.QuerySource), new(*adminapi.Client)),
+	wire.Bind(new(agenttool.ChangeWriter), new(*adminapi.Client)),
+	wire.Bind(new(agentbiz.CheckPointStore), new(*mysql.CheckpointStore)),
+	wire.Bind(new(changebiz.Store), new(*mysql.Store)),
+	wire.Bind(new(changebiz.ProposalStore), new(*mysql.Store)),
 	wire.Bind(new(conversation.Store), new(*mysql.Store)),
 	wire.Bind(new(executionbiz.Store), new(*mysql.Store)),
 	wire.Bind(new(executionbiz.ExecutorStore), new(*mysql.Store)),

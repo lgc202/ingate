@@ -17,6 +17,7 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
+	changebiz "github.com/lgc202/ingate/internal/assistant/biz/change"
 )
 
 // Config 定义 Assistant 访问 Admin API 的连接参数。
@@ -25,7 +26,7 @@ type Config struct {
 	Timeout time.Duration
 }
 
-// Client 复用一条 gRPC 连接，并只暴露当前只读工具实际需要的资源查询。
+// Client 复用一条 gRPC 连接，提供 Agent 查询和审批执行实际需要的 Admin API 能力。
 type Client struct {
 	connection *googlegrpc.ClientConn
 	gateways   adminv1.GatewayServiceClient
@@ -72,6 +73,25 @@ func queryTargetError(operation string, err error) error {
 		return fmt.Errorf("%w: %s: %w", agenttool.ErrQueryTargetNotFound, operation, err)
 	}
 	return fmt.Errorf("%s: %w", operation, err)
+}
+
+func proposedChangeError(operation string, err error) error {
+	switch status.Code(err) {
+	case codes.InvalidArgument,
+		codes.NotFound,
+		codes.AlreadyExists,
+		codes.PermissionDenied,
+		codes.Unauthenticated,
+		codes.FailedPrecondition,
+		codes.Aborted,
+		codes.OutOfRange,
+		codes.Unimplemented:
+		return fmt.Errorf("%w: %s: %w", changebiz.ErrAdminRejected, operation, err)
+	default:
+		// 超时、连接中断和服务端错误都可能发生在资源已经持久化之后。
+		// 保留普通错误，由审批状态机收敛为 outcome_unknown 且不自动重试。
+		return fmt.Errorf("%s: %w", operation, err)
+	}
 }
 
 func optionalProtoDuration(value *durationpb.Duration) *time.Duration {

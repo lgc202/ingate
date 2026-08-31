@@ -122,7 +122,14 @@ func (s *Store) Delete(ctx context.Context, actorID, id string) error {
 			return fmt.Errorf("count active assistant executions: %w", err)
 		}
 		if active > 0 {
-			return conversation.ErrActiveExecution
+			return conversation.ErrActiveOperation
+		}
+		executingChanges, err := queries.CountExecutingProposedChanges(ctx, id)
+		if err != nil {
+			return fmt.Errorf("count executing proposed changes: %w", err)
+		}
+		if executingChanges > 0 {
+			return conversation.ErrActiveOperation
 		}
 
 		// 数据库不使用外键级联；聚合删除必须在同一事务中按依赖顺序显式完成。
@@ -131,6 +138,12 @@ func (s *Store) Delete(ctx context.Context, actorID, id string) error {
 		}
 		if err := queries.DeleteExecutionStepsByConversation(ctx, id); err != nil {
 			return fmt.Errorf("delete conversation execution steps: %w", err)
+		}
+		if err := queries.DeleteCheckpointsByConversation(ctx, id); err != nil {
+			return fmt.Errorf("delete conversation checkpoints: %w", err)
+		}
+		if err := queries.DeleteProposedChangesByConversation(ctx, id); err != nil {
+			return fmt.Errorf("delete conversation proposed changes: %w", err)
 		}
 		if err := queries.DeleteExecutionsByConversation(ctx, id); err != nil {
 			return fmt.Errorf("delete conversation executions: %w", err)

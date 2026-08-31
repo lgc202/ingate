@@ -37,7 +37,7 @@ Ingate 不依赖 Kubernetes，不维护 Envoy 私有分支，也不为其他数�
 - **访问与治理**：公开或受保护 Route、调用方密钥与授权、IP 访问限制、共享请求限流和 Token 额度
 - **声明式控制面**：资源 CRUD、List/Watch、乐观并发、Status、Envoy 配置编译和 xDS 下发
 - **可观测性**：请求记录、转发结果、模型调用与 Token 用量、流量趋势和资源排行
-- **运维助手**：基于实时配置与观测数据进行只读查询、流量分析和故障定位
+- **运维助手**：查询实时配置与观测数据，定位故障，并审批创建 Gateway 或普通 HTTP Service
 - **插件扩展**：请求响应转换、模拟响应、官方与自定义插件源，以及安装、升级、依赖检查和卸载
 
 用户配置的是具有明确业务语义的 Policy，不需要编辑 Envoy 或 Wasm 私有参数。插件页只管理插件包的安装版本；安装插件不会改变流量，只有对应 Policy 应用到 Route 后才会生效。
@@ -110,7 +110,7 @@ Ingate 将配置管理、同步流量处理、异步观测和运维辅助分为�
 1. **控制链路**：Console → Admin API → API Server → etcd；Controller Watch 资源并通过 xDS 向 Envoy 发布配置
 2. **流量链路**：客户端 → Envoy → Service；Authz 校验调用方与请求限流，AI ExtProc 负责模型选择、凭据注入和协议转换
 3. **观测链路**：Envoy ALS → Ingate ALS → Kafka → Analytics → ClickHouse
-4. **助手链路**：Console → Assistant → Admin API；Assistant 只读查询当前配置和观测数据，并调用管理员配置的模型端点
+4. **助手链路**：Console → Assistant → Admin API；模型查询当前配置并生成无副作用提案，管理员显式批准后由 Assistant 确定性执行创建操作
 
 Envoy 是唯一数据平面；etcd 只由 API Server 访问；Redis 保存实时限流、Token 额度计数和 Assistant 短期流式事件。各组件保持部署方式中立，Docker Compose 只是当前优先支持的安装与联调方式。
 
@@ -123,7 +123,7 @@ Envoy 是唯一数据平面；etcd 只由 API Server 访问；Redis 保存实时
 | [认识 Ingate](https://lgc202.github.io/ingate/getting-started/introduction/) | 产品边界、流量模型和适用场景 |
 | [系统架构](https://lgc202.github.io/ingate/concepts/architecture/) | 组件职责、控制链路、流量链路和观测链路 |
 | [安装与运维](https://lgc202.github.io/ingate/operations/overview/) | 配置、健康检查、日志、备份和升级 |
-| [运维助手](https://lgc202.github.io/ingate/operations/assistant/) | 模型连接、只读工具、会话和执行恢复边界 |
+| [运维助手](https://lgc202.github.io/ingate/operations/assistant/) | 模型连接、查询诊断、资源创建审批、会话和执行恢复 |
 | [Docker Compose](deploy/compose/README.md) | 安装、启停、备份、恢复、升级和卸载 |
 | [插件体系](https://lgc202.github.io/ingate/plugins/overview/) | 插件源、安装版本、强类型 Policy 和独立升级 |
 | [Gateway](https://lgc202.github.io/ingate/traffic/gateway/) / [Route](https://lgc202.github.io/ingate/traffic/route/) / [Service](https://lgc202.github.io/ingate/traffic/service/) | 核心流量资源 |
@@ -131,11 +131,11 @@ Envoy 是唯一数据平面；etcd 只由 API Server 访问；Redis 保存实时
 
 ## 当前范围
 
-Ingate 当前已实现 API 转发、AI 模型发布、调用方授权、流量治理、插件管理、请求分析和只读运维助手。项目仍处于 `0.x` 快速演进阶段，资源协议和部署方式在 `1.0` 前可能调整。
+Ingate 当前已实现 API 转发、AI 模型发布、调用方授权、流量治理、插件管理、请求分析和带资源创建审批的运维助手。项目仍处于 `0.x` 快速演进阶段，资源协议和部署方式在 `1.0` 前可能调整。
 
 以下能力不在当前范围：
 
-- 用户自定义 MCP 工具、写操作审批、多 Agent 编排和定时自动化
+- 资源更新与删除、Route 与模型 Service 创建、复杂审批、用户自定义 MCP 工具、多 Agent 编排和定时自动化
 - 请求 Header、查询参数和正文的持久化
 - Kubernetes CRD 和多数据平面适配
 

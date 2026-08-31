@@ -172,7 +172,7 @@ func mapError(err error) error {
 		return invalidArgument("conversation title is required")
 	case errors.Is(err, conversationbiz.ErrNotFound):
 		return kerrors.NotFound("RESOURCE_NOT_FOUND", "resource not found")
-	case errors.Is(err, conversationbiz.ErrActiveExecution):
+	case errors.Is(err, conversationbiz.ErrActiveOperation):
 		return kerrors.Conflict("RESOURCE_CONFLICT", "resource state changed")
 	default:
 		return kerrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)

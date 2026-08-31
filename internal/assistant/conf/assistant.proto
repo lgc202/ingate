@@ -18,7 +18,7 @@ message Bootstrap {
   Logging logging = 4;
   // worker 定义后台 Agent 执行槽和租约。
   Worker worker = 5;
-  // admin_api 定义只读工具访问的内部管理接口。
+  // admin_api 定义查询工具和已审批变更访问的内部管理接口。
   AdminAPI admin_api = 6;
 }
 
@@ -102,11 +102,11 @@ message Worker {
   google.protobuf.Duration lease_duration = 3;
 }
 
-// AdminAPI 定义助手读取当前 Ingate 资源时使用的内部 gRPC 地址。
+// AdminAPI 定义助手查询资源和执行已审批变更时使用的内部 gRPC 地址。
 message AdminAPI {
   // addr 是 Admin API 内部 gRPC 地址。
   string addr = 1;
-  // timeout 是一次只读工具查询的最长等待时间。
+  // timeout 是一次查询或已审批写操作的最长等待时间。
   google.protobuf.Duration timeout = 2;
 }
 

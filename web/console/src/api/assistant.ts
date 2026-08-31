@@ -6,6 +6,7 @@ import type {
   AssistantStreamEvent,
   AssistantStreamEventType,
   ModelConnection,
+  ProposedChange,
   UpdateModelConnectionInput,
 } from '@/domain/assistant';
 
@@ -17,6 +18,10 @@ interface ConversationPage {
 interface MessagePage {
   messages: AssistantMessage[];
   nextCursor?: string;
+}
+
+interface ProposedChangeList {
+  proposedChanges?: ProposedChange[];
 }
 
 const assistantBaseURL = (import.meta.env.VITE_INGATE_ASSISTANT_BASE_URL as string | undefined) ?? '';
@@ -88,6 +93,34 @@ export async function cancelAgentExecution(id: string): Promise<AgentExecution> 
     method: 'POST',
     body: '{}',
   });
+}
+
+export async function listProposedChanges(conversationID: string): Promise<ProposedChange[]> {
+  const result = await assistantRequest<ProposedChangeList>(
+    `/assistant/v1/conversations/${encodeURIComponent(conversationID)}/proposed-changes`,
+  );
+  return result.proposedChanges ?? [];
+}
+
+export async function approveProposedChange(id: string): Promise<ProposedChange> {
+  return assistantRequest<ProposedChange>(
+    `/assistant/v1/proposed-changes/${encodeURIComponent(id)}:approve`,
+    { method: 'POST', body: '{}' },
+  );
+}
+
+export async function rejectProposedChange(id: string): Promise<ProposedChange> {
+  return assistantRequest<ProposedChange>(
+    `/assistant/v1/proposed-changes/${encodeURIComponent(id)}:reject`,
+    { method: 'POST', body: '{}' },
+  );
+}
+
+export async function reviseProposedChange(id: string, feedback: string): Promise<ProposedChange> {
+  return assistantRequest<ProposedChange>(
+    `/assistant/v1/proposed-changes/${encodeURIComponent(id)}:revise`,
+    { method: 'POST', body: JSON.stringify({ feedback }) },
+  );
 }
 
 export async function getModelConnection(): Promise<ModelConnection> {
@@ -213,5 +246,6 @@ function isAssistantStreamEventType(value: string): value is AssistantStreamEven
     || value === 'execution.completed'
     || value === 'execution.failed'
     || value === 'execution.cancelled'
+    || value === 'execution.interrupted'
     || value === 'stream.failed';
 }
