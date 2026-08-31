@@ -48,7 +48,7 @@
 
 ## 工作方式
 
-- 使用 Go 1.26
+- 使用 Go 1.27
 - `make tools` 将锁定版本的开发工具安装到 `.tools/bin`；构建和代码生成不依赖全局 `GOPATH/bin`
 - 当前不维护单元测试，不新增 `*_test.go` 或前端测试；使用编译、联调和端到端请求验证行为
 - 完成代码修改后运行 `make verify`；修改镜像或 Compose 时还要运行 `make docker-up` 并检查组件状态

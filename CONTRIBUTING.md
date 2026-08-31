@@ -4,7 +4,7 @@
 
 ## 开发环境
 
-仓库当前使用 Go 1.26、Node.js 24 和 npm 11。开发环境中的 Docker Compose 用于本地联调；正式发布另行提供固定版本的 Compose 安装包。
+仓库当前使用 Go 1.27、Node.js 24 和 npm 11。开发环境中的 Docker Compose 用于本地联调；正式发布另行提供固定版本的 Compose 安装包。
 
 ```bash
 make check-tools

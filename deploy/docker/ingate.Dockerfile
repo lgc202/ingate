@@ -1,4 +1,4 @@
-ARG GO_VERSION=1.26.6
+ARG GO_VERSION=1.27.0
 ARG NODE_VERSION=24
 ARG GOPROXY=https://proxy.golang.org,direct
 

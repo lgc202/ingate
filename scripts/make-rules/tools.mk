@@ -26,51 +26,54 @@ WIRE_VERSION := v0.7.0
 WIRE_PACKAGE := github.com/google/wire/cmd/wire@$(WIRE_VERSION)
 SQLC_VERSION := v1.31.1
 SQLC_PACKAGE := github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
-GOLANGCI_LINT_VERSION := v2.11.4
+GOLANGCI_LINT_VERSION := v2.13.2
 GOLANGCI_LINT_PACKAGE := github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 ACTIONLINT_VERSION := v1.7.12
 ACTIONLINT_PACKAGE := github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION)
 GOVULNCHECK_VERSION := v1.1.4
 GOVULNCHECK_PACKAGE := golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+GO_TOOL_PREREQUISITES := \
+	$(PROJECT_ROOT)/scripts/make-rules/golang.mk \
+	$(PROJECT_ROOT)/scripts/make-rules/tools.mk
 
 .PHONY: tools
 tools: $(TOOLS_DIR)/buf $(TOOLS_DIR)/protoc-gen-go $(TOOLS_DIR)/protoc-gen-go-grpc $(TOOLS_DIR)/protoc-gen-go-http $(TOOLS_DIR)/wire $(TOOLS_DIR)/sqlc $(TOOLS_DIR)/golangci-lint $(TOOLS_DIR)/actionlint $(TOOLS_DIR)/govulncheck ## 安装项目开发工具
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(KUBE_CODEGEN_PACKAGES)
 
-$(TOOLS_DIR)/buf: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+$(TOOLS_DIR)/buf: $(GO_TOOL_PREREQUISITES)
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(BUF_PACKAGE)
 
-$(TOOLS_DIR)/protoc-gen-go: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+$(TOOLS_DIR)/protoc-gen-go: $(GO_TOOL_PREREQUISITES)
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(PROTOC_GEN_GO_PACKAGE)
 
-$(TOOLS_DIR)/protoc-gen-go-grpc: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+$(TOOLS_DIR)/protoc-gen-go-grpc: $(GO_TOOL_PREREQUISITES)
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(PROTOC_GEN_GO_GRPC_PACKAGE)
 
-$(TOOLS_DIR)/protoc-gen-go-http: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+$(TOOLS_DIR)/protoc-gen-go-http: $(GO_TOOL_PREREQUISITES)
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(PROTOC_GEN_GO_HTTP_PACKAGE)
 
-$(TOOLS_DIR)/wire: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+$(TOOLS_DIR)/wire: $(GO_TOOL_PREREQUISITES)
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(WIRE_PACKAGE)
 
-$(TOOLS_DIR)/sqlc: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+$(TOOLS_DIR)/sqlc: $(GO_TOOL_PREREQUISITES)
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(SQLC_PACKAGE)
 
-$(TOOLS_DIR)/golangci-lint: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+$(TOOLS_DIR)/golangci-lint: $(GO_TOOL_PREREQUISITES)
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(GOLANGCI_LINT_PACKAGE)
 
-$(TOOLS_DIR)/actionlint: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+$(TOOLS_DIR)/actionlint: $(GO_TOOL_PREREQUISITES)
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(ACTIONLINT_PACKAGE)
 
-$(TOOLS_DIR)/govulncheck: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+$(TOOLS_DIR)/govulncheck: $(GO_TOOL_PREREQUISITES)
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(GOVULNCHECK_PACKAGE)
 

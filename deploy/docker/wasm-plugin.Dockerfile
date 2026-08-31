@@ -1,4 +1,4 @@
-ARG GO_VERSION=1.26.6
+ARG GO_VERSION=1.27.0
 ARG GOPROXY=https://proxy.golang.org,direct
 
 FROM golang:${GO_VERSION}-bookworm AS builder

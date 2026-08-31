@@ -6,7 +6,7 @@
 
 Ingate 取意于 **in + gate**：让进入系统的 API 与 AI 流量经过同一个可治理入口。
 
-[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![Envoy](https://img.shields.io/badge/data%20plane-Envoy%201.39-AC6199)](https://www.envoyproxy.io/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
@@ -141,7 +141,7 @@ Ingate 当前已实现 API 转发、AI 模型发布、调用方授权、流量�
 
 ## 开发
 
-源码开发需要 Go 1.26、Node.js 24、npm 11、Docker Engine 和 Docker Compose v2：
+源码开发需要 Go 1.27、Node.js 24、npm 11、Docker Engine 和 Docker Compose v2：
 
 ```bash
 git clone https://github.com/lgc202/ingate.git
