@@ -15,26 +15,14 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/tokenquotaconfig"
 )
 
-// TokenQuotaUsageReader 从 AI ExtProc 读取实时额度计数。
-type TokenQuotaUsageReader struct {
-	client aiextprocv1.TokenQuotaUsageServiceClient
-}
-
 type tokenQuotaUsageKey struct {
 	policyID string
 	period   tokenquotabiz.Period
 }
 
-// NewTokenQuotaUsageReader 创建实时额度读取器。
-func NewTokenQuotaUsageReader(
-	client aiextprocv1.TokenQuotaUsageServiceClient,
-) *TokenQuotaUsageReader {
-	return &TokenQuotaUsageReader{client: client}
-}
-
 // Current 查询调用方当前实际命中的全部额度。
-func (r *TokenQuotaUsageReader) Current(ctx context.Context, callerID string) ([]tokenquotabiz.Usage, error) {
-	response, err := r.client.GetCallerUsage(ctx, &aiextprocv1.GetCallerUsageRequest{CallerId: callerID})
+func (c *Client) Current(ctx context.Context, callerID string) ([]tokenquotabiz.Usage, error) {
+	response, err := c.usage.GetCallerUsage(ctx, &aiextprocv1.GetCallerUsageRequest{CallerId: callerID})
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
