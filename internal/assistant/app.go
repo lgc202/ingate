@@ -12,7 +12,7 @@ import (
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
 	"github.com/lgc202/ingate/internal/assistant/conf"
-	assistantworker "github.com/lgc202/ingate/internal/assistant/worker"
+	"github.com/lgc202/ingate/internal/assistant/server"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
@@ -67,7 +67,7 @@ func newKratosApp(
 	logger *slog.Logger,
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
-	workerServer *assistantworker.Server,
+	worker *server.Worker,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
@@ -76,6 +76,6 @@ func newKratosApp(
 		kratos.Version(version.String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
-		kratos.Server(httpServer, workerServer),
+		kratos.Server(httpServer, worker),
 	)
 }
