@@ -22,85 +22,80 @@ type UpstreamStore = resourceStore[resource.Upstream, *resource.Upstream, *resou
 
 // NewCallerStore 创建 Caller Store。
 func NewCallerStore(client clientset.Interface) *CallerStore {
-	resources := client.GatewayV1().Callers()
-	return newResourceStore(
-		"caller",
-		"callers",
-		resources,
-		func(list *resource.CallerList) ([]resource.Caller, string) {
+	return &CallerStore{
+		kind:     "caller",
+		listKind: "callers",
+		client:   client.GatewayV1().Callers(),
+		items: func(list *resource.CallerList) ([]resource.Caller, string) {
 			return list.Items, list.Continue
 		},
-		func(resourceID string, spec resource.CallerSpec) *resource.Caller {
+		newObject: func(resourceID string, spec resource.CallerSpec) *resource.Caller {
 			return newResource(resourceID, resource.KindCaller, &resource.Caller{Spec: spec})
 		},
-		func(object *resource.Caller, spec resource.CallerSpec) { object.Spec = spec },
-	)
+		setSpec: func(object *resource.Caller, spec resource.CallerSpec) { object.Spec = spec },
+	}
 }
 
 // NewCertificateStore 创建 Certificate Store。
 func NewCertificateStore(client clientset.Interface) *CertificateStore {
-	resources := client.GatewayV1().Certificates()
-	return newResourceStore(
-		"certificate",
-		"certificates",
-		resources,
-		func(list *resource.CertificateList) ([]resource.Certificate, string) {
+	return &CertificateStore{
+		kind:     "certificate",
+		listKind: "certificates",
+		client:   client.GatewayV1().Certificates(),
+		items: func(list *resource.CertificateList) ([]resource.Certificate, string) {
 			return list.Items, list.Continue
 		},
-		func(resourceID string, spec resource.CertificateSpec) *resource.Certificate {
+		newObject: func(resourceID string, spec resource.CertificateSpec) *resource.Certificate {
 			return newResource(resourceID, resource.KindCertificate, &resource.Certificate{Spec: spec})
 		},
-		func(object *resource.Certificate, spec resource.CertificateSpec) { object.Spec = spec },
-	)
+		setSpec: func(object *resource.Certificate, spec resource.CertificateSpec) { object.Spec = spec },
+	}
 }
 
 // NewGatewayStore 创建 Gateway Store。
 func NewGatewayStore(client clientset.Interface) *GatewayStore {
-	resources := client.GatewayV1().Gateways()
-	return newResourceStore(
-		"gateway",
-		"gateways",
-		resources,
-		func(list *resource.GatewayList) ([]resource.Gateway, string) {
+	return &GatewayStore{
+		kind:     "gateway",
+		listKind: "gateways",
+		client:   client.GatewayV1().Gateways(),
+		items: func(list *resource.GatewayList) ([]resource.Gateway, string) {
 			return list.Items, list.Continue
 		},
-		func(resourceID string, spec resource.GatewaySpec) *resource.Gateway {
+		newObject: func(resourceID string, spec resource.GatewaySpec) *resource.Gateway {
 			return newResource(resourceID, resource.KindGateway, &resource.Gateway{Spec: spec})
 		},
-		func(object *resource.Gateway, spec resource.GatewaySpec) { object.Spec = spec },
-	)
+		setSpec: func(object *resource.Gateway, spec resource.GatewaySpec) { object.Spec = spec },
+	}
 }
 
 // NewRouteStore 创建 Route Store。
 func NewRouteStore(client clientset.Interface) *RouteStore {
-	resources := client.GatewayV1().Routes()
-	return newResourceStore(
-		"route",
-		"routes",
-		resources,
-		func(list *resource.RouteList) ([]resource.Route, string) {
+	return &RouteStore{
+		kind:     "route",
+		listKind: "routes",
+		client:   client.GatewayV1().Routes(),
+		items: func(list *resource.RouteList) ([]resource.Route, string) {
 			return list.Items, list.Continue
 		},
-		func(resourceID string, spec resource.RouteSpec) *resource.Route {
+		newObject: func(resourceID string, spec resource.RouteSpec) *resource.Route {
 			return newResource(resourceID, resource.KindRoute, &resource.Route{Spec: spec})
 		},
-		func(object *resource.Route, spec resource.RouteSpec) { object.Spec = spec },
-	)
+		setSpec: func(object *resource.Route, spec resource.RouteSpec) { object.Spec = spec },
+	}
 }
 
 // NewUpstreamStore 创建 Upstream Store。
 func NewUpstreamStore(client clientset.Interface) *UpstreamStore {
-	resources := client.GatewayV1().Upstreams()
-	return newResourceStore(
-		"upstream",
-		"upstreams",
-		resources,
-		func(list *resource.UpstreamList) ([]resource.Upstream, string) {
+	return &UpstreamStore{
+		kind:     "upstream",
+		listKind: "upstreams",
+		client:   client.GatewayV1().Upstreams(),
+		items: func(list *resource.UpstreamList) ([]resource.Upstream, string) {
 			return list.Items, list.Continue
 		},
-		func(resourceID string, spec resource.UpstreamSpec) *resource.Upstream {
+		newObject: func(resourceID string, spec resource.UpstreamSpec) *resource.Upstream {
 			return newResource(resourceID, resource.KindUpstream, &resource.Upstream{Spec: spec})
 		},
-		func(object *resource.Upstream, spec resource.UpstreamSpec) { object.Spec = spec },
-	)
+		setSpec: func(object *resource.Upstream, spec resource.UpstreamSpec) { object.Spec = spec },
+	}
 }
