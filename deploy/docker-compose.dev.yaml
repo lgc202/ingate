@@ -3,6 +3,14 @@ x-ingate-build: &ingate-build
   dockerfile: deploy/docker/ingate-compose.Dockerfile
 
 services:
+  mysql:
+    ports:
+      - "${INGATE_BIND_ADDRESS:-127.0.0.1}:${INGATE_MYSQL_PORT:-3306}:3306"
+
+  temporal:
+    ports:
+      - "${INGATE_BIND_ADDRESS:-127.0.0.1}:${INGATE_TEMPORAL_PORT:-7233}:7233"
+
   als:
     image: ingate/als:${INGATE_IMAGE_TAG:-dev}
     build:
@@ -60,12 +68,6 @@ services:
     build:
       <<: *ingate-build
       target: admin-api
-
-  assistant-migrate:
-    image: ingate/assistant:${INGATE_IMAGE_TAG:-dev}
-    build:
-      <<: *ingate-build
-      target: assistant
 
   assistant:
     image: ingate/assistant:${INGATE_IMAGE_TAG:-dev}

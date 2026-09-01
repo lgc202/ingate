@@ -5,7 +5,6 @@ import {
   KeyRound,
   Layers3,
   Blocks,
-  MessageSquareText,
   Route,
   Server,
   ShieldCheck,
@@ -27,13 +26,6 @@ export interface NavGroup {
 }
 
 export const navigation: NavGroup[] = [
-  {
-    key: 'workspace',
-    label: '工作台',
-    items: [
-      { key: 'assistant', label: '运维助手', to: '/assistant', icon: MessageSquareText },
-    ],
-  },
   {
     key: 'configuration',
     label: '流量配置',

@@ -58,23 +58,19 @@ Analytics 使用 At Least Once 消费语义。请求事实和模型调用都成�
 
 运维助手是可选的控制面辅助能力，不是数据平面，也不是声明式配置的事实来源：
 
-1. Browser 通过 Console 访问 Assistant
-2. Assistant 从 MySQL 读取会话、执行状态和当前模型连接
-3. Assistant 调用管理员配置的模型端点生成回答
-4. 模型使用 Assistant 注册的查询工具读取当前配置和观测数据；创建工具第一次调用时通过 Eino 中断生成规范化提案
-5. Assistant 把 checkpoint、待审批配置和等待状态原子写入 MySQL，并释放 Worker 租约
-6. 管理员批准、拒绝或输入修改要求后，原 Execution 从 checkpoint 恢复；只有强类型批准结果会让工具调用 Admin API
-7. 执行、审批和 checkpoint 写入 MySQL，供刷新后恢复；Redis Stream 只保存 SSE 断线重连所需的短期事件
+1. 一个 Assistant 进程同时承载 Kratos HTTP 服务与 Temporal Worker
+2. Assistant 分别检查 MySQL、Temporal、模型端点和进程内 Worker，并通过 HTTP API 返回安全的逐组件状态
+3. Console 页面尚未接入；后续接入时复用现有应用外壳和登录身份，不创建独立前端或登录入口
 
-当前工具可以查询 Gateway、Route、Service 及其关系，分析流量和失败请求，读取单次请求明细与调用方 Token 额度，并为创建 Gateway 或普通 HTTP Service 生成待审批提案。批准后的写入仍经过 Admin API 的协议校验、业务规则和声明式资源链路。Assistant 不直接访问 API Server、etcd、Analytics、ClickHouse 或数据面组件。Assistant、模型端点、MySQL 或 Redis 不可用时，不影响配置管理和业务流量。
+当前只交付这条新运行骨架；对话、诊断、审批和自动执行尚未接入。旧会话 API、Redis Stream、进程内租约执行器和相关数据库表不再属于当前运行链路。Assistant 或其依赖不可用时，不影响配置管理和业务流量。
 
 ## 组件职责
 
 | 组件 | 依赖 | 职责 |
 | --- | --- | --- |
-| Console | Admin API、Assistant | 托管控制台并代理管理请求与运维助手请求 |
+| Console | Admin API、Assistant | 托管控制台并代理后端请求；Assistant 页面尚未接入 |
 | Admin API | API Server、Analytics | 提供面向 Console 的产品 API 和业务校验 |
-| Assistant | Admin API、MySQL、Redis、模型端点 | 管理对话、查询、配置提案、显式审批和确定性写入 |
+| Assistant | MySQL、Temporal、模型端点 | 提供运维助手 HTTP 外壳、Worker 生命周期和真实依赖状态 |
 | API Server | etcd | 提供声明式资源 API，是 etcd 的唯一访问者 |
 | Controller | API Server | Watch 资源、编译 Envoy 配置、提供 xDS、回写 Status |
 | Envoy | Controller、Authz、AI ExtProc、ALS | 接收业务流量并执行数据面配置 |
@@ -92,8 +88,8 @@ Analytics 使用 At Least Once 消费语义。请求事实和模型调用都成�
 | 当前 Envoy 有效配置 | Controller 内存 | Controller |
 | 请求限流 GCRA 状态 | Redis | Authz |
 | 当前周期 Token 额度计数 | Redis | AI ExtProc |
-| Assistant 模型连接、会话、执行、步骤、消息、配置提案和 Eino checkpoint | MySQL | Assistant |
-| Assistant 短期流式事件 | Redis | Assistant |
+| Assistant 后续功能的持久状态 | MySQL | Assistant |
+| Assistant 工作流历史与任务队列 | MySQL | Temporal |
 | ALS 待投递记录 | ALS 本地 WAL | ALS |
 | 请求明细与模型调用 | ClickHouse | Analytics |
 | 流量与模型用量聚合 | ClickHouse | ClickHouse 物化视图 |

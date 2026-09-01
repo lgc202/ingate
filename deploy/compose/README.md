@@ -21,6 +21,8 @@ Gateway 端口只有在 Console 中创建并成功发布对应 Gateway 后才会
 
 `.env` 保存镜像版本、监听地址、对外端口和进程使用的密钥。`docker/configs` 保存各个 Ingate 组件的 YAML 配置。修改后执行 `./bin/start.sh` 重建对应容器。
 
+Assistant 后端随完整环境启动，并在同一进程中运行 HTTP 服务和 Temporal Worker。`INGATE_ASSISTANT_MODEL_HEALTH_URL` 必须指向一个无需凭据且不会产生模型调用的健康地址；模型端点不可用时 Assistant 的就绪状态会明确显示不可用，但不影响其他控制面功能和业务流量。当前安装包不提供 Assistant Console 页面。
+
 安装脚本会在 `.env` 中生成 Console 管理密码、会话签名密钥、API Server 内部认证令牌和数据库密码，并将该文件限制为当前用户可读写。管理用户名固定为 `admin`，密码只在安装结束时显示；可以直接编辑 `INGATE_ADMIN_PASSWORD` 后执行 `./bin/start.sh` 修改。API Server 令牌由内部组件共享，不应发送给浏览器或外部客户端。即使已经启用登录认证，仍建议默认绑定 `127.0.0.1`，远程访问优先使用 HTTPS 反向代理或 SSH 端口转发。
 
 ## 日常操作
@@ -36,7 +38,7 @@ Gateway 端口只有在 Console 中创建并成功发布对应 Gateway 后才会
 
 ## 备份与恢复
 
-`backup.sh` 会短暂停止所有组件，对 etcd、MySQL、Redis、Kafka、ClickHouse、ALS 队列、证书和 Wasm 缓存的 Docker Volume 做一致性归档，然后恢复原来的运行状态。备份包含管理凭据和内部密钥，因此归档文件仅允许当前用户读取：
+`backup.sh` 会短暂停止所有组件，对 etcd、MySQL、Redis、Kafka、ClickHouse、ALS 队列、证书和 Wasm 缓存的 Docker Volume 做一致性归档，然后恢复原来的运行状态。Temporal 工作流数据与 Assistant 后续持久状态都保存在 MySQL 数据卷中。备份包含管理凭据和内部密钥，因此归档文件仅允许当前用户读取：
 
 ```bash
 ./bin/backup.sh

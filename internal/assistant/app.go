@@ -12,8 +12,7 @@ import (
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
 	"github.com/lgc202/ingate/internal/assistant/conf"
-	mysqldata "github.com/lgc202/ingate/internal/assistant/data/mysql"
-	"github.com/lgc202/ingate/internal/assistant/server"
+	assistantworker "github.com/lgc202/ingate/internal/assistant/worker"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
@@ -28,7 +27,7 @@ type App struct {
 	cleanup func()
 }
 
-// NewApp 从配置文件创建完整的运维助手进程。
+// NewApp 从配置文件创建包含 HTTP 与 Temporal Worker 的运维助手进程。
 func NewApp(configFile string) (*App, error) {
 	var bootstrap conf.Bootstrap
 	if err := appconfig.Load(configFile, &bootstrap); err != nil {
@@ -46,40 +45,29 @@ func NewApp(configFile string) (*App, error) {
 		context.Background(),
 		bootstrap.GetServer(),
 		bootstrap.GetData().GetMysql(),
-		bootstrap.GetData().GetRedis(),
-		bootstrap.GetStream(),
-		bootstrap.GetWorker(),
-		bootstrap.GetAdminApi(),
+		bootstrap.GetTemporal(),
+		bootstrap.GetModel(),
 		logger,
 		instanceID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create Assistant application: %w", err)
 	}
-	logger.Info("service starting", "config_file", configFile)
+	logger.Info("service starting", "config_file", configFile, "role", "all")
 	return &App{kratos: kratosApp, cleanup: cleanup}, nil
 }
 
-// Run 启动运维助手，并在退出后释放 MySQL 与 Redis 连接池。
+// Run 启动运维助手，并在退出后释放 Temporal 与 MySQL 连接。
 func (a *App) Run() error {
 	defer a.cleanup()
 	return a.kratos.Run()
-}
-
-// Migrate 应用运维助手的 MySQL 表结构变更后退出。
-func Migrate(ctx context.Context, configFile string) (int, error) {
-	var bootstrap conf.Bootstrap
-	if err := appconfig.Load(configFile, &bootstrap); err != nil {
-		return 0, err
-	}
-	return mysqldata.Migrate(ctx, bootstrap.GetData().GetMysql())
 }
 
 func newKratosApp(
 	logger *slog.Logger,
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
-	executionConsumer *server.ExecutionConsumer,
+	workerServer *assistantworker.Server,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
@@ -88,6 +76,6 @@ func newKratosApp(
 		kratos.Version(version.String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
-		kratos.Server(httpServer, executionConsumer),
+		kratos.Server(httpServer, workerServer),
 	)
 }

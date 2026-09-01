@@ -27,16 +27,14 @@ type Bootstrap struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// server 定义 HTTP 入口和进程退出期限。
 	Server *Server `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
-	// data 定义持久存储和短期事件存储。
+	// data 定义运维助手的持久存储。
 	Data *Data `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
-	// stream 定义 SSE 事件的保留与读取行为。
-	Stream *Stream `protobuf:"bytes,3,opt,name=stream,proto3" json:"stream,omitempty"`
+	// temporal 定义工作流服务和 Worker 行为。
+	Temporal *Temporal `protobuf:"bytes,3,opt,name=temporal,proto3" json:"temporal,omitempty"`
+	// model 定义模型服务的可用性检查端点。
+	Model *Model `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
 	// logging 定义结构化日志行为。
-	Logging *Logging `protobuf:"bytes,4,opt,name=logging,proto3" json:"logging,omitempty"`
-	// worker 定义后台 Agent 执行槽和租约。
-	Worker *Worker `protobuf:"bytes,5,opt,name=worker,proto3" json:"worker,omitempty"`
-	// admin_api 定义查询工具和已审批变更访问的内部管理接口。
-	AdminApi      *AdminAPI `protobuf:"bytes,6,opt,name=admin_api,json=adminApi,proto3" json:"admin_api,omitempty"`
+	Logging       *Logging `protobuf:"bytes,5,opt,name=logging,proto3" json:"logging,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -85,9 +83,16 @@ func (x *Bootstrap) GetData() *Data {
 	return nil
 }
 
-func (x *Bootstrap) GetStream() *Stream {
+func (x *Bootstrap) GetTemporal() *Temporal {
 	if x != nil {
-		return x.Stream
+		return x.Temporal
+	}
+	return nil
+}
+
+func (x *Bootstrap) GetModel() *Model {
+	if x != nil {
+		return x.Model
 	}
 	return nil
 }
@@ -99,26 +104,12 @@ func (x *Bootstrap) GetLogging() *Logging {
 	return nil
 }
 
-func (x *Bootstrap) GetWorker() *Worker {
-	if x != nil {
-		return x.Worker
-	}
-	return nil
-}
-
-func (x *Bootstrap) GetAdminApi() *AdminAPI {
-	if x != nil {
-		return x.AdminApi
-	}
-	return nil
-}
-
 // Server 定义 Assistant HTTP 服务和进程退出行为。
 type Server struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// http 是 Assistant HTTP 服务配置。
 	Http *Server_HTTP `protobuf:"bytes,1,opt,name=http,proto3" json:"http,omitempty"`
-	// shutdown_timeout 是等待在途请求和后台执行槽结束的最长时间。
+	// shutdown_timeout 是等待 HTTP 和 Worker 安全退出的最长时间。
 	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,2,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
@@ -168,13 +159,11 @@ func (x *Server) GetShutdownTimeout() *durationpb.Duration {
 	return nil
 }
 
-// Data 定义 Assistant 使用的持久化和短期事件基础设施。
+// Data 定义 Assistant 使用的持久化基础设施。
 type Data struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// mysql 是 Assistant 的持久化事实来源。
-	Mysql *Data_MySQL `protobuf:"bytes,1,opt,name=mysql,proto3" json:"mysql,omitempty"`
-	// redis 只承载短期流式通知，不决定执行终态。
-	Redis         *Data_Redis `protobuf:"bytes,2,opt,name=redis,proto3" json:"redis,omitempty"`
+	Mysql         *Data_MySQL `protobuf:"bytes,1,opt,name=mysql,proto3" json:"mysql,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -216,40 +205,37 @@ func (x *Data) GetMysql() *Data_MySQL {
 	return nil
 }
 
-func (x *Data) GetRedis() *Data_Redis {
-	if x != nil {
-		return x.Redis
-	}
-	return nil
-}
-
-// Stream 定义单次执行事件流的保留和阻塞读取策略。
-type Stream struct {
+// Temporal 定义 Assistant 的工作流连接与 Worker 生命周期。
+type Temporal struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// retention 是一条执行事件流的保留时间。
-	Retention *durationpb.Duration `protobuf:"bytes,1,opt,name=retention,proto3" json:"retention,omitempty"`
-	// max_events 是一条执行流最多保留的近期事件数。
-	MaxEvents uint32 `protobuf:"varint,2,opt,name=max_events,json=maxEvents,proto3" json:"max_events,omitempty"`
-	// read_block 是无新事件时单次 Redis 阻塞读取的最长时间。
-	ReadBlock     *durationpb.Duration `protobuf:"bytes,3,opt,name=read_block,json=readBlock,proto3" json:"read_block,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// address 是 Temporal Frontend gRPC 地址。
+	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	// namespace 隔离 Ingate 的工作流。
+	Namespace string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	// task_queue 是当前 Assistant Worker 轮询的任务队列。
+	TaskQueue string `protobuf:"bytes,3,opt,name=task_queue,json=taskQueue,proto3" json:"task_queue,omitempty"`
+	// connect_timeout 是启动时连接 Temporal 的最长等待时间。
+	ConnectTimeout *durationpb.Duration `protobuf:"bytes,4,opt,name=connect_timeout,json=connectTimeout,proto3" json:"connect_timeout,omitempty"`
+	// worker_stop_timeout 是 Worker 等待在途任务安全结束的最长时间。
+	WorkerStopTimeout *durationpb.Duration `protobuf:"bytes,5,opt,name=worker_stop_timeout,json=workerStopTimeout,proto3" json:"worker_stop_timeout,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
-func (x *Stream) Reset() {
-	*x = Stream{}
+func (x *Temporal) Reset() {
+	*x = Temporal{}
 	mi := &file_assistant_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Stream) String() string {
+func (x *Temporal) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Stream) ProtoMessage() {}
+func (*Temporal) ProtoMessage() {}
 
-func (x *Stream) ProtoReflect() protoreflect.Message {
+func (x *Temporal) ProtoReflect() protoreflect.Message {
 	mi := &file_assistant_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -261,148 +247,97 @@ func (x *Stream) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Stream.ProtoReflect.Descriptor instead.
-func (*Stream) Descriptor() ([]byte, []int) {
+// Deprecated: Use Temporal.ProtoReflect.Descriptor instead.
+func (*Temporal) Descriptor() ([]byte, []int) {
 	return file_assistant_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *Stream) GetRetention() *durationpb.Duration {
+func (x *Temporal) GetAddress() string {
 	if x != nil {
-		return x.Retention
-	}
-	return nil
-}
-
-func (x *Stream) GetMaxEvents() uint32 {
-	if x != nil {
-		return x.MaxEvents
-	}
-	return 0
-}
-
-func (x *Stream) GetReadBlock() *durationpb.Duration {
-	if x != nil {
-		return x.ReadBlock
-	}
-	return nil
-}
-
-// Worker 定义后台 Agent 执行的进程内并发度、领取频率和实例租约。
-// 同一会话仍由业务规则保证串行；不同会话可以由多个执行槽并发处理。
-type Worker struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// concurrency 是当前进程固定创建的执行槽数量。
-	Concurrency uint32 `protobuf:"varint,1,opt,name=concurrency,proto3" json:"concurrency,omitempty"`
-	// poll_interval 是空闲执行槽再次领取任务前的等待时间。
-	PollInterval *durationpb.Duration `protobuf:"bytes,2,opt,name=poll_interval,json=pollInterval,proto3" json:"poll_interval,omitempty"`
-	// lease_duration 是一个执行槽失联后允许恢复器收敛任务的期限。
-	LeaseDuration *durationpb.Duration `protobuf:"bytes,3,opt,name=lease_duration,json=leaseDuration,proto3" json:"lease_duration,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Worker) Reset() {
-	*x = Worker{}
-	mi := &file_assistant_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Worker) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Worker) ProtoMessage() {}
-
-func (x *Worker) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Worker.ProtoReflect.Descriptor instead.
-func (*Worker) Descriptor() ([]byte, []int) {
-	return file_assistant_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *Worker) GetConcurrency() uint32 {
-	if x != nil {
-		return x.Concurrency
-	}
-	return 0
-}
-
-func (x *Worker) GetPollInterval() *durationpb.Duration {
-	if x != nil {
-		return x.PollInterval
-	}
-	return nil
-}
-
-func (x *Worker) GetLeaseDuration() *durationpb.Duration {
-	if x != nil {
-		return x.LeaseDuration
-	}
-	return nil
-}
-
-// AdminAPI 定义助手查询资源和执行已审批变更时使用的内部 gRPC 地址。
-type AdminAPI struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// addr 是 Admin API 内部 gRPC 地址。
-	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
-	// timeout 是一次查询或已审批写操作的最长等待时间。
-	Timeout       *durationpb.Duration `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AdminAPI) Reset() {
-	*x = AdminAPI{}
-	mi := &file_assistant_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AdminAPI) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AdminAPI) ProtoMessage() {}
-
-func (x *AdminAPI) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AdminAPI.ProtoReflect.Descriptor instead.
-func (*AdminAPI) Descriptor() ([]byte, []int) {
-	return file_assistant_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *AdminAPI) GetAddr() string {
-	if x != nil {
-		return x.Addr
+		return x.Address
 	}
 	return ""
 }
 
-func (x *AdminAPI) GetTimeout() *durationpb.Duration {
+func (x *Temporal) GetNamespace() string {
 	if x != nil {
-		return x.Timeout
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *Temporal) GetTaskQueue() string {
+	if x != nil {
+		return x.TaskQueue
+	}
+	return ""
+}
+
+func (x *Temporal) GetConnectTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.ConnectTimeout
+	}
+	return nil
+}
+
+func (x *Temporal) GetWorkerStopTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.WorkerStopTimeout
+	}
+	return nil
+}
+
+// Model 定义 Assistant 启动后检查的模型服务端点。
+type Model struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// health_url 是不携带凭据且不产生模型调用的 HTTP 健康地址。
+	HealthUrl string `protobuf:"bytes,1,opt,name=health_url,json=healthUrl,proto3" json:"health_url,omitempty"`
+	// health_timeout 是单次模型健康请求的最长等待时间。
+	HealthTimeout *durationpb.Duration `protobuf:"bytes,2,opt,name=health_timeout,json=healthTimeout,proto3" json:"health_timeout,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Model) Reset() {
+	*x = Model{}
+	mi := &file_assistant_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Model) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Model) ProtoMessage() {}
+
+func (x *Model) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Model.ProtoReflect.Descriptor instead.
+func (*Model) Descriptor() ([]byte, []int) {
+	return file_assistant_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Model) GetHealthUrl() string {
+	if x != nil {
+		return x.HealthUrl
+	}
+	return ""
+}
+
+func (x *Model) GetHealthTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.HealthTimeout
 	}
 	return nil
 }
@@ -422,7 +357,7 @@ type Logging struct {
 
 func (x *Logging) Reset() {
 	*x = Logging{}
-	mi := &file_assistant_proto_msgTypes[6]
+	mi := &file_assistant_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -434,7 +369,7 @@ func (x *Logging) String() string {
 func (*Logging) ProtoMessage() {}
 
 func (x *Logging) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[6]
+	mi := &file_assistant_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -447,7 +382,7 @@ func (x *Logging) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Logging.ProtoReflect.Descriptor instead.
 func (*Logging) Descriptor() ([]byte, []int) {
-	return file_assistant_proto_rawDescGZIP(), []int{6}
+	return file_assistant_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Logging) GetFormat() string {
@@ -471,12 +406,12 @@ func (x *Logging) GetAddSource() bool {
 	return false
 }
 
-// HTTP 定义 Assistant 唯一的网络入口。
+// HTTP 定义 Assistant 的网络入口。
 type Server_HTTP struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// addr 是 HTTP 监听地址。
 	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
-	// readiness_timeout 是一次依赖就绪检查的最长等待时间。
+	// readiness_timeout 是一次完整就绪检查的最长等待时间。
 	ReadinessTimeout *durationpb.Duration `protobuf:"bytes,2,opt,name=readiness_timeout,json=readinessTimeout,proto3" json:"readiness_timeout,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
@@ -484,7 +419,7 @@ type Server_HTTP struct {
 
 func (x *Server_HTTP) Reset() {
 	*x = Server_HTTP{}
-	mi := &file_assistant_proto_msgTypes[7]
+	mi := &file_assistant_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -496,7 +431,7 @@ func (x *Server_HTTP) String() string {
 func (*Server_HTTP) ProtoMessage() {}
 
 func (x *Server_HTTP) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[7]
+	mi := &file_assistant_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -526,7 +461,7 @@ func (x *Server_HTTP) GetReadinessTimeout() *durationpb.Duration {
 	return nil
 }
 
-// MySQL 保存会话、消息、执行、步骤和模型连接。
+// MySQL 保存后续运维助手功能产生的持久状态。
 type Data_MySQL struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// address 是 MySQL TCP 地址。
@@ -551,7 +486,7 @@ type Data_MySQL struct {
 
 func (x *Data_MySQL) Reset() {
 	*x = Data_MySQL{}
-	mi := &file_assistant_proto_msgTypes[8]
+	mi := &file_assistant_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -563,7 +498,7 @@ func (x *Data_MySQL) String() string {
 func (*Data_MySQL) ProtoMessage() {}
 
 func (x *Data_MySQL) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[8]
+	mi := &file_assistant_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -635,127 +570,25 @@ func (x *Data_MySQL) GetConnectionMaxLifetime() *durationpb.Duration {
 	return nil
 }
 
-// Redis 保存可过期、可重放的 SSE 增量事件。
-type Data_Redis struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// address 是 Redis TCP 地址。
-	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	// password 是 Redis 密码，应通过环境变量注入。
-	Password string `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
-	// database 是单机 Redis 的逻辑数据库编号。
-	Database int32 `protobuf:"varint,3,opt,name=database,proto3" json:"database,omitempty"`
-	// dial_timeout 是建立 Redis 连接的最长等待时间。
-	DialTimeout *durationpb.Duration `protobuf:"bytes,4,opt,name=dial_timeout,json=dialTimeout,proto3" json:"dial_timeout,omitempty"`
-	// read_timeout 是普通 Redis 命令的读取超时；阻塞读取使用 read_block。
-	ReadTimeout *durationpb.Duration `protobuf:"bytes,5,opt,name=read_timeout,json=readTimeout,proto3" json:"read_timeout,omitempty"`
-	// write_timeout 是 Redis 命令的写入超时。
-	WriteTimeout *durationpb.Duration `protobuf:"bytes,6,opt,name=write_timeout,json=writeTimeout,proto3" json:"write_timeout,omitempty"`
-	// pool_size 限制 Redis 连接池大小。
-	PoolSize      uint32 `protobuf:"varint,7,opt,name=pool_size,json=poolSize,proto3" json:"pool_size,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Data_Redis) Reset() {
-	*x = Data_Redis{}
-	mi := &file_assistant_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Data_Redis) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Data_Redis) ProtoMessage() {}
-
-func (x *Data_Redis) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Data_Redis.ProtoReflect.Descriptor instead.
-func (*Data_Redis) Descriptor() ([]byte, []int) {
-	return file_assistant_proto_rawDescGZIP(), []int{2, 1}
-}
-
-func (x *Data_Redis) GetAddress() string {
-	if x != nil {
-		return x.Address
-	}
-	return ""
-}
-
-func (x *Data_Redis) GetPassword() string {
-	if x != nil {
-		return x.Password
-	}
-	return ""
-}
-
-func (x *Data_Redis) GetDatabase() int32 {
-	if x != nil {
-		return x.Database
-	}
-	return 0
-}
-
-func (x *Data_Redis) GetDialTimeout() *durationpb.Duration {
-	if x != nil {
-		return x.DialTimeout
-	}
-	return nil
-}
-
-func (x *Data_Redis) GetReadTimeout() *durationpb.Duration {
-	if x != nil {
-		return x.ReadTimeout
-	}
-	return nil
-}
-
-func (x *Data_Redis) GetWriteTimeout() *durationpb.Duration {
-	if x != nil {
-		return x.WriteTimeout
-	}
-	return nil
-}
-
-func (x *Data_Redis) GetPoolSize() uint32 {
-	if x != nil {
-		return x.PoolSize
-	}
-	return 0
-}
-
 var File_assistant_proto protoreflect.FileDescriptor
 
 const file_assistant_proto_rawDesc = "" +
 	"\n" +
-	"\x0fassistant.proto\x12\x15ingate.assistant.conf\x1a\x1egoogle/protobuf/duration.proto\"\xd9\x02\n" +
+	"\x0fassistant.proto\x12\x15ingate.assistant.conf\x1a\x1egoogle/protobuf/duration.proto\"\x9e\x02\n" +
 	"\tBootstrap\x125\n" +
 	"\x06server\x18\x01 \x01(\v2\x1d.ingate.assistant.conf.ServerR\x06server\x12/\n" +
-	"\x04data\x18\x02 \x01(\v2\x1b.ingate.assistant.conf.DataR\x04data\x125\n" +
-	"\x06stream\x18\x03 \x01(\v2\x1d.ingate.assistant.conf.StreamR\x06stream\x128\n" +
-	"\alogging\x18\x04 \x01(\v2\x1e.ingate.assistant.conf.LoggingR\alogging\x125\n" +
-	"\x06worker\x18\x05 \x01(\v2\x1d.ingate.assistant.conf.WorkerR\x06worker\x12<\n" +
-	"\tadmin_api\x18\x06 \x01(\v2\x1f.ingate.assistant.conf.AdminAPIR\badminApi\"\xea\x01\n" +
+	"\x04data\x18\x02 \x01(\v2\x1b.ingate.assistant.conf.DataR\x04data\x12;\n" +
+	"\btemporal\x18\x03 \x01(\v2\x1f.ingate.assistant.conf.TemporalR\btemporal\x122\n" +
+	"\x05model\x18\x04 \x01(\v2\x1c.ingate.assistant.conf.ModelR\x05model\x128\n" +
+	"\alogging\x18\x05 \x01(\v2\x1e.ingate.assistant.conf.LoggingR\alogging\"\xea\x01\n" +
 	"\x06Server\x126\n" +
 	"\x04http\x18\x01 \x01(\v2\".ingate.assistant.conf.Server.HTTPR\x04http\x12D\n" +
 	"\x10shutdown_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1ab\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x12F\n" +
-	"\x11readiness_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x10readinessTimeout\"\x9a\x06\n" +
+	"\x11readiness_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x10readinessTimeout\"\xac\x03\n" +
 	"\x04Data\x127\n" +
-	"\x05mysql\x18\x01 \x01(\v2!.ingate.assistant.conf.Data.MySQLR\x05mysql\x127\n" +
-	"\x05redis\x18\x02 \x01(\v2!.ingate.assistant.conf.Data.RedisR\x05redis\x1a\xea\x02\n" +
+	"\x05mysql\x18\x01 \x01(\v2!.ingate.assistant.conf.Data.MySQLR\x05mysql\x1a\xea\x02\n" +
 	"\x05MySQL\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1a\n" +
@@ -764,28 +597,18 @@ const file_assistant_proto_rawDesc = "" +
 	"\fdial_timeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\vdialTimeout\x120\n" +
 	"\x14max_open_connections\x18\x06 \x01(\rR\x12maxOpenConnections\x120\n" +
 	"\x14max_idle_connections\x18\a \x01(\rR\x12maxIdleConnections\x12Q\n" +
-	"\x17connection_max_lifetime\x18\b \x01(\v2\x19.google.protobuf.DurationR\x15connectionMaxLifetime\x1a\xb2\x02\n" +
-	"\x05Redis\x12\x18\n" +
-	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x1a\n" +
-	"\bdatabase\x18\x03 \x01(\x05R\bdatabase\x12<\n" +
-	"\fdial_timeout\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\vdialTimeout\x12<\n" +
-	"\fread_timeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\vreadTimeout\x12>\n" +
-	"\rwrite_timeout\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\fwriteTimeout\x12\x1b\n" +
-	"\tpool_size\x18\a \x01(\rR\bpoolSize\"\x9a\x01\n" +
-	"\x06Stream\x127\n" +
-	"\tretention\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\tretention\x12\x1d\n" +
+	"\x17connection_max_lifetime\x18\b \x01(\v2\x19.google.protobuf.DurationR\x15connectionMaxLifetime\"\xf0\x01\n" +
+	"\bTemporal\x12\x18\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1c\n" +
+	"\tnamespace\x18\x02 \x01(\tR\tnamespace\x12\x1d\n" +
 	"\n" +
-	"max_events\x18\x02 \x01(\rR\tmaxEvents\x128\n" +
+	"task_queue\x18\x03 \x01(\tR\ttaskQueue\x12B\n" +
+	"\x0fconnect_timeout\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\x0econnectTimeout\x12I\n" +
+	"\x13worker_stop_timeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\x11workerStopTimeout\"h\n" +
+	"\x05Model\x12\x1d\n" +
 	"\n" +
-	"read_block\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\treadBlock\"\xac\x01\n" +
-	"\x06Worker\x12 \n" +
-	"\vconcurrency\x18\x01 \x01(\rR\vconcurrency\x12>\n" +
-	"\rpoll_interval\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\fpollInterval\x12@\n" +
-	"\x0elease_duration\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\rleaseDuration\"S\n" +
-	"\bAdminAPI\x12\x12\n" +
-	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"V\n" +
+	"health_url\x18\x01 \x01(\tR\thealthUrl\x12@\n" +
+	"\x0ehealth_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\rhealthTimeout\"V\n" +
 	"\aLogging\x12\x16\n" +
 	"\x06format\x18\x01 \x01(\tR\x06format\x12\x14\n" +
 	"\x05level\x18\x02 \x01(\tR\x05level\x12\x1d\n" +
@@ -804,47 +627,38 @@ func file_assistant_proto_rawDescGZIP() []byte {
 	return file_assistant_proto_rawDescData
 }
 
-var file_assistant_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_assistant_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_assistant_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: ingate.assistant.conf.Bootstrap
 	(*Server)(nil),              // 1: ingate.assistant.conf.Server
 	(*Data)(nil),                // 2: ingate.assistant.conf.Data
-	(*Stream)(nil),              // 3: ingate.assistant.conf.Stream
-	(*Worker)(nil),              // 4: ingate.assistant.conf.Worker
-	(*AdminAPI)(nil),            // 5: ingate.assistant.conf.AdminAPI
-	(*Logging)(nil),             // 6: ingate.assistant.conf.Logging
-	(*Server_HTTP)(nil),         // 7: ingate.assistant.conf.Server.HTTP
-	(*Data_MySQL)(nil),          // 8: ingate.assistant.conf.Data.MySQL
-	(*Data_Redis)(nil),          // 9: ingate.assistant.conf.Data.Redis
-	(*durationpb.Duration)(nil), // 10: google.protobuf.Duration
+	(*Temporal)(nil),            // 3: ingate.assistant.conf.Temporal
+	(*Model)(nil),               // 4: ingate.assistant.conf.Model
+	(*Logging)(nil),             // 5: ingate.assistant.conf.Logging
+	(*Server_HTTP)(nil),         // 6: ingate.assistant.conf.Server.HTTP
+	(*Data_MySQL)(nil),          // 7: ingate.assistant.conf.Data.MySQL
+	(*durationpb.Duration)(nil), // 8: google.protobuf.Duration
 }
 var file_assistant_proto_depIdxs = []int32{
 	1,  // 0: ingate.assistant.conf.Bootstrap.server:type_name -> ingate.assistant.conf.Server
 	2,  // 1: ingate.assistant.conf.Bootstrap.data:type_name -> ingate.assistant.conf.Data
-	3,  // 2: ingate.assistant.conf.Bootstrap.stream:type_name -> ingate.assistant.conf.Stream
-	6,  // 3: ingate.assistant.conf.Bootstrap.logging:type_name -> ingate.assistant.conf.Logging
-	4,  // 4: ingate.assistant.conf.Bootstrap.worker:type_name -> ingate.assistant.conf.Worker
-	5,  // 5: ingate.assistant.conf.Bootstrap.admin_api:type_name -> ingate.assistant.conf.AdminAPI
-	7,  // 6: ingate.assistant.conf.Server.http:type_name -> ingate.assistant.conf.Server.HTTP
-	10, // 7: ingate.assistant.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
-	8,  // 8: ingate.assistant.conf.Data.mysql:type_name -> ingate.assistant.conf.Data.MySQL
-	9,  // 9: ingate.assistant.conf.Data.redis:type_name -> ingate.assistant.conf.Data.Redis
-	10, // 10: ingate.assistant.conf.Stream.retention:type_name -> google.protobuf.Duration
-	10, // 11: ingate.assistant.conf.Stream.read_block:type_name -> google.protobuf.Duration
-	10, // 12: ingate.assistant.conf.Worker.poll_interval:type_name -> google.protobuf.Duration
-	10, // 13: ingate.assistant.conf.Worker.lease_duration:type_name -> google.protobuf.Duration
-	10, // 14: ingate.assistant.conf.AdminAPI.timeout:type_name -> google.protobuf.Duration
-	10, // 15: ingate.assistant.conf.Server.HTTP.readiness_timeout:type_name -> google.protobuf.Duration
-	10, // 16: ingate.assistant.conf.Data.MySQL.dial_timeout:type_name -> google.protobuf.Duration
-	10, // 17: ingate.assistant.conf.Data.MySQL.connection_max_lifetime:type_name -> google.protobuf.Duration
-	10, // 18: ingate.assistant.conf.Data.Redis.dial_timeout:type_name -> google.protobuf.Duration
-	10, // 19: ingate.assistant.conf.Data.Redis.read_timeout:type_name -> google.protobuf.Duration
-	10, // 20: ingate.assistant.conf.Data.Redis.write_timeout:type_name -> google.protobuf.Duration
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	3,  // 2: ingate.assistant.conf.Bootstrap.temporal:type_name -> ingate.assistant.conf.Temporal
+	4,  // 3: ingate.assistant.conf.Bootstrap.model:type_name -> ingate.assistant.conf.Model
+	5,  // 4: ingate.assistant.conf.Bootstrap.logging:type_name -> ingate.assistant.conf.Logging
+	6,  // 5: ingate.assistant.conf.Server.http:type_name -> ingate.assistant.conf.Server.HTTP
+	8,  // 6: ingate.assistant.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	7,  // 7: ingate.assistant.conf.Data.mysql:type_name -> ingate.assistant.conf.Data.MySQL
+	8,  // 8: ingate.assistant.conf.Temporal.connect_timeout:type_name -> google.protobuf.Duration
+	8,  // 9: ingate.assistant.conf.Temporal.worker_stop_timeout:type_name -> google.protobuf.Duration
+	8,  // 10: ingate.assistant.conf.Model.health_timeout:type_name -> google.protobuf.Duration
+	8,  // 11: ingate.assistant.conf.Server.HTTP.readiness_timeout:type_name -> google.protobuf.Duration
+	8,  // 12: ingate.assistant.conf.Data.MySQL.dial_timeout:type_name -> google.protobuf.Duration
+	8,  // 13: ingate.assistant.conf.Data.MySQL.connection_max_lifetime:type_name -> google.protobuf.Duration
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_assistant_proto_init() }
@@ -858,7 +672,7 @@ func file_assistant_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_assistant_proto_rawDesc), len(file_assistant_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
