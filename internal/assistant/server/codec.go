@@ -9,20 +9,21 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const jsonContentType = "application/json; charset=utf-8"
+
 func responseEncoder(writer http.ResponseWriter, _ *http.Request, value any) error {
-	var (
-		data []byte
-		err  error
-	)
-	if message, ok := value.(proto.Message); ok {
-		data, err = (protojson.MarshalOptions{EmitUnpopulated: true}).Marshal(message)
-	} else {
-		data, err = json.Marshal(value)
-	}
+	data, err := marshalResponse(value)
 	if err != nil {
 		return fmt.Errorf("encode Assistant response: %w", err)
 	}
-	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+	writer.Header().Set("Content-Type", jsonContentType)
 	_, err = writer.Write(data)
 	return err
+}
+
+func marshalResponse(value any) ([]byte, error) {
+	if message, ok := value.(proto.Message); ok {
+		return protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(message)
+	}
+	return json.Marshal(value)
 }

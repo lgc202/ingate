@@ -6,16 +6,12 @@ import (
 	"net/http"
 
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	assistantv1 "github.com/lgc202/ingate/api/assistant/v1"
-	systembiz "github.com/lgc202/ingate/internal/assistant/biz/system"
 	"github.com/lgc202/ingate/internal/assistant/conf"
 	systemservice "github.com/lgc202/ingate/internal/assistant/service/system"
 )
-
-type readinessHandler struct {
-	usecase *systembiz.Usecase
-}
 
 type readinessResponse struct {
 	Status     string              `json:"status"`
@@ -31,20 +27,18 @@ type componentResponse struct {
 func NewHTTPServer(
 	config *conf.Server,
 	systemAPI *systemservice.Service,
-	readiness *systembiz.Usecase,
 	logger *slog.Logger,
 ) *kratoshttp.Server {
 	httpConfig := config.GetHttp()
 	server := kratoshttp.NewServer(
 		kratoshttp.Network("tcp"),
 		kratoshttp.Address(httpConfig.GetAddr()),
-		kratoshttp.Filter(requestIDFilter(), responseNoStoreFilter(), recoveryFilter(logger)),
+		kratoshttp.Filter(requestIDFilter, responseNoStoreFilter, recoveryFilter(logger)),
 		kratoshttp.ResponseEncoder(responseEncoder),
 	)
 	assistantv1.RegisterSystemServiceHTTPServer(server, systemAPI)
-	handler := readinessHandler{usecase: readiness}
 	server.HandleFunc("/healthz", live)
-	server.HandleFunc("/readyz", handler.ready)
+	server.HandleFunc("/readyz", readinessProbe(systemAPI))
 	return server
 }
 
@@ -52,34 +46,40 @@ func live(response http.ResponseWriter, _ *http.Request) {
 	writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (h readinessHandler) ready(response http.ResponseWriter, request *http.Request) {
-	report := h.usecase.Check(request.Context())
-	statusCode := http.StatusOK
-	if report.Status != systembiz.StatusReady {
-		statusCode = http.StatusServiceUnavailable
-	}
-	components := make([]componentResponse, 0, len(report.Components))
-	for _, component := range report.Components {
-		components = append(components, componentResponse{
-			Name:   component.Name,
-			Status: statusText(component.Status),
+func readinessProbe(systemAPI *systemservice.Service) http.HandlerFunc {
+	return func(response http.ResponseWriter, request *http.Request) {
+		readiness, err := systemAPI.GetReadiness(request.Context(), &emptypb.Empty{})
+		if err != nil {
+			kratoshttp.DefaultErrorEncoder(response, request, err)
+			return
+		}
+		statusCode := http.StatusOK
+		if readiness.GetStatus() != assistantv1.ReadinessStatus_READINESS_STATUS_READY {
+			statusCode = http.StatusServiceUnavailable
+		}
+		components := make([]componentResponse, 0, len(readiness.GetComponents()))
+		for _, component := range readiness.GetComponents() {
+			components = append(components, componentResponse{
+				Name:   component.GetName(),
+				Status: statusText(component.GetStatus()),
+			})
+		}
+		writeJSON(response, statusCode, readinessResponse{
+			Status:     statusText(readiness.GetStatus()),
+			Components: components,
 		})
 	}
-	writeJSON(response, statusCode, readinessResponse{
-		Status:     statusText(report.Status),
-		Components: components,
-	})
 }
 
-func statusText(status systembiz.Status) string {
-	if status == systembiz.StatusReady {
+func statusText(status assistantv1.ReadinessStatus) string {
+	if status == assistantv1.ReadinessStatus_READINESS_STATUS_READY {
 		return "ready"
 	}
 	return "unavailable"
 }
 
 func writeJSON(response http.ResponseWriter, statusCode int, value any) {
-	response.Header().Set("Content-Type", "application/json; charset=utf-8")
+	response.Header().Set("Content-Type", jsonContentType)
 	response.WriteHeader(statusCode)
 	_ = json.NewEncoder(response).Encode(value)
 }
