@@ -35,7 +35,7 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL
 	worker := server.NewWorker(temporal, clientClient, logger)
 	usecase := system.NewUsecase(confServer, database, client, endpoint, worker)
 	service := system2.NewService(usecase)
-	httpServer := server.NewHTTPServer(confServer, service, usecase, logger)
+	httpServer := server.NewHTTPServer(confServer, service, logger)
 	app := newKratosApp(logger, confServer, httpServer, worker, assistantServiceInstanceID)
 	return app, func() {
 		cleanup2()

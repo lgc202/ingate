@@ -32,23 +32,19 @@ func (w *responseState) Write(data []byte) (int, error) {
 	return w.ResponseWriter.Write(data)
 }
 
-func requestIDFilter() kratoshttp.FilterFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-			id := requestid.GetOrCreate(request.Header)
-			response.Header().Set(requestid.Header, id)
-			next.ServeHTTP(response, request)
-		})
-	}
+func requestIDFilter(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		id := requestid.GetOrCreate(request.Header)
+		response.Header().Set(requestid.Header, id)
+		next.ServeHTTP(response, request)
+	})
 }
 
-func responseNoStoreFilter() kratoshttp.FilterFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-			response.Header().Set("Cache-Control", "no-store")
-			next.ServeHTTP(response, request)
-		})
-	}
+func responseNoStoreFilter(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(response, request)
+	})
 }
 
 // recoveryFilter 只记录最小请求字段，不记录 Header 或响应内容。
