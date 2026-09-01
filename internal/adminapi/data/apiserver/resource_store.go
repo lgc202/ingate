@@ -8,9 +8,11 @@ import (
 	"golang.org/x/sync/errgroup"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // 单个管理请求最多占用八条并发读取，避免大 Route 耗尽 API Server 连接。
@@ -19,6 +21,7 @@ const maxConcurrentResourceReads = 8
 // resourceObject 是支持元数据访问和强类型深拷贝的声明式资源。
 type resourceObject[T any] interface {
 	metav1.Object
+	runtime.Object
 	DeepCopy() T
 }
 
@@ -124,6 +127,14 @@ func newResourceStore[Item any, Object resourceObject[Object], List any, Spec an
 		newObject: newObject,
 		setSpec:   setSpec,
 	}
+}
+
+func newResource[T resourceObject[T]](resourceID string, kind resource.Kind, object T) T {
+	object.SetName(resourceID)
+	object.GetObjectKind().SetGroupVersionKind(
+		resource.SchemeGroupVersion.WithKind(string(kind)),
+	)
+	return object
 }
 
 func listOptions(page biz.PageRequest) metav1.ListOptions {
