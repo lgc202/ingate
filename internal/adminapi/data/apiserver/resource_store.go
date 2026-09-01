@@ -36,12 +36,12 @@ type resourceClient[Object, List any] interface {
 
 // resourceStore 实现声明式资源 Store 共享的 CRUD 行为。
 type resourceStore[Item any, Object resourceObject[Object], List any, Spec any] struct {
-	kind      string
-	listKind  string
-	client    resourceClient[Object, List]
-	items     func(List) ([]Item, string)
-	newObject func(string, Spec) Object
-	setSpec   func(Object, Spec)
+	singularName string
+	pluralName   string
+	client       resourceClient[Object, List]
+	unpackList   func(List) ([]Item, string)
+	newObject    func(string, Spec) Object
+	setSpec      func(Object, Spec)
 }
 
 // ListPage 分页返回声明式资源。
@@ -49,11 +49,14 @@ func (s *resourceStore[Item, Object, List, Spec]) ListPage(
 	ctx context.Context,
 	page biz.PageRequest,
 ) (biz.PageResult[Item], error) {
-	list, err := s.client.List(ctx, listOptions(page))
+	list, err := s.client.List(ctx, metav1.ListOptions{
+		Limit:    page.Limit,
+		Continue: page.Cursor,
+	})
 	if err != nil {
-		return biz.PageResult[Item]{}, listError(s.listKind, err)
+		return biz.PageResult[Item]{}, listError(s.pluralName, err)
 	}
-	items, nextCursor := s.items(list)
+	items, nextCursor := s.unpackList(list)
 	return biz.PageResult[Item]{Items: items, NextCursor: nextCursor}, nil
 }
 
@@ -63,7 +66,7 @@ func (s *resourceStore[Item, Object, List, Spec]) Get(
 	resourceID string,
 ) (Object, error) {
 	object, err := s.client.Get(ctx, resourceID, metav1.GetOptions{})
-	return object, resourceError("get", s.kind, resourceID, err)
+	return object, resourceError("get", s.singularName, resourceID, err)
 }
 
 // ListByIDs 返回当前存在的指定声明式资源。
@@ -85,7 +88,7 @@ func (s *resourceStore[Item, Object, List, Spec]) Create(
 		s.newObject(resourceID, spec),
 		metav1.CreateOptions{},
 	)
-	return created, resourceError("create", s.kind, resourceID, err)
+	return created, resourceError("create", s.singularName, resourceID, err)
 }
 
 // ReplaceSpec 完整替换声明式资源配置。
@@ -97,7 +100,7 @@ func (s *resourceStore[Item, Object, List, Spec]) ReplaceSpec(
 	return replaceResourceSpec(
 		ctx,
 		s.client,
-		s.kind,
+		s.singularName,
 		observed,
 		func(object Object) { s.setSpec(object, spec) },
 	)
@@ -108,7 +111,7 @@ func (s *resourceStore[Item, Object, List, Spec]) Delete(
 	ctx context.Context,
 	observed Object,
 ) error {
-	return deleteResource(ctx, s.client, s.kind, observed)
+	return deleteResource(ctx, s.client, s.singularName, observed)
 }
 
 func newResource[T resourceObject[T]](resourceID string, kind resource.Kind, object T) T {
@@ -119,18 +122,14 @@ func newResource[T resourceObject[T]](resourceID string, kind resource.Kind, obj
 	return object
 }
 
-func listOptions(page biz.PageRequest) metav1.ListOptions {
-	return metav1.ListOptions{Limit: page.Limit, Continue: page.Cursor}
-}
-
-func listError(kind string, err error) error {
+func listError(resourceName string, err error) error {
 	if apierrors.IsBadRequest(err) || apierrors.IsResourceExpired(err) {
 		return fmt.Errorf("%w: %w", biz.ErrInvalidCursor, err)
 	}
-	return resourceError("list", kind, "", err)
+	return resourceError("list", resourceName, "", err)
 }
 
-func resourceError(operation, kind, name string, err error) error {
+func resourceError(operation, resourceName, resourceID string, err error) error {
 	if err == nil {
 		return nil
 	}
@@ -144,28 +143,28 @@ func resourceError(operation, kind, name string, err error) error {
 	case apierrors.IsInvalid(err):
 		err = biz.NewInvalidResource(err)
 	}
-	if name == "" {
-		return fmt.Errorf("%s %s: %w", operation, kind, err)
+	if resourceID == "" {
+		return fmt.Errorf("%s %s: %w", operation, resourceName, err)
 	}
-	return fmt.Errorf("%s %s %q: %w", operation, kind, name, err)
+	return fmt.Errorf("%s %s %q: %w", operation, resourceName, resourceID, err)
 }
 
 // replaceResourceSpec 在资源身份和配置版本未变化时重试底层资源版本冲突。
 func replaceResourceSpec[T resourceObject[T], List any](
 	ctx context.Context,
 	client resourceClient[T, List],
-	kind string,
+	resourceName string,
 	observed T,
 	setSpec func(T),
 ) (T, error) {
-	name := observed.GetName()
+	resourceID := observed.GetName()
 	current := observed.DeepCopy()
 	refreshRequired := false
 	var updated T
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if refreshRequired {
 			var err error
-			current, err = client.Get(ctx, name, metav1.GetOptions{})
+			current, err = client.Get(ctx, resourceID, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
@@ -184,23 +183,23 @@ func replaceResourceSpec[T resourceObject[T], List any](
 		updated = next
 		return nil
 	})
-	return updated, resourceError("replace", kind, name, err)
+	return updated, resourceError("replace", resourceName, resourceID, err)
 }
 
 // deleteResource 保持初次读取的资源身份，并使用最新底层资源版本执行条件删除。
 func deleteResource[T resourceObject[T], List any](
 	ctx context.Context,
 	client resourceClient[T, List],
-	kind string,
+	resourceName string,
 	observed T,
 ) error {
-	name := observed.GetName()
+	resourceID := observed.GetName()
 	current := observed.DeepCopy()
 	refreshRequired := false
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if refreshRequired {
 			var err error
-			current, err = client.Get(ctx, name, metav1.GetOptions{})
+			current, err = client.Get(ctx, resourceID, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
@@ -212,7 +211,7 @@ func deleteResource[T resourceObject[T], List any](
 
 		uid := current.GetUID()
 		resourceVersion := current.GetResourceVersion()
-		err := client.Delete(ctx, name, metav1.DeleteOptions{
+		err := client.Delete(ctx, resourceID, metav1.DeleteOptions{
 			Preconditions: &metav1.Preconditions{
 				UID:             &uid,
 				ResourceVersion: &resourceVersion,
@@ -221,7 +220,7 @@ func deleteResource[T resourceObject[T], List any](
 		refreshRequired = err != nil
 		return err
 	})
-	return resourceError("delete", kind, name, err)
+	return resourceError("delete", resourceName, resourceID, err)
 }
 
 // listByIDs 并发读取去重后的资源 ID。
