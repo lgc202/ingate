@@ -1,8 +1,6 @@
 package apiserver
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 )
@@ -33,14 +31,7 @@ func NewCallerStore(client clientset.Interface) *CallerStore {
 			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.CallerSpec) *resource.Caller {
-			return &resource.Caller{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: resource.SchemeGroupVersion.String(),
-					Kind:       string(resource.KindCaller),
-				},
-				ObjectMeta: metav1.ObjectMeta{Name: resourceID},
-				Spec:       spec,
-			}
+			return newResource(resourceID, resource.KindCaller, &resource.Caller{Spec: spec})
 		},
 		func(object *resource.Caller, spec resource.CallerSpec) { object.Spec = spec },
 	)
@@ -57,14 +48,7 @@ func NewCertificateStore(client clientset.Interface) *CertificateStore {
 			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.CertificateSpec) *resource.Certificate {
-			return &resource.Certificate{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: resource.SchemeGroupVersion.String(),
-					Kind:       string(resource.KindCertificate),
-				},
-				ObjectMeta: metav1.ObjectMeta{Name: resourceID},
-				Spec:       spec,
-			}
+			return newResource(resourceID, resource.KindCertificate, &resource.Certificate{Spec: spec})
 		},
 		func(object *resource.Certificate, spec resource.CertificateSpec) { object.Spec = spec },
 	)
@@ -81,14 +65,7 @@ func NewGatewayStore(client clientset.Interface) *GatewayStore {
 			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.GatewaySpec) *resource.Gateway {
-			return &resource.Gateway{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: resource.SchemeGroupVersion.String(),
-					Kind:       string(resource.KindGateway),
-				},
-				ObjectMeta: metav1.ObjectMeta{Name: resourceID},
-				Spec:       spec,
-			}
+			return newResource(resourceID, resource.KindGateway, &resource.Gateway{Spec: spec})
 		},
 		func(object *resource.Gateway, spec resource.GatewaySpec) { object.Spec = spec },
 	)
@@ -105,14 +82,7 @@ func NewRouteStore(client clientset.Interface) *RouteStore {
 			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.RouteSpec) *resource.Route {
-			return &resource.Route{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: resource.SchemeGroupVersion.String(),
-					Kind:       string(resource.KindRoute),
-				},
-				ObjectMeta: metav1.ObjectMeta{Name: resourceID},
-				Spec:       spec,
-			}
+			return newResource(resourceID, resource.KindRoute, &resource.Route{Spec: spec})
 		},
 		func(object *resource.Route, spec resource.RouteSpec) { object.Spec = spec },
 	)
@@ -129,14 +99,7 @@ func NewUpstreamStore(client clientset.Interface) *UpstreamStore {
 			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.UpstreamSpec) *resource.Upstream {
-			return &resource.Upstream{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: resource.SchemeGroupVersion.String(),
-					Kind:       string(resource.KindUpstream),
-				},
-				ObjectMeta: metav1.ObjectMeta{Name: resourceID},
-				Spec:       spec,
-			}
+			return newResource(resourceID, resource.KindUpstream, &resource.Upstream{Spec: spec})
 		},
 		func(object *resource.Upstream, spec resource.UpstreamSpec) { object.Spec = spec },
 	)

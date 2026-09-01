@@ -1,8 +1,6 @@
 package apiserver
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 )
@@ -34,14 +32,11 @@ func NewPluginSourceStore(client clientset.Interface) *PluginSourceStore {
 			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.PluginSourceSpec) *resource.PluginSource {
-			return &resource.PluginSource{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: resource.SchemeGroupVersion.String(),
-					Kind:       string(resource.KindPluginSource),
-				},
-				ObjectMeta: metav1.ObjectMeta{Name: resourceID},
-				Spec:       spec,
-			}
+			return newResource(
+				resourceID,
+				resource.KindPluginSource,
+				&resource.PluginSource{Spec: spec},
+			)
 		},
 		func(object *resource.PluginSource, spec resource.PluginSourceSpec) { object.Spec = spec },
 	)
@@ -58,14 +53,11 @@ func NewWasmPluginStore(client clientset.Interface) *WasmPluginStore {
 			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.WasmPluginSpec) *resource.WasmPlugin {
-			return &resource.WasmPlugin{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: resource.SchemeGroupVersion.String(),
-					Kind:       string(resource.KindWasmPlugin),
-				},
-				ObjectMeta: metav1.ObjectMeta{Name: resourceID},
-				Spec:       spec,
-			}
+			return newResource(
+				resourceID,
+				resource.KindWasmPlugin,
+				&resource.WasmPlugin{Spec: spec},
+			)
 		},
 		func(object *resource.WasmPlugin, spec resource.WasmPluginSpec) { object.Spec = spec },
 	)

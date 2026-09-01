@@ -1,8 +1,6 @@
 package apiserver
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 )
@@ -58,14 +56,11 @@ func NewHeaderTransformationPolicyStore(client clientset.Interface) *HeaderTrans
 			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.HeaderTransformationPolicySpec) *resource.HeaderTransformationPolicy {
-			return &resource.HeaderTransformationPolicy{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: resource.SchemeGroupVersion.String(),
-					Kind:       string(resource.KindHeaderTransformationPolicy),
-				},
-				ObjectMeta: metav1.ObjectMeta{Name: resourceID},
-				Spec:       spec,
-			}
+			return newResource(
+				resourceID,
+				resource.KindHeaderTransformationPolicy,
+				&resource.HeaderTransformationPolicy{Spec: spec},
+			)
 		},
 		func(object *resource.HeaderTransformationPolicy, spec resource.HeaderTransformationPolicySpec) {
 			object.Spec = spec
@@ -84,14 +79,11 @@ func NewIPRestrictionPolicyStore(client clientset.Interface) *IPRestrictionPolic
 			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.IPRestrictionPolicySpec) *resource.IPRestrictionPolicy {
-			return &resource.IPRestrictionPolicy{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: resource.SchemeGroupVersion.String(),
-					Kind:       string(resource.KindIPRestrictionPolicy),
-				},
-				ObjectMeta: metav1.ObjectMeta{Name: resourceID},
-				Spec:       spec,
-			}
+			return newResource(
+				resourceID,
+				resource.KindIPRestrictionPolicy,
+				&resource.IPRestrictionPolicy{Spec: spec},
+			)
 		},
 		func(object *resource.IPRestrictionPolicy, spec resource.IPRestrictionPolicySpec) { object.Spec = spec },
 	)
@@ -108,14 +100,11 @@ func NewMockResponsePolicyStore(client clientset.Interface) *MockResponsePolicyS
 			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.MockResponsePolicySpec) *resource.MockResponsePolicy {
-			return &resource.MockResponsePolicy{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: resource.SchemeGroupVersion.String(),
-					Kind:       string(resource.KindMockResponsePolicy),
-				},
-				ObjectMeta: metav1.ObjectMeta{Name: resourceID},
-				Spec:       spec,
-			}
+			return newResource(
+				resourceID,
+				resource.KindMockResponsePolicy,
+				&resource.MockResponsePolicy{Spec: spec},
+			)
 		},
 		func(object *resource.MockResponsePolicy, spec resource.MockResponsePolicySpec) { object.Spec = spec },
 	)
@@ -132,14 +121,11 @@ func NewRateLimitPolicyStore(client clientset.Interface) *RateLimitPolicyStore {
 			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.RateLimitPolicySpec) *resource.RateLimitPolicy {
-			return &resource.RateLimitPolicy{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: resource.SchemeGroupVersion.String(),
-					Kind:       string(resource.KindRateLimitPolicy),
-				},
-				ObjectMeta: metav1.ObjectMeta{Name: resourceID},
-				Spec:       spec,
-			}
+			return newResource(
+				resourceID,
+				resource.KindRateLimitPolicy,
+				&resource.RateLimitPolicy{Spec: spec},
+			)
 		},
 		func(object *resource.RateLimitPolicy, spec resource.RateLimitPolicySpec) { object.Spec = spec },
 	)
@@ -156,14 +142,11 @@ func NewTokenQuotaPolicyStore(client clientset.Interface) *TokenQuotaPolicyStore
 			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.TokenQuotaPolicySpec) *resource.TokenQuotaPolicy {
-			return &resource.TokenQuotaPolicy{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: resource.SchemeGroupVersion.String(),
-					Kind:       string(resource.KindTokenQuotaPolicy),
-				},
-				ObjectMeta: metav1.ObjectMeta{Name: resourceID},
-				Spec:       spec,
-			}
+			return newResource(
+				resourceID,
+				resource.KindTokenQuotaPolicy,
+				&resource.TokenQuotaPolicy{Spec: spec},
+			)
 		},
 		func(object *resource.TokenQuotaPolicy, spec resource.TokenQuotaPolicySpec) { object.Spec = spec },
 	)
