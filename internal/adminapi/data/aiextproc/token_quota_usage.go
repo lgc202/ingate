@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	aiextprocv1 "github.com/lgc202/ingate/api/aiextproc/v1"
 	tokenquotabiz "github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
@@ -37,10 +35,7 @@ func currentUsageError(ctx context.Context, err error) error {
 	}
 	switch status.Code(err) {
 	case codes.Unavailable, codes.DeadlineExceeded:
-		return errors.ServiceUnavailable(
-			adminv1.ErrorReason_DEPENDENCY_UNAVAILABLE.String(),
-			"实时额度暂时不可用，请稍后重试",
-		).WithCause(err)
+		return tokenquotabiz.Unavailable(err)
 	default:
 		return fmt.Errorf("query caller token quota usage: %w", err)
 	}
