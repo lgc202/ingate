@@ -96,13 +96,12 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data *conf
 	trafficRepository := analytics.NewTrafficRepository(clientConn)
 	trafficUsecase := traffic.NewUsecase(trafficRepository)
 	trafficService := traffic2.NewService(trafficUsecase)
-	tokenQuotaUsageServiceClient, cleanup2, err := aiextproc.NewClient(contextContext, data, logger)
+	client, cleanup2, err := aiextproc.NewClient(contextContext, data, logger)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
-	tokenQuotaUsageReader := aiextproc.NewTokenQuotaUsageReader(tokenQuotaUsageServiceClient)
-	tokenquotaUsecase := tokenquota.NewUsecase(v3, v, tokenQuotaUsageReader)
+	tokenquotaUsecase := tokenquota.NewUsecase(v3, v, client)
 	tokenquotaService := tokenquota2.NewService(tokenquotaUsecase)
 	healthService := health.NewService()
 	v11 := apiserver.NewWasmPluginStore(versionedInterface)

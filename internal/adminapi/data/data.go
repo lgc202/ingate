@@ -86,8 +86,7 @@ var analyticsProviderSet = wire.NewSet(
 
 var aiExtProcProviderSet = wire.NewSet(
 	dataaiextproc.NewClient,
-	dataaiextproc.NewTokenQuotaUsageReader,
-	wire.Bind(new(tokenquota.UsageReader), new(*dataaiextproc.TokenQuotaUsageReader)),
+	wire.Bind(new(tokenquota.UsageReader), new(*dataaiextproc.Client)),
 )
 
 var pluginCatalogProviderSet = wire.NewSet(
