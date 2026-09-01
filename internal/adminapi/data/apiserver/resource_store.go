@@ -97,13 +97,18 @@ func (s *resourceStore[Item, Object, List, Spec]) ReplaceSpec(
 	observed Object,
 	spec Spec,
 ) (Object, error) {
-	return replaceResourceSpec(
-		ctx,
-		s.client,
-		s.singularName,
-		observed,
-		func(object Object) { s.setSpec(object, spec) },
-	)
+	resourceID := observed.GetName()
+	var updated Object
+	err := s.retryResourceMutation(ctx, observed, func(current Object) error {
+		s.setSpec(current, spec)
+		next, err := s.client.Update(ctx, current, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
+		updated = next
+		return nil
+	})
+	return updated, resourceError("replace", s.singularName, resourceID, err)
 }
 
 // Delete 删除声明式资源。
@@ -111,7 +116,46 @@ func (s *resourceStore[Item, Object, List, Spec]) Delete(
 	ctx context.Context,
 	observed Object,
 ) error {
-	return deleteResource(ctx, s.client, s.singularName, observed)
+	resourceID := observed.GetName()
+	err := s.retryResourceMutation(ctx, observed, func(current Object) error {
+		uid := current.GetUID()
+		resourceVersion := current.GetResourceVersion()
+		return s.client.Delete(ctx, resourceID, metav1.DeleteOptions{
+			Preconditions: &metav1.Preconditions{
+				UID:             &uid,
+				ResourceVersion: &resourceVersion,
+			},
+		})
+	})
+	return resourceError("delete", s.singularName, resourceID, err)
+}
+
+// retryResourceMutation 在资源身份和配置版本未变化时重试底层资源版本冲突。
+func (s *resourceStore[Item, Object, List, Spec]) retryResourceMutation(
+	ctx context.Context,
+	observed Object,
+	mutate func(Object) error,
+) error {
+	resourceID := observed.GetName()
+	current := observed.DeepCopy()
+	refreshRequired := false
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if refreshRequired {
+			var err error
+			current, err = s.client.Get(ctx, resourceID, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+		}
+		if current.GetUID() != observed.GetUID() ||
+			current.GetGeneration() != observed.GetGeneration() {
+			return biz.ErrResourceVersionConflict
+		}
+
+		err := mutate(current)
+		refreshRequired = err != nil
+		return err
+	})
 }
 
 func newResource[T resourceObject[T]](resourceID string, kind resource.Kind, object T) T {
@@ -160,80 +204,6 @@ func translateResourceError(err error) error {
 		return err
 	}
 	return fmt.Errorf("%w: %w", domainErr, err)
-}
-
-// replaceResourceSpec 在资源身份和配置版本未变化时重试底层资源版本冲突。
-func replaceResourceSpec[T resourceObject[T], List any](
-	ctx context.Context,
-	client resourceClient[T, List],
-	resourceName string,
-	observed T,
-	setSpec func(T),
-) (T, error) {
-	resourceID := observed.GetName()
-	current := observed.DeepCopy()
-	refreshRequired := false
-	var updated T
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		if refreshRequired {
-			var err error
-			current, err = client.Get(ctx, resourceID, metav1.GetOptions{})
-			if err != nil {
-				return err
-			}
-		}
-		if current.GetUID() != observed.GetUID() ||
-			current.GetGeneration() != observed.GetGeneration() {
-			return biz.ErrResourceVersionConflict
-		}
-
-		setSpec(current)
-		next, err := client.Update(ctx, current, metav1.UpdateOptions{})
-		refreshRequired = err != nil
-		if err != nil {
-			return err
-		}
-		updated = next
-		return nil
-	})
-	return updated, resourceError("replace", resourceName, resourceID, err)
-}
-
-// deleteResource 保持初次读取的资源身份，并使用最新底层资源版本执行条件删除。
-func deleteResource[T resourceObject[T], List any](
-	ctx context.Context,
-	client resourceClient[T, List],
-	resourceName string,
-	observed T,
-) error {
-	resourceID := observed.GetName()
-	current := observed.DeepCopy()
-	refreshRequired := false
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		if refreshRequired {
-			var err error
-			current, err = client.Get(ctx, resourceID, metav1.GetOptions{})
-			if err != nil {
-				return err
-			}
-		}
-		if current.GetUID() != observed.GetUID() ||
-			current.GetGeneration() != observed.GetGeneration() {
-			return biz.ErrResourceVersionConflict
-		}
-
-		uid := current.GetUID()
-		resourceVersion := current.GetResourceVersion()
-		err := client.Delete(ctx, resourceID, metav1.DeleteOptions{
-			Preconditions: &metav1.Preconditions{
-				UID:             &uid,
-				ResourceVersion: &resourceVersion,
-			},
-		})
-		refreshRequired = err != nil
-		return err
-	})
-	return resourceError("delete", resourceName, resourceID, err)
 }
 
 // listByIDs 并发读取去重后的资源 ID。
