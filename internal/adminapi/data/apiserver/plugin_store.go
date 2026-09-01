@@ -24,10 +24,10 @@ type WasmPluginStore = resourceStore[
 // NewPluginSourceStore 创建 PluginSource Store。
 func NewPluginSourceStore(client clientset.Interface) *PluginSourceStore {
 	return &PluginSourceStore{
-		kind:     "plugin source",
-		listKind: "plugin sources",
-		client:   client.GatewayV1().PluginSources(),
-		items: func(list *resource.PluginSourceList) ([]resource.PluginSource, string) {
+		singularName: "plugin source",
+		pluralName:   "plugin sources",
+		client:       client.GatewayV1().PluginSources(),
+		unpackList: func(list *resource.PluginSourceList) ([]resource.PluginSource, string) {
 			return list.Items, list.Continue
 		},
 		newObject: func(resourceID string, spec resource.PluginSourceSpec) *resource.PluginSource {
@@ -46,10 +46,10 @@ func NewPluginSourceStore(client clientset.Interface) *PluginSourceStore {
 // NewWasmPluginStore 创建 WasmPlugin Store。
 func NewWasmPluginStore(client clientset.Interface) *WasmPluginStore {
 	return &WasmPluginStore{
-		kind:     "Wasm plugin",
-		listKind: "Wasm plugins",
-		client:   client.GatewayV1().WasmPlugins(),
-		items: func(list *resource.WasmPluginList) ([]resource.WasmPlugin, string) {
+		singularName: "Wasm plugin",
+		pluralName:   "Wasm plugins",
+		client:       client.GatewayV1().WasmPlugins(),
+		unpackList: func(list *resource.WasmPluginList) ([]resource.WasmPlugin, string) {
 			return list.Items, list.Continue
 		},
 		newObject: func(resourceID string, spec resource.WasmPluginSpec) *resource.WasmPlugin {

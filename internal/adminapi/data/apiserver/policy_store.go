@@ -48,10 +48,10 @@ type TokenQuotaPolicyStore = resourceStore[
 // NewHeaderTransformationPolicyStore 创建 HeaderTransformationPolicy Store。
 func NewHeaderTransformationPolicyStore(client clientset.Interface) *HeaderTransformationPolicyStore {
 	return &HeaderTransformationPolicyStore{
-		kind:     "header transformation policy",
-		listKind: "header transformation policies",
-		client:   client.GatewayV1().HeaderTransformationPolicies(),
-		items: func(list *resource.HeaderTransformationPolicyList) ([]resource.HeaderTransformationPolicy, string) {
+		singularName: "header transformation policy",
+		pluralName:   "header transformation policies",
+		client:       client.GatewayV1().HeaderTransformationPolicies(),
+		unpackList: func(list *resource.HeaderTransformationPolicyList) ([]resource.HeaderTransformationPolicy, string) {
 			return list.Items, list.Continue
 		},
 		newObject: func(resourceID string, spec resource.HeaderTransformationPolicySpec) *resource.HeaderTransformationPolicy {
@@ -70,10 +70,10 @@ func NewHeaderTransformationPolicyStore(client clientset.Interface) *HeaderTrans
 // NewIPRestrictionPolicyStore 创建 IPRestrictionPolicy Store。
 func NewIPRestrictionPolicyStore(client clientset.Interface) *IPRestrictionPolicyStore {
 	return &IPRestrictionPolicyStore{
-		kind:     "IP restriction policy",
-		listKind: "IP restriction policies",
-		client:   client.GatewayV1().IPRestrictionPolicies(),
-		items: func(list *resource.IPRestrictionPolicyList) ([]resource.IPRestrictionPolicy, string) {
+		singularName: "IP restriction policy",
+		pluralName:   "IP restriction policies",
+		client:       client.GatewayV1().IPRestrictionPolicies(),
+		unpackList: func(list *resource.IPRestrictionPolicyList) ([]resource.IPRestrictionPolicy, string) {
 			return list.Items, list.Continue
 		},
 		newObject: func(resourceID string, spec resource.IPRestrictionPolicySpec) *resource.IPRestrictionPolicy {
@@ -92,10 +92,10 @@ func NewIPRestrictionPolicyStore(client clientset.Interface) *IPRestrictionPolic
 // NewMockResponsePolicyStore 创建 MockResponsePolicy Store。
 func NewMockResponsePolicyStore(client clientset.Interface) *MockResponsePolicyStore {
 	return &MockResponsePolicyStore{
-		kind:     "mock response policy",
-		listKind: "mock response policies",
-		client:   client.GatewayV1().MockResponsePolicies(),
-		items: func(list *resource.MockResponsePolicyList) ([]resource.MockResponsePolicy, string) {
+		singularName: "mock response policy",
+		pluralName:   "mock response policies",
+		client:       client.GatewayV1().MockResponsePolicies(),
+		unpackList: func(list *resource.MockResponsePolicyList) ([]resource.MockResponsePolicy, string) {
 			return list.Items, list.Continue
 		},
 		newObject: func(resourceID string, spec resource.MockResponsePolicySpec) *resource.MockResponsePolicy {
@@ -114,10 +114,10 @@ func NewMockResponsePolicyStore(client clientset.Interface) *MockResponsePolicyS
 // NewRateLimitPolicyStore 创建 RateLimitPolicy Store。
 func NewRateLimitPolicyStore(client clientset.Interface) *RateLimitPolicyStore {
 	return &RateLimitPolicyStore{
-		kind:     "rate limit policy",
-		listKind: "rate limit policies",
-		client:   client.GatewayV1().RateLimitPolicies(),
-		items: func(list *resource.RateLimitPolicyList) ([]resource.RateLimitPolicy, string) {
+		singularName: "rate limit policy",
+		pluralName:   "rate limit policies",
+		client:       client.GatewayV1().RateLimitPolicies(),
+		unpackList: func(list *resource.RateLimitPolicyList) ([]resource.RateLimitPolicy, string) {
 			return list.Items, list.Continue
 		},
 		newObject: func(resourceID string, spec resource.RateLimitPolicySpec) *resource.RateLimitPolicy {
@@ -136,10 +136,10 @@ func NewRateLimitPolicyStore(client clientset.Interface) *RateLimitPolicyStore {
 // NewTokenQuotaPolicyStore 创建 TokenQuotaPolicy Store。
 func NewTokenQuotaPolicyStore(client clientset.Interface) *TokenQuotaPolicyStore {
 	return &TokenQuotaPolicyStore{
-		kind:     "token quota policy",
-		listKind: "token quota policies",
-		client:   client.GatewayV1().TokenQuotaPolicies(),
-		items: func(list *resource.TokenQuotaPolicyList) ([]resource.TokenQuotaPolicy, string) {
+		singularName: "token quota policy",
+		pluralName:   "token quota policies",
+		client:       client.GatewayV1().TokenQuotaPolicies(),
+		unpackList: func(list *resource.TokenQuotaPolicyList) ([]resource.TokenQuotaPolicy, string) {
 			return list.Items, list.Continue
 		},
 		newObject: func(resourceID string, spec resource.TokenQuotaPolicySpec) *resource.TokenQuotaPolicy {
