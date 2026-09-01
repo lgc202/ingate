@@ -23,42 +23,44 @@ type WasmPluginStore = resourceStore[
 
 // NewPluginSourceStore 创建 PluginSource Store。
 func NewPluginSourceStore(client clientset.Interface) *PluginSourceStore {
-	resources := client.GatewayV1().PluginSources()
-	return newResourceStore(
-		"plugin source",
-		"plugin sources",
-		resources,
-		func(list *resource.PluginSourceList) ([]resource.PluginSource, string) {
+	return &PluginSourceStore{
+		kind:     "plugin source",
+		listKind: "plugin sources",
+		client:   client.GatewayV1().PluginSources(),
+		items: func(list *resource.PluginSourceList) ([]resource.PluginSource, string) {
 			return list.Items, list.Continue
 		},
-		func(resourceID string, spec resource.PluginSourceSpec) *resource.PluginSource {
+		newObject: func(resourceID string, spec resource.PluginSourceSpec) *resource.PluginSource {
 			return newResource(
 				resourceID,
 				resource.KindPluginSource,
 				&resource.PluginSource{Spec: spec},
 			)
 		},
-		func(object *resource.PluginSource, spec resource.PluginSourceSpec) { object.Spec = spec },
-	)
+		setSpec: func(object *resource.PluginSource, spec resource.PluginSourceSpec) {
+			object.Spec = spec
+		},
+	}
 }
 
 // NewWasmPluginStore 创建 WasmPlugin Store。
 func NewWasmPluginStore(client clientset.Interface) *WasmPluginStore {
-	resources := client.GatewayV1().WasmPlugins()
-	return newResourceStore(
-		"Wasm plugin",
-		"Wasm plugins",
-		resources,
-		func(list *resource.WasmPluginList) ([]resource.WasmPlugin, string) {
+	return &WasmPluginStore{
+		kind:     "Wasm plugin",
+		listKind: "Wasm plugins",
+		client:   client.GatewayV1().WasmPlugins(),
+		items: func(list *resource.WasmPluginList) ([]resource.WasmPlugin, string) {
 			return list.Items, list.Continue
 		},
-		func(resourceID string, spec resource.WasmPluginSpec) *resource.WasmPlugin {
+		newObject: func(resourceID string, spec resource.WasmPluginSpec) *resource.WasmPlugin {
 			return newResource(
 				resourceID,
 				resource.KindWasmPlugin,
 				&resource.WasmPlugin{Spec: spec},
 			)
 		},
-		func(object *resource.WasmPlugin, spec resource.WasmPluginSpec) { object.Spec = spec },
-	)
+		setSpec: func(object *resource.WasmPlugin, spec resource.WasmPluginSpec) {
+			object.Spec = spec
+		},
+	}
 }

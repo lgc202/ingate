@@ -111,24 +111,6 @@ func (s *resourceStore[Item, Object, List, Spec]) Delete(
 	return deleteResource(ctx, s.client, s.kind, observed)
 }
 
-func newResourceStore[Item any, Object resourceObject[Object], List any, Spec any](
-	kind string,
-	listKind string,
-	client resourceClient[Object, List],
-	items func(List) ([]Item, string),
-	newObject func(string, Spec) Object,
-	setSpec func(Object, Spec),
-) *resourceStore[Item, Object, List, Spec] {
-	return &resourceStore[Item, Object, List, Spec]{
-		kind:      kind,
-		listKind:  listKind,
-		client:    client,
-		items:     items,
-		newObject: newObject,
-		setSpec:   setSpec,
-	}
-}
-
 func newResource[T resourceObject[T]](resourceID string, kind resource.Kind, object T) T {
 	object.SetName(resourceID)
 	object.GetObjectKind().SetGroupVersionKind(
