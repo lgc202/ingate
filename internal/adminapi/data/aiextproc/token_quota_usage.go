@@ -78,23 +78,14 @@ func decodeTokenQuotaUsage(
 	index int,
 ) (tokenquotabiz.Usage, error) {
 	if item == nil {
-		return tokenquotabiz.Usage{}, fmt.Errorf(
-			"AI ExtProc returned an empty token quota usage at index %d",
-			index,
-		)
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "an empty token quota usage")
 	}
 	policyID := item.GetPolicyId()
 	if !resourceconfig.IsCanonicalID(policyID) {
-		return tokenquotabiz.Usage{}, fmt.Errorf(
-			"AI ExtProc returned an invalid policy ID at index %d",
-			index,
-		)
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "an invalid policy ID")
 	}
 	if !resourceconfig.IsValidDisplayName(item.GetPolicyName()) {
-		return tokenquotabiz.Usage{}, fmt.Errorf(
-			"AI ExtProc returned an invalid policy name at index %d",
-			index,
-		)
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "an invalid policy name")
 	}
 	period, err := tokenQuotaPeriod(item.GetPeriod())
 	if err != nil {
@@ -105,38 +96,23 @@ func decodeTokenQuotaUsage(
 		)
 	}
 	if item.GetUsedTokens() < 0 {
-		return tokenquotabiz.Usage{}, fmt.Errorf(
-			"AI ExtProc returned negative token usage at index %d",
-			index,
-		)
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "negative token usage")
 	}
 	if !tokenquotaconfig.IsValidTokenLimit(item.GetLimitTokens()) {
-		return tokenquotabiz.Usage{}, fmt.Errorf(
-			"AI ExtProc returned an invalid token limit at index %d",
-			index,
-		)
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "an invalid token limit")
 	}
 	startedAt := item.GetStartedAt()
 	if startedAt == nil || startedAt.CheckValid() != nil {
-		return tokenquotabiz.Usage{}, fmt.Errorf(
-			"AI ExtProc returned an invalid start time at index %d",
-			index,
-		)
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "an invalid start time")
 	}
 	resetsAt := item.GetResetsAt()
 	if resetsAt == nil || resetsAt.CheckValid() != nil {
-		return tokenquotabiz.Usage{}, fmt.Errorf(
-			"AI ExtProc returned an invalid reset time at index %d",
-			index,
-		)
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "an invalid reset time")
 	}
 	start := startedAt.AsTime()
 	resetAt := resetsAt.AsTime()
 	if !resetAt.After(start) {
-		return tokenquotabiz.Usage{}, fmt.Errorf(
-			"AI ExtProc returned an invalid period range at index %d",
-			index,
-		)
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "an invalid period range")
 	}
 
 	return tokenquotabiz.Usage{
@@ -148,6 +124,10 @@ func decodeTokenQuotaUsage(
 		StartedAt:  start,
 		ResetAt:    resetAt,
 	}, nil
+}
+
+func invalidTokenQuotaUsageError(index int, problem string) error {
+	return fmt.Errorf("AI ExtProc returned %s at index %d", problem, index)
 }
 
 func tokenQuotaPeriod(period aiextprocv1.TokenQuotaPeriod) (resource.TokenQuotaPeriod, error) {
