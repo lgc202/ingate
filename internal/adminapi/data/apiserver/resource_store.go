@@ -22,24 +22,19 @@ type resourceObject[T any] interface {
 	DeepCopy() T
 }
 
-// resourceClient 是乐观并发写入所需的最小 Kubernetes typed client 能力。
+// resourceClient 是声明式资源 Store 使用的 Kubernetes typed client 能力。
 type resourceClient[T any] interface {
+	Create(ctx context.Context, object T, options metav1.CreateOptions) (T, error)
 	Get(ctx context.Context, name string, options metav1.GetOptions) (T, error)
 	Update(ctx context.Context, object T, options metav1.UpdateOptions) (T, error)
 	Delete(ctx context.Context, name string, options metav1.DeleteOptions) error
 }
 
-// createResourceClient 是通用资源存储需要的 typed client 能力。
-type createResourceClient[T any] interface {
-	resourceClient[T]
-	Create(ctx context.Context, object T, options metav1.CreateOptions) (T, error)
-}
-
-// resourceStore 集中声明式资源 Store 共享的 CRUD 协议。
+// resourceStore 实现声明式资源 Store 共享的 CRUD 行为。
 type resourceStore[Item any, Object resourceObject[Object], Spec any] struct {
 	kind      string
 	listKind  string
-	client    func() createResourceClient[Object]
+	client    func() resourceClient[Object]
 	list      func(context.Context, metav1.ListOptions) ([]Item, string, error)
 	newObject func(string, Spec) Object
 	setSpec   func(Object, Spec)
@@ -115,7 +110,7 @@ func (s *resourceStore[Item, Object, Spec]) Delete(
 func newResourceStore[Item any, Object resourceObject[Object], Spec any](
 	kind string,
 	listKind string,
-	client func() createResourceClient[Object],
+	client func() resourceClient[Object],
 	list func(context.Context, metav1.ListOptions) ([]Item, string, error),
 	newObject func(string, Spec) Object,
 	setSpec func(Object, Spec),
