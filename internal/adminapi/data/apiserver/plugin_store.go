@@ -1,8 +1,6 @@
 package apiserver
 
 import (
-	"context"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
@@ -10,30 +8,30 @@ import (
 )
 
 // PluginSourceStore 读写 PluginSource 声明式资源。
-type PluginSourceStore struct {
-	*resourceStore[resource.PluginSource, *resource.PluginSource, resource.PluginSourceSpec]
-}
+type PluginSourceStore = resourceStore[
+	resource.PluginSource,
+	*resource.PluginSource,
+	*resource.PluginSourceList,
+	resource.PluginSourceSpec,
+]
 
 // WasmPluginStore 读写 WasmPlugin 声明式资源。
-type WasmPluginStore struct {
-	*resourceStore[resource.WasmPlugin, *resource.WasmPlugin, resource.WasmPluginSpec]
-}
+type WasmPluginStore = resourceStore[
+	resource.WasmPlugin,
+	*resource.WasmPlugin,
+	*resource.WasmPluginList,
+	resource.WasmPluginSpec,
+]
 
 // NewPluginSourceStore 创建 PluginSource Store。
 func NewPluginSourceStore(client clientset.Interface) *PluginSourceStore {
-	return &PluginSourceStore{resourceStore: newResourceStore(
+	resources := client.GatewayV1().PluginSources()
+	return newResourceStore(
 		"plugin source",
 		"plugin sources",
-		func() resourceClient[*resource.PluginSource] {
-			return client.GatewayV1().PluginSources()
-		},
-		func(ctx context.Context, options metav1.ListOptions) ([]resource.PluginSource, string, error) {
-			resources := client.GatewayV1().PluginSources()
-			list, err := resources.List(ctx, options)
-			if err != nil {
-				return nil, "", err
-			}
-			return list.Items, list.Continue, nil
+		resources,
+		func(list *resource.PluginSourceList) ([]resource.PluginSource, string) {
+			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.PluginSourceSpec) *resource.PluginSource {
 			return &resource.PluginSource{
@@ -46,24 +44,18 @@ func NewPluginSourceStore(client clientset.Interface) *PluginSourceStore {
 			}
 		},
 		func(object *resource.PluginSource, spec resource.PluginSourceSpec) { object.Spec = spec },
-	)}
+	)
 }
 
 // NewWasmPluginStore 创建 WasmPlugin Store。
 func NewWasmPluginStore(client clientset.Interface) *WasmPluginStore {
-	return &WasmPluginStore{resourceStore: newResourceStore(
+	resources := client.GatewayV1().WasmPlugins()
+	return newResourceStore(
 		"Wasm plugin",
 		"Wasm plugins",
-		func() resourceClient[*resource.WasmPlugin] {
-			return client.GatewayV1().WasmPlugins()
-		},
-		func(ctx context.Context, options metav1.ListOptions) ([]resource.WasmPlugin, string, error) {
-			resources := client.GatewayV1().WasmPlugins()
-			list, err := resources.List(ctx, options)
-			if err != nil {
-				return nil, "", err
-			}
-			return list.Items, list.Continue, nil
+		resources,
+		func(list *resource.WasmPluginList) ([]resource.WasmPlugin, string) {
+			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.WasmPluginSpec) *resource.WasmPlugin {
 			return &resource.WasmPlugin{
@@ -76,5 +68,5 @@ func NewWasmPluginStore(client clientset.Interface) *WasmPluginStore {
 			}
 		},
 		func(object *resource.WasmPlugin, spec resource.WasmPluginSpec) { object.Spec = spec },
-	)}
+	)
 }

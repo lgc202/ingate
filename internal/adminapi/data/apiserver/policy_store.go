@@ -1,8 +1,6 @@
 package apiserver
 
 import (
-	"context"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
@@ -10,45 +8,54 @@ import (
 )
 
 // HeaderTransformationPolicyStore 读写 HeaderTransformationPolicy 声明式资源。
-type HeaderTransformationPolicyStore struct {
-	*resourceStore[resource.HeaderTransformationPolicy, *resource.HeaderTransformationPolicy, resource.HeaderTransformationPolicySpec]
-}
+type HeaderTransformationPolicyStore = resourceStore[
+	resource.HeaderTransformationPolicy,
+	*resource.HeaderTransformationPolicy,
+	*resource.HeaderTransformationPolicyList,
+	resource.HeaderTransformationPolicySpec,
+]
 
 // IPRestrictionPolicyStore 读写 IPRestrictionPolicy 声明式资源。
-type IPRestrictionPolicyStore struct {
-	*resourceStore[resource.IPRestrictionPolicy, *resource.IPRestrictionPolicy, resource.IPRestrictionPolicySpec]
-}
+type IPRestrictionPolicyStore = resourceStore[
+	resource.IPRestrictionPolicy,
+	*resource.IPRestrictionPolicy,
+	*resource.IPRestrictionPolicyList,
+	resource.IPRestrictionPolicySpec,
+]
 
 // MockResponsePolicyStore 读写 MockResponsePolicy 声明式资源。
-type MockResponsePolicyStore struct {
-	*resourceStore[resource.MockResponsePolicy, *resource.MockResponsePolicy, resource.MockResponsePolicySpec]
-}
+type MockResponsePolicyStore = resourceStore[
+	resource.MockResponsePolicy,
+	*resource.MockResponsePolicy,
+	*resource.MockResponsePolicyList,
+	resource.MockResponsePolicySpec,
+]
 
 // RateLimitPolicyStore 读写 RateLimitPolicy 声明式资源。
-type RateLimitPolicyStore struct {
-	*resourceStore[resource.RateLimitPolicy, *resource.RateLimitPolicy, resource.RateLimitPolicySpec]
-}
+type RateLimitPolicyStore = resourceStore[
+	resource.RateLimitPolicy,
+	*resource.RateLimitPolicy,
+	*resource.RateLimitPolicyList,
+	resource.RateLimitPolicySpec,
+]
 
 // TokenQuotaPolicyStore 读写 TokenQuotaPolicy 声明式资源。
-type TokenQuotaPolicyStore struct {
-	*resourceStore[resource.TokenQuotaPolicy, *resource.TokenQuotaPolicy, resource.TokenQuotaPolicySpec]
-}
+type TokenQuotaPolicyStore = resourceStore[
+	resource.TokenQuotaPolicy,
+	*resource.TokenQuotaPolicy,
+	*resource.TokenQuotaPolicyList,
+	resource.TokenQuotaPolicySpec,
+]
 
 // NewHeaderTransformationPolicyStore 创建 HeaderTransformationPolicy Store。
 func NewHeaderTransformationPolicyStore(client clientset.Interface) *HeaderTransformationPolicyStore {
-	return &HeaderTransformationPolicyStore{resourceStore: newResourceStore(
+	resources := client.GatewayV1().HeaderTransformationPolicies()
+	return newResourceStore(
 		"header transformation policy",
 		"header transformation policies",
-		func() resourceClient[*resource.HeaderTransformationPolicy] {
-			return client.GatewayV1().HeaderTransformationPolicies()
-		},
-		func(ctx context.Context, options metav1.ListOptions) ([]resource.HeaderTransformationPolicy, string, error) {
-			resources := client.GatewayV1().HeaderTransformationPolicies()
-			list, err := resources.List(ctx, options)
-			if err != nil {
-				return nil, "", err
-			}
-			return list.Items, list.Continue, nil
+		resources,
+		func(list *resource.HeaderTransformationPolicyList) ([]resource.HeaderTransformationPolicy, string) {
+			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.HeaderTransformationPolicySpec) *resource.HeaderTransformationPolicy {
 			return &resource.HeaderTransformationPolicy{
@@ -63,24 +70,18 @@ func NewHeaderTransformationPolicyStore(client clientset.Interface) *HeaderTrans
 		func(object *resource.HeaderTransformationPolicy, spec resource.HeaderTransformationPolicySpec) {
 			object.Spec = spec
 		},
-	)}
+	)
 }
 
 // NewIPRestrictionPolicyStore 创建 IPRestrictionPolicy Store。
 func NewIPRestrictionPolicyStore(client clientset.Interface) *IPRestrictionPolicyStore {
-	return &IPRestrictionPolicyStore{resourceStore: newResourceStore(
+	resources := client.GatewayV1().IPRestrictionPolicies()
+	return newResourceStore(
 		"IP restriction policy",
 		"IP restriction policies",
-		func() resourceClient[*resource.IPRestrictionPolicy] {
-			return client.GatewayV1().IPRestrictionPolicies()
-		},
-		func(ctx context.Context, options metav1.ListOptions) ([]resource.IPRestrictionPolicy, string, error) {
-			resources := client.GatewayV1().IPRestrictionPolicies()
-			list, err := resources.List(ctx, options)
-			if err != nil {
-				return nil, "", err
-			}
-			return list.Items, list.Continue, nil
+		resources,
+		func(list *resource.IPRestrictionPolicyList) ([]resource.IPRestrictionPolicy, string) {
+			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.IPRestrictionPolicySpec) *resource.IPRestrictionPolicy {
 			return &resource.IPRestrictionPolicy{
@@ -93,24 +94,18 @@ func NewIPRestrictionPolicyStore(client clientset.Interface) *IPRestrictionPolic
 			}
 		},
 		func(object *resource.IPRestrictionPolicy, spec resource.IPRestrictionPolicySpec) { object.Spec = spec },
-	)}
+	)
 }
 
 // NewMockResponsePolicyStore 创建 MockResponsePolicy Store。
 func NewMockResponsePolicyStore(client clientset.Interface) *MockResponsePolicyStore {
-	return &MockResponsePolicyStore{resourceStore: newResourceStore(
+	resources := client.GatewayV1().MockResponsePolicies()
+	return newResourceStore(
 		"mock response policy",
 		"mock response policies",
-		func() resourceClient[*resource.MockResponsePolicy] {
-			return client.GatewayV1().MockResponsePolicies()
-		},
-		func(ctx context.Context, options metav1.ListOptions) ([]resource.MockResponsePolicy, string, error) {
-			resources := client.GatewayV1().MockResponsePolicies()
-			list, err := resources.List(ctx, options)
-			if err != nil {
-				return nil, "", err
-			}
-			return list.Items, list.Continue, nil
+		resources,
+		func(list *resource.MockResponsePolicyList) ([]resource.MockResponsePolicy, string) {
+			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.MockResponsePolicySpec) *resource.MockResponsePolicy {
 			return &resource.MockResponsePolicy{
@@ -123,24 +118,18 @@ func NewMockResponsePolicyStore(client clientset.Interface) *MockResponsePolicyS
 			}
 		},
 		func(object *resource.MockResponsePolicy, spec resource.MockResponsePolicySpec) { object.Spec = spec },
-	)}
+	)
 }
 
 // NewRateLimitPolicyStore 创建 RateLimitPolicy Store。
 func NewRateLimitPolicyStore(client clientset.Interface) *RateLimitPolicyStore {
-	return &RateLimitPolicyStore{resourceStore: newResourceStore(
+	resources := client.GatewayV1().RateLimitPolicies()
+	return newResourceStore(
 		"rate limit policy",
 		"rate limit policies",
-		func() resourceClient[*resource.RateLimitPolicy] {
-			return client.GatewayV1().RateLimitPolicies()
-		},
-		func(ctx context.Context, options metav1.ListOptions) ([]resource.RateLimitPolicy, string, error) {
-			resources := client.GatewayV1().RateLimitPolicies()
-			list, err := resources.List(ctx, options)
-			if err != nil {
-				return nil, "", err
-			}
-			return list.Items, list.Continue, nil
+		resources,
+		func(list *resource.RateLimitPolicyList) ([]resource.RateLimitPolicy, string) {
+			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.RateLimitPolicySpec) *resource.RateLimitPolicy {
 			return &resource.RateLimitPolicy{
@@ -153,24 +142,18 @@ func NewRateLimitPolicyStore(client clientset.Interface) *RateLimitPolicyStore {
 			}
 		},
 		func(object *resource.RateLimitPolicy, spec resource.RateLimitPolicySpec) { object.Spec = spec },
-	)}
+	)
 }
 
 // NewTokenQuotaPolicyStore 创建 TokenQuotaPolicy Store。
 func NewTokenQuotaPolicyStore(client clientset.Interface) *TokenQuotaPolicyStore {
-	return &TokenQuotaPolicyStore{resourceStore: newResourceStore(
+	resources := client.GatewayV1().TokenQuotaPolicies()
+	return newResourceStore(
 		"token quota policy",
 		"token quota policies",
-		func() resourceClient[*resource.TokenQuotaPolicy] {
-			return client.GatewayV1().TokenQuotaPolicies()
-		},
-		func(ctx context.Context, options metav1.ListOptions) ([]resource.TokenQuotaPolicy, string, error) {
-			resources := client.GatewayV1().TokenQuotaPolicies()
-			list, err := resources.List(ctx, options)
-			if err != nil {
-				return nil, "", err
-			}
-			return list.Items, list.Continue, nil
+		resources,
+		func(list *resource.TokenQuotaPolicyList) ([]resource.TokenQuotaPolicy, string) {
+			return list.Items, list.Continue
 		},
 		func(resourceID string, spec resource.TokenQuotaPolicySpec) *resource.TokenQuotaPolicy {
 			return &resource.TokenQuotaPolicy{
@@ -183,5 +166,5 @@ func NewTokenQuotaPolicyStore(client clientset.Interface) *TokenQuotaPolicyStore
 			}
 		},
 		func(object *resource.TokenQuotaPolicy, spec resource.TokenQuotaPolicySpec) { object.Spec = spec },
-	)}
+	)
 }
