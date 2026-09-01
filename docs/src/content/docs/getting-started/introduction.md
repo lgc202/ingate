@@ -26,7 +26,7 @@ API、AI 是 Route 与 Service 的类型，而不是两套平行资源。AI Rout
 - 为应用或服务签发访问密钥，并限制可访问的 Route
 - 在 Gateway 或 Route 上应用 IP 访问限制、请求限流等治理策略
 - 采集请求元数据，查看响应状态、转发结果、耗时和模型 Token 用量
-- 使用运维助手查询当前配置、比较流量、沿失败样本排障，并审批创建 Gateway 或普通 HTTP Service
+- 通过后端 API 检查运维助手的 MySQL、Temporal、模型端点和 Worker 就绪状态
 
 ## 一套 Ingate 表示什么
 

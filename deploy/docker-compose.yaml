@@ -50,6 +50,61 @@ services:
       retries: 30
       start_period: 20s
 
+  temporal-schema:
+    image: temporalio/admin-tools:1.31.0
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB: mysql8
+      DB_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PWD: "${INGATE_MYSQL_ROOT_PASSWORD:-ingate-root-dev}"
+      MYSQL_SEEDS: mysql
+      SQL_PASSWORD: "${INGATE_MYSQL_ROOT_PASSWORD:-ingate-root-dev}"
+    volumes:
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/temporal/setup-mysql.sh:/scripts/setup-mysql.sh:ro"
+    entrypoint: ["/bin/sh"]
+    command: /scripts/setup-mysql.sh
+    restart: "no"
+
+  temporal:
+    image: temporalio/server:1.31.0
+    restart: unless-stopped
+    depends_on:
+      temporal-schema:
+        condition: service_completed_successfully
+    environment:
+      DB: mysql8
+      DB_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PWD: "${INGATE_MYSQL_ROOT_PASSWORD:-ingate-root-dev}"
+      MYSQL_SEEDS: mysql
+      BIND_ON_IP: 0.0.0.0
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    volumes:
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/temporal/development-sql.yaml:/etc/temporal/config/dynamicconfig/development-sql.yaml:ro"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "7233"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  temporal-namespace:
+    image: temporalio/admin-tools:1.31.0
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: ingate
+    volumes:
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/temporal/create-namespace.sh:/scripts/create-namespace.sh:ro"
+    entrypoint: ["/bin/sh"]
+    command: /scripts/create-namespace.sh
+    restart: "no"
+
   kafka:
     image: apache/kafka:4.0.2
     restart: unless-stopped
@@ -296,36 +351,25 @@ services:
       retries: 20
       start_period: 10s
 
-  assistant-migrate:
-    image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-assistant:${INGATE_VERSION:-latest}"
-    command: ["--config", "/opt/ingate/assistant/configs/config.yaml", "--migrate"]
-    depends_on:
-      mysql:
-        condition: service_healthy
-    environment:
-      INGATE_MYSQL_PASSWORD: "${INGATE_MYSQL_PASSWORD:-ingate-dev}"
-    volumes:
-      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-assistant.yaml:/opt/ingate/assistant/configs/config.yaml:ro"
-    restart: "no"
-
   assistant:
     image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-assistant:${INGATE_VERSION:-latest}"
     restart: unless-stopped
+    command: ["--config", "/opt/ingate/assistant/configs/config.yaml", "--role", "all"]
     depends_on:
       mysql:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      assistant-migrate:
+      temporal-namespace:
         condition: service_completed_successfully
-      admin-api:
-        condition: service_healthy
     environment:
       INGATE_MYSQL_PASSWORD: "${INGATE_MYSQL_PASSWORD:-ingate-dev}"
+      INGATE_ASSISTANT_MODEL_HEALTH_URL: "${INGATE_ASSISTANT_MODEL_HEALTH_URL:-http://host.docker.internal:11434/api/version}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-assistant.yaml:/opt/ingate/assistant/configs/config.yaml:ro"
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8003/readyz"]
+      # Assistant 是可选能力；容器存活不代表模型等外部依赖已经就绪。
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8003/healthz"]
       interval: 5s
       timeout: 3s
       retries: 20

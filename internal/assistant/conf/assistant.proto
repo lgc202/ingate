@@ -10,36 +10,34 @@ option go_package = "github.com/lgc202/ingate/internal/assistant/conf;conf";
 message Bootstrap {
   // server 定义 HTTP 入口和进程退出期限。
   Server server = 1;
-  // data 定义持久存储和短期事件存储。
+  // data 定义运维助手的持久存储。
   Data data = 2;
-  // stream 定义 SSE 事件的保留与读取行为。
-  Stream stream = 3;
+  // temporal 定义工作流服务和 Worker 行为。
+  Temporal temporal = 3;
+  // model 定义模型服务的可用性检查端点。
+  Model model = 4;
   // logging 定义结构化日志行为。
-  Logging logging = 4;
-  // worker 定义后台 Agent 执行槽和租约。
-  Worker worker = 5;
-  // admin_api 定义查询工具和已审批变更访问的内部管理接口。
-  AdminAPI admin_api = 6;
+  Logging logging = 5;
 }
 
 // Server 定义 Assistant HTTP 服务和进程退出行为。
 message Server {
-  // HTTP 定义 Assistant 唯一的网络入口。
+  // HTTP 定义 Assistant 的网络入口。
   message HTTP {
     // addr 是 HTTP 监听地址。
     string addr = 1;
-    // readiness_timeout 是一次依赖就绪检查的最长等待时间。
+    // readiness_timeout 是一次完整就绪检查的最长等待时间。
     google.protobuf.Duration readiness_timeout = 2;
   }
   // http 是 Assistant HTTP 服务配置。
   HTTP http = 1;
-  // shutdown_timeout 是等待在途请求和后台执行槽结束的最长时间。
+  // shutdown_timeout 是等待 HTTP 和 Worker 安全退出的最长时间。
   google.protobuf.Duration shutdown_timeout = 2;
 }
 
-// Data 定义 Assistant 使用的持久化和短期事件基础设施。
+// Data 定义 Assistant 使用的持久化基础设施。
 message Data {
-  // MySQL 保存会话、消息、执行、步骤和模型连接。
+  // MySQL 保存后续运维助手功能产生的持久状态。
   message MySQL {
     // address 是 MySQL TCP 地址。
     string address = 1;
@@ -58,56 +56,30 @@ message Data {
     // connection_max_lifetime 限制连接复用时长。
     google.protobuf.Duration connection_max_lifetime = 8;
   }
-  // Redis 保存可过期、可重放的 SSE 增量事件。
-  message Redis {
-    // address 是 Redis TCP 地址。
-    string address = 1;
-    // password 是 Redis 密码，应通过环境变量注入。
-    string password = 2;
-    // database 是单机 Redis 的逻辑数据库编号。
-    int32 database = 3;
-    // dial_timeout 是建立 Redis 连接的最长等待时间。
-    google.protobuf.Duration dial_timeout = 4;
-    // read_timeout 是普通 Redis 命令的读取超时；阻塞读取使用 read_block。
-    google.protobuf.Duration read_timeout = 5;
-    // write_timeout 是 Redis 命令的写入超时。
-    google.protobuf.Duration write_timeout = 6;
-    // pool_size 限制 Redis 连接池大小。
-    uint32 pool_size = 7;
-  }
   // mysql 是 Assistant 的持久化事实来源。
   MySQL mysql = 1;
-  // redis 只承载短期流式通知，不决定执行终态。
-  Redis redis = 2;
 }
 
-// Stream 定义单次执行事件流的保留和阻塞读取策略。
-message Stream {
-  // retention 是一条执行事件流的保留时间。
-  google.protobuf.Duration retention = 1;
-  // max_events 是一条执行流最多保留的近期事件数。
-  uint32 max_events = 2;
-  // read_block 是无新事件时单次 Redis 阻塞读取的最长时间。
-  google.protobuf.Duration read_block = 3;
+// Temporal 定义 Assistant 的工作流连接与 Worker 生命周期。
+message Temporal {
+  // address 是 Temporal Frontend gRPC 地址。
+  string address = 1;
+  // namespace 隔离 Ingate 的工作流。
+  string namespace = 2;
+  // task_queue 是当前 Assistant Worker 轮询的任务队列。
+  string task_queue = 3;
+  // connect_timeout 是启动时连接 Temporal 的最长等待时间。
+  google.protobuf.Duration connect_timeout = 4;
+  // worker_stop_timeout 是 Worker 等待在途任务安全结束的最长时间。
+  google.protobuf.Duration worker_stop_timeout = 5;
 }
 
-// Worker 定义后台 Agent 执行的进程内并发度、领取频率和实例租约。
-// 同一会话仍由业务规则保证串行；不同会话可以由多个执行槽并发处理。
-message Worker {
-  // concurrency 是当前进程固定创建的执行槽数量。
-  uint32 concurrency = 1;
-  // poll_interval 是空闲执行槽再次领取任务前的等待时间。
-  google.protobuf.Duration poll_interval = 2;
-  // lease_duration 是一个执行槽失联后允许恢复器收敛任务的期限。
-  google.protobuf.Duration lease_duration = 3;
-}
-
-// AdminAPI 定义助手查询资源和执行已审批变更时使用的内部 gRPC 地址。
-message AdminAPI {
-  // addr 是 Admin API 内部 gRPC 地址。
-  string addr = 1;
-  // timeout 是一次查询或已审批写操作的最长等待时间。
-  google.protobuf.Duration timeout = 2;
+// Model 定义 Assistant 启动后检查的模型服务端点。
+message Model {
+  // health_url 是不携带凭据且不产生模型调用的 HTTP 健康地址。
+  string health_url = 1;
+  // health_timeout 是单次模型健康请求的最长等待时间。
+  google.protobuf.Duration health_timeout = 2;
 }
 
 // Logging 定义 Assistant 的结构化日志格式与级别。

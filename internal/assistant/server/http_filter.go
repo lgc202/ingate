@@ -11,10 +11,7 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
-// Assistant 的单条消息最多 64 KiB；1 MiB 为 Proto JSON 和后续字段保留充足余量。
-const maxRequestBodyBytes int64 = 1 << 20
-
-// responseState 让恢复逻辑知道响应是否已经开始，同时保留 SSE 需要的 Flush 能力。
+// responseState 让恢复逻辑知道响应是否已经开始。
 type responseState struct {
 	http.ResponseWriter
 	wroteHeader bool
@@ -33,17 +30,6 @@ func (w *responseState) Write(data []byte) (int, error) {
 		w.WriteHeader(http.StatusOK)
 	}
 	return w.ResponseWriter.Write(data)
-}
-
-func (w *responseState) Flush() {
-	if !w.wroteHeader {
-		w.WriteHeader(http.StatusOK)
-	}
-	_ = http.NewResponseController(w.ResponseWriter).Flush()
-}
-
-func (w *responseState) Unwrap() http.ResponseWriter {
-	return w.ResponseWriter
 }
 
 func requestIDFilter() kratoshttp.FilterFunc {
@@ -65,16 +51,7 @@ func responseNoStoreFilter() kratoshttp.FilterFunc {
 	}
 }
 
-func requestBodyLimitFilter() kratoshttp.FilterFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-			request.Body = http.MaxBytesReader(response, request.Body, maxRequestBodyBytes)
-			next.ServeHTTP(response, request)
-		})
-	}
-}
-
-// recoveryFilter 覆盖普通 API 和自定义 SSE 路由，且不会像 Kratos 默认实现一样记录请求内容。
+// recoveryFilter 只记录最小请求字段，不记录 Header 或响应内容。
 func recoveryFilter(logger *slog.Logger) kratoshttp.FilterFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
@@ -87,7 +64,6 @@ func recoveryFilter(logger *slog.Logger) kratoshttp.FilterFunc {
 						"path", request.URL.Path,
 						"stack", string(debug.Stack()),
 					)
-					// SSE 已经发送响应头后不能再编码一份 HTTP 错误，只能结束连接。
 					if !state.wroteHeader {
 						kratoshttp.DefaultErrorEncoder(state, request,
 							kerrors.InternalServer("PANIC", "request failed"))

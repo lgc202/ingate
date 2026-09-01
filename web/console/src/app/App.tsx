@@ -23,8 +23,6 @@ const TrafficAnalysisPage = lazy(() => import('@/features/traffic/TrafficAnalysi
   .then((module) => ({ default: module.TrafficAnalysisPage })));
 const AIUsagePage = lazy(() => import('@/features/aiusage/AIUsagePage')
   .then((module) => ({ default: module.AIUsagePage })));
-const AssistantPage = lazy(() => import('@/features/assistant/AssistantPage')
-  .then((module) => ({ default: module.AssistantPage })));
 
 export default function App() {
   return (
@@ -42,7 +40,6 @@ export default function App() {
           <Route path="requests" element={<RequestRecordPage />} />
           <Route path="analysis" element={<TrafficAnalysisPage />} />
           <Route path="ai-usage" element={<AIUsagePage />} />
-          <Route path="assistant" element={<AssistantPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/gateways" replace />} />
       </Routes>

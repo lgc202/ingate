@@ -68,8 +68,8 @@ docker compose logs -f ingate-controller
 备份会短暂停止写入，归档当前 Release 文件、`.env` 和 Ingate 持久化 Volume，再恢复原运行状态。备份包含管理凭据和内部密钥，脚本会将归档权限限制为当前用户可读。归档覆盖：
 
 - etcd 声明式资源与证书
-- MySQL 中的 Assistant 会话、执行记录和模型连接
-- Redis 当前限流、额度计数和 Assistant 短期流式事件
+- MySQL 数据卷中的 Assistant 预留持久状态与 Temporal 工作流数据
+- Redis 当前限流和额度计数
 - Kafka 待消费消息
 - ClickHouse 请求明细与聚合
 - ALS 本地 WAL

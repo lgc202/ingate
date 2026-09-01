@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package ingate.assistant.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/lgc202/ingate/api/assistant/v1;v1";
+
+// SystemService 提供运维助手自身的运行状态。
+service SystemService {
+  // GetReadiness 返回进程及其必需依赖的当前就绪状态。
+  rpc GetReadiness(google.protobuf.Empty) returns (Readiness) {
+    option (google.api.http) = {get: "/assistant/v1/system/readiness"};
+  }
+}
+
+// ReadinessStatus 表示一个组件能否承载运维助手请求。
+enum ReadinessStatus {
+  // READINESS_STATUS_UNSPECIFIED 不用于服务端返回。
+  READINESS_STATUS_UNSPECIFIED = 0;
+  // READINESS_STATUS_READY 表示组件当前可用。
+  READINESS_STATUS_READY = 1;
+  // READINESS_STATUS_UNAVAILABLE 表示组件当前不可用。
+  READINESS_STATUS_UNAVAILABLE = 2;
+}
+
+// ComponentReadiness 表示单个必需组件的就绪状态。
+message ComponentReadiness {
+  // name 是稳定的组件名称。
+  string name = 1;
+  // status 是组件当前状态。
+  ReadinessStatus status = 2;
+}
+
+// Readiness 汇总运维助手及所有必需组件的状态。
+message Readiness {
+  // status 只有在所有必需组件可用时才为 ready。
+  ReadinessStatus status = 1;
+  // components 按稳定顺序列出每个必需组件。
+  repeated ComponentReadiness components = 2;
+}

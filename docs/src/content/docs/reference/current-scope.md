@@ -16,13 +16,14 @@ Ingate 当前已经形成普通 API 与 AI 模型调用的最小完整链路。�
 - 请求响应 Header 转换与模拟响应插件
 - 插件源、安装、升级、依赖检查和卸载
 - 请求记录、流量趋势、资源排行和 AI Token 用量
-- 运维助手查询诊断、Gateway 与普通 HTTP Service 创建审批、在线模型连接、对话持久化和流式执行恢复
+- 运维助手单进程 HTTP 与 Temporal Worker 后端骨架和逐依赖就绪状态 API
 - 声明式 CRUD、List/Watch、版本、Status 和 xDS 发布
 - Docker Compose 安装、升级、备份、恢复和卸载
 
 ## 当前不做
 
-- 资源更新与删除、Route 与模型 Service 创建、复杂审批、用户自定义 MCP 工具、多 Agent 编排和定时自动化
+- 运维助手对话、诊断、审批、自动执行、用户自定义 MCP 工具、多 Agent 编排和定时自动化
+- 资源更新与删除、Route 与模型 Service 创建
 - Prompt 管理、知识库、数据集和模型训练
 - 请求 Header、查询参数和正文的持久化或流量回放
 - Kubernetes CRD、Helm Chart 和多数据平面适配

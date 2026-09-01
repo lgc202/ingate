@@ -1,75 +1,50 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"time"
 
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
 	assistantv1 "github.com/lgc202/ingate/api/assistant/v1"
+	systembiz "github.com/lgc202/ingate/internal/assistant/biz/system"
 	"github.com/lgc202/ingate/internal/assistant/conf"
-	changeservice "github.com/lgc202/ingate/internal/assistant/service/change"
-	conversationservice "github.com/lgc202/ingate/internal/assistant/service/conversation"
-	executionservice "github.com/lgc202/ingate/internal/assistant/service/execution"
-	modelconfigservice "github.com/lgc202/ingate/internal/assistant/service/modelconfig"
+	systemservice "github.com/lgc202/ingate/internal/assistant/service/system"
 )
 
-// DatabasePinger 定义就绪检查所需的持久存储连通性。
-type DatabasePinger interface {
-	Ping(context.Context) error
-}
-
-// EventStorePinger 定义就绪检查所需的事件存储连通性。
-type EventStorePinger interface {
-	Ping(context.Context) error
-}
-
-type pinger interface {
-	Ping(context.Context) error
-}
-
 type readinessHandler struct {
-	timeout      time.Duration
-	dependencies []pinger
+	usecase *systembiz.Usecase
 }
 
-// NewHTTPServer 创建会话 API、SSE 事件流与健康检查服务。
+type readinessResponse struct {
+	Status     string              `json:"status"`
+	Components []componentResponse `json:"components"`
+}
+
+type componentResponse struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
+// NewHTTPServer 创建系统状态 API、存活探针与就绪探针。
 func NewHTTPServer(
 	config *conf.Server,
-	conversationAPI *conversationservice.Service,
-	changeAPI *changeservice.Service,
-	executionAPI *executionservice.Service,
-	modelAPI *modelconfigservice.Service,
-	streamHandler *StreamHandler,
-	database DatabasePinger,
-	eventStore EventStorePinger,
+	systemAPI *systemservice.Service,
+	readiness *systembiz.Usecase,
 	logger *slog.Logger,
 ) *kratoshttp.Server {
 	httpConfig := config.GetHttp()
 	server := kratoshttp.NewServer(
 		kratoshttp.Network("tcp"),
 		kratoshttp.Address(httpConfig.GetAddr()),
-		// SSE 连接由请求取消和 Stream.read_block 控制，不能套用普通 HTTP 全局超时。
-		kratoshttp.Timeout(0),
-		kratoshttp.Filter(requestIDFilter(), responseNoStoreFilter(), requestBodyLimitFilter(), recoveryFilter(logger)),
-		kratoshttp.Middleware(httpMiddleware(logger)...),
-		kratoshttp.RequestDecoder(requestDecoder),
+		kratoshttp.Filter(requestIDFilter(), responseNoStoreFilter(), recoveryFilter(logger)),
 		kratoshttp.ResponseEncoder(responseEncoder),
 	)
-	assistantv1.RegisterConversationServiceHTTPServer(server, conversationAPI)
-	assistantv1.RegisterAgentExecutionServiceHTTPServer(server, executionAPI)
-	assistantv1.RegisterProposedChangeServiceHTTPServer(server, changeAPI)
-	assistantv1.RegisterModelConnectionServiceHTTPServer(server, modelAPI)
-	streamHandler.register(server)
-	readiness := readinessHandler{
-		timeout:      httpConfig.GetReadinessTimeout().AsDuration(),
-		dependencies: []pinger{database, eventStore},
-	}
+	assistantv1.RegisterSystemServiceHTTPServer(server, systemAPI)
+	handler := readinessHandler{usecase: readiness}
 	server.HandleFunc("/healthz", live)
-	server.HandleFunc("/readyz", readiness.ready)
+	server.HandleFunc("/readyz", handler.ready)
 	return server
 }
 
@@ -77,16 +52,30 @@ func live(response http.ResponseWriter, _ *http.Request) {
 	writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (h *readinessHandler) ready(response http.ResponseWriter, request *http.Request) {
-	ctx, cancel := context.WithTimeout(request.Context(), h.timeout)
-	defer cancel()
-	for _, dependency := range h.dependencies {
-		if err := dependency.Ping(ctx); err != nil {
-			writeJSON(response, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
-			return
-		}
+func (h readinessHandler) ready(response http.ResponseWriter, request *http.Request) {
+	report := h.usecase.Check(request.Context())
+	statusCode := http.StatusOK
+	if report.Status != systembiz.StatusReady {
+		statusCode = http.StatusServiceUnavailable
 	}
-	writeJSON(response, http.StatusOK, map[string]string{"status": "ready"})
+	components := make([]componentResponse, 0, len(report.Components))
+	for _, component := range report.Components {
+		components = append(components, componentResponse{
+			Name:   component.Name,
+			Status: statusText(component.Status),
+		})
+	}
+	writeJSON(response, statusCode, readinessResponse{
+		Status:     statusText(report.Status),
+		Components: components,
+	})
+}
+
+func statusText(status systembiz.Status) string {
+	if status == systembiz.StatusReady {
+		return "ready"
+	}
+	return "unavailable"
 }
 
 func writeJSON(response http.ResponseWriter, statusCode int, value any) {

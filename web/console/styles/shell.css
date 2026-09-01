@@ -58,13 +58,6 @@
 .is-collapsed .session-user { display: flex; justify-content: center; }
 
 .console-workspace { min-width: 0; min-height: 100vh; }
-.console-workspace.is-assistant {
-  height: 100dvh;
-  min-height: 0;
-  display: grid;
-  grid-template-rows: 64px minmax(0, 1fr);
-  overflow: hidden;
-}
 .workspace-header { position: sticky; top: 0; z-index: 30; height: 64px; padding: 0 30px; display: flex; align-items: center; justify-content: space-between; gap: 20px; background: rgba(250,249,246,0.9); border-bottom: 1px solid #dfded8; backdrop-filter: blur(16px); }
 .breadcrumb { display: flex; align-items: center; gap: 7px; color: #8b8e96; font-size: 0.8rem; }
 .breadcrumb svg { width: 13px; height: 13px; color: #b0b2b8; }
@@ -76,15 +69,6 @@
 .header-icon svg { width: 16px; }
 .header-icon i { position: absolute; top: 7px; right: 8px; width: 6px; height: 6px; border: 2px solid #fff; border-radius: 50%; background: var(--orange); }
 .workspace-content { padding: 28px 30px 50px; }
-.console-workspace.is-assistant .workspace-content {
-  min-height: 0;
-  overflow: hidden;
-}
-.console-workspace.is-assistant .content-grid {
-  height: 100%;
-  min-height: 0;
-  grid-template-rows: auto minmax(0, 1fr);
-}
 .workspace-content .content-grid { gap: 18px; }
 .workspace-content .topbar { min-height: 52px; padding-bottom: 14px; border-color: #deddd8; }
 .workspace-content .page-title { font-size: 1.48rem; }

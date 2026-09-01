@@ -4,16 +4,10 @@ package conf
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
-	"time"
 
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
-)
-
-const (
-	maxWorkerConcurrency   = 256
-	minWorkerPollInterval  = 100 * time.Millisecond
-	minWorkerLeaseDuration = 3 * time.Second
 )
 
 // Validate 校验 Assistant 进程启动所需的配置。
@@ -22,87 +16,84 @@ func (c *Bootstrap) Validate() error {
 	if server == nil || server.GetHttp() == nil {
 		return errors.New("server HTTP config is required")
 	}
-	httpServer := server.GetHttp()
-	if strings.TrimSpace(httpServer.GetAddr()) == "" {
+	if strings.TrimSpace(server.GetHttp().GetAddr()) == "" {
 		return errors.New("server HTTP address must not be empty")
 	}
-	if httpServer.GetReadinessTimeout() == nil || httpServer.GetReadinessTimeout().AsDuration() <= 0 {
+	if server.GetHttp().GetReadinessTimeout() == nil ||
+		server.GetHttp().GetReadinessTimeout().AsDuration() <= 0 {
 		return errors.New("server HTTP readiness timeout must be greater than zero")
 	}
 	if server.GetShutdownTimeout() == nil || server.GetShutdownTimeout().AsDuration() <= 0 {
 		return errors.New("server shutdown timeout must be greater than zero")
 	}
-	if err := validateData(c.GetData()); err != nil {
-		return err
+	if err := validateMySQL(c.GetData()); err != nil {
+		return fmt.Errorf("validate MySQL config: %w", err)
 	}
-	stream := c.GetStream()
-	if stream == nil || stream.GetRetention() == nil || stream.GetMaxEvents() == 0 ||
-		stream.GetRetention().AsDuration() <= 0 {
-		return errors.New("stream retention and max events must be greater than zero")
+	if err := validateTemporal(c.GetTemporal(), server); err != nil {
+		return fmt.Errorf("validate Temporal config: %w", err)
 	}
-	if stream.GetReadBlock() == nil || stream.GetReadBlock().AsDuration() <= 0 {
-		return errors.New("stream read block must be greater than zero")
+	if err := validateModel(c.GetModel()); err != nil {
+		return fmt.Errorf("validate model config: %w", err)
 	}
-	worker := c.GetWorker()
-	if worker == nil || worker.GetConcurrency() == 0 ||
-		worker.GetConcurrency() > maxWorkerConcurrency {
-		return fmt.Errorf(
-			"worker concurrency must be between 1 and %d",
-			maxWorkerConcurrency,
-		)
-	}
-	if worker.GetPollInterval() == nil ||
-		worker.GetPollInterval().AsDuration() < minWorkerPollInterval {
-		return fmt.Errorf("worker poll interval must be at least %s", minWorkerPollInterval)
-	}
-	if worker.GetLeaseDuration() == nil ||
-		worker.GetLeaseDuration().AsDuration() < minWorkerLeaseDuration {
-		return fmt.Errorf("worker lease duration must be at least %s", minWorkerLeaseDuration)
-	}
-	adminAPI := c.GetAdminApi()
-	if adminAPI == nil || strings.TrimSpace(adminAPI.GetAddr()) == "" {
-		return errors.New("admin API gRPC address is required")
-	}
-	if adminAPI.GetTimeout() == nil || adminAPI.GetTimeout().AsDuration() <= 0 {
-		return errors.New("admin API timeout must be greater than zero")
-	}
-	logging := c.GetLogging()
-	if logging == nil {
+	if c.GetLogging() == nil {
 		return errors.New("logging config is required")
 	}
-	return appconfig.ValidateLogging(logging)
+	return appconfig.ValidateLogging(c.GetLogging())
 }
 
-func validateData(config *Data) error {
-	if config == nil || config.GetMysql() == nil || config.GetRedis() == nil {
-		return errors.New("MySQL and Redis config are required")
+func validateMySQL(data *Data) error {
+	if data == nil || data.GetMysql() == nil {
+		return errors.New("MySQL config is required")
 	}
-	mysql := config.GetMysql()
+	mysql := data.GetMysql()
 	if strings.TrimSpace(mysql.GetAddress()) == "" ||
 		strings.TrimSpace(mysql.GetDatabase()) == "" ||
 		strings.TrimSpace(mysql.GetUsername()) == "" {
 		return errors.New("MySQL address, database and username are required")
 	}
-	if mysql.GetDialTimeout() == nil ||
-		mysql.GetDialTimeout().AsDuration() <= 0 ||
+	if mysql.GetDialTimeout() == nil || mysql.GetDialTimeout().AsDuration() <= 0 ||
 		mysql.GetMaxOpenConnections() == 0 {
 		return errors.New("MySQL timeout and max open connections must be greater than zero")
 	}
 	if mysql.GetMaxIdleConnections() > mysql.GetMaxOpenConnections() {
 		return errors.New("MySQL max idle connections must not exceed max open connections")
 	}
-	if mysql.GetConnectionMaxLifetime() == nil || mysql.GetConnectionMaxLifetime().AsDuration() <= 0 {
+	if mysql.GetConnectionMaxLifetime() == nil ||
+		mysql.GetConnectionMaxLifetime().AsDuration() <= 0 {
 		return errors.New("MySQL connection max lifetime must be greater than zero")
 	}
-	redis := config.GetRedis()
-	if strings.TrimSpace(redis.GetAddress()) == "" || redis.GetDatabase() < 0 {
-		return errors.New("redis address is required and database must not be negative")
+	return nil
+}
+
+func validateTemporal(config *Temporal, server *Server) error {
+	if config == nil || strings.TrimSpace(config.GetAddress()) == "" ||
+		strings.TrimSpace(config.GetNamespace()) == "" ||
+		strings.TrimSpace(config.GetTaskQueue()) == "" {
+		return errors.New("Temporal address, namespace and task queue are required")
 	}
-	if redis.GetDialTimeout() == nil || redis.GetDialTimeout().AsDuration() <= 0 ||
-		redis.GetReadTimeout() == nil || redis.GetReadTimeout().AsDuration() <= 0 ||
-		redis.GetWriteTimeout() == nil || redis.GetWriteTimeout().AsDuration() <= 0 ||
-		redis.GetPoolSize() == 0 {
-		return errors.New("redis timeouts and pool size must be greater than zero")
+	if config.GetConnectTimeout() == nil || config.GetConnectTimeout().AsDuration() <= 0 {
+		return errors.New("Temporal connect timeout must be greater than zero")
+	}
+	if config.GetWorkerStopTimeout() == nil || config.GetWorkerStopTimeout().AsDuration() <= 0 {
+		return errors.New("Temporal worker stop timeout must be greater than zero")
+	}
+	if config.GetWorkerStopTimeout().AsDuration() >= server.GetShutdownTimeout().AsDuration() {
+		return errors.New("Temporal worker stop timeout must be shorter than server shutdown timeout")
+	}
+	return nil
+}
+
+func validateModel(config *Model) error {
+	if config == nil || strings.TrimSpace(config.GetHealthUrl()) == "" {
+		return errors.New("model health URL is required")
+	}
+	healthURL, err := url.Parse(config.GetHealthUrl())
+	if err != nil || healthURL.Host == "" ||
+		(healthURL.Scheme != "http" && healthURL.Scheme != "https") || healthURL.User != nil {
+		return errors.New("model health URL must be an HTTP or HTTPS URL without credentials")
+	}
+	if config.GetHealthTimeout() == nil || config.GetHealthTimeout().AsDuration() <= 0 {
+		return errors.New("model health timeout must be greater than zero")
 	}
 	return nil
 }

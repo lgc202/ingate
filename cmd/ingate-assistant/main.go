@@ -1,13 +1,10 @@
-// Command ingate-assistant 为控制台提供会话、模型执行与流式结果服务。
+// Command ingate-assistant 启动运维助手的 HTTP 服务与 Temporal Worker。
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/lgc202/ingate/internal/assistant"
 	"github.com/lgc202/ingate/internal/pkg/version"
@@ -16,6 +13,8 @@ import (
 )
 
 const defaultConfigFile = "configs/ingate-assistant.yaml"
+
+const roleAll = "all"
 
 func main() {
 	if err := run(); err != nil {
@@ -26,23 +25,15 @@ func main() {
 
 func run() error {
 	configFile := flag.String("config", defaultConfigFile, "configuration file")
-	migrateSchema := flag.Bool("migrate", false, "apply MySQL schema migrations and exit")
+	role := flag.String("role", roleAll, "process role (all)")
 	showVersion := flag.Bool("version", false, "print version")
 	flag.Parse()
 	if *showVersion {
 		_, err := fmt.Fprintln(os.Stdout, version.Text())
 		return err
 	}
-	if *migrateSchema {
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
-
-		applied, err := assistant.Migrate(ctx, *configFile)
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Fprintf(os.Stdout, "applied %d MySQL migration(s)\n", applied)
-		return err
+	if *role != roleAll {
+		return fmt.Errorf("unsupported Assistant role %q; only %q is available", *role, roleAll)
 	}
 	app, err := assistant.NewApp(*configFile)
 	if err != nil {
