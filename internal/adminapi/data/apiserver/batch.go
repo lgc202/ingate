@@ -17,8 +17,8 @@ const maxConcurrentResourceReads = 8
 func listByIDs[T any](
 	ctx context.Context,
 	resourceIDs []string,
-	get func(context.Context, string) (*T, error),
-) (map[string]*T, error) {
+	get func(context.Context, string) (T, error),
+) (map[string]T, error) {
 	uniqueIDs := make([]string, 0, len(resourceIDs))
 	seenIDs := make(map[string]bool, len(resourceIDs))
 	for _, resourceID := range resourceIDs {
@@ -29,7 +29,8 @@ func listByIDs[T any](
 		uniqueIDs = append(uniqueIDs, resourceID)
 	}
 
-	resources := make([]*T, len(uniqueIDs))
+	resources := make([]T, len(uniqueIDs))
+	found := make([]bool, len(uniqueIDs))
 	group, lookupCtx := errgroup.WithContext(ctx)
 	group.SetLimit(maxConcurrentResourceReads)
 	for i, resourceID := range uniqueIDs {
@@ -42,6 +43,7 @@ func listByIDs[T any](
 				return err
 			}
 			resources[i] = resource
+			found[i] = true
 			return nil
 		})
 	}
@@ -49,9 +51,9 @@ func listByIDs[T any](
 		return nil, err
 	}
 
-	result := make(map[string]*T, len(resources))
+	result := make(map[string]T, len(resources))
 	for i, resource := range resources {
-		if resource != nil {
+		if found[i] {
 			result[uniqueIDs[i]] = resource
 		}
 	}
