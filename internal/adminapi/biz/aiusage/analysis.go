@@ -1,16 +1,20 @@
 package aiusage
 
-import "time"
+import (
+	"time"
+
+	"github.com/lgc202/ingate/internal/adminapi/biz"
+)
 
 const (
 	// TimeBucketMinute 表示每分钟一个趋势点。
-	TimeBucketMinute TimeBucket = iota + 1
+	TimeBucketMinute TimeBucket = TimeBucket(biz.TimeBucketMinute)
 	// TimeBucketFiveMinutes 表示每五分钟一个趋势点。
-	TimeBucketFiveMinutes
+	TimeBucketFiveMinutes = TimeBucket(biz.TimeBucketFiveMinutes)
 	// TimeBucketHour 表示每小时一个趋势点。
-	TimeBucketHour
+	TimeBucketHour = TimeBucket(biz.TimeBucketHour)
 	// TimeBucketDay 表示每天一个趋势点。
-	TimeBucketDay
+	TimeBucketDay = TimeBucket(biz.TimeBucketDay)
 )
 
 const (
@@ -34,7 +38,7 @@ const (
 )
 
 // TimeBucket 是模型用量趋势查询使用的时间粒度。
-type TimeBucket uint8
+type TimeBucket biz.TimeBucket
 
 // Dimension 是模型用量排名支持的业务维度。
 type Dimension uint8

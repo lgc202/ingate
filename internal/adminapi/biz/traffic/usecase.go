@@ -3,11 +3,11 @@ package traffic
 
 import (
 	"context"
-	"time"
 
 	"github.com/go-kratos/kratos/v3/errors"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
+	"github.com/lgc202/ingate/internal/adminapi/biz"
 )
 
 const defaultBreakdownLimit = 10
@@ -45,7 +45,7 @@ func (uc *Usecase) Analyze(ctx context.Context, query Query) (Analysis, error) {
 	if query.Order == 0 {
 		query.Order = BreakdownOrderRequestCount
 	}
-	query.Bucket = bucketForRange(query.Filter.EndTime.Sub(query.Filter.StartTime))
+	query.Bucket = TimeBucket(biz.TimeBucketForRange(query.Filter.EndTime.Sub(query.Filter.StartTime)))
 	return uc.analyzer.Analyze(ctx, query)
 }
 
@@ -60,18 +60,4 @@ func (uc *Usecase) BatchGetResourceTraffic(
 // Unavailable 保留 Analytics 返回的底层原因，同时向控制台暴露稳定错误语义。
 func Unavailable(cause error) error {
 	return ErrUnavailable.WithCause(cause)
-}
-
-func bucketForRange(duration time.Duration) TimeBucket {
-	// 短时间范围保留细节，长时间范围限制趋势点数量。
-	switch {
-	case duration <= 2*time.Hour:
-		return TimeBucketMinute
-	case duration <= 24*time.Hour:
-		return TimeBucketFiveMinutes
-	case duration <= 7*24*time.Hour:
-		return TimeBucketHour
-	default:
-		return TimeBucketDay
-	}
 }
