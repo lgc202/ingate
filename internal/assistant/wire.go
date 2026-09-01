@@ -15,7 +15,6 @@ import (
 	"github.com/lgc202/ingate/internal/assistant/data"
 	"github.com/lgc202/ingate/internal/assistant/server"
 	"github.com/lgc202/ingate/internal/assistant/service"
-	assistantworker "github.com/lgc202/ingate/internal/assistant/worker"
 )
 
 func wireApp(
@@ -32,8 +31,7 @@ func wireApp(
 		biz.ProviderSet,
 		service.ProviderSet,
 		server.ProviderSet,
-		assistantworker.ProviderSet,
-		wire.Bind(new(system.WorkerChecker), new(*assistantworker.Server)),
+		wire.Bind(new(system.WorkerChecker), new(*server.Worker)),
 		newKratosApp,
 	))
 }

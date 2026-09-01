@@ -15,7 +15,6 @@ import (
 	"github.com/lgc202/ingate/internal/assistant/data/modelendpoint"
 	"github.com/lgc202/ingate/internal/assistant/server"
 	system2 "github.com/lgc202/ingate/internal/assistant/service/system"
-	"github.com/lgc202/ingate/internal/assistant/worker"
 	"log/slog"
 )
 
@@ -33,11 +32,11 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL
 	}
 	endpoint := modelendpoint.New(model)
 	clientClient := data.NewTemporalSDKClient(client)
-	workerServer := worker.NewServer(temporal, clientClient, logger)
-	usecase := system.NewUsecase(confServer, database, client, endpoint, workerServer)
+	worker := server.NewWorker(temporal, clientClient, logger)
+	usecase := system.NewUsecase(confServer, database, client, endpoint, worker)
 	service := system2.NewService(usecase)
 	httpServer := server.NewHTTPServer(confServer, service, usecase, logger)
-	app := newKratosApp(logger, confServer, httpServer, workerServer, assistantServiceInstanceID)
+	app := newKratosApp(logger, confServer, httpServer, worker, assistantServiceInstanceID)
 	return app, func() {
 		cleanup2()
 		cleanup()

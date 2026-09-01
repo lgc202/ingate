@@ -148,7 +148,6 @@ internal/assistant/
   agent/
   tool/
   knowledge/
-  worker/
 web/console/src/features/assistant/
 ```
 
@@ -201,7 +200,7 @@ Workflow 代码必须保持 Temporal 可重放确定性。版本升级使用 Tem
 
 ### 3.5 Worker 与 Activity
 
-Worker 注册明确命名且有独立重试策略的 Activity：
+`server/worker.go` 只负责把 Temporal Worker 接入 Kratos 生命周期；Workflow 和 Activity 不属于 server。Worker 注册明确命名且有独立重试策略的 Activity：
 
 - `PersistTaskEvent`
 - `RunAgent`
