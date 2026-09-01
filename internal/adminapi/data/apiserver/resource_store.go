@@ -23,46 +23,48 @@ type resourceObject[T any] interface {
 }
 
 // resourceClient 是声明式资源 Store 使用的 Kubernetes typed client 能力。
-type resourceClient[T any] interface {
-	Create(ctx context.Context, object T, options metav1.CreateOptions) (T, error)
-	Get(ctx context.Context, name string, options metav1.GetOptions) (T, error)
-	Update(ctx context.Context, object T, options metav1.UpdateOptions) (T, error)
+type resourceClient[Object, List any] interface {
+	Create(ctx context.Context, object Object, options metav1.CreateOptions) (Object, error)
+	Get(ctx context.Context, name string, options metav1.GetOptions) (Object, error)
+	List(ctx context.Context, options metav1.ListOptions) (List, error)
+	Update(ctx context.Context, object Object, options metav1.UpdateOptions) (Object, error)
 	Delete(ctx context.Context, name string, options metav1.DeleteOptions) error
 }
 
 // resourceStore 实现声明式资源 Store 共享的 CRUD 行为。
-type resourceStore[Item any, Object resourceObject[Object], Spec any] struct {
+type resourceStore[Item any, Object resourceObject[Object], List any, Spec any] struct {
 	kind      string
 	listKind  string
-	client    func() resourceClient[Object]
-	list      func(context.Context, metav1.ListOptions) ([]Item, string, error)
+	client    resourceClient[Object, List]
+	items     func(List) ([]Item, string)
 	newObject func(string, Spec) Object
 	setSpec   func(Object, Spec)
 }
 
 // ListPage 分页返回声明式资源。
-func (s *resourceStore[Item, Object, Spec]) ListPage(
+func (s *resourceStore[Item, Object, List, Spec]) ListPage(
 	ctx context.Context,
 	page biz.PageRequest,
 ) (biz.PageResult[Item], error) {
-	items, nextCursor, err := s.list(ctx, listOptions(page))
+	list, err := s.client.List(ctx, listOptions(page))
 	if err != nil {
 		return biz.PageResult[Item]{}, listError(s.listKind, err)
 	}
+	items, nextCursor := s.items(list)
 	return biz.PageResult[Item]{Items: items, NextCursor: nextCursor}, nil
 }
 
 // Get 返回指定声明式资源。
-func (s *resourceStore[Item, Object, Spec]) Get(
+func (s *resourceStore[Item, Object, List, Spec]) Get(
 	ctx context.Context,
 	resourceID string,
 ) (Object, error) {
-	object, err := s.client().Get(ctx, resourceID, metav1.GetOptions{})
+	object, err := s.client.Get(ctx, resourceID, metav1.GetOptions{})
 	return object, resourceError("get", s.kind, resourceID, err)
 }
 
 // ListByIDs 返回当前存在的指定声明式资源。
-func (s *resourceStore[Item, Object, Spec]) ListByIDs(
+func (s *resourceStore[Item, Object, List, Spec]) ListByIDs(
 	ctx context.Context,
 	resourceIDs []string,
 ) (map[string]Object, error) {
@@ -70,12 +72,12 @@ func (s *resourceStore[Item, Object, Spec]) ListByIDs(
 }
 
 // Create 创建声明式资源。
-func (s *resourceStore[Item, Object, Spec]) Create(
+func (s *resourceStore[Item, Object, List, Spec]) Create(
 	ctx context.Context,
 	resourceID string,
 	spec Spec,
 ) (Object, error) {
-	created, err := s.client().Create(
+	created, err := s.client.Create(
 		ctx,
 		s.newObject(resourceID, spec),
 		metav1.CreateOptions{},
@@ -84,15 +86,14 @@ func (s *resourceStore[Item, Object, Spec]) Create(
 }
 
 // ReplaceSpec 完整替换声明式资源配置。
-func (s *resourceStore[Item, Object, Spec]) ReplaceSpec(
+func (s *resourceStore[Item, Object, List, Spec]) ReplaceSpec(
 	ctx context.Context,
 	observed Object,
 	spec Spec,
 ) (Object, error) {
-	client := s.client()
 	return replaceResourceSpec(
 		ctx,
-		client,
+		s.client,
 		s.kind,
 		observed,
 		func(object Object) { s.setSpec(object, spec) },
@@ -100,26 +101,26 @@ func (s *resourceStore[Item, Object, Spec]) ReplaceSpec(
 }
 
 // Delete 删除声明式资源。
-func (s *resourceStore[Item, Object, Spec]) Delete(
+func (s *resourceStore[Item, Object, List, Spec]) Delete(
 	ctx context.Context,
 	observed Object,
 ) error {
-	return deleteResource(ctx, s.client(), s.kind, observed)
+	return deleteResource(ctx, s.client, s.kind, observed)
 }
 
-func newResourceStore[Item any, Object resourceObject[Object], Spec any](
+func newResourceStore[Item any, Object resourceObject[Object], List any, Spec any](
 	kind string,
 	listKind string,
-	client func() resourceClient[Object],
-	list func(context.Context, metav1.ListOptions) ([]Item, string, error),
+	client resourceClient[Object, List],
+	items func(List) ([]Item, string),
 	newObject func(string, Spec) Object,
 	setSpec func(Object, Spec),
-) *resourceStore[Item, Object, Spec] {
-	return &resourceStore[Item, Object, Spec]{
+) *resourceStore[Item, Object, List, Spec] {
+	return &resourceStore[Item, Object, List, Spec]{
 		kind:      kind,
 		listKind:  listKind,
 		client:    client,
-		list:      list,
+		items:     items,
 		newObject: newObject,
 		setSpec:   setSpec,
 	}
@@ -157,9 +158,9 @@ func resourceError(operation, kind, name string, err error) error {
 }
 
 // replaceResourceSpec 在资源身份和配置版本未变化时重试底层资源版本冲突。
-func replaceResourceSpec[T resourceObject[T]](
+func replaceResourceSpec[T resourceObject[T], List any](
 	ctx context.Context,
-	client resourceClient[T],
+	client resourceClient[T, List],
 	kind string,
 	observed T,
 	setSpec func(T),
@@ -194,9 +195,9 @@ func replaceResourceSpec[T resourceObject[T]](
 }
 
 // deleteResource 保持初次读取的资源身份，并使用最新底层资源版本执行条件删除。
-func deleteResource[T resourceObject[T]](
+func deleteResource[T resourceObject[T], List any](
 	ctx context.Context,
-	client resourceClient[T],
+	client resourceClient[T, List],
 	kind string,
 	observed T,
 ) error {
