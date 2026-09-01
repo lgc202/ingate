@@ -123,30 +123,43 @@ func newResource[T resourceObject[T]](resourceID string, kind resource.Kind, obj
 }
 
 func listError(resourceName string, err error) error {
+	if err == nil {
+		return nil
+	}
 	if apierrors.IsBadRequest(err) || apierrors.IsResourceExpired(err) {
 		return fmt.Errorf("%w: %w", biz.ErrInvalidCursor, err)
 	}
-	return resourceError("list", resourceName, "", err)
+	return fmt.Errorf("list %s: %w", resourceName, translateResourceError(err))
 }
 
 func resourceError(operation, resourceName, resourceID string, err error) error {
 	if err == nil {
 		return nil
 	}
+	return fmt.Errorf(
+		"%s %s %q: %w",
+		operation,
+		resourceName,
+		resourceID,
+		translateResourceError(err),
+	)
+}
+
+func translateResourceError(err error) error {
+	var domainErr error
 	switch {
 	case apierrors.IsNotFound(err):
-		err = fmt.Errorf("%w: %w", biz.ErrResourceNotFound, err)
+		domainErr = biz.ErrResourceNotFound
 	case apierrors.IsAlreadyExists(err):
-		err = fmt.Errorf("%w: %w", biz.ErrResourceAlreadyExists, err)
+		domainErr = biz.ErrResourceAlreadyExists
 	case apierrors.IsConflict(err):
-		err = fmt.Errorf("%w: %w", biz.ErrResourceVersionConflict, err)
+		domainErr = biz.ErrResourceVersionConflict
 	case apierrors.IsInvalid(err):
-		err = biz.NewInvalidResource(err)
+		return biz.NewInvalidResource(err)
+	default:
+		return err
 	}
-	if resourceID == "" {
-		return fmt.Errorf("%s %s: %w", operation, resourceName, err)
-	}
-	return fmt.Errorf("%s %s %q: %w", operation, resourceName, resourceID, err)
+	return fmt.Errorf("%w: %w", domainErr, err)
 }
 
 // replaceResourceSpec 在资源身份和配置版本未变化时重试底层资源版本冲突。
