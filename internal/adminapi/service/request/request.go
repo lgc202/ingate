@@ -15,26 +15,67 @@ import (
 const defaultPageSize = 50
 
 func listOptions(request *adminv1.ListRequestRecordsRequest) (requestbiz.ListOptions, error) {
-	startTime, err := requiredTimestamp(request.GetStartTime(), "请选择查询开始时间")
+	filter, err := listFilter(request)
 	if err != nil {
 		return requestbiz.ListOptions{}, err
+	}
+	pageSize := int(request.GetPageSize())
+	if pageSize == 0 {
+		pageSize = defaultPageSize
+	}
+	return requestbiz.ListOptions{
+		Filter:    filter,
+		PageSize:  pageSize,
+		PageToken: request.GetPageToken(),
+	}, nil
+}
+
+func listFilter(request *adminv1.ListRequestRecordsRequest) (requestbiz.Filter, error) {
+	startTime, err := requiredTimestamp(request.GetStartTime(), "请选择查询开始时间")
+	if err != nil {
+		return requestbiz.Filter{}, err
 	}
 	endTime, err := requiredTimestamp(request.GetEndTime(), "请选择查询结束时间")
 	if err != nil {
-		return requestbiz.ListOptions{}, err
+		return requestbiz.Filter{}, err
 	}
 	if !startTime.Before(endTime) {
-		return requestbiz.ListOptions{}, errors.BadRequest(
+		return requestbiz.Filter{}, errors.BadRequest(
 			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
 			"查询开始时间必须早于结束时间",
 		)
 	}
 	if !analyticsconfig.IsValidQueryRange(startTime, endTime) {
-		return requestbiz.ListOptions{}, errors.BadRequest(
+		return requestbiz.Filter{}, errors.BadRequest(
 			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
 			"单次最多查询 90 天请求记录",
 		)
 	}
+	if err := validateResourceFilters(request); err != nil {
+		return requestbiz.Filter{}, err
+	}
+	outcome := requestOutcome(request.GetOutcome())
+	statusCode, err := requestStatusCode(request, outcome)
+	if err != nil {
+		return requestbiz.Filter{}, err
+	}
+	return requestbiz.Filter{
+		StartTime:  startTime,
+		EndTime:    endTime,
+		GatewayID:  request.GetGatewayId(),
+		RouteID:    request.GetRouteId(),
+		ServiceID:  request.GetServiceId(),
+		RequestID:  request.GetRequestId(),
+		Method:     request.GetMethod(),
+		Host:       request.GetHost(),
+		PathPrefix: request.GetPathPrefix(),
+		Outcome:    outcome,
+		StatusCode: statusCode,
+		CallerID:   request.GetCallerId(),
+	}, nil
+}
+
+func validateResourceFilters(request *adminv1.ListRequestRecordsRequest) error {
 	for _, resourceID := range []string{
 		request.GetGatewayId(),
 		request.GetRouteId(),
@@ -42,55 +83,39 @@ func listOptions(request *adminv1.ListRequestRecordsRequest) (requestbiz.ListOpt
 		request.GetCallerId(),
 	} {
 		if resourceID != "" && !resourceconfig.IsCanonicalID(resourceID) {
-			return requestbiz.ListOptions{}, errors.BadRequest(
+			return errors.BadRequest(
 				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
 				"资源筛选条件无效",
 			)
 		}
 	}
-	pageSize := int(request.GetPageSize())
-	if pageSize == 0 {
-		pageSize = defaultPageSize
+	return nil
+}
+
+func requestStatusCode(
+	request *adminv1.ListRequestRecordsRequest,
+	outcome requestbiz.Outcome,
+) (*uint16, error) {
+	if request.StatusCode == nil {
+		return nil, nil
 	}
-	outcome := requestOutcome(request.GetOutcome())
-	var statusCode *uint16
-	if request.StatusCode != nil {
-		requestedStatusCode := request.GetStatusCode()
-		if requestedStatusCode > 65535 ||
-			(requestedStatusCode > 0 && requestedStatusCode < 100) {
-			return requestbiz.ListOptions{}, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"HTTP 状态码无效",
-			)
-		}
-		if outcome != requestbiz.OutcomeUnknown &&
-			requestbiz.ClassifyStatusCode(requestedStatusCode) != outcome {
-			return requestbiz.ListOptions{}, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"HTTP 状态码与请求结果不一致",
-			)
-		}
-		value := uint16(requestedStatusCode)
-		statusCode = &value
+	requestedStatusCode := request.GetStatusCode()
+	if requestedStatusCode > 65535 ||
+		(requestedStatusCode > 0 && requestedStatusCode < 100) {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"HTTP 状态码无效",
+		)
 	}
-	return requestbiz.ListOptions{
-		Filter: requestbiz.Filter{
-			StartTime:  startTime,
-			EndTime:    endTime,
-			GatewayID:  request.GetGatewayId(),
-			RouteID:    request.GetRouteId(),
-			ServiceID:  request.GetServiceId(),
-			RequestID:  request.GetRequestId(),
-			Method:     request.GetMethod(),
-			Host:       request.GetHost(),
-			PathPrefix: request.GetPathPrefix(),
-			Outcome:    outcome,
-			StatusCode: statusCode,
-			CallerID:   request.GetCallerId(),
-		},
-		PageSize:  pageSize,
-		PageToken: request.GetPageToken(),
-	}, nil
+	if outcome != requestbiz.OutcomeUnknown &&
+		requestbiz.ClassifyStatusCode(requestedStatusCode) != outcome {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"HTTP 状态码与请求结果不一致",
+		)
+	}
+	value := uint16(requestedStatusCode)
+	return &value, nil
 }
 
 func requiredTimestamp(value *timestamppb.Timestamp, userMessage string) (time.Time, error) {
