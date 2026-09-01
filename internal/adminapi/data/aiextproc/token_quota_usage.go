@@ -24,19 +24,30 @@ type tokenQuotaUsageKey struct {
 func (c *Client) Current(ctx context.Context, callerID string) ([]tokenquotabiz.Usage, error) {
 	response, err := c.usage.GetCallerUsage(ctx, &aiextprocv1.GetCallerUsageRequest{CallerId: callerID})
 	if err != nil {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		switch status.Code(err) {
-		case codes.Unavailable, codes.DeadlineExceeded:
-			return nil, errors.ServiceUnavailable(
-				adminv1.ErrorReason_DEPENDENCY_UNAVAILABLE.String(),
-				"实时额度暂时不可用，请稍后重试",
-			).WithCause(err)
-		default:
-			return nil, fmt.Errorf("query caller token quota usage: %w", err)
-		}
+		return nil, currentUsageError(ctx, err)
 	}
+	return decodeTokenQuotaUsages(callerID, response)
+}
+
+func currentUsageError(ctx context.Context, err error) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	switch status.Code(err) {
+	case codes.Unavailable, codes.DeadlineExceeded:
+		return errors.ServiceUnavailable(
+			adminv1.ErrorReason_DEPENDENCY_UNAVAILABLE.String(),
+			"实时额度暂时不可用，请稍后重试",
+		).WithCause(err)
+	default:
+		return fmt.Errorf("query caller token quota usage: %w", err)
+	}
+}
+
+func decodeTokenQuotaUsages(
+	callerID string,
+	response *aiextprocv1.GetCallerUsageResponse,
+) ([]tokenquotabiz.Usage, error) {
 	if response == nil {
 		return nil, fmt.Errorf("AI ExtProc returned an empty token quota response for caller %q", callerID)
 	}
@@ -47,7 +58,7 @@ func (c *Client) Current(ctx context.Context, callerID string) ([]tokenquotabiz.
 	usages := make([]tokenquotabiz.Usage, len(items))
 	seen := make(map[tokenQuotaUsageKey]bool, len(items))
 	for i, item := range items {
-		usage, key, err := tokenQuotaUsageFromAPI(item, i)
+		usage, key, err := decodeTokenQuotaUsage(item, i)
 		if err != nil {
 			return nil, err
 		}
@@ -64,7 +75,7 @@ func (c *Client) Current(ctx context.Context, callerID string) ([]tokenquotabiz.
 	return usages, nil
 }
 
-func tokenQuotaUsageFromAPI(
+func decodeTokenQuotaUsage(
 	usage *aiextprocv1.TokenQuotaUsage,
 	index int,
 ) (tokenquotabiz.Usage, tokenQuotaUsageKey, error) {
