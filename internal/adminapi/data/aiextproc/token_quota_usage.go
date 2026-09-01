@@ -3,6 +3,7 @@ package aiextproc
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/grpc/codes"
@@ -11,13 +12,14 @@ import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	aiextprocv1 "github.com/lgc202/ingate/api/aiextproc/v1"
 	tokenquotabiz "github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 	"github.com/lgc202/ingate/internal/pkg/tokenquotaconfig"
 )
 
 type tokenQuotaUsageKey struct {
 	policyID string
-	period   tokenquotabiz.Period
+	period   resource.TokenQuotaPeriod
 }
 
 // Current 查询调用方当前实际命中的全部额度。
@@ -66,7 +68,7 @@ func decodeTokenQuotaUsages(
 			return nil, fmt.Errorf(
 				"AI ExtProc returned duplicate usage for policy %q and period %q",
 				key.policyID,
-				key.period,
+				strings.ToLower(string(key.period)),
 			)
 		}
 		seen[key] = true
@@ -153,14 +155,14 @@ func decodeTokenQuotaUsage(
 	}, key, nil
 }
 
-func tokenQuotaPeriod(period aiextprocv1.TokenQuotaPeriod) (tokenquotabiz.Period, error) {
+func tokenQuotaPeriod(period aiextprocv1.TokenQuotaPeriod) (resource.TokenQuotaPeriod, error) {
 	switch period {
 	case aiextprocv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_DAY:
-		return tokenquotabiz.PeriodDay, nil
+		return resource.TokenQuotaPeriodDay, nil
 	case aiextprocv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_WEEK:
-		return tokenquotabiz.PeriodWeek, nil
+		return resource.TokenQuotaPeriodWeek, nil
 	case aiextprocv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_MONTH:
-		return tokenquotabiz.PeriodMonth, nil
+		return resource.TokenQuotaPeriodMonth, nil
 	default:
 		return "", fmt.Errorf("unsupported token quota period %q", period.String())
 	}
