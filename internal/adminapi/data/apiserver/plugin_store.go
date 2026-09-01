@@ -24,7 +24,7 @@ func NewPluginSourceStore(client clientset.Interface) *PluginSourceStore {
 	return &PluginSourceStore{resourceStore: newResourceStore(
 		"plugin source",
 		"plugin sources",
-		func() createResourceClient[*resource.PluginSource] {
+		func() resourceClient[*resource.PluginSource] {
 			return client.GatewayV1().PluginSources()
 		},
 		func(ctx context.Context, options metav1.ListOptions) ([]resource.PluginSource, string, error) {
@@ -54,7 +54,7 @@ func NewWasmPluginStore(client clientset.Interface) *WasmPluginStore {
 	return &WasmPluginStore{resourceStore: newResourceStore(
 		"Wasm plugin",
 		"Wasm plugins",
-		func() createResourceClient[*resource.WasmPlugin] {
+		func() resourceClient[*resource.WasmPlugin] {
 			return client.GatewayV1().WasmPlugins()
 		},
 		func(ctx context.Context, options metav1.ListOptions) ([]resource.WasmPlugin, string, error) {

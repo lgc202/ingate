@@ -39,7 +39,7 @@ func NewHeaderTransformationPolicyStore(client clientset.Interface) *HeaderTrans
 	return &HeaderTransformationPolicyStore{resourceStore: newResourceStore(
 		"header transformation policy",
 		"header transformation policies",
-		func() createResourceClient[*resource.HeaderTransformationPolicy] {
+		func() resourceClient[*resource.HeaderTransformationPolicy] {
 			return client.GatewayV1().HeaderTransformationPolicies()
 		},
 		func(ctx context.Context, options metav1.ListOptions) ([]resource.HeaderTransformationPolicy, string, error) {
@@ -71,7 +71,7 @@ func NewIPRestrictionPolicyStore(client clientset.Interface) *IPRestrictionPolic
 	return &IPRestrictionPolicyStore{resourceStore: newResourceStore(
 		"IP restriction policy",
 		"IP restriction policies",
-		func() createResourceClient[*resource.IPRestrictionPolicy] {
+		func() resourceClient[*resource.IPRestrictionPolicy] {
 			return client.GatewayV1().IPRestrictionPolicies()
 		},
 		func(ctx context.Context, options metav1.ListOptions) ([]resource.IPRestrictionPolicy, string, error) {
@@ -101,7 +101,7 @@ func NewMockResponsePolicyStore(client clientset.Interface) *MockResponsePolicyS
 	return &MockResponsePolicyStore{resourceStore: newResourceStore(
 		"mock response policy",
 		"mock response policies",
-		func() createResourceClient[*resource.MockResponsePolicy] {
+		func() resourceClient[*resource.MockResponsePolicy] {
 			return client.GatewayV1().MockResponsePolicies()
 		},
 		func(ctx context.Context, options metav1.ListOptions) ([]resource.MockResponsePolicy, string, error) {
@@ -131,7 +131,7 @@ func NewRateLimitPolicyStore(client clientset.Interface) *RateLimitPolicyStore {
 	return &RateLimitPolicyStore{resourceStore: newResourceStore(
 		"rate limit policy",
 		"rate limit policies",
-		func() createResourceClient[*resource.RateLimitPolicy] {
+		func() resourceClient[*resource.RateLimitPolicy] {
 			return client.GatewayV1().RateLimitPolicies()
 		},
 		func(ctx context.Context, options metav1.ListOptions) ([]resource.RateLimitPolicy, string, error) {
@@ -161,7 +161,7 @@ func NewTokenQuotaPolicyStore(client clientset.Interface) *TokenQuotaPolicyStore
 	return &TokenQuotaPolicyStore{resourceStore: newResourceStore(
 		"token quota policy",
 		"token quota policies",
-		func() createResourceClient[*resource.TokenQuotaPolicy] {
+		func() resourceClient[*resource.TokenQuotaPolicy] {
 			return client.GatewayV1().TokenQuotaPolicies()
 		},
 		func(ctx context.Context, options metav1.ListOptions) ([]resource.TokenQuotaPolicy, string, error) {

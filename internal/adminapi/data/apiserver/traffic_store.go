@@ -39,7 +39,7 @@ func NewCallerStore(client clientset.Interface) *CallerStore {
 	return &CallerStore{resourceStore: newResourceStore(
 		"caller",
 		"callers",
-		func() createResourceClient[*resource.Caller] {
+		func() resourceClient[*resource.Caller] {
 			return client.GatewayV1().Callers()
 		},
 		func(ctx context.Context, options metav1.ListOptions) ([]resource.Caller, string, error) {
@@ -69,7 +69,7 @@ func NewCertificateStore(client clientset.Interface) *CertificateStore {
 	return &CertificateStore{resourceStore: newResourceStore(
 		"certificate",
 		"certificates",
-		func() createResourceClient[*resource.Certificate] {
+		func() resourceClient[*resource.Certificate] {
 			return client.GatewayV1().Certificates()
 		},
 		func(ctx context.Context, options metav1.ListOptions) ([]resource.Certificate, string, error) {
@@ -99,7 +99,7 @@ func NewGatewayStore(client clientset.Interface) *GatewayStore {
 	return &GatewayStore{resourceStore: newResourceStore(
 		"gateway",
 		"gateways",
-		func() createResourceClient[*resource.Gateway] {
+		func() resourceClient[*resource.Gateway] {
 			return client.GatewayV1().Gateways()
 		},
 		func(ctx context.Context, options metav1.ListOptions) ([]resource.Gateway, string, error) {
@@ -129,7 +129,7 @@ func NewRouteStore(client clientset.Interface) *RouteStore {
 	return &RouteStore{resourceStore: newResourceStore(
 		"route",
 		"routes",
-		func() createResourceClient[*resource.Route] {
+		func() resourceClient[*resource.Route] {
 			return client.GatewayV1().Routes()
 		},
 		func(ctx context.Context, options metav1.ListOptions) ([]resource.Route, string, error) {
@@ -159,7 +159,7 @@ func NewUpstreamStore(client clientset.Interface) *UpstreamStore {
 	return &UpstreamStore{resourceStore: newResourceStore(
 		"upstream",
 		"upstreams",
-		func() createResourceClient[*resource.Upstream] {
+		func() resourceClient[*resource.Upstream] {
 			return client.GatewayV1().Upstreams()
 		},
 		func(ctx context.Context, options metav1.ListOptions) ([]resource.Upstream, string, error) {
