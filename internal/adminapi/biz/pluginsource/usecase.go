@@ -2,12 +2,8 @@
 package pluginsource
 
 import (
-	"cmp"
 	"context"
 	stderrors "errors"
-	"slices"
-	"strings"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -16,63 +12,6 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
-
-// OfficialSourceID 是进程配置中官方插件源的稳定资源标识。
-const OfficialSourceID = "00000000-0000-5000-8000-000000000001"
-
-// ErrSyncFailed 表示远程响应不符合插件目录协议。
-var ErrSyncFailed = stderrors.New("plugin source sync failed")
-
-// ErrSyncUnavailable 表示远程插件目录当前无法访问。
-var ErrSyncUnavailable = stderrors.New("plugin source is unavailable")
-
-// SyncState 表示最近一次目录同步结果。
-type SyncState string
-
-const (
-	// SyncStateReady 表示最近一次同步成功。
-	SyncStateReady SyncState = "Ready"
-	// SyncStateError 表示最近一次同步失败。
-	SyncStateError SyncState = "Error"
-	// SyncStateDisabled 表示来源已停用。
-	SyncStateDisabled SyncState = "Disabled"
-	// SyncStateNotSynced 表示尚未完成首次同步。
-	SyncStateNotSynced SyncState = "NotSynced"
-)
-
-// Observation 是远程目录的进程内观测结果，不作为声明式事实持久化。
-type Observation struct {
-	State        SyncState
-	Message      string
-	PluginCount  int
-	LastSyncedAt time.Time
-}
-
-// Source 汇总持久化配置与当前进程的同步观测。
-type Source struct {
-	ID          string
-	DisplayName string
-	URL         string
-	Builtin     bool
-	Enabled     bool
-	Observation Observation
-	Generation  int64
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-// ListFilter 表达插件源列表筛选条件。
-type ListFilter struct {
-	Query   string
-	Enabled *bool
-	State   SyncState
-}
-
-// SourcePage 保存一页插件源及下一页游标。
-type SourcePage struct {
-	Items      []Source
-	NextCursor string
-}
 
 // Store 定义自定义插件源管理所需的持久化能力。
 type Store interface {
@@ -109,42 +48,6 @@ type Usecase struct {
 // NewUsecase 创建插件源用例。
 func NewUsecase(store Store, catalog Catalog) *Usecase {
 	return &Usecase{store: store, catalog: catalog}
-}
-
-// List 返回满足筛选条件的官方与自定义插件源。
-func (uc *Usecase) List(
-	ctx context.Context,
-	page pagination.Request,
-	filter ListFilter,
-) (SourcePage, error) {
-	filter.Query = strings.ToLower(strings.TrimSpace(filter.Query))
-	sources := make([]Source, 0)
-	if official := uc.catalog.OfficialSource(); official.URL != "" {
-		sources = append(sources, official)
-	}
-	if err := pagination.VisitPages(ctx, uc.store.ListPage, func(source resource.PluginSource) (bool, error) {
-		sources = append(sources, uc.sourceFromResource(&source))
-		return false, nil
-	}); err != nil {
-		return SourcePage{}, err
-	}
-
-	slices.SortStableFunc(sources, compareSources)
-	sources = slices.DeleteFunc(sources, func(source Source) bool {
-		return !filter.matches(source)
-	})
-	start, err := sourcePageStart(sources, page.Cursor)
-	if err != nil {
-		return SourcePage{}, err
-	}
-	end := min(start+int(page.Limit), len(sources))
-	items := slices.Clone(sources[start:end])
-
-	var nextCursor string
-	if end < len(sources) && len(items) > 0 {
-		nextCursor = items[len(items)-1].ID
-	}
-	return SourcePage{Items: items, NextCursor: nextCursor}, nil
 }
 
 // Get 返回指定的官方或自定义插件源。
@@ -245,67 +148,4 @@ func (uc *Usecase) Sync(ctx context.Context, sourceID string) (Source, error) {
 		return Source{}, err
 	}
 	return uc.Get(ctx, sourceID)
-}
-
-func (uc *Usecase) sourceFromResource(source *resource.PluginSource) Source {
-	observation := uc.catalog.Observation(source.Name)
-	if !source.Spec.Enabled {
-		observation = Observation{State: SyncStateDisabled}
-	}
-	return Source{
-		ID:          source.Name,
-		DisplayName: source.Spec.DisplayName,
-		URL:         source.Spec.URL,
-		Enabled:     source.Spec.Enabled,
-		Observation: observation,
-		Generation:  source.Generation,
-		CreatedAt:   source.CreationTimestamp.Time,
-		UpdatedAt:   sourceUpdatedAt(source),
-	}
-}
-
-func (f ListFilter) matches(source Source) bool {
-	if f.Query != "" && !strings.Contains(
-		strings.ToLower(source.DisplayName+" "+source.URL),
-		f.Query,
-	) {
-		return false
-	}
-	if f.Enabled != nil && source.Enabled != *f.Enabled {
-		return false
-	}
-	return f.State == "" || source.Observation.State == f.State
-}
-
-func compareSources(left, right Source) int {
-	if left.Builtin != right.Builtin {
-		if left.Builtin {
-			return -1
-		}
-		return 1
-	}
-	if result := cmp.Compare(left.DisplayName, right.DisplayName); result != 0 {
-		return result
-	}
-	return cmp.Compare(left.ID, right.ID)
-}
-
-func sourcePageStart(sources []Source, cursor string) (int, error) {
-	if cursor == "" {
-		return 0, nil
-	}
-	for i := range sources {
-		if sources[i].ID == cursor {
-			return i + 1, nil
-		}
-	}
-	return 0, apperror.InvalidCursor(nil)
-}
-
-func sourceUpdatedAt(source *resource.PluginSource) time.Time {
-	updatedAt, err := time.Parse(time.RFC3339Nano, source.Annotations[resource.AnnotationUpdatedAt])
-	if err != nil {
-		return source.CreationTimestamp.Time
-	}
-	return updatedAt
 }
