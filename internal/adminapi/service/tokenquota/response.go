@@ -88,7 +88,7 @@ func tokenQuotaUsageResponse(
 		responses[i] = &adminv1.CallerTokenQuotaUsage{
 			PolicyId:        usage.PolicyID,
 			PolicyName:      usage.PolicyName,
-			Period:          tokenQuotaUsagePeriodResponse(usage.Period),
+			Period:          tokenQuotaPeriodResponse(usage.Period),
 			UsedTokens:      usage.Used,
 			LimitTokens:     usage.Limit,
 			RemainingTokens: max(0, usage.Limit-usage.Used),
@@ -97,17 +97,4 @@ func tokenQuotaUsageResponse(
 		}
 	}
 	return &adminv1.GetCallerTokenQuotaUsageResponse{Usages: responses}
-}
-
-func tokenQuotaUsagePeriodResponse(period tokenquotabiz.Period) adminv1.TokenQuotaPeriod {
-	switch period {
-	case tokenquotabiz.PeriodDay:
-		return adminv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_DAY
-	case tokenquotabiz.PeriodWeek:
-		return adminv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_WEEK
-	case tokenquotabiz.PeriodMonth:
-		return adminv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_MONTH
-	default:
-		return adminv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_UNSPECIFIED
-	}
 }

@@ -3,52 +3,48 @@ package aiextproc
 import (
 	"context"
 	"fmt"
+	"strings"
 
-	"github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	aiextprocv1 "github.com/lgc202/ingate/api/aiextproc/v1"
 	tokenquotabiz "github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 	"github.com/lgc202/ingate/internal/pkg/tokenquotaconfig"
 )
 
-// TokenQuotaUsageReader 从 AI ExtProc 读取实时额度计数。
-type TokenQuotaUsageReader struct {
-	client aiextprocv1.TokenQuotaUsageServiceClient
-}
-
 type tokenQuotaUsageKey struct {
 	policyID string
-	period   tokenquotabiz.Period
-}
-
-// NewTokenQuotaUsageReader 创建实时额度读取器。
-func NewTokenQuotaUsageReader(
-	client aiextprocv1.TokenQuotaUsageServiceClient,
-) *TokenQuotaUsageReader {
-	return &TokenQuotaUsageReader{client: client}
+	period   resource.TokenQuotaPeriod
 }
 
 // Current 查询调用方当前实际命中的全部额度。
-func (r *TokenQuotaUsageReader) Current(ctx context.Context, callerID string) ([]tokenquotabiz.Usage, error) {
-	response, err := r.client.GetCallerUsage(ctx, &aiextprocv1.GetCallerUsageRequest{CallerId: callerID})
+func (c *Client) Current(ctx context.Context, callerID string) ([]tokenquotabiz.Usage, error) {
+	response, err := c.usage.GetCallerUsage(ctx, &aiextprocv1.GetCallerUsageRequest{CallerId: callerID})
 	if err != nil {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		switch status.Code(err) {
-		case codes.Unavailable, codes.DeadlineExceeded:
-			return nil, errors.ServiceUnavailable(
-				adminv1.ErrorReason_DEPENDENCY_UNAVAILABLE.String(),
-				"实时额度暂时不可用，请稍后重试",
-			).WithCause(err)
-		default:
-			return nil, fmt.Errorf("query caller token quota usage: %w", err)
-		}
+		return nil, currentUsageError(ctx, err)
 	}
+	return decodeTokenQuotaUsages(callerID, response)
+}
+
+func currentUsageError(ctx context.Context, err error) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	switch status.Code(err) {
+	case codes.Unavailable, codes.DeadlineExceeded:
+		return tokenquotabiz.Unavailable(err)
+	default:
+		return fmt.Errorf("query caller token quota usage: %w", err)
+	}
+}
+
+func decodeTokenQuotaUsages(
+	callerID string,
+	response *aiextprocv1.GetCallerUsageResponse,
+) ([]tokenquotabiz.Usage, error) {
 	if response == nil {
 		return nil, fmt.Errorf("AI ExtProc returned an empty token quota response for caller %q", callerID)
 	}
@@ -59,15 +55,16 @@ func (r *TokenQuotaUsageReader) Current(ctx context.Context, callerID string) ([
 	usages := make([]tokenquotabiz.Usage, len(items))
 	seen := make(map[tokenQuotaUsageKey]bool, len(items))
 	for i, item := range items {
-		usage, key, err := tokenQuotaUsageFromAPI(item, i)
+		usage, err := decodeTokenQuotaUsage(item, i)
 		if err != nil {
 			return nil, err
 		}
+		key := tokenQuotaUsageKey{policyID: usage.PolicyID, period: usage.Period}
 		if seen[key] {
 			return nil, fmt.Errorf(
 				"AI ExtProc returned duplicate usage for policy %q and period %q",
 				key.policyID,
-				key.period,
+				strings.ToLower(string(key.period)),
 			)
 		}
 		seen[key] = true
@@ -76,92 +73,71 @@ func (r *TokenQuotaUsageReader) Current(ctx context.Context, callerID string) ([
 	return usages, nil
 }
 
-func tokenQuotaUsageFromAPI(
-	usage *aiextprocv1.TokenQuotaUsage,
+func decodeTokenQuotaUsage(
+	item *aiextprocv1.TokenQuotaUsage,
 	index int,
-) (tokenquotabiz.Usage, tokenQuotaUsageKey, error) {
-	if usage == nil {
-		return tokenquotabiz.Usage{}, tokenQuotaUsageKey{}, fmt.Errorf(
-			"AI ExtProc returned an empty token quota usage at index %d",
-			index,
-		)
+) (tokenquotabiz.Usage, error) {
+	if item == nil {
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "an empty token quota usage")
 	}
-	policyID := usage.GetPolicyId()
+	policyID := item.GetPolicyId()
 	if !resourceconfig.IsCanonicalID(policyID) {
-		return tokenquotabiz.Usage{}, tokenQuotaUsageKey{}, fmt.Errorf(
-			"AI ExtProc returned an invalid policy ID at index %d",
-			index,
-		)
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "an invalid policy ID")
 	}
-	if !resourceconfig.IsValidDisplayName(usage.GetPolicyName()) {
-		return tokenquotabiz.Usage{}, tokenQuotaUsageKey{}, fmt.Errorf(
-			"AI ExtProc returned an invalid policy name at index %d",
-			index,
-		)
+	if !resourceconfig.IsValidDisplayName(item.GetPolicyName()) {
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "an invalid policy name")
 	}
-	period, err := tokenQuotaPeriod(usage.GetPeriod())
+	period, err := tokenQuotaPeriod(item.GetPeriod())
 	if err != nil {
-		return tokenquotabiz.Usage{}, tokenQuotaUsageKey{}, fmt.Errorf(
+		return tokenquotabiz.Usage{}, fmt.Errorf(
 			"AI ExtProc returned an invalid period at index %d: %w",
 			index,
 			err,
 		)
 	}
-	if usage.GetUsedTokens() < 0 {
-		return tokenquotabiz.Usage{}, tokenQuotaUsageKey{}, fmt.Errorf(
-			"AI ExtProc returned negative token usage at index %d",
-			index,
-		)
+	if item.GetUsedTokens() < 0 {
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "negative token usage")
 	}
-	if !tokenquotaconfig.IsValidTokenLimit(usage.GetLimitTokens()) {
-		return tokenquotabiz.Usage{}, tokenQuotaUsageKey{}, fmt.Errorf(
-			"AI ExtProc returned an invalid token limit at index %d",
-			index,
-		)
+	if !tokenquotaconfig.IsValidTokenLimit(item.GetLimitTokens()) {
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "an invalid token limit")
 	}
-	startedAt := usage.GetStartedAt()
+	startedAt := item.GetStartedAt()
 	if startedAt == nil || startedAt.CheckValid() != nil {
-		return tokenquotabiz.Usage{}, tokenQuotaUsageKey{}, fmt.Errorf(
-			"AI ExtProc returned an invalid start time at index %d",
-			index,
-		)
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "an invalid start time")
 	}
-	resetsAt := usage.GetResetsAt()
+	resetsAt := item.GetResetsAt()
 	if resetsAt == nil || resetsAt.CheckValid() != nil {
-		return tokenquotabiz.Usage{}, tokenQuotaUsageKey{}, fmt.Errorf(
-			"AI ExtProc returned an invalid reset time at index %d",
-			index,
-		)
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "an invalid reset time")
 	}
 	start := startedAt.AsTime()
 	resetAt := resetsAt.AsTime()
 	if !resetAt.After(start) {
-		return tokenquotabiz.Usage{}, tokenQuotaUsageKey{}, fmt.Errorf(
-			"AI ExtProc returned an invalid period range at index %d",
-			index,
-		)
+		return tokenquotabiz.Usage{}, invalidTokenQuotaUsageError(index, "an invalid period range")
 	}
 
-	key := tokenQuotaUsageKey{policyID: policyID, period: period}
 	return tokenquotabiz.Usage{
 		PolicyID:   policyID,
-		PolicyName: usage.GetPolicyName(),
+		PolicyName: item.GetPolicyName(),
 		Period:     period,
-		Used:       usage.GetUsedTokens(),
-		Limit:      usage.GetLimitTokens(),
+		Used:       item.GetUsedTokens(),
+		Limit:      item.GetLimitTokens(),
 		StartedAt:  start,
 		ResetAt:    resetAt,
-	}, key, nil
+	}, nil
 }
 
-func tokenQuotaPeriod(period aiextprocv1.TokenQuotaPeriod) (tokenquotabiz.Period, error) {
+func invalidTokenQuotaUsageError(index int, problem string) error {
+	return fmt.Errorf("AI ExtProc returned %s at index %d", problem, index)
+}
+
+func tokenQuotaPeriod(period aiextprocv1.TokenQuotaPeriod) (resource.TokenQuotaPeriod, error) {
 	switch period {
 	case aiextprocv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_DAY:
-		return tokenquotabiz.PeriodDay, nil
+		return resource.TokenQuotaPeriodDay, nil
 	case aiextprocv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_WEEK:
-		return tokenquotabiz.PeriodWeek, nil
+		return resource.TokenQuotaPeriodWeek, nil
 	case aiextprocv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_MONTH:
-		return tokenquotabiz.PeriodMonth, nil
+		return resource.TokenQuotaPeriodMonth, nil
 	default:
 		return "", fmt.Errorf("unsupported token quota period %q", period.String())
 	}

@@ -60,74 +60,66 @@ func (f *PolicyUsageFinder) FindTarget(
 	ctx context.Context,
 	target resource.PolicyTargetRef,
 ) (*PolicyUsage, error) {
-	var usage *PolicyUsage
-	err := VisitPages(
+	usage, err := findPolicyUsage(
 		ctx,
+		target,
 		f.rateLimitPolicies.ListPage,
-		func(policy resource.RateLimitPolicy) (bool, error) {
-			if slices.Contains(policy.Spec.TargetRefs, target) {
-				usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
-				return true, nil
-			}
-			return false, nil
+		func(policy resource.RateLimitPolicy) (string, []resource.PolicyTargetRef) {
+			return policy.Spec.DisplayName, policy.Spec.TargetRefs
 		},
 	)
-	if err != nil {
-		return nil, err
-	}
-	if usage != nil {
-		return usage, nil
+	if err != nil || usage != nil {
+		return usage, err
 	}
 
-	err = VisitPages(
+	usage, err = findPolicyUsage(
 		ctx,
+		target,
 		f.ipRestrictionPolicies.ListPage,
-		func(policy resource.IPRestrictionPolicy) (bool, error) {
-			if slices.Contains(policy.Spec.TargetRefs, target) {
-				usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
-				return true, nil
-			}
-			return false, nil
+		func(policy resource.IPRestrictionPolicy) (string, []resource.PolicyTargetRef) {
+			return policy.Spec.DisplayName, policy.Spec.TargetRefs
 		},
 	)
-	if err != nil {
-		return nil, err
-	}
-	if usage != nil {
-		return usage, nil
+	if err != nil || usage != nil {
+		return usage, err
 	}
 
-	err = VisitPages(
+	usage, err = findPolicyUsage(
 		ctx,
+		target,
 		f.headerTransformations.ListPage,
-		func(policy resource.HeaderTransformationPolicy) (bool, error) {
-			if slices.Contains(policy.Spec.TargetRefs, target) {
-				usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
-				return true, nil
-			}
-			return false, nil
+		func(policy resource.HeaderTransformationPolicy) (string, []resource.PolicyTargetRef) {
+			return policy.Spec.DisplayName, policy.Spec.TargetRefs
 		},
 	)
-	if err != nil {
-		return nil, err
-	}
-	if usage != nil {
-		return usage, nil
+	if err != nil || usage != nil {
+		return usage, err
 	}
 
-	err = VisitPages(
+	return findPolicyUsage(
 		ctx,
+		target,
 		f.mockResponses.ListPage,
-		func(policy resource.MockResponsePolicy) (bool, error) {
-			if slices.Contains(policy.Spec.TargetRefs, target) {
-				usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
-				return true, nil
-			}
-			return false, nil
+		func(policy resource.MockResponsePolicy) (string, []resource.PolicyTargetRef) {
+			return policy.Spec.DisplayName, policy.Spec.TargetRefs
 		},
 	)
-	if err != nil {
-		return nil, err
-	}
-	return usage, nil
+}
+
+func findPolicyUsage[P any](
+	ctx context.Context,
+	target resource.PolicyTargetRef,
+	list func(context.Context, PageRequest) (PageResult[P], error),
+	attributesOf func(P) (string, []resource.PolicyTargetRef),
+) (*PolicyUsage, error) {
+	var usage *PolicyUsage
+	err := VisitPages(ctx, list, func(policy P) (bool, error) {
+		displayName, targetRefs := attributesOf(policy)
+		if !slices.Contains(targetRefs, target) {
+			return false, nil
+		}
+		usage = &PolicyUsage{DisplayName: displayName}
+		return true, nil
+	})
+	return usage, err
 }

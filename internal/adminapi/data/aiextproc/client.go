@@ -15,12 +15,17 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/tlsconfig"
 )
 
+// Client 复用 AI ExtProc gRPC 连接并提供 Admin API 所需的实时额度查询。
+type Client struct {
+	usage aiextprocv1.TokenQuotaUsageServiceClient
+}
+
 // NewClient 创建 Admin API 访问 AI ExtProc 的内部 gRPC 客户端。
 func NewClient(
 	ctx context.Context,
 	config *conf.Data,
 	logger *slog.Logger,
-) (aiextprocv1.TokenQuotaUsageServiceClient, func(), error) {
+) (*Client, func(), error) {
 	settings := config.GetAiExtProc()
 	tlsSettings := settings.GetTls()
 	tlsConfig, err := tlsconfig.NewClient(tlsconfig.ClientConfig{
@@ -53,5 +58,7 @@ func NewClient(
 			logger.Error("close AI ExtProc gRPC client failed", "err", err)
 		}
 	}
-	return aiextprocv1.NewTokenQuotaUsageServiceClient(connection), cleanup, nil
+	return &Client{
+		usage: aiextprocv1.NewTokenQuotaUsageServiceClient(connection),
+	}, cleanup, nil
 }
