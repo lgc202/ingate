@@ -124,7 +124,9 @@ func (c *apiClient) request(
 	if err != nil {
 		return 0, responseBody{}, fmt.Errorf("send request: %w", err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes+1))
 	if err != nil {
 		return 0, responseBody{}, fmt.Errorf("read response: %w", err)
