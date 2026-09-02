@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-kratos/kratos/v3/errors"
 	"github.com/google/uuid"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
+	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -76,7 +76,7 @@ type SourcePage struct {
 
 // Store 定义自定义插件源管理所需的持久化能力。
 type Store interface {
-	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.PluginSource], error)
+	ListPage(ctx context.Context, page pagination.Request) (pagination.Result[resource.PluginSource], error)
 	Get(ctx context.Context, sourceID string) (*resource.PluginSource, error)
 	Create(
 		ctx context.Context,
@@ -114,7 +114,7 @@ func NewUsecase(store Store, catalog Catalog) *Usecase {
 // List 返回满足筛选条件的官方与自定义插件源。
 func (uc *Usecase) List(
 	ctx context.Context,
-	page biz.PageRequest,
+	page pagination.Request,
 	filter ListFilter,
 ) (SourcePage, error) {
 	filter.Query = strings.ToLower(strings.TrimSpace(filter.Query))
@@ -122,7 +122,7 @@ func (uc *Usecase) List(
 	if official := uc.catalog.OfficialSource(); official.URL != "" {
 		sources = append(sources, official)
 	}
-	if err := biz.VisitPages(ctx, uc.store.ListPage, func(source resource.PluginSource) (bool, error) {
+	if err := pagination.VisitPages(ctx, uc.store.ListPage, func(source resource.PluginSource) (bool, error) {
 		sources = append(sources, uc.sourceFromResource(&source))
 		return false, nil
 	}); err != nil {
@@ -152,7 +152,7 @@ func (uc *Usecase) Get(ctx context.Context, sourceID string) (Source, error) {
 	if sourceID == OfficialSourceID {
 		source := uc.catalog.OfficialSource()
 		if source.URL == "" {
-			return Source{}, biz.ErrResourceNotFound
+			return Source{}, apperror.ResourceNotFound()
 		}
 		return source, nil
 	}
@@ -188,7 +188,7 @@ func (uc *Usecase) Replace(
 		return Source{}, err
 	}
 	if current.Generation != expectedGeneration {
-		return Source{}, biz.ErrResourceVersionConflict
+		return Source{}, apperror.ResourceVersionConflict()
 	}
 	source, err := uc.store.ReplaceSpec(ctx, current, spec)
 	if err != nil {
@@ -207,7 +207,7 @@ func (uc *Usecase) Delete(ctx context.Context, sourceID string, expectedGenerati
 		return err
 	}
 	if current.Generation != expectedGeneration {
-		return biz.ErrResourceVersionConflict
+		return apperror.ResourceVersionConflict()
 	}
 	if err := uc.store.Delete(ctx, current); err != nil {
 		return err
@@ -223,8 +223,7 @@ func (uc *Usecase) Sync(ctx context.Context, sourceID string) (Source, error) {
 		return Source{}, err
 	}
 	if !source.Enabled {
-		return Source{}, errors.Conflict(
-			adminv1.ErrorReason_BUSINESS_RULE_VIOLATION.String(),
+		return Source{}, adminv1.ErrorBusinessRuleViolation(
 			"请先启用插件源再同步",
 		)
 	}
@@ -232,18 +231,14 @@ func (uc *Usecase) Sync(ctx context.Context, sourceID string) (Source, error) {
 		if ctx.Err() != nil {
 			return Source{}, ctx.Err()
 		}
-		if stderrors.Is(err, biz.ErrResourceNotFound) {
-			return Source{}, biz.ErrResourceNotFound
+		if adminv1.IsResourceNotFound(err) {
+			return Source{}, apperror.ResourceNotFound()
 		}
 		if stderrors.Is(err, ErrSyncUnavailable) {
-			return Source{}, errors.ServiceUnavailable(
-				adminv1.ErrorReason_DEPENDENCY_UNAVAILABLE.String(),
-				"插件源暂时不可用，请稍后重试",
-			).WithCause(err)
+			return Source{}, apperror.DependencyUnavailable("插件源暂时不可用，请稍后重试", err)
 		}
 		if stderrors.Is(err, ErrSyncFailed) {
-			return Source{}, errors.Conflict(
-				adminv1.ErrorReason_BUSINESS_RULE_VIOLATION.String(),
+			return Source{}, adminv1.ErrorBusinessRuleViolation(
 				"插件源同步失败，请检查目录地址和内容",
 			).WithCause(err)
 		}
@@ -304,7 +299,7 @@ func sourcePageStart(sources []Source, cursor string) (int, error) {
 			return i + 1, nil
 		}
 	}
-	return 0, biz.ErrInvalidCursor
+	return 0, apperror.InvalidCursor(nil)
 }
 
 func sourceUpdatedAt(source *resource.PluginSource) time.Time {

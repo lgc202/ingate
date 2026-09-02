@@ -4,12 +4,11 @@ package servicemanagement
 import (
 	"context"
 
-	"github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	servicebiz "github.com/lgc202/ingate/internal/adminapi/biz/service"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 )
 
 // Service 实现服务管理 API。
@@ -35,14 +34,11 @@ func (s *Service) ListServices(
 	case adminv1.ServiceType_SERVICE_TYPE_MODEL:
 		typeFilter = servicebiz.TypeModel
 	default:
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"服务类型不正确",
-		)
+		return nil, adminv1.ErrorInvalidArgument("服务类型不正确")
 	}
 
 	filter := servicebiz.ListFilter{
-		ResourceFilter: adminservice.ResourceFilter(
+		Filter: adminservice.ResourceFilter(
 			request.GetQuery(),
 			nil,
 			request.GetState(),

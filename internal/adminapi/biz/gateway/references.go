@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/go-kratos/kratos/v3/errors"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -29,10 +27,7 @@ func (uc *Usecase) checkCertificateReferences(ctx context.Context, spec resource
 		if certificates[certificateID] != nil {
 			continue
 		}
-		return errors.Conflict(
-			adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-			fmt.Sprintf("HTTPS 证书 %q 不存在", certificateID),
-		)
+		return adminv1.ErrorResourceReferenceNotFound("%s", fmt.Sprintf("HTTPS 证书 %q 不存在", certificateID))
 	}
 	return nil
 }
@@ -40,12 +35,9 @@ func (uc *Usecase) checkCertificateReferences(ctx context.Context, spec resource
 // checkNotReferenced 检查删除请求开始时可见的引用。
 // 并发写入产生的悬空引用由引用方的 Controller Status 表达。
 func (uc *Usecase) checkNotReferenced(ctx context.Context, gateway *resource.Gateway) error {
-	if err := biz.VisitPages(ctx, uc.routes.ListPage, func(route resource.Route) (bool, error) {
+	if err := pagination.VisitPages(ctx, uc.routes.ListPage, func(route resource.Route) (bool, error) {
 		if slices.Contains(route.Spec.GatewayRefs, gateway.Name) {
-			return false, errors.Conflict(
-				adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-				fmt.Sprintf("网关 %q 仍有关联路由", gateway.Spec.DisplayName),
-			)
+			return false, adminv1.ErrorResourceReferenced("%s", fmt.Sprintf("网关 %q 仍有关联路由", gateway.Spec.DisplayName))
 		}
 		return false, nil
 	}); err != nil {
@@ -61,13 +53,11 @@ func (uc *Usecase) checkNotReferenced(ctx context.Context, gateway *resource.Gat
 		return err
 	}
 	if policyUsage != nil {
-		return errors.Conflict(
-			adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-			fmt.Sprintf(
-				"网关 %q 仍被策略 %q 应用",
-				gateway.Spec.DisplayName,
-				policyUsage.DisplayName,
-			),
+		return adminv1.ErrorResourceReferenced("%s", fmt.Sprintf(
+			"网关 %q 仍被策略 %q 应用",
+			gateway.Spec.DisplayName,
+			policyUsage.DisplayName,
+		),
 		)
 	}
 	return nil

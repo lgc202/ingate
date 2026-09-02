@@ -1,30 +1,31 @@
-package biz
+package policy
 
 import (
 	"context"
 	"slices"
 
+	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // RateLimitPolicyLister 定义策略引用检查需要的限流策略分页能力。
 type RateLimitPolicyLister interface {
-	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.RateLimitPolicy], error)
+	ListPage(ctx context.Context, page pagination.Request) (pagination.Result[resource.RateLimitPolicy], error)
 }
 
 // IPRestrictionPolicyLister 定义策略引用检查需要的 IP 访问限制策略分页能力。
 type IPRestrictionPolicyLister interface {
-	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.IPRestrictionPolicy], error)
+	ListPage(ctx context.Context, page pagination.Request) (pagination.Result[resource.IPRestrictionPolicy], error)
 }
 
 // HeaderTransformationPolicyLister 定义策略引用检查需要的 Header 转换策略分页能力。
 type HeaderTransformationPolicyLister interface {
-	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.HeaderTransformationPolicy], error)
+	ListPage(ctx context.Context, page pagination.Request) (pagination.Result[resource.HeaderTransformationPolicy], error)
 }
 
 // MockResponsePolicyLister 定义策略引用检查需要的模拟响应策略分页能力。
 type MockResponsePolicyLister interface {
-	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.MockResponsePolicy], error)
+	ListPage(ctx context.Context, page pagination.Request) (pagination.Result[resource.MockResponsePolicy], error)
 }
 
 // PolicyUsage 表示一个目标当前被哪条策略应用。
@@ -109,11 +110,11 @@ func (f *PolicyUsageFinder) FindTarget(
 func findPolicyUsage[P any](
 	ctx context.Context,
 	target resource.PolicyTargetRef,
-	list func(context.Context, PageRequest) (PageResult[P], error),
+	list func(context.Context, pagination.Request) (pagination.Result[P], error),
 	attributesOf func(P) (string, []resource.PolicyTargetRef),
 ) (*PolicyUsage, error) {
 	var usage *PolicyUsage
-	err := VisitPages(ctx, list, func(policy P) (bool, error) {
+	err := pagination.VisitPages(ctx, list, func(policy P) (bool, error) {
 		displayName, targetRefs := attributesOf(policy)
 		if !slices.Contains(targetRefs, target) {
 			return false, nil

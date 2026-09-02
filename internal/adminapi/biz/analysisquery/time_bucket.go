@@ -1,4 +1,5 @@
-package biz
+// Package analysisquery 提供分析查询共享的时间范围、粒度和排序语义。
+package analysisquery
 
 import "time"
 

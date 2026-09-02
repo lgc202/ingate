@@ -4,19 +4,14 @@ package traffic
 import (
 	"context"
 
-	"github.com/go-kratos/kratos/v3/errors"
-
-	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/analysisquery"
+	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
 )
 
 const defaultBreakdownLimit = 10
 
 // ErrUnavailable 表示流量分析组件当前无法提供查询。
-var ErrUnavailable = errors.ServiceUnavailable(
-	adminv1.ErrorReason_DEPENDENCY_UNAVAILABLE.String(),
-	"流量分析服务暂时不可用，请稍后重试",
-)
+var ErrUnavailable = apperror.DependencyUnavailable("流量分析服务暂时不可用，请稍后重试", nil)
 
 // Analyzer 定义流量分析所需的聚合查询能力。
 type Analyzer interface {
@@ -45,7 +40,7 @@ func (uc *Usecase) Analyze(ctx context.Context, query Query) (Analysis, error) {
 	if query.Order == 0 {
 		query.Order = BreakdownOrderRequestCount
 	}
-	query.Bucket = TimeBucket(biz.TimeBucketForRange(query.Filter.EndTime.Sub(query.Filter.StartTime)))
+	query.Bucket = TimeBucket(analysisquery.TimeBucketForRange(query.Filter.EndTime.Sub(query.Filter.StartTime)))
 	return uc.analyzer.Analyze(ctx, query)
 }
 
@@ -59,5 +54,5 @@ func (uc *Usecase) BatchGetResourceTraffic(
 
 // Unavailable 保留 Analytics 返回的底层原因，同时向控制台暴露稳定错误语义。
 func Unavailable(cause error) error {
-	return ErrUnavailable.WithCause(cause)
+	return apperror.DependencyUnavailable("流量分析服务暂时不可用，请稍后重试", cause)
 }

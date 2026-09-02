@@ -5,13 +5,12 @@ import (
 	"context"
 	"strings"
 
-	"github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/plugin"
 	wasmpluginbiz "github.com/lgc202/ingate/internal/adminapi/biz/wasmplugin"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -79,17 +78,11 @@ func (s *Service) CreateWasmPlugin(
 ) (*adminv1.WasmPlugin, error) {
 	sourceID := strings.TrimSpace(request.GetSourceId())
 	if sourceID == "" {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"请选择插件源",
-		)
+		return nil, adminv1.ErrorInvalidArgument("请选择插件源")
 	}
 	packageName := strings.TrimSpace(request.GetPackageName())
 	if packageName == "" {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"请选择要安装的插件",
-		)
+		return nil, adminv1.ErrorInvalidArgument("请选择要安装的插件")
 	}
 	plugin, err := s.plugins.Install(ctx, sourceID, packageName)
 	if err != nil {
@@ -123,7 +116,7 @@ func (s *Service) DeleteWasmPlugin(
 
 func (s *Service) pluginResponse(
 	plugin *resource.WasmPlugin,
-	usages []biz.PluginPolicyUsage,
+	usages []plugin.PluginPolicyUsage,
 ) *adminv1.WasmPlugin {
 	catalog := s.plugins.CatalogInfo(plugin)
 	return pluginResponse(plugin, catalog, usages)

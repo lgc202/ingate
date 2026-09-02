@@ -4,8 +4,6 @@ package request
 import (
 	"context"
 
-	"github.com/go-kratos/kratos/v3/errors"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
@@ -51,20 +49,14 @@ func (s *Service) GetRequestRecord(
 	request *adminv1.GetRequestRecordRequest,
 ) (*adminv1.RequestRecord, error) {
 	if !requestrecord.IsValidID(request.GetId()) {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"请求记录标识无效",
-		)
+		return nil, adminv1.ErrorInvalidArgument("请求记录标识无效")
 	}
 	startedAt, err := requiredTimestamp(request.GetStartedAt(), "请选择请求开始时间")
 	if err != nil {
 		return nil, err
 	}
 	if !analyticsconfig.IsSupportedTime(startedAt) {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"请求开始时间超出支持范围",
-		)
+		return nil, adminv1.ErrorInvalidArgument("请求开始时间超出支持范围")
 	}
 	record, err := s.records.Get(ctx, request.GetId(), startedAt)
 	if err != nil {

@@ -7,7 +7,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
+	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -25,7 +28,7 @@ const (
 
 // Store 定义 Route 管理所需的持久化能力。
 type Store interface {
-	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Route], error)
+	ListPage(ctx context.Context, page pagination.Request) (pagination.Result[resource.Route], error)
 	Get(ctx context.Context, routeID string) (*resource.Route, error)
 	Create(ctx context.Context, routeID string, spec resource.RouteSpec) (*resource.Route, error)
 	ReplaceSpec(
@@ -48,12 +51,12 @@ type ServiceReader interface {
 
 // CallerLister 定义 Route 删除检查所需的 Caller 分页能力。
 type CallerLister interface {
-	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Caller], error)
+	ListPage(ctx context.Context, page pagination.Request) (pagination.Result[resource.Caller], error)
 }
 
 // ListFilter 表达 Route 列表的筛选条件。
 type ListFilter struct {
-	biz.ResourceFilter
+	resourceview.Filter
 	Type TypeFilter
 }
 
@@ -63,7 +66,7 @@ type Usecase struct {
 	gateways          GatewayReader
 	services          ServiceReader
 	callers           CallerLister
-	policyUsageFinder *biz.PolicyUsageFinder
+	policyUsageFinder *policy.PolicyUsageFinder
 }
 
 // NewUsecase 创建 Route 用例。
@@ -72,7 +75,7 @@ func NewUsecase(
 	gateways GatewayReader,
 	services ServiceReader,
 	callers CallerLister,
-	policyUsageFinder *biz.PolicyUsageFinder,
+	policyUsageFinder *policy.PolicyUsageFinder,
 ) *Usecase {
 	return &Usecase{
 		store:             store,
@@ -86,10 +89,10 @@ func NewUsecase(
 // List 返回满足筛选条件的 Route 列表。
 func (uc *Usecase) List(
 	ctx context.Context,
-	page biz.PageRequest,
+	page pagination.Request,
 	filter ListFilter,
-) (biz.PageResult[resource.Route], error) {
-	return biz.FilterPage(ctx, page, uc.store.ListPage, filter.matches)
+) (pagination.Result[resource.Route], error) {
+	return resourceview.FilterPage(ctx, page, uc.store.ListPage, filter.matches)
 }
 
 // Get 返回指定 Route。
@@ -120,7 +123,7 @@ func (uc *Usecase) Replace(
 	}
 
 	if current.Generation != expectedGeneration {
-		return nil, biz.ErrResourceVersionConflict
+		return nil, apperror.ResourceVersionConflict()
 	}
 	if err := uc.checkReferences(ctx, spec); err != nil {
 		return nil, err
@@ -137,7 +140,7 @@ func (uc *Usecase) Delete(ctx context.Context, routeID string, expectedGeneratio
 	}
 
 	if current.Generation != expectedGeneration {
-		return biz.ErrResourceVersionConflict
+		return apperror.ResourceVersionConflict()
 	}
 	if err := uc.checkNotReferenced(ctx, current); err != nil {
 		return err
@@ -169,10 +172,10 @@ func (f ListFilter) matches(route resource.Route) bool {
 		searchText.WriteByte(' ')
 		searchText.WriteString(hostname)
 	}
-	status := biz.EnabledResourceStatus(
+	status := resourceview.EnabledStatus(
 		route.Generation,
 		route.Spec.Enabled,
 		route.Status.Conditions,
 	)
-	return f.ResourceFilter.Match(searchText.String(), route.Spec.Enabled, status)
+	return f.Filter.Match(searchText.String(), route.Spec.Enabled, status)
 }

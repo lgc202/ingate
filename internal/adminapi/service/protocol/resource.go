@@ -1,5 +1,4 @@
-// Package service 维护 Admin API 产品协议与业务对象之间的共享转换规则。
-package service
+package protocol
 
 import (
 	"time"
@@ -7,7 +6,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -30,15 +29,15 @@ func ResourceUpdatedAt(annotations map[string]string) time.Time {
 }
 
 // ResourceState 把领域状态转换为控制台协议枚举。
-func ResourceState(state biz.ResourceState) adminv1.ResourceState {
+func ResourceState(state resourceview.State) adminv1.ResourceState {
 	switch state {
-	case biz.ResourceStateDisabled:
+	case resourceview.StateDisabled:
 		return adminv1.ResourceState_DISABLED
-	case biz.ResourceStatePending:
+	case resourceview.StatePending:
 		return adminv1.ResourceState_PENDING
-	case biz.ResourceStateReady:
+	case resourceview.StateReady:
 		return adminv1.ResourceState_READY
-	case biz.ResourceStateError:
+	case resourceview.StateError:
 		return adminv1.ResourceState_ERROR
 	default:
 		return adminv1.ResourceState_RESOURCE_STATE_UNSPECIFIED
@@ -46,57 +45,57 @@ func ResourceState(state biz.ResourceState) adminv1.ResourceState {
 }
 
 // ResourceFilter 把控制台筛选条件转换为业务层查询条件。
-func ResourceFilter(query string, enabled *bool, state adminv1.ResourceState) biz.ResourceFilter {
-	var resourceState biz.ResourceState
+func ResourceFilter(query string, enabled *bool, state adminv1.ResourceState) resourceview.Filter {
+	var resourceState resourceview.State
 	switch state {
 	case adminv1.ResourceState_DISABLED:
-		resourceState = biz.ResourceStateDisabled
+		resourceState = resourceview.StateDisabled
 	case adminv1.ResourceState_PENDING:
-		resourceState = biz.ResourceStatePending
+		resourceState = resourceview.StatePending
 	case adminv1.ResourceState_READY:
-		resourceState = biz.ResourceStateReady
+		resourceState = resourceview.StateReady
 	case adminv1.ResourceState_ERROR:
-		resourceState = biz.ResourceStateError
+		resourceState = resourceview.StateError
 	}
-	return biz.NewResourceFilter(query, enabled, resourceState)
+	return resourceview.NewFilter(query, enabled, resourceState)
 }
 
 // ResourceMessage 返回控制台可以直接展示的资源状态文案。
-func ResourceMessage(reason biz.ResourceReason) string {
+func ResourceMessage(reason resourceview.Reason) string {
 	switch reason {
-	case biz.ReasonAwaitingAcceptance:
+	case resourceview.ReasonAwaitingAcceptance:
 		return "配置正在处理中"
-	case biz.ReasonCheckingReferences:
+	case resourceview.ReasonCheckingReferences:
 		return "正在检查关联资源"
-	case biz.ReasonProgramming:
+	case resourceview.ReasonProgramming:
 		return "配置正在生效"
-	case biz.ReasonReady:
+	case resourceview.ReasonReady:
 		return "配置已生效"
-	case biz.ReasonDisabled:
+	case resourceview.ReasonDisabled:
 		return "已停用"
-	case biz.ReasonUnapplied:
+	case resourceview.ReasonUnapplied:
 		return "配置已保存，尚未应用"
-	case biz.ReasonTargetNotApplied:
+	case resourceview.ReasonTargetNotApplied:
 		return "目标当前没有可生效的流量入口"
-	case biz.ReasonInvalidSpec:
+	case resourceview.ReasonInvalidSpec:
 		return "配置内容不正确"
-	case biz.ReasonReferenceNotFound:
+	case resourceview.ReasonReferenceNotFound:
 		return "引用的资源不存在"
-	case biz.ReasonPluginNotInstalled:
+	case resourceview.ReasonPluginNotInstalled:
 		return "依赖的插件未安装"
-	case biz.ReasonInvalidReference:
+	case resourceview.ReasonInvalidReference:
 		return "引用的资源不可用"
-	case biz.ReasonConflict:
+	case resourceview.ReasonConflict:
 		return "配置与其他资源冲突"
-	case biz.ReasonUnsupported:
+	case resourceview.ReasonUnsupported:
 		return "当前版本尚不支持该配置"
-	case biz.ReasonCompileFailed:
+	case resourceview.ReasonCompileFailed:
 		return "配置处理失败"
-	case biz.ReasonArtifactUnavailable:
+	case resourceview.ReasonArtifactUnavailable:
 		return "插件制品不可用"
-	case biz.ReasonRejected:
+	case resourceview.ReasonRejected:
 		return "配置未能生效"
-	case biz.ReasonDeliveryFailed:
+	case resourceview.ReasonDeliveryFailed:
 		return "配置发布失败"
 	default:
 		return ""

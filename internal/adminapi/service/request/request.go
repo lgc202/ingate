@@ -3,7 +3,6 @@ package request
 import (
 	"time"
 
-	"github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
@@ -40,16 +39,10 @@ func listFilter(request *adminv1.ListRequestRecordsRequest) (requestbiz.Filter, 
 		return requestbiz.Filter{}, err
 	}
 	if !startTime.Before(endTime) {
-		return requestbiz.Filter{}, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"查询开始时间必须早于结束时间",
-		)
+		return requestbiz.Filter{}, adminv1.ErrorInvalidArgument("查询开始时间必须早于结束时间")
 	}
 	if !analyticsconfig.IsValidQueryRange(startTime, endTime) {
-		return requestbiz.Filter{}, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"单次最多查询 90 天请求记录",
-		)
+		return requestbiz.Filter{}, adminv1.ErrorInvalidArgument("单次最多查询 90 天请求记录")
 	}
 	if err := validateResourceFilters(request); err != nil {
 		return requestbiz.Filter{}, err
@@ -83,10 +76,7 @@ func validateResourceFilters(request *adminv1.ListRequestRecordsRequest) error {
 		request.GetCallerId(),
 	} {
 		if resourceID != "" && !resourceconfig.IsCanonicalID(resourceID) {
-			return errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"资源筛选条件无效",
-			)
+			return adminv1.ErrorInvalidArgument("资源筛选条件无效")
 		}
 	}
 	return nil
@@ -102,17 +92,11 @@ func requestStatusCode(
 	requestedStatusCode := request.GetStatusCode()
 	if requestedStatusCode > 65535 ||
 		(requestedStatusCode > 0 && requestedStatusCode < 100) {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"HTTP 状态码无效",
-		)
+		return nil, adminv1.ErrorInvalidArgument("HTTP 状态码无效")
 	}
 	if outcome != requestbiz.OutcomeUnknown &&
 		requestbiz.ClassifyStatusCode(requestedStatusCode) != outcome {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"HTTP 状态码与请求结果不一致",
-		)
+		return nil, adminv1.ErrorInvalidArgument("HTTP 状态码与请求结果不一致")
 	}
 	value := uint16(requestedStatusCode)
 	return &value, nil
@@ -120,10 +104,7 @@ func requestStatusCode(
 
 func requiredTimestamp(value *timestamppb.Timestamp, userMessage string) (time.Time, error) {
 	if value == nil || value.CheckValid() != nil {
-		return time.Time{}, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			userMessage,
-		)
+		return time.Time{}, adminv1.ErrorInvalidArgument("%s", userMessage)
 	}
 	return value.AsTime(), nil
 }

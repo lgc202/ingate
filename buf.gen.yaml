@@ -27,3 +27,8 @@ plugins:
     opt:
       - paths=import
       - module=github.com/lgc202/ingate
+  - local: protoc-gen-go-errors
+    out: .
+    opt:
+      - paths=import
+      - module=github.com/lgc202/ingate

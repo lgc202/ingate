@@ -2,13 +2,13 @@ package gateway
 
 import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 func gatewayResponse(gateway *resource.Gateway) *adminv1.Gateway {
-	status := biz.EnabledResourceStatus(
+	status := resourceview.EnabledStatus(
 		gateway.Generation,
 		gateway.Spec.Enabled,
 		gateway.Status.Conditions,

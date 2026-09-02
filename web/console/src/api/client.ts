@@ -1,7 +1,22 @@
 interface ApiResponse<T> {
   code: number;
+  reason?: string;
   msg: string;
   data: T;
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: number;
+  readonly reason?: string;
+
+  constructor(status: number, code: number, reason: string | undefined, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    this.reason = reason;
+  }
 }
 
 export interface PagedResponse {
@@ -48,14 +63,29 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new Error(response.ok ? '服务返回了无法识别的响应' : `请求失败：${response.status}`);
+    throw new ApiError(
+      response.status,
+      response.status,
+      undefined,
+      response.ok ? '服务返回了无法识别的响应' : `请求失败：${response.status}`,
+    );
   }
   if (!isApiResponse<T>(parsed)) {
-    throw new Error(response.ok ? '服务返回了无法识别的响应' : `请求失败：${response.status}`);
+    throw new ApiError(
+      response.status,
+      response.status,
+      undefined,
+      response.ok ? '服务返回了无法识别的响应' : `请求失败：${response.status}`,
+    );
   }
   const body = parsed;
   if (!response.ok || body.code < 200 || body.code >= 300) {
-    throw new Error(body.msg || `请求失败：${response.status}`);
+    throw new ApiError(
+      response.status,
+      body.code,
+      body.reason,
+      body.msg || `请求失败：${response.status}`,
+    );
   }
 
   return body.data;
@@ -129,6 +159,10 @@ function isApiResponse<T>(value: unknown): value is ApiResponse<T> {
   return typeof value === 'object'
     && value !== null
     && typeof (value as { code?: unknown }).code === 'number'
+    && (
+      (value as { reason?: unknown }).reason === undefined
+      || typeof (value as { reason?: unknown }).reason === 'string'
+    )
     && typeof (value as { msg?: unknown }).msg === 'string'
     && 'data' in value;
 }

@@ -2,19 +2,20 @@ package ratelimit
 
 import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	policybiz "github.com/lgc202/ingate/internal/adminapi/biz/policy"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
-func rateLimitPolicyResponse(policy *resource.RateLimitPolicy, names biz.PolicyTargetNames) *adminv1.RateLimitPolicy {
-	status := biz.PolicyStatus(
+func rateLimitPolicyResponse(policy *resource.RateLimitPolicy, names policybiz.PolicyTargetNames) *adminv1.RateLimitPolicy {
+	status := policybiz.Status(
 		policy.Generation,
 		policy.Spec.Enabled,
 		len(policy.Spec.TargetRefs),
 		policy.Status.Conditions,
 	)
-	disabled := status.State == biz.ResourceStateDisabled
+	disabled := status.State == resourceview.StateDisabled
 	return &adminv1.RateLimitPolicy{
 		Id:      policy.Name,
 		Name:    policy.Spec.DisplayName,

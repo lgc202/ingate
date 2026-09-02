@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/go-kratos/kratos/v3/errors"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -21,10 +19,7 @@ func (uc *Usecase) checkReferences(ctx context.Context, spec resource.RouteSpec)
 	}
 	for _, gatewayID := range spec.GatewayRefs {
 		if gateways[gatewayID] == nil {
-			return errors.Conflict(
-				adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-				fmt.Sprintf("关联网关 %q 不存在", gatewayID),
-			)
+			return adminv1.ErrorResourceReferenceNotFound("%s", fmt.Sprintf("关联网关 %q 不存在", gatewayID))
 		}
 	}
 
@@ -36,16 +31,10 @@ func (uc *Usecase) checkReferences(ctx context.Context, spec resource.RouteSpec)
 	for _, serviceRef := range spec.UpstreamRefs {
 		service := services[serviceRef.Name]
 		if service == nil {
-			return errors.Conflict(
-				adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-				fmt.Sprintf("关联服务 %q 不存在", serviceRef.Name),
-			)
+			return adminv1.ErrorResourceReferenceNotFound("%s", fmt.Sprintf("关联服务 %q 不存在", serviceRef.Name))
 		}
 		if service.Spec.Model != nil {
-			return errors.Conflict(
-				adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-				fmt.Sprintf("模型服务 %q 只能用于 AI 路由", service.Spec.DisplayName),
-			)
+			return adminv1.ErrorBusinessRuleViolation("%s", fmt.Sprintf("模型服务 %q 只能用于 AI 路由", service.Spec.DisplayName))
 		}
 	}
 
@@ -57,16 +46,10 @@ func (uc *Usecase) checkReferences(ctx context.Context, spec resource.RouteSpec)
 		for _, target := range model.Targets {
 			service := services[target.UpstreamRef]
 			if service == nil {
-				return errors.Conflict(
-					adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-					fmt.Sprintf("关联模型服务 %q 不存在", target.UpstreamRef),
-				)
+				return adminv1.ErrorResourceReferenceNotFound("%s", fmt.Sprintf("关联模型服务 %q 不存在", target.UpstreamRef))
 			}
 			if service.Spec.Model == nil {
-				return errors.Conflict(
-					adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-					fmt.Sprintf("服务 %q 不是模型服务", service.Spec.DisplayName),
-				)
+				return adminv1.ErrorBusinessRuleViolation("%s", fmt.Sprintf("服务 %q 不是模型服务", service.Spec.DisplayName))
 			}
 		}
 	}
@@ -108,28 +91,24 @@ func (uc *Usecase) checkNotReferenced(ctx context.Context, route *resource.Route
 		return err
 	}
 	if policyUsage != nil {
-		return errors.Conflict(
-			adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-			fmt.Sprintf(
-				"路由 %q 仍被策略 %q 应用",
-				route.Spec.DisplayName,
-				policyUsage.DisplayName,
-			),
+		return adminv1.ErrorResourceReferenced("%s", fmt.Sprintf(
+			"路由 %q 仍被策略 %q 应用",
+			route.Spec.DisplayName,
+			policyUsage.DisplayName,
+		),
 		)
 	}
 
-	return biz.VisitPages(
+	return pagination.VisitPages(
 		ctx,
 		uc.callers.ListPage,
 		func(caller resource.Caller) (bool, error) {
 			if slices.Contains(caller.Spec.RouteRefs, route.Name) {
-				return false, errors.Conflict(
-					adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-					fmt.Sprintf(
-						"路由 %q 仍授权给调用方 %q",
-						route.Spec.DisplayName,
-						caller.Spec.DisplayName,
-					),
+				return false, adminv1.ErrorResourceReferenced("%s", fmt.Sprintf(
+					"路由 %q 仍授权给调用方 %q",
+					route.Spec.DisplayName,
+					caller.Spec.DisplayName,
+				),
 				)
 			}
 			return false, nil

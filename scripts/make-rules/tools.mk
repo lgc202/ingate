@@ -22,6 +22,8 @@ PROTOC_GEN_GO_GRPC_VERSION := v1.6.2
 PROTOC_GEN_GO_GRPC_PACKAGE := google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(PROTOC_GEN_GO_GRPC_VERSION)
 PROTOC_GEN_GO_HTTP_VERSION := v3.0.0-20260526000039-30da04b769dc
 PROTOC_GEN_GO_HTTP_PACKAGE := github.com/go-kratos/kratos/cmd/protoc-gen-go-http/v3@$(PROTOC_GEN_GO_HTTP_VERSION)
+PROTOC_GEN_GO_ERRORS_VERSION := v3.0.0-20260626125723-668db92c2c00
+PROTOC_GEN_GO_ERRORS_PACKAGE := github.com/go-kratos/kratos/cmd/protoc-gen-go-errors/v3@$(PROTOC_GEN_GO_ERRORS_VERSION)
 WIRE_VERSION := v0.7.0
 WIRE_PACKAGE := github.com/google/wire/cmd/wire@$(WIRE_VERSION)
 SQLC_VERSION := v1.31.1
@@ -37,7 +39,7 @@ GO_TOOL_PREREQUISITES := \
 	$(PROJECT_ROOT)/scripts/make-rules/tools.mk
 
 .PHONY: tools
-tools: $(TOOLS_DIR)/buf $(TOOLS_DIR)/protoc-gen-go $(TOOLS_DIR)/protoc-gen-go-grpc $(TOOLS_DIR)/protoc-gen-go-http $(TOOLS_DIR)/wire $(TOOLS_DIR)/sqlc $(TOOLS_DIR)/golangci-lint $(TOOLS_DIR)/actionlint $(TOOLS_DIR)/govulncheck ## 安装项目开发工具
+tools: $(TOOLS_DIR)/buf $(TOOLS_DIR)/protoc-gen-go $(TOOLS_DIR)/protoc-gen-go-grpc $(TOOLS_DIR)/protoc-gen-go-http $(TOOLS_DIR)/protoc-gen-go-errors $(TOOLS_DIR)/wire $(TOOLS_DIR)/sqlc $(TOOLS_DIR)/golangci-lint $(TOOLS_DIR)/actionlint $(TOOLS_DIR)/govulncheck ## 安装项目开发工具
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(KUBE_CODEGEN_PACKAGES)
 
@@ -56,6 +58,10 @@ $(TOOLS_DIR)/protoc-gen-go-grpc: $(GO_TOOL_PREREQUISITES)
 $(TOOLS_DIR)/protoc-gen-go-http: $(GO_TOOL_PREREQUISITES)
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(PROTOC_GEN_GO_HTTP_PACKAGE)
+
+$(TOOLS_DIR)/protoc-gen-go-errors: $(GO_TOOL_PREREQUISITES)
+	@mkdir -p $(TOOLS_DIR)
+	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(PROTOC_GEN_GO_ERRORS_PACKAGE)
 
 $(TOOLS_DIR)/wire: $(GO_TOOL_PREREQUISITES)
 	@mkdir -p $(TOOLS_DIR)

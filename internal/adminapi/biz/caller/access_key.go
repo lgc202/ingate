@@ -7,12 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-kratos/kratos/v3/errors"
 	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
 	"github.com/lgc202/ingate/internal/pkg/accesskey"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/callerconfig"
@@ -42,20 +41,14 @@ func (uc *Usecase) IssueAccessKey(
 		return IssuedAccessKey{}, err
 	}
 	if current.Generation != input.ExpectedGeneration {
-		return IssuedAccessKey{}, biz.ErrResourceVersionConflict
+		return IssuedAccessKey{}, apperror.ResourceVersionConflict()
 	}
 	if len(current.Spec.AccessKeys) >= callerconfig.MaxAccessKeys {
-		return IssuedAccessKey{}, errors.Conflict(
-			adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-			"访问密钥数量已达上限",
-		)
+		return IssuedAccessKey{}, adminv1.ErrorBusinessRuleViolation("访问密钥数量已达上限")
 	}
 	for _, accessKey := range current.Spec.AccessKeys {
 		if strings.EqualFold(accessKey.DisplayName, input.DisplayName) {
-			return IssuedAccessKey{}, errors.Conflict(
-				adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-				fmt.Sprintf("访问密钥名称 %q 已存在", input.DisplayName),
-			)
+			return IssuedAccessKey{}, adminv1.ErrorResourceAlreadyExists("%s", fmt.Sprintf("访问密钥名称 %q 已存在", input.DisplayName))
 		}
 	}
 
@@ -87,7 +80,7 @@ func (uc *Usecase) DisableAccessKey(
 		return nil, err
 	}
 	if current.Generation != expectedGeneration {
-		return nil, biz.ErrResourceVersionConflict
+		return nil, apperror.ResourceVersionConflict()
 	}
 
 	spec := current.Spec
@@ -96,10 +89,7 @@ func (uc *Usecase) DisableAccessKey(
 		return accessKey.ID == accessKeyID
 	})
 	if index < 0 {
-		return nil, errors.NotFound(
-			adminv1.ErrorReason_RESOURCE_NOT_FOUND.String(),
-			"访问密钥不存在",
-		)
+		return nil, adminv1.ErrorResourceNotFound("访问密钥不存在")
 	}
 	if !spec.AccessKeys[index].Enabled {
 		return current, nil
@@ -111,10 +101,7 @@ func (uc *Usecase) DisableAccessKey(
 func newAccessKey(displayName string, expiresAt *time.Time) (IssuedAccessKey, error) {
 	now := time.Now().UTC()
 	if expiresAt != nil && !expiresAt.After(now) {
-		return IssuedAccessKey{}, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"访问密钥到期时间必须晚于当前时间",
-		)
+		return IssuedAccessKey{}, adminv1.ErrorInvalidArgument("访问密钥到期时间必须晚于当前时间")
 	}
 	accessKeyID := uuid.NewString()
 	secret, err := accesskey.Generate(accessKeyID)

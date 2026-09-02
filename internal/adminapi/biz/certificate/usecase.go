@@ -6,13 +6,15 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
+	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // Store 定义 Certificate 管理所需的持久化能力。
 type Store interface {
-	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Certificate], error)
+	ListPage(ctx context.Context, page pagination.Request) (pagination.Result[resource.Certificate], error)
 	Get(ctx context.Context, certificateID string) (*resource.Certificate, error)
 	Create(
 		ctx context.Context,
@@ -29,7 +31,7 @@ type Store interface {
 
 // GatewayLister 定义 Certificate 删除检查所需的 Gateway 分页能力。
 type GatewayLister interface {
-	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Gateway], error)
+	ListPage(ctx context.Context, page pagination.Request) (pagination.Result[resource.Gateway], error)
 }
 
 // ReplaceInput 描述 Certificate 替换操作及密钥对的保留语义。
@@ -53,11 +55,11 @@ func NewUsecase(store Store, gateways GatewayLister) *Usecase {
 // List 返回满足筛选条件的 Certificate 列表。
 func (uc *Usecase) List(
 	ctx context.Context,
-	page biz.PageRequest,
-	filter biz.ResourceFilter,
-) (biz.PageResult[resource.Certificate], error) {
-	return biz.FilterPage(ctx, page, uc.store.ListPage, func(certificate resource.Certificate) bool {
-		status := biz.ResourceStatusFromConditions(
+	page pagination.Request,
+	filter resourceview.Filter,
+) (pagination.Result[resource.Certificate], error) {
+	return resourceview.FilterPage(ctx, page, uc.store.ListPage, func(certificate resource.Certificate) bool {
+		status := resourceview.StatusFromConditions(
 			certificate.Generation,
 			certificate.Status.Conditions,
 		)
@@ -91,7 +93,7 @@ func (uc *Usecase) Replace(
 	}
 
 	if current.Generation != input.ExpectedGeneration {
-		return nil, biz.ErrResourceVersionConflict
+		return nil, apperror.ResourceVersionConflict()
 	}
 	replacement := input.Spec
 	if input.PreserveKeyPair {
@@ -109,7 +111,7 @@ func (uc *Usecase) Delete(ctx context.Context, certificateID string, expectedGen
 	}
 
 	if current.Generation != expectedGeneration {
-		return biz.ErrResourceVersionConflict
+		return apperror.ResourceVersionConflict()
 	}
 	if err := uc.checkNotReferenced(ctx, current); err != nil {
 		return err

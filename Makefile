@@ -11,4 +11,5 @@ include scripts/make-rules/tools.mk
 include scripts/make-rules/generate.mk
 include scripts/make-rules/web.mk
 include scripts/make-rules/docker.mk
+include scripts/make-rules/e2e.mk
 include scripts/make-rules/verify.mk

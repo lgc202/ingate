@@ -2,15 +2,16 @@ package tokenquota
 
 import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
 	tokenquotabiz "github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 func tokenQuotaPolicyResponse(
 	policy *resource.TokenQuotaPolicy,
-	names biz.PolicyTargetNames,
+	names policy.PolicyTargetNames,
 ) *adminv1.TokenQuotaPolicy {
 	state, message := tokenQuotaPolicyState(policy)
 	limits := make([]*adminv1.TokenQuotaLimit, len(policy.Spec.Limits))
@@ -41,9 +42,9 @@ func tokenQuotaPolicyState(
 	status := tokenquotabiz.PolicyStatus(policy)
 	message := "策略已启用"
 	switch status.Reason {
-	case biz.ReasonDisabled:
+	case resourceview.ReasonDisabled:
 		message = "策略已停用"
-	case biz.ReasonUnapplied:
+	case resourceview.ReasonUnapplied:
 		message = "策略尚未应用到调用方"
 	}
 	return adminservice.ResourceState(status.State), message
@@ -51,7 +52,7 @@ func tokenQuotaPolicyState(
 
 func tokenQuotaPolicyTargets(
 	policy *resource.TokenQuotaPolicy,
-	names biz.PolicyTargetNames,
+	names policy.PolicyTargetNames,
 ) []*adminv1.PolicyTarget {
 	state, message := tokenQuotaPolicyState(policy)
 	targets := make([]*adminv1.PolicyTarget, len(policy.Spec.TargetRefs))

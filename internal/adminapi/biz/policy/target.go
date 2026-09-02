@@ -1,10 +1,9 @@
-package biz
+// Package policy 提供策略目标、状态和引用关系的共享领域能力。
+package policy
 
 import (
 	"context"
 	"fmt"
-
-	"github.com/go-kratos/kratos/v3/errors"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
@@ -81,26 +80,17 @@ func (r *PolicyTargetResolver) Resolve(
 			if r.gateways == nil {
 				return PolicyTargetNames{}, fmt.Errorf("resolve policy target: %s is not supported", ref.Kind)
 			}
-			return PolicyTargetNames{}, errors.Conflict(
-				adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-				fmt.Sprintf("关联网关 %q 不存在", ref.Name),
-			)
+			return PolicyTargetNames{}, adminv1.ErrorPolicyTargetNotFound("%s", fmt.Sprintf("关联网关 %q 不存在", ref.Name))
 		case resource.KindRoute:
 			if r.routes == nil {
 				return PolicyTargetNames{}, fmt.Errorf("resolve policy target: %s is not supported", ref.Kind)
 			}
-			return PolicyTargetNames{}, errors.Conflict(
-				adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-				fmt.Sprintf("关联路由 %q 不存在", ref.Name),
-			)
+			return PolicyTargetNames{}, adminv1.ErrorPolicyTargetNotFound("%s", fmt.Sprintf("关联路由 %q 不存在", ref.Name))
 		case resource.KindCaller:
 			if r.callers == nil {
 				return PolicyTargetNames{}, fmt.Errorf("resolve policy target: %s is not supported", ref.Kind)
 			}
-			return PolicyTargetNames{}, errors.Conflict(
-				adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-				fmt.Sprintf("关联调用方 %q 不存在", ref.Name),
-			)
+			return PolicyTargetNames{}, adminv1.ErrorPolicyTargetNotFound("%s", fmt.Sprintf("关联调用方 %q 不存在", ref.Name))
 		default:
 			return PolicyTargetNames{}, fmt.Errorf("resolve policy target: unsupported kind %q", ref.Kind)
 		}

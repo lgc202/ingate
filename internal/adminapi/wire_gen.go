@@ -9,7 +9,6 @@ package adminapi
 import (
 	"context"
 	"github.com/go-kratos/kratos/v3"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
 	"github.com/lgc202/ingate/internal/adminapi/biz/aiusage"
 	"github.com/lgc202/ingate/internal/adminapi/biz/caller"
 	"github.com/lgc202/ingate/internal/adminapi/biz/certificate"
@@ -17,7 +16,9 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/headertransformation"
 	"github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
 	"github.com/lgc202/ingate/internal/adminapi/biz/mockresponse"
+	"github.com/lgc202/ingate/internal/adminapi/biz/plugin"
 	"github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy"
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	"github.com/lgc202/ingate/internal/adminapi/biz/request"
 	"github.com/lgc202/ingate/internal/adminapi/biz/route"
@@ -76,7 +77,7 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data *conf
 	v7 := apiserver.NewIPRestrictionPolicyStore(versionedInterface)
 	v8 := apiserver.NewHeaderTransformationPolicyStore(versionedInterface)
 	v9 := apiserver.NewMockResponsePolicyStore(versionedInterface)
-	policyUsageFinder := biz.NewPolicyUsageFinder(v6, v7, v8, v9)
+	policyUsageFinder := policy.NewPolicyUsageFinder(v6, v7, v8, v9)
 	gatewayUsecase := gateway.NewUsecase(v4, v2, v5, policyUsageFinder)
 	gatewayService := gateway2.NewService(gatewayUsecase)
 	v10 := apiserver.NewUpstreamStore(versionedInterface)
@@ -105,12 +106,12 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data *conf
 	tokenquotaService := tokenquota2.NewService(tokenquotaUsecase)
 	healthService := health.NewService()
 	v11 := apiserver.NewWasmPluginStore(versionedInterface)
-	pluginInstallationChecker := biz.NewPluginInstallationChecker(v11)
+	pluginInstallationChecker := plugin.NewPluginInstallationChecker(v11)
 	headertransformationUsecase := headertransformation.NewUsecase(v8, v2, pluginInstallationChecker)
 	headertransformationService := headertransformation2.NewService(headertransformationUsecase)
 	mockresponseUsecase := mockresponse.NewUsecase(v9, v2, pluginInstallationChecker)
 	mockresponseService := mockresponse2.NewService(mockresponseUsecase)
-	pluginUsageFinder := biz.NewPluginUsageFinder(v8, v9)
+	pluginUsageFinder := plugin.NewPluginUsageFinder(v8, v9)
 	v12 := apiserver.NewPluginSourceStore(versionedInterface)
 	catalog := plugincatalog.NewCatalog(data, v12, logger)
 	wasmpluginUsecase := wasmplugin.NewUsecase(v11, pluginUsageFinder, catalog)

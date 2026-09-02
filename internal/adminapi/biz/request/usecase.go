@@ -5,22 +5,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/go-kratos/kratos/v3/errors"
-
-	adminv1 "github.com/lgc202/ingate/api/admin/v1"
+	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
 )
 
 var (
 	// ErrNotFound 表示请求记录不存在或已经超过明细保留期。
-	ErrNotFound = errors.NotFound(
-		adminv1.ErrorReason_REQUEST_RECORD_NOT_FOUND.String(),
-		"请求记录不存在或已超过明细保留期",
-	)
+	ErrNotFound = apperror.RequestRecordNotFound()
 	// ErrUnavailable 表示请求分析组件当前无法提供查询。
-	ErrUnavailable = errors.ServiceUnavailable(
-		adminv1.ErrorReason_DEPENDENCY_UNAVAILABLE.String(),
-		"请求记录服务暂时不可用，请稍后重试",
-	)
+	ErrUnavailable = apperror.DependencyUnavailable("请求记录服务暂时不可用，请稍后重试", nil)
 )
 
 // Reader 定义请求记录用例所需的分页和明细查询能力。
@@ -55,5 +47,5 @@ func (uc *Usecase) Get(
 
 // Unavailable 保留 Analytics 返回的底层原因，同时向控制台暴露稳定错误语义。
 func Unavailable(cause error) error {
-	return ErrUnavailable.WithCause(cause)
+	return apperror.DependencyUnavailable("请求记录服务暂时不可用，请稍后重试", cause)
 }

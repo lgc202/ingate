@@ -2,22 +2,23 @@ package headertransformation
 
 import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	policybiz "github.com/lgc202/ingate/internal/adminapi/biz/policy"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 func headerTransformationPolicyResponse(
 	policy *resource.HeaderTransformationPolicy,
-	names biz.PolicyTargetNames,
+	names policybiz.PolicyTargetNames,
 ) *adminv1.HeaderTransformationPolicy {
-	status := biz.PolicyStatus(
+	status := policybiz.Status(
 		policy.Generation,
 		policy.Spec.Enabled,
 		len(policy.Spec.TargetRefs),
 		policy.Status.Conditions,
 	)
-	disabled := status.State == biz.ResourceStateDisabled
+	disabled := status.State == resourceview.StateDisabled
 	return &adminv1.HeaderTransformationPolicy{
 		Id:      policy.Name,
 		Name:    policy.Spec.DisplayName,

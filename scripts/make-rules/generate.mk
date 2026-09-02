@@ -10,7 +10,7 @@ proto-lint: $(BUF) ## 运行 Proto 静态检查
 	@$(BUF) format --diff --exit-code
 
 .PHONY: generate
-generate: $(BUF) $(TOOLS_DIR)/protoc-gen-go $(TOOLS_DIR)/protoc-gen-go-grpc $(TOOLS_DIR)/protoc-gen-go-http $(TOOLS_DIR)/wire $(TOOLS_DIR)/sqlc ## 生成 API、Client 和依赖装配代码
+generate: $(BUF) $(TOOLS_DIR)/protoc-gen-go $(TOOLS_DIR)/protoc-gen-go-grpc $(TOOLS_DIR)/protoc-gen-go-http $(TOOLS_DIR)/protoc-gen-go-errors $(TOOLS_DIR)/wire $(TOOLS_DIR)/sqlc ## 生成 API、Client 和依赖装配代码
 	@mkdir -p $(TOOLS_DIR)
 	@bash hack/remove-orphaned-protobuf-go.sh
 	@PATH="$(TOOLS_DIR):$$PATH" $(BUF) generate --template buf.gen.yaml

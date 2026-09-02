@@ -10,7 +10,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
+	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
 	"github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/version"
@@ -55,7 +56,7 @@ func (c *Catalog) syncAll(ctx context.Context) error {
 	if c.official.enabled {
 		definitions = append(definitions, c.official)
 	}
-	if err := biz.VisitPages(ctx, c.store.ListPage, func(source resource.PluginSource) (bool, error) {
+	if err := pagination.VisitPages(ctx, c.store.ListPage, func(source resource.PluginSource) (bool, error) {
 		definitions = append(definitions, definitionFromResource(&source))
 		return false, nil
 	}); err != nil {
@@ -95,7 +96,7 @@ func (c *Catalog) sourceDefinition(
 ) (sourceDefinition, error) {
 	if sourceID == pluginsource.OfficialSourceID {
 		if c.official.catalogURL == "" {
-			return sourceDefinition{}, biz.ErrResourceNotFound
+			return sourceDefinition{}, apperror.ResourceNotFound()
 		}
 		return c.official, nil
 	}
@@ -291,7 +292,7 @@ func (c *Catalog) removeDeletedSource(ctx context.Context, sourceID string) erro
 		switch {
 		case err == nil:
 			return nil
-		case !errors.Is(err, biz.ErrResourceNotFound):
+		case !errors.Is(err, apperror.ResourceNotFound()):
 			return fmt.Errorf("verify deleted plugin source %q: %w", sourceID, err)
 		}
 	}

@@ -4,14 +4,14 @@ import (
 	"slices"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	certificateutil "github.com/lgc202/ingate/internal/pkg/certificate"
 )
 
 func certificateSummaryResponse(certificate *resource.Certificate) *adminv1.Certificate {
-	status := biz.ResourceStatusFromConditions(
+	status := resourceview.StatusFromConditions(
 		certificate.Generation,
 		certificate.Status.Conditions,
 	)
