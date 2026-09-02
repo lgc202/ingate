@@ -8,7 +8,7 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	pluginsourcebiz "github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 )
 
 // Service 实现插件源管理 API。

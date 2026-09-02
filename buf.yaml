@@ -1,6 +1,7 @@
 version: v2
 modules:
   - path: api
+  - path: third_party/proto/kratos
   - path: internal/apiserver/conf
   - path: internal/adminapi/conf
   - path: internal/assistant/conf

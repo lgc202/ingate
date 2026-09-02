@@ -2,23 +2,31 @@ syntax = "proto3";
 
 package ingate.admin.v1;
 
+import "errors/errors.proto";
+
 option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
 
-// ErrorReason 定义 Admin API 对日志和调用方稳定的错误语义
+// ErrorReason 定义 Admin API 对日志和调用方稳定的错误语义。
 enum ErrorReason {
+  option (errors.default_code) = 500;
+
   ERROR_REASON_UNSPECIFIED = 0;
-  INVALID_ARGUMENT = 1;
-  BUSINESS_RULE_VIOLATION = 2;
-  INTERNAL_ERROR = 3;
-  ENDPOINT_NOT_FOUND = 4;
-  METHOD_NOT_ALLOWED = 5;
-  PANIC = 6;
-  RESOURCE_VERSION_CONFLICT = 7;
-  RESOURCE_NOT_FOUND = 8;
-  REQUEST_RECORD_NOT_FOUND = 9;
-  DEPENDENCY_UNAVAILABLE = 10;
-  REQUEST_BODY_TOO_LARGE = 11;
-  RESOURCE_CONFLICT = 12;
-  REQUEST_TIMEOUT = 13;
-  REQUEST_CANCELED = 14;
+  INVALID_ARGUMENT = 1 [(errors.code) = 400];
+  BUSINESS_RULE_VIOLATION = 2 [(errors.code) = 409];
+  INTERNAL_ERROR = 3 [(errors.code) = 500];
+  ENDPOINT_NOT_FOUND = 4 [(errors.code) = 404];
+  METHOD_NOT_ALLOWED = 5 [(errors.code) = 405];
+  PANIC = 6 [(errors.code) = 500];
+  RESOURCE_VERSION_CONFLICT = 7 [(errors.code) = 409];
+  RESOURCE_NOT_FOUND = 8 [(errors.code) = 404];
+  REQUEST_RECORD_NOT_FOUND = 9 [(errors.code) = 404];
+  DEPENDENCY_UNAVAILABLE = 10 [(errors.code) = 503];
+  REQUEST_BODY_TOO_LARGE = 11 [(errors.code) = 413];
+  RESOURCE_CONFLICT = 12 [(errors.code) = 409];
+  REQUEST_TIMEOUT = 13 [(errors.code) = 504];
+  REQUEST_CANCELED = 14 [(errors.code) = 499];
+  RESOURCE_ALREADY_EXISTS = 15 [(errors.code) = 409];
+  RESOURCE_REFERENCED = 16 [(errors.code) = 409];
+  RESOURCE_REFERENCE_NOT_FOUND = 17 [(errors.code) = 409];
+  POLICY_TARGET_NOT_FOUND = 18 [(errors.code) = 409];
 }

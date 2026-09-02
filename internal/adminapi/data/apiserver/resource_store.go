@@ -11,7 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
+	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -47,17 +48,17 @@ type resourceStore[Item any, Object resourceObject[Object], List any, Spec any] 
 // ListPage 分页返回声明式资源。
 func (s *resourceStore[Item, Object, List, Spec]) ListPage(
 	ctx context.Context,
-	page biz.PageRequest,
-) (biz.PageResult[Item], error) {
+	page pagination.Request,
+) (pagination.Result[Item], error) {
 	list, err := s.client.List(ctx, metav1.ListOptions{
 		Limit:    page.Limit,
 		Continue: page.Cursor,
 	})
 	if err != nil {
-		return biz.PageResult[Item]{}, listError(s.pluralName, err)
+		return pagination.Result[Item]{}, listError(s.pluralName, err)
 	}
 	items, nextCursor := s.unpackList(list)
-	return biz.PageResult[Item]{Items: items, NextCursor: nextCursor}, nil
+	return pagination.Result[Item]{Items: items, NextCursor: nextCursor}, nil
 }
 
 // Get 返回指定声明式资源。
@@ -149,7 +150,7 @@ func (s *resourceStore[Item, Object, List, Spec]) retryResourceMutation(
 		}
 		if current.GetUID() != observed.GetUID() ||
 			current.GetGeneration() != observed.GetGeneration() {
-			return biz.ErrResourceVersionConflict
+			return apperror.ResourceVersionConflict()
 		}
 
 		err := mutate(current)
@@ -171,7 +172,7 @@ func listError(resourceName string, err error) error {
 		return nil
 	}
 	if apierrors.IsBadRequest(err) || apierrors.IsResourceExpired(err) {
-		return fmt.Errorf("%w: %w", biz.ErrInvalidCursor, err)
+		return apperror.InvalidCursor(err)
 	}
 	return fmt.Errorf("list %s: %w", resourceName, translateResourceError(err))
 }
@@ -193,13 +194,13 @@ func translateResourceError(err error) error {
 	var domainErr error
 	switch {
 	case apierrors.IsNotFound(err):
-		domainErr = biz.ErrResourceNotFound
+		domainErr = apperror.ResourceNotFound()
 	case apierrors.IsAlreadyExists(err):
-		domainErr = biz.ErrResourceAlreadyExists
+		domainErr = apperror.ResourceAlreadyExists()
 	case apierrors.IsConflict(err):
-		domainErr = biz.ErrResourceVersionConflict
+		domainErr = apperror.ResourceVersionConflict()
 	case apierrors.IsInvalid(err):
-		return biz.NewInvalidResource(err)
+		return apperror.InvalidResource(err)
 	default:
 		return err
 	}
@@ -230,7 +231,7 @@ func listByIDs[T any](
 	for i, resourceID := range uniqueIDs {
 		group.Go(func() error {
 			resource, err := get(lookupCtx, resourceID)
-			if errors.Is(err, biz.ErrResourceNotFound) {
+			if errors.Is(err, apperror.ResourceNotFound()) {
 				return nil
 			}
 			if err != nil {

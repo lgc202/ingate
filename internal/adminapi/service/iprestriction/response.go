@@ -4,22 +4,23 @@ import (
 	"slices"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	policybiz "github.com/lgc202/ingate/internal/adminapi/biz/policy"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 func ipRestrictionPolicyResponse(
 	policy *resource.IPRestrictionPolicy,
-	names biz.PolicyTargetNames,
+	names policybiz.PolicyTargetNames,
 ) *adminv1.IPRestrictionPolicy {
-	status := biz.PolicyStatus(
+	status := policybiz.Status(
 		policy.Generation,
 		policy.Spec.Enabled,
 		len(policy.Spec.TargetRefs),
 		policy.Status.Conditions,
 	)
-	disabled := status.State == biz.ResourceStateDisabled
+	disabled := status.State == resourceview.StateDisabled
 	return &adminv1.IPRestrictionPolicy{
 		Id:      policy.Name,
 		Name:    policy.Spec.DisplayName,

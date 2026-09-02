@@ -8,7 +8,7 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	headertransformationbiz "github.com/lgc202/ingate/internal/adminapi/biz/headertransformation"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 )
 
 // Service 实现请求响应 Header 转换策略管理 API。

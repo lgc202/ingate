@@ -2,9 +2,10 @@ package wasmplugin
 
 import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/plugin"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
 	wasmpluginbiz "github.com/lgc202/ingate/internal/adminapi/biz/wasmplugin"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -34,9 +35,9 @@ func catalogItemResponse(item wasmpluginbiz.CatalogItem) *adminv1.WasmPluginCata
 func pluginResponse(
 	plugin *resource.WasmPlugin,
 	catalog wasmpluginbiz.CatalogInfo,
-	usages []biz.PluginPolicyUsage,
+	usages []plugin.PluginPolicyUsage,
 ) *adminv1.WasmPlugin {
-	status := biz.WasmPluginStatus(plugin.Generation, plugin.Status.Conditions)
+	status := resourceview.WasmPluginStatus(plugin.Generation, plugin.Status.Conditions)
 	response := &adminv1.WasmPlugin{
 		Id:               plugin.Name,
 		SourceId:         plugin.Spec.SourceID,
@@ -66,14 +67,14 @@ func pluginResponse(
 	return response
 }
 
-func pluginStatusMessage(status biz.ResourceStatus) string {
+func pluginStatusMessage(status resourceview.Status) string {
 	switch status.State {
-	case biz.ResourceStateReady:
+	case resourceview.StateReady:
 		return "插件已就绪"
-	case biz.ResourceStatePending:
+	case resourceview.StatePending:
 		return "正在准备插件"
-	case biz.ResourceStateError:
-		if status.Reason == biz.ReasonArtifactUnavailable {
+	case resourceview.StateError:
+		if status.Reason == resourceview.ReasonArtifactUnavailable {
 			return "插件制品暂时无法加载，系统将自动重试；请确认插件已发布且当前环境有权访问"
 		}
 		return "插件不可用，请检查制品地址和摘要"

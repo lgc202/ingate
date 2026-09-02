@@ -1,8 +1,10 @@
-package biz
+package plugin
 
 import (
 	"context"
 
+	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -17,14 +19,14 @@ type PluginPolicyUsage struct {
 // PluginUsageFinder 维护强类型 Policy 与执行插件包之间的内部依赖关系。
 // 用户只配置业务策略；插件卸载检查不应把 Wasm 包名泄漏到各策略领域。
 type PluginUsageFinder struct {
-	headerTransformations HeaderTransformationPolicyLister
-	mockResponses         MockResponsePolicyLister
+	headerTransformations policy.HeaderTransformationPolicyLister
+	mockResponses         policy.MockResponsePolicyLister
 }
 
 // NewPluginUsageFinder 创建插件策略引用查询器。
 func NewPluginUsageFinder(
-	headerTransformations HeaderTransformationPolicyLister,
-	mockResponses MockResponsePolicyLister,
+	headerTransformations policy.HeaderTransformationPolicyLister,
+	mockResponses policy.MockResponsePolicyLister,
 ) *PluginUsageFinder {
 	return &PluginUsageFinder{
 		headerTransformations: headerTransformations,
@@ -41,7 +43,7 @@ func (f *PluginUsageFinder) ListPolicyUsages(
 	var usages []PluginPolicyUsage
 	switch packageName {
 	case resource.WasmPluginPackageTransformer:
-		err := VisitPages(
+		err := pagination.VisitPages(
 			ctx,
 			f.headerTransformations.ListPage,
 			func(policy resource.HeaderTransformationPolicy) (bool, error) {
@@ -56,7 +58,7 @@ func (f *PluginUsageFinder) ListPolicyUsages(
 		)
 		return usages, err
 	case resource.WasmPluginPackageMockResponse:
-		err := VisitPages(ctx, f.mockResponses.ListPage, func(policy resource.MockResponsePolicy) (bool, error) {
+		err := pagination.VisitPages(ctx, f.mockResponses.ListPage, func(policy resource.MockResponsePolicy) (bool, error) {
 			usages = append(usages, PluginPolicyUsage{
 				PolicyID:    policy.Name,
 				PolicyKind:  resource.KindMockResponsePolicy,

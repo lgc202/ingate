@@ -3,7 +3,7 @@ package pluginsource
 import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	pluginsourcebiz "github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 )
 
 func sourceResponse(source pluginsourcebiz.Source) *adminv1.PluginSource {

@@ -9,9 +9,11 @@ import (
 	kratos "github.com/go-kratos/kratos/v3"
 	"github.com/google/wire"
 
+	"github.com/lgc202/ingate/internal/adminapi/biz"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	"github.com/lgc202/ingate/internal/adminapi/data"
 	"github.com/lgc202/ingate/internal/adminapi/server"
+	"github.com/lgc202/ingate/internal/adminapi/service"
 )
 
 func wireApp(
@@ -23,8 +25,8 @@ func wireApp(
 ) (*kratos.App, func(), error) {
 	panic(wire.Build(
 		data.ProviderSet,
-		BizProviderSet,
-		ServiceProviderSet,
+		biz.ProviderSet,
+		service.ProviderSet,
 		server.ProviderSet,
 		newKratosApp,
 	))

@@ -8,13 +8,16 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
+	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // Store 定义 Gateway 管理所需的持久化能力。
 type Store interface {
-	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Gateway], error)
+	ListPage(ctx context.Context, page pagination.Request) (pagination.Result[resource.Gateway], error)
 	Get(ctx context.Context, gatewayID string) (*resource.Gateway, error)
 	Create(ctx context.Context, gatewayID string, spec resource.GatewaySpec) (*resource.Gateway, error)
 	ReplaceSpec(
@@ -27,7 +30,7 @@ type Store interface {
 
 // RouteLister 定义 Gateway 删除检查所需的 Route 分页能力。
 type RouteLister interface {
-	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Route], error)
+	ListPage(ctx context.Context, page pagination.Request) (pagination.Result[resource.Route], error)
 }
 
 // CertificateReader 定义 Gateway 校验证书引用所需的批量读取能力。
@@ -40,7 +43,7 @@ type Usecase struct {
 	store             Store
 	routes            RouteLister
 	certificates      CertificateReader
-	policyUsageFinder *biz.PolicyUsageFinder
+	policyUsageFinder *policy.PolicyUsageFinder
 }
 
 // NewUsecase 创建 Gateway 用例。
@@ -48,7 +51,7 @@ func NewUsecase(
 	store Store,
 	routes RouteLister,
 	certificates CertificateReader,
-	policyUsageFinder *biz.PolicyUsageFinder,
+	policyUsageFinder *policy.PolicyUsageFinder,
 ) *Usecase {
 	return &Usecase{
 		store:             store,
@@ -61,10 +64,10 @@ func NewUsecase(
 // List 返回满足筛选条件的 Gateway 列表。
 func (uc *Usecase) List(
 	ctx context.Context,
-	page biz.PageRequest,
-	filter biz.ResourceFilter,
-) (biz.PageResult[resource.Gateway], error) {
-	return biz.FilterPage(ctx, page, uc.store.ListPage, func(gateway resource.Gateway) bool {
+	page pagination.Request,
+	filter resourceview.Filter,
+) (pagination.Result[resource.Gateway], error) {
+	return resourceview.FilterPage(ctx, page, uc.store.ListPage, func(gateway resource.Gateway) bool {
 		var searchText strings.Builder
 		searchText.WriteString(gateway.Spec.DisplayName)
 		for _, listener := range gateway.Spec.Listeners {
@@ -75,7 +78,7 @@ func (uc *Usecase) List(
 			searchText.WriteByte(' ')
 			searchText.WriteString(strconv.Itoa(listener.Port))
 		}
-		status := biz.EnabledResourceStatus(
+		status := resourceview.EnabledStatus(
 			gateway.Generation,
 			gateway.Spec.Enabled,
 			gateway.Status.Conditions,
@@ -115,7 +118,7 @@ func (uc *Usecase) Replace(
 	}
 
 	if current.Generation != expectedGeneration {
-		return nil, biz.ErrResourceVersionConflict
+		return nil, apperror.ResourceVersionConflict()
 	}
 	if err := uc.checkCertificateReferences(ctx, spec); err != nil {
 		return nil, err
@@ -135,7 +138,7 @@ func (uc *Usecase) Delete(ctx context.Context, gatewayID string, expectedGenerat
 	}
 
 	if current.Generation != expectedGeneration {
-		return biz.ErrResourceVersionConflict
+		return apperror.ResourceVersionConflict()
 	}
 	if err := uc.checkNotReferenced(ctx, current); err != nil {
 		return err

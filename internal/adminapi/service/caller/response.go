@@ -5,7 +5,7 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	callerbiz "github.com/lgc202/ingate/internal/adminapi/biz/caller"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 

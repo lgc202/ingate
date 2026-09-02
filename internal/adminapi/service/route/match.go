@@ -4,8 +4,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/go-kratos/kratos/v3/errors"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/httpheader"
@@ -14,10 +12,7 @@ import (
 
 func parseRouteMatch(config *adminv1.RouteMatch) (resource.RouteMatch, error) {
 	if config == nil || config.GetPath() == nil {
-		return resource.RouteMatch{}, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"必须配置路由路径",
-		)
+		return resource.RouteMatch{}, adminv1.ErrorInvalidArgument("必须配置路由路径")
 	}
 	path := config.GetPath()
 	pathType, err := parsePathMatchType(path.GetType())
@@ -26,10 +21,7 @@ func parseRouteMatch(config *adminv1.RouteMatch) (resource.RouteMatch, error) {
 	}
 	pathValue := strings.TrimSpace(path.GetValue())
 	if !routeconfig.IsValidPath(pathValue) {
-		return resource.RouteMatch{}, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"路由路径必须是以 / 开头且不包含查询参数或片段的请求路径",
-		)
+		return resource.RouteMatch{}, adminv1.ErrorInvalidArgument("路由路径必须是以 / 开头且不包含查询参数或片段的请求路径")
 	}
 	methods, err := parseHTTPMethods(config.GetMethods())
 	if err != nil {
@@ -48,10 +40,7 @@ func parseRouteMatch(config *adminv1.RouteMatch) (resource.RouteMatch, error) {
 
 func parseHTTPMethods(methods []adminv1.HTTPMethod) ([]string, error) {
 	if len(methods) > routeconfig.MaxHTTPMethods {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"路由匹配的 HTTP 方法过多",
-		)
+		return nil, adminv1.ErrorInvalidArgument("路由匹配的 HTTP 方法过多")
 	}
 	parsed := make([]string, len(methods))
 	seenMethods := make(map[string]bool, len(methods))
@@ -61,10 +50,7 @@ func parseHTTPMethods(methods []adminv1.HTTPMethod) ([]string, error) {
 			return nil, err
 		}
 		if seenMethods[httpMethod] {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"HTTP 方法不能重复",
-			)
+			return nil, adminv1.ErrorInvalidArgument("HTTP 方法不能重复")
 		}
 		seenMethods[httpMethod] = true
 		parsed[i] = httpMethod
@@ -74,33 +60,21 @@ func parseHTTPMethods(methods []adminv1.HTTPMethod) ([]string, error) {
 
 func parseHeaderMatches(headers []*adminv1.HeaderMatch) ([]resource.HeaderMatch, error) {
 	if len(headers) > routeconfig.MaxHeaderMatches {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"路由匹配的 Header 条件过多",
-		)
+		return nil, adminv1.ErrorInvalidArgument("路由匹配的 Header 条件过多")
 	}
 	parsed := make([]resource.HeaderMatch, len(headers))
 	seenHeaders := make(map[string]bool, len(headers))
 	for i, header := range headers {
 		if header == nil {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"Header 匹配条件不能为空",
-			)
+			return nil, adminv1.ErrorInvalidArgument("Header 匹配条件不能为空")
 		}
 		name := httpheader.NormalizeName(header.GetName())
 		value := httpheader.NormalizeValue(header.GetValue())
 		if !httpheader.IsValidName(name) || value == "" || !httpheader.IsValidValue(value) {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"Header 匹配条件的名称或值格式不正确",
-			)
+			return nil, adminv1.ErrorInvalidArgument("Header 匹配条件的名称或值格式不正确")
 		}
 		if seenHeaders[name] {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"同一个 Header 只能匹配一次",
-			)
+			return nil, adminv1.ErrorInvalidArgument("同一个 Header 只能匹配一次")
 		}
 		seenHeaders[name] = true
 		parsed[i] = resource.HeaderMatch{Name: name, Value: value}
@@ -115,10 +89,7 @@ func parsePathMatchType(matchType adminv1.RoutePathMatchType) (resource.PathMatc
 	case adminv1.RoutePathMatchType_ROUTE_PATH_MATCH_TYPE_EXACT:
 		return resource.PathMatchExact, nil
 	default:
-		return "", errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"路由路径匹配方式不正确",
-		)
+		return "", adminv1.ErrorInvalidArgument("路由路径匹配方式不正确")
 	}
 }
 
@@ -139,10 +110,7 @@ func parseHTTPMethod(method adminv1.HTTPMethod) (string, error) {
 	case adminv1.HTTPMethod_HTTP_METHOD_OPTIONS:
 		return http.MethodOptions, nil
 	default:
-		return "", errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"HTTP 方法不正确",
-		)
+		return "", adminv1.ErrorInvalidArgument("HTTP 方法不正确")
 	}
 }
 

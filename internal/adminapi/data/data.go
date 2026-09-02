@@ -4,7 +4,6 @@ package data
 import (
 	"github.com/google/wire"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
 	"github.com/lgc202/ingate/internal/adminapi/biz/aiusage"
 	"github.com/lgc202/ingate/internal/adminapi/biz/caller"
 	"github.com/lgc202/ingate/internal/adminapi/biz/certificate"
@@ -12,7 +11,9 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/headertransformation"
 	"github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
 	"github.com/lgc202/ingate/internal/adminapi/biz/mockresponse"
+	"github.com/lgc202/ingate/internal/adminapi/biz/plugin"
 	"github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy"
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
 	"github.com/lgc202/ingate/internal/adminapi/biz/route"
@@ -40,15 +41,15 @@ var apiserverProviderSet = wire.NewSet(
 	apiserver.NewPluginSourceStore,
 	apiserver.NewHeaderTransformationPolicyStore,
 	apiserver.NewMockResponsePolicyStore,
-	// 根 biz 只保留跨领域策略能力所需的只读边界。
-	wire.Bind(new(biz.GatewayReader), new(*apiserver.GatewayStore)),
-	wire.Bind(new(biz.RouteReader), new(*apiserver.RouteStore)),
-	wire.Bind(new(biz.CallerReader), new(*apiserver.CallerStore)),
-	wire.Bind(new(biz.RateLimitPolicyLister), new(*apiserver.RateLimitPolicyStore)),
-	wire.Bind(new(biz.IPRestrictionPolicyLister), new(*apiserver.IPRestrictionPolicyStore)),
-	wire.Bind(new(biz.HeaderTransformationPolicyLister), new(*apiserver.HeaderTransformationPolicyStore)),
-	wire.Bind(new(biz.MockResponsePolicyLister), new(*apiserver.MockResponsePolicyStore)),
-	wire.Bind(new(biz.WasmPluginGetter), new(*apiserver.WasmPluginStore)),
+	// 共享策略和插件角色只依赖各自消费的窄读取边界。
+	wire.Bind(new(policy.GatewayReader), new(*apiserver.GatewayStore)),
+	wire.Bind(new(policy.RouteReader), new(*apiserver.RouteStore)),
+	wire.Bind(new(policy.CallerReader), new(*apiserver.CallerStore)),
+	wire.Bind(new(policy.RateLimitPolicyLister), new(*apiserver.RateLimitPolicyStore)),
+	wire.Bind(new(policy.IPRestrictionPolicyLister), new(*apiserver.IPRestrictionPolicyStore)),
+	wire.Bind(new(policy.HeaderTransformationPolicyLister), new(*apiserver.HeaderTransformationPolicyStore)),
+	wire.Bind(new(policy.MockResponsePolicyLister), new(*apiserver.MockResponsePolicyStore)),
+	wire.Bind(new(plugin.WasmPluginGetter), new(*apiserver.WasmPluginStore)),
 	// 每个领域声明自己真实消费的边界，避免 biz 子包相互依赖。
 	wire.Bind(new(gateway.Store), new(*apiserver.GatewayStore)),
 	wire.Bind(new(gateway.RouteLister), new(*apiserver.RouteStore)),

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
 	"github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
 	"github.com/lgc202/ingate/internal/adminapi/biz/wasmplugin"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
@@ -115,7 +115,7 @@ func (c *Catalog) isCurrentDefinition(
 	}
 	source, err := c.store.Get(ctx, definition.id)
 	if err != nil {
-		if errors.Is(err, biz.ErrResourceNotFound) {
+		if errors.Is(err, apperror.ResourceNotFound()) {
 			return false, nil
 		}
 		return false, err

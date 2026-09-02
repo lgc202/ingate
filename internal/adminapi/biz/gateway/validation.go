@@ -4,10 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-kratos/kratos/v3/errors"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 )
@@ -23,7 +21,7 @@ func (uc *Usecase) checkListenerClaimsAvailable(
 		return nil
 	}
 
-	return biz.VisitPages(ctx, uc.store.ListPage, func(candidate resource.Gateway) (bool, error) {
+	return pagination.VisitPages(ctx, uc.store.ListPage, func(candidate resource.Gateway) (bool, error) {
 		if candidate.Name == excludedGatewayID || !candidate.Spec.Enabled {
 			return false, nil
 		}
@@ -41,30 +39,26 @@ func checkListenerClaims(submittedSpec resource.GatewaySpec, existingGateway res
 				continue
 			}
 			if submitted.Protocol != existing.Protocol {
-				return errors.Conflict(
-					adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-					fmt.Sprintf(
-						"端口 %d 已被网关 %q 的 %s 入口占用，不能同时配置为 %s 入口",
-						submitted.Port,
-						existingGateway.Spec.DisplayName,
-						existing.Protocol,
-						submitted.Protocol,
-					),
+				return adminv1.ErrorResourceConflict("%s", fmt.Sprintf(
+					"端口 %d 已被网关 %q 的 %s 入口占用，不能同时配置为 %s 入口",
+					submitted.Port,
+					existingGateway.Spec.DisplayName,
+					existing.Protocol,
+					submitted.Protocol,
+				),
 				)
 			}
 			submittedHostname := listenerHostname(submitted)
 			existingHostname := listenerHostname(existing)
 			if hostnameutil.Overlaps(submittedHostname, existingHostname) {
-				return errors.Conflict(
-					adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-					fmt.Sprintf(
-						"访问入口 %s:%d 的域名范围 %s 与网关 %q 的域名范围 %s 重叠；请调整域名，或先停用该网关",
-						submitted.Protocol,
-						submitted.Port,
-						describeHostnameClaim(submittedHostname),
-						existingGateway.Spec.DisplayName,
-						describeHostnameClaim(existingHostname),
-					),
+				return adminv1.ErrorResourceConflict("%s", fmt.Sprintf(
+					"访问入口 %s:%d 的域名范围 %s 与网关 %q 的域名范围 %s 重叠；请调整域名，或先停用该网关",
+					submitted.Protocol,
+					submitted.Port,
+					describeHostnameClaim(submittedHostname),
+					existingGateway.Spec.DisplayName,
+					describeHostnameClaim(existingHostname),
+				),
 				)
 			}
 		}

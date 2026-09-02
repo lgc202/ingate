@@ -1,4 +1,5 @@
-package adminapi
+// Package service 装配 Admin API 的产品协议实现。
+package service
 
 import (
 	"github.com/google/wire"
@@ -21,8 +22,8 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/service/wasmplugin"
 )
 
-// ServiceProviderSet 汇总 Admin API 的产品协议实现。
-var ServiceProviderSet = wire.NewSet(
+// ProviderSet 汇总 Admin API 的产品协议实现。
+var ProviderSet = wire.NewSet(
 	aiusage.NewService,
 	caller.NewService,
 	certificate.NewService,

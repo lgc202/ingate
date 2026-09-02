@@ -8,7 +8,7 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	iprestrictionbiz "github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 )
 
 // Service 实现客户端 IP 访问限制策略管理 API。

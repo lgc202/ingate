@@ -7,6 +7,7 @@
 package v1
 
 import (
+	_ "github.com/go-kratos/kratos/v3/errors"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -21,25 +22,29 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ErrorReason 定义 Admin API 对日志和调用方稳定的错误语义
+// ErrorReason 定义 Admin API 对日志和调用方稳定的错误语义。
 type ErrorReason int32
 
 const (
-	ErrorReason_ERROR_REASON_UNSPECIFIED  ErrorReason = 0
-	ErrorReason_INVALID_ARGUMENT          ErrorReason = 1
-	ErrorReason_BUSINESS_RULE_VIOLATION   ErrorReason = 2
-	ErrorReason_INTERNAL_ERROR            ErrorReason = 3
-	ErrorReason_ENDPOINT_NOT_FOUND        ErrorReason = 4
-	ErrorReason_METHOD_NOT_ALLOWED        ErrorReason = 5
-	ErrorReason_PANIC                     ErrorReason = 6
-	ErrorReason_RESOURCE_VERSION_CONFLICT ErrorReason = 7
-	ErrorReason_RESOURCE_NOT_FOUND        ErrorReason = 8
-	ErrorReason_REQUEST_RECORD_NOT_FOUND  ErrorReason = 9
-	ErrorReason_DEPENDENCY_UNAVAILABLE    ErrorReason = 10
-	ErrorReason_REQUEST_BODY_TOO_LARGE    ErrorReason = 11
-	ErrorReason_RESOURCE_CONFLICT         ErrorReason = 12
-	ErrorReason_REQUEST_TIMEOUT           ErrorReason = 13
-	ErrorReason_REQUEST_CANCELED          ErrorReason = 14
+	ErrorReason_ERROR_REASON_UNSPECIFIED     ErrorReason = 0
+	ErrorReason_INVALID_ARGUMENT             ErrorReason = 1
+	ErrorReason_BUSINESS_RULE_VIOLATION      ErrorReason = 2
+	ErrorReason_INTERNAL_ERROR               ErrorReason = 3
+	ErrorReason_ENDPOINT_NOT_FOUND           ErrorReason = 4
+	ErrorReason_METHOD_NOT_ALLOWED           ErrorReason = 5
+	ErrorReason_PANIC                        ErrorReason = 6
+	ErrorReason_RESOURCE_VERSION_CONFLICT    ErrorReason = 7
+	ErrorReason_RESOURCE_NOT_FOUND           ErrorReason = 8
+	ErrorReason_REQUEST_RECORD_NOT_FOUND     ErrorReason = 9
+	ErrorReason_DEPENDENCY_UNAVAILABLE       ErrorReason = 10
+	ErrorReason_REQUEST_BODY_TOO_LARGE       ErrorReason = 11
+	ErrorReason_RESOURCE_CONFLICT            ErrorReason = 12
+	ErrorReason_REQUEST_TIMEOUT              ErrorReason = 13
+	ErrorReason_REQUEST_CANCELED             ErrorReason = 14
+	ErrorReason_RESOURCE_ALREADY_EXISTS      ErrorReason = 15
+	ErrorReason_RESOURCE_REFERENCED          ErrorReason = 16
+	ErrorReason_RESOURCE_REFERENCE_NOT_FOUND ErrorReason = 17
+	ErrorReason_POLICY_TARGET_NOT_FOUND      ErrorReason = 18
 )
 
 // Enum value maps for ErrorReason.
@@ -60,23 +65,31 @@ var (
 		12: "RESOURCE_CONFLICT",
 		13: "REQUEST_TIMEOUT",
 		14: "REQUEST_CANCELED",
+		15: "RESOURCE_ALREADY_EXISTS",
+		16: "RESOURCE_REFERENCED",
+		17: "RESOURCE_REFERENCE_NOT_FOUND",
+		18: "POLICY_TARGET_NOT_FOUND",
 	}
 	ErrorReason_value = map[string]int32{
-		"ERROR_REASON_UNSPECIFIED":  0,
-		"INVALID_ARGUMENT":          1,
-		"BUSINESS_RULE_VIOLATION":   2,
-		"INTERNAL_ERROR":            3,
-		"ENDPOINT_NOT_FOUND":        4,
-		"METHOD_NOT_ALLOWED":        5,
-		"PANIC":                     6,
-		"RESOURCE_VERSION_CONFLICT": 7,
-		"RESOURCE_NOT_FOUND":        8,
-		"REQUEST_RECORD_NOT_FOUND":  9,
-		"DEPENDENCY_UNAVAILABLE":    10,
-		"REQUEST_BODY_TOO_LARGE":    11,
-		"RESOURCE_CONFLICT":         12,
-		"REQUEST_TIMEOUT":           13,
-		"REQUEST_CANCELED":          14,
+		"ERROR_REASON_UNSPECIFIED":     0,
+		"INVALID_ARGUMENT":             1,
+		"BUSINESS_RULE_VIOLATION":      2,
+		"INTERNAL_ERROR":               3,
+		"ENDPOINT_NOT_FOUND":           4,
+		"METHOD_NOT_ALLOWED":           5,
+		"PANIC":                        6,
+		"RESOURCE_VERSION_CONFLICT":    7,
+		"RESOURCE_NOT_FOUND":           8,
+		"REQUEST_RECORD_NOT_FOUND":     9,
+		"DEPENDENCY_UNAVAILABLE":       10,
+		"REQUEST_BODY_TOO_LARGE":       11,
+		"RESOURCE_CONFLICT":            12,
+		"REQUEST_TIMEOUT":              13,
+		"REQUEST_CANCELED":             14,
+		"RESOURCE_ALREADY_EXISTS":      15,
+		"RESOURCE_REFERENCED":          16,
+		"RESOURCE_REFERENCE_NOT_FOUND": 17,
+		"POLICY_TARGET_NOT_FOUND":      18,
 	}
 )
 
@@ -111,24 +124,28 @@ var File_admin_v1_error_reason_proto protoreflect.FileDescriptor
 
 const file_admin_v1_error_reason_proto_rawDesc = "" +
 	"\n" +
-	"\x1badmin/v1/error_reason.proto\x12\x0fingate.admin.v1*\xfc\x02\n" +
+	"\x1badmin/v1/error_reason.proto\x12\x0fingate.admin.v1\x1a\x13errors/errors.proto*\xe3\x04\n" +
 	"\vErrorReason\x12\x1c\n" +
-	"\x18ERROR_REASON_UNSPECIFIED\x10\x00\x12\x14\n" +
-	"\x10INVALID_ARGUMENT\x10\x01\x12\x1b\n" +
-	"\x17BUSINESS_RULE_VIOLATION\x10\x02\x12\x12\n" +
-	"\x0eINTERNAL_ERROR\x10\x03\x12\x16\n" +
-	"\x12ENDPOINT_NOT_FOUND\x10\x04\x12\x16\n" +
-	"\x12METHOD_NOT_ALLOWED\x10\x05\x12\t\n" +
-	"\x05PANIC\x10\x06\x12\x1d\n" +
-	"\x19RESOURCE_VERSION_CONFLICT\x10\a\x12\x16\n" +
-	"\x12RESOURCE_NOT_FOUND\x10\b\x12\x1c\n" +
-	"\x18REQUEST_RECORD_NOT_FOUND\x10\t\x12\x1a\n" +
+	"\x18ERROR_REASON_UNSPECIFIED\x10\x00\x12\x1a\n" +
+	"\x10INVALID_ARGUMENT\x10\x01\x1a\x04\xa8E\x90\x03\x12!\n" +
+	"\x17BUSINESS_RULE_VIOLATION\x10\x02\x1a\x04\xa8E\x99\x03\x12\x18\n" +
+	"\x0eINTERNAL_ERROR\x10\x03\x1a\x04\xa8E\xf4\x03\x12\x1c\n" +
+	"\x12ENDPOINT_NOT_FOUND\x10\x04\x1a\x04\xa8E\x94\x03\x12\x1c\n" +
+	"\x12METHOD_NOT_ALLOWED\x10\x05\x1a\x04\xa8E\x95\x03\x12\x0f\n" +
+	"\x05PANIC\x10\x06\x1a\x04\xa8E\xf4\x03\x12#\n" +
+	"\x19RESOURCE_VERSION_CONFLICT\x10\a\x1a\x04\xa8E\x99\x03\x12\x1c\n" +
+	"\x12RESOURCE_NOT_FOUND\x10\b\x1a\x04\xa8E\x94\x03\x12\"\n" +
+	"\x18REQUEST_RECORD_NOT_FOUND\x10\t\x1a\x04\xa8E\x94\x03\x12 \n" +
 	"\x16DEPENDENCY_UNAVAILABLE\x10\n" +
-	"\x12\x1a\n" +
-	"\x16REQUEST_BODY_TOO_LARGE\x10\v\x12\x15\n" +
-	"\x11RESOURCE_CONFLICT\x10\f\x12\x13\n" +
-	"\x0fREQUEST_TIMEOUT\x10\r\x12\x14\n" +
-	"\x10REQUEST_CANCELED\x10\x0eB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x1a\x04\xa8E\xf7\x03\x12 \n" +
+	"\x16REQUEST_BODY_TOO_LARGE\x10\v\x1a\x04\xa8E\x9d\x03\x12\x1b\n" +
+	"\x11RESOURCE_CONFLICT\x10\f\x1a\x04\xa8E\x99\x03\x12\x19\n" +
+	"\x0fREQUEST_TIMEOUT\x10\r\x1a\x04\xa8E\xf8\x03\x12\x1a\n" +
+	"\x10REQUEST_CANCELED\x10\x0e\x1a\x04\xa8E\xf3\x03\x12!\n" +
+	"\x17RESOURCE_ALREADY_EXISTS\x10\x0f\x1a\x04\xa8E\x99\x03\x12\x1d\n" +
+	"\x13RESOURCE_REFERENCED\x10\x10\x1a\x04\xa8E\x99\x03\x12&\n" +
+	"\x1cRESOURCE_REFERENCE_NOT_FOUND\x10\x11\x1a\x04\xa8E\x99\x03\x12!\n" +
+	"\x17POLICY_TARGET_NOT_FOUND\x10\x12\x1a\x04\xa8E\x99\x03\x1a\x04\xa0E\xf4\x03B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_error_reason_proto_rawDescOnce sync.Once

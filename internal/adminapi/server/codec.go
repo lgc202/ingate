@@ -15,11 +15,11 @@ import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 )
 
-type responseEnvelope struct {
-	Code   int             `json:"code"`
-	Reason string          `json:"reason,omitempty"`
-	Msg    string          `json:"msg"`
-	Data   json.RawMessage `json:"data"`
+type responseBody struct {
+	Code    int             `json:"code"`
+	Reason  string          `json:"reason,omitempty"`
+	Message string          `json:"msg"`
+	Data    json.RawMessage `json:"data"`
 }
 
 func requestDecoder(request *http.Request, value any) error {
@@ -30,18 +30,9 @@ func requestDecoder(request *http.Request, value any) error {
 	data, err := io.ReadAll(request.Body)
 	if err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			serviceError := kerrors.New(
-				http.StatusRequestEntityTooLarge,
-				adminv1.ErrorReason_REQUEST_BODY_TOO_LARGE.String(),
-				"请求内容过大",
-			)
-			return serviceError.WithCause(err)
+			return adminv1.ErrorRequestBodyTooLarge("请求内容过大").WithCause(err)
 		}
-		serviceError := kerrors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"读取请求内容失败",
-		)
-		return serviceError.WithCause(err)
+		return adminv1.ErrorInvalidArgument("读取请求内容失败").WithCause(err)
 	}
 	if len(data) == 0 {
 		return nil
@@ -49,11 +40,7 @@ func requestDecoder(request *http.Request, value any) error {
 	// Kratos v3 默认 JSON codec 使用 encoding/json，无法按 Proto JSON 规则解析。
 	// 枚举名称和 json_name；Admin API 的请求与响应都应遵循同一份 Proto 契约。
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(data, message); err != nil {
-		serviceError := kerrors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"请求内容格式不正确",
-		)
-		return serviceError.WithCause(err)
+		return adminv1.ErrorInvalidArgument("请求内容格式不正确").WithCause(err)
 	}
 	return nil
 }
@@ -72,10 +59,7 @@ func decodeRequestParameters(
 	value any,
 ) error {
 	if err := decode(request, value); err != nil {
-		return kerrors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"请求参数格式不正确",
-		).WithCause(err)
+		return adminv1.ErrorInvalidArgument("请求参数格式不正确").WithCause(err)
 	}
 	return nil
 }
@@ -85,16 +69,17 @@ func responseEncoder(writer http.ResponseWriter, _ *http.Request, value any) err
 	if err != nil {
 		return fmt.Errorf("marshal response: %w", err)
 	}
-	return writeJSON(writer, http.StatusOK, responseEnvelope{Code: http.StatusOK, Msg: "", Data: data})
+	return writeJSON(writer, http.StatusOK, responseBody{
+		Code:    http.StatusOK,
+		Message: "",
+		Data:    data,
+	})
 }
 
 func errorEncoder(writer http.ResponseWriter, _ *http.Request, err error) {
 	serviceError := kerrors.FromError(err)
 	if !isAdminError(serviceError) {
-		serviceError = kerrors.InternalServer(
-			adminv1.ErrorReason_INTERNAL_ERROR.String(),
-			"请求处理失败",
-		)
+		serviceError = adminv1.ErrorInternalError("请求处理失败")
 	}
 	statusCode := int(serviceError.Code)
 	reason := serviceError.Reason
@@ -111,11 +96,11 @@ func errorEncoder(writer http.ResponseWriter, _ *http.Request, err error) {
 	}
 	// Kratos 的错误编码器不能返回写失败；此时连接通常已断开，
 	// 无需再产生一条服务异常日志。
-	_ = writeJSON(writer, statusCode, responseEnvelope{
-		Code:   statusCode,
-		Reason: reason,
-		Msg:    message,
-		Data:   json.RawMessage("null"),
+	_ = writeJSON(writer, statusCode, responseBody{
+		Code:    statusCode,
+		Reason:  reason,
+		Message: message,
+		Data:    json.RawMessage("null"),
 	})
 }
 
@@ -128,16 +113,12 @@ func isAdminError(err *kerrors.Error) bool {
 }
 
 func endpointNotFoundHandler(writer http.ResponseWriter, request *http.Request) {
-	err := kerrors.NotFound(adminv1.ErrorReason_ENDPOINT_NOT_FOUND.String(), "接口不存在")
+	err := adminv1.ErrorEndpointNotFound("接口不存在")
 	errorEncoder(writer, request, err)
 }
 
 func methodNotAllowedHandler(writer http.ResponseWriter, request *http.Request) {
-	err := kerrors.New(
-		http.StatusMethodNotAllowed,
-		adminv1.ErrorReason_METHOD_NOT_ALLOWED.String(),
-		"请求方法不支持",
-	)
+	err := adminv1.ErrorMethodNotAllowed("请求方法不支持")
 	errorEncoder(writer, request, err)
 }
 

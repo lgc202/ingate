@@ -1,10 +1,8 @@
-package service
+package protocol
 
 import (
-	"github.com/go-kratos/kratos/v3/errors"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/policyconfig"
 	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
@@ -16,45 +14,30 @@ func PolicyTargetRefs(
 	allowedKinds ...resource.Kind,
 ) ([]resource.PolicyTargetRef, error) {
 	if len(targets) > policyconfig.MaxTargets {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"策略作用目标数量超过限制",
-		)
+		return nil, adminv1.ErrorInvalidArgument("策略作用目标数量超过限制")
 	}
 
 	refs := make([]resource.PolicyTargetRef, len(targets))
 	seen := make(map[resource.PolicyTargetRef]bool, len(targets))
 	for i, target := range targets {
 		if target == nil {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"策略作用目标不能为空",
-			)
+			return nil, adminv1.ErrorInvalidArgument("策略作用目标不能为空")
 		}
 		kind, err := parsePolicyTargetKind(target.GetKind())
 		if err != nil {
 			return nil, err
 		}
 		if !allowedPolicyTargetKind(kind, allowedKinds) {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"策略作用目标类型不正确",
-			)
+			return nil, adminv1.ErrorInvalidArgument("策略作用目标类型不正确")
 		}
 		targetID, valid := resourceconfig.NormalizeID(target.GetId())
 		if !valid {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"策略作用目标 ID 不正确",
-			)
+			return nil, adminv1.ErrorInvalidArgument("策略作用目标 ID 不正确")
 		}
 
 		ref := resource.PolicyTargetRef{Kind: kind, Name: targetID}
 		if seen[ref] {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"策略作用目标不能重复",
-			)
+			return nil, adminv1.ErrorInvalidArgument("策略作用目标不能重复")
 		}
 		seen[ref] = true
 		refs[i] = ref
@@ -68,11 +51,11 @@ func PolicyTargetResponses(
 	disabled bool,
 	refs []resource.PolicyTargetRef,
 	statuses []resource.PolicyTargetStatus,
-	names biz.PolicyTargetNames,
+	names policy.PolicyTargetNames,
 ) []*adminv1.PolicyTarget {
 	targets := make([]*adminv1.PolicyTarget, len(refs))
 	for i, ref := range refs {
-		status := biz.PolicyTargetStatus(generation, disabled, ref, statuses)
+		status := policy.TargetStatus(generation, disabled, ref, statuses)
 		targets[i] = &adminv1.PolicyTarget{
 			Kind:    policyTargetKindResponse(ref.Kind),
 			Id:      ref.Name,
@@ -93,10 +76,7 @@ func parsePolicyTargetKind(kind adminv1.PolicyTargetKind) (resource.Kind, error)
 	case adminv1.PolicyTargetKind_POLICY_TARGET_KIND_CALLER:
 		return resource.KindCaller, nil
 	default:
-		return "", errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"策略作用目标类型不正确",
-		)
+		return "", adminv1.ErrorInvalidArgument("策略作用目标类型不正确")
 	}
 }
 

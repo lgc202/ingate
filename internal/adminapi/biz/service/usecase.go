@@ -9,7 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
+	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -27,7 +29,7 @@ const (
 
 // Store 定义 Service 管理所需的持久化能力。
 type Store interface {
-	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Upstream], error)
+	ListPage(ctx context.Context, page pagination.Request) (pagination.Result[resource.Upstream], error)
 	Get(ctx context.Context, serviceID string) (*resource.Upstream, error)
 	Create(ctx context.Context, serviceID string, spec resource.UpstreamSpec) (*resource.Upstream, error)
 	ReplaceSpec(
@@ -40,12 +42,12 @@ type Store interface {
 
 // RouteLister 定义 Service 删除检查所需的 Route 分页能力。
 type RouteLister interface {
-	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Route], error)
+	ListPage(ctx context.Context, page pagination.Request) (pagination.Result[resource.Route], error)
 }
 
 // ListFilter 表达 Service 列表的筛选条件。
 type ListFilter struct {
-	biz.ResourceFilter
+	resourceview.Filter
 	Type TypeFilter
 }
 
@@ -70,10 +72,10 @@ func NewUsecase(store Store, routes RouteLister) *Usecase {
 // List 返回满足筛选条件的 Service 列表。
 func (uc *Usecase) List(
 	ctx context.Context,
-	page biz.PageRequest,
+	page pagination.Request,
 	filter ListFilter,
-) (biz.PageResult[resource.Upstream], error) {
-	return biz.FilterPage(ctx, page, uc.store.ListPage, filter.matches)
+) (pagination.Result[resource.Upstream], error) {
+	return resourceview.FilterPage(ctx, page, uc.store.ListPage, filter.matches)
 }
 
 // Get 返回指定 Service。
@@ -99,7 +101,7 @@ func (uc *Usecase) Replace(
 	}
 
 	if current.Generation != input.ExpectedGeneration {
-		return nil, biz.ErrResourceVersionConflict
+		return nil, apperror.ResourceVersionConflict()
 	}
 	replacement := input.Spec
 	if input.PreserveAPIKey && current.Spec.Model != nil && replacement.Model != nil {
@@ -118,7 +120,7 @@ func (uc *Usecase) Delete(ctx context.Context, serviceID string, expectedGenerat
 	}
 
 	if current.Generation != expectedGeneration {
-		return biz.ErrResourceVersionConflict
+		return apperror.ResourceVersionConflict()
 	}
 	if err := uc.checkNotReferenced(ctx, current); err != nil {
 		return err
@@ -150,9 +152,9 @@ func (f ListFilter) matches(service resource.Upstream) bool {
 		searchText.WriteByte(' ')
 		searchText.WriteString(endpointKey)
 	}
-	status := biz.ResourceStatusFromConditions(
+	status := resourceview.StatusFromConditions(
 		service.Generation,
 		service.Status.Conditions,
 	)
-	return f.ResourceFilter.Match(searchText.String(), true, status)
+	return f.Filter.Match(searchText.String(), true, status)
 }

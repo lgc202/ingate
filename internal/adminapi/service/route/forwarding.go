@@ -3,8 +3,6 @@ package route
 import (
 	"strings"
 
-	"github.com/go-kratos/kratos/v3/errors"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
@@ -13,10 +11,7 @@ import (
 
 func parseForwarding(forwarding *adminv1.RouteForwarding) ([]resource.UpstreamRef, *resource.AIRoute, error) {
 	if forwarding == nil {
-		return nil, nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"请选择路由转发方式",
-		)
+		return nil, nil, adminv1.ErrorInvalidArgument("请选择路由转发方式")
 	}
 
 	switch kind := forwarding.GetKind().(type) {
@@ -33,55 +28,34 @@ func parseForwarding(forwarding *adminv1.RouteForwarding) ([]resource.UpstreamRe
 		}
 		return nil, aiRoute, nil
 	default:
-		return nil, nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"请选择路由转发方式",
-		)
+		return nil, nil, adminv1.ErrorInvalidArgument("请选择路由转发方式")
 	}
 }
 
 func parseServiceTargets(targets []*adminv1.ServiceTarget) ([]resource.UpstreamRef, error) {
 	if len(targets) == 0 {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"至少需要配置一个目标服务",
-		)
+		return nil, adminv1.ErrorInvalidArgument("至少需要配置一个目标服务")
 	}
 	if len(targets) > routeconfig.MaxServiceTargets {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"目标服务数量超过限制",
-		)
+		return nil, adminv1.ErrorInvalidArgument("目标服务数量超过限制")
 	}
 
 	serviceRefs := make([]resource.UpstreamRef, len(targets))
 	seenServiceIDs := make(map[string]bool, len(targets))
 	for i, target := range targets {
 		if target == nil {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"目标服务不能为空",
-			)
+			return nil, adminv1.ErrorInvalidArgument("目标服务不能为空")
 		}
 		serviceID, valid := resourceconfig.NormalizeID(target.GetServiceId())
 		if !valid {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"目标服务 ID 不正确",
-			)
+			return nil, adminv1.ErrorInvalidArgument("目标服务 ID 不正确")
 		}
 		if seenServiceIDs[serviceID] {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"目标服务不能重复",
-			)
+			return nil, adminv1.ErrorInvalidArgument("目标服务不能重复")
 		}
 		weight := int(target.GetWeight())
 		if weight < routeconfig.MinTargetWeight || weight > routeconfig.MaxTargetWeight {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"目标服务权重超出允许范围",
-			)
+			return nil, adminv1.ErrorInvalidArgument("目标服务权重超出允许范围")
 		}
 		seenServiceIDs[serviceID] = true
 		serviceRefs[i] = resource.UpstreamRef{Name: serviceID, Weight: weight}
@@ -91,40 +65,25 @@ func parseServiceTargets(targets []*adminv1.ServiceTarget) ([]resource.UpstreamR
 
 func parseAIRoute(aiRoute *adminv1.AIRoute) (*resource.AIRoute, error) {
 	if aiRoute == nil || len(aiRoute.GetModels()) == 0 {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"至少需要配置一个客户端模型",
-		)
+		return nil, adminv1.ErrorInvalidArgument("至少需要配置一个客户端模型")
 	}
 	modelInputs := aiRoute.GetModels()
 	if len(modelInputs) > routeconfig.MaxAIModels {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"客户端模型数量超过限制",
-		)
+		return nil, adminv1.ErrorInvalidArgument("客户端模型数量超过限制")
 	}
 
 	models := make([]resource.AIModel, len(modelInputs))
 	seenModelNames := make(map[string]bool, len(modelInputs))
 	for i, modelInput := range modelInputs {
 		if modelInput == nil {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"客户端模型不能为空",
-			)
+			return nil, adminv1.ErrorInvalidArgument("客户端模型不能为空")
 		}
 		modelName := strings.TrimSpace(modelInput.GetName())
 		if !routeconfig.IsValidModelName(modelName) || modelName != modelInput.GetName() {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"客户端模型名格式不正确",
-			)
+			return nil, adminv1.ErrorInvalidArgument("客户端模型名格式不正确")
 		}
 		if seenModelNames[modelName] {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"客户端模型名不能重复",
-			)
+			return nil, adminv1.ErrorInvalidArgument("客户端模型名不能重复")
 		}
 		seenModelNames[modelName] = true
 
@@ -139,53 +98,32 @@ func parseAIRoute(aiRoute *adminv1.AIRoute) (*resource.AIRoute, error) {
 
 func parseAIModelTargets(targets []*adminv1.AIModelTarget) ([]resource.AIModelTarget, error) {
 	if len(targets) == 0 {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"至少需要配置一条模型线路",
-		)
+		return nil, adminv1.ErrorInvalidArgument("至少需要配置一条模型线路")
 	}
 	if len(targets) > routeconfig.MaxAIModelTargets {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"模型线路数量超过限制",
-		)
+		return nil, adminv1.ErrorInvalidArgument("模型线路数量超过限制")
 	}
 
 	modelTargets := make([]resource.AIModelTarget, len(targets))
 	seenServiceIDs := make(map[string]bool, len(targets))
 	for i, target := range targets {
 		if target == nil {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"模型线路不能为空",
-			)
+			return nil, adminv1.ErrorInvalidArgument("模型线路不能为空")
 		}
 		serviceID, valid := resourceconfig.NormalizeID(target.GetServiceId())
 		if !valid {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"模型服务 ID 不正确",
-			)
+			return nil, adminv1.ErrorInvalidArgument("模型服务 ID 不正确")
 		}
 		actualModel := strings.TrimSpace(target.GetModel())
 		if !routeconfig.IsValidModelName(actualModel) || actualModel != target.GetModel() {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"真实模型名格式不正确",
-			)
+			return nil, adminv1.ErrorInvalidArgument("真实模型名格式不正确")
 		}
 		if seenServiceIDs[serviceID] {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"同一个客户端模型不能重复选择模型服务",
-			)
+			return nil, adminv1.ErrorInvalidArgument("同一个客户端模型不能重复选择模型服务")
 		}
 		weight := int(target.GetWeight())
 		if weight < routeconfig.MinTargetWeight || weight > routeconfig.MaxTargetWeight {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"模型线路权重超出允许范围",
-			)
+			return nil, adminv1.ErrorInvalidArgument("模型线路权重超出允许范围")
 		}
 		seenServiceIDs[serviceID] = true
 		modelTargets[i] = resource.AIModelTarget{

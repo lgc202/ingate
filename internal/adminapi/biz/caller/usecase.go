@@ -8,13 +8,15 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
+	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // Store 定义 Caller 管理所需的持久化能力。
 type Store interface {
-	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Caller], error)
+	ListPage(ctx context.Context, page pagination.Request) (pagination.Result[resource.Caller], error)
 	Get(ctx context.Context, callerID string) (*resource.Caller, error)
 	Create(ctx context.Context, callerID string, spec resource.CallerSpec) (*resource.Caller, error)
 	ReplaceSpec(
@@ -34,8 +36,8 @@ type RouteReader interface {
 type TokenQuotaPolicyLister interface {
 	ListPage(
 		ctx context.Context,
-		page biz.PageRequest,
-	) (biz.PageResult[resource.TokenQuotaPolicy], error)
+		page pagination.Request,
+	) (pagination.Result[resource.TokenQuotaPolicy], error)
 }
 
 // CreateInput 描述创建 Caller 并签发首个访问密钥所需的信息。
@@ -68,11 +70,11 @@ func NewUsecase(
 // List 返回满足筛选条件的 Caller 列表。
 func (uc *Usecase) List(
 	ctx context.Context,
-	page biz.PageRequest,
-	filter biz.ResourceFilter,
-) (biz.PageResult[resource.Caller], error) {
-	return biz.FilterPage(ctx, page, uc.store.ListPage, func(caller resource.Caller) bool {
-		return filter.Match(caller.Spec.DisplayName, caller.Spec.Enabled, biz.ResourceStatus{})
+	page pagination.Request,
+	filter resourceview.Filter,
+) (pagination.Result[resource.Caller], error) {
+	return resourceview.FilterPage(ctx, page, uc.store.ListPage, func(caller resource.Caller) bool {
+		return filter.Match(caller.Spec.DisplayName, caller.Spec.Enabled, resourceview.Status{})
 	})
 }
 
@@ -117,7 +119,7 @@ func (uc *Usecase) Replace(
 	}
 
 	if current.Generation != expectedGeneration {
-		return nil, biz.ErrResourceVersionConflict
+		return nil, apperror.ResourceVersionConflict()
 	}
 	if err := uc.checkAuthorizedRoutes(ctx, spec.RouteRefs); err != nil {
 		return nil, err
@@ -135,7 +137,7 @@ func (uc *Usecase) Delete(ctx context.Context, callerID string, expectedGenerati
 	}
 
 	if current.Generation != expectedGeneration {
-		return biz.ErrResourceVersionConflict
+		return apperror.ResourceVersionConflict()
 	}
 	if err := uc.checkNotReferenced(ctx, current); err != nil {
 		return err

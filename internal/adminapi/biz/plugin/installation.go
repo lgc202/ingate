@@ -1,9 +1,10 @@
-package biz
+// Package plugin 提供插件安装状态和策略使用关系的共享领域能力。
+package plugin
 
 import (
 	"context"
-	"errors"
 
+	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/wasmconfig"
 )
@@ -28,7 +29,7 @@ func NewPluginInstallationChecker(plugins WasmPluginGetter) *PluginInstallationC
 // Installed 返回指定插件包是否已经安装。
 func (c *PluginInstallationChecker) Installed(ctx context.Context, packageName string) (bool, error) {
 	_, err := c.plugins.Get(ctx, wasmconfig.PluginID(packageName))
-	if errors.Is(err, ErrResourceNotFound) {
+	if adminv1.IsResourceNotFound(err) {
 		return false, nil
 	}
 	return err == nil, err

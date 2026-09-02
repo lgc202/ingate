@@ -3,8 +3,6 @@ package route
 import (
 	"slices"
 
-	"github.com/go-kratos/kratos/v3/errors"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/httpheader"
@@ -17,16 +15,10 @@ func parseHeaderModifier(modifier *adminv1.HeaderModifier) (*resource.HeaderModi
 	}
 	actionCount := len(modifier.GetSet()) + len(modifier.GetAdd()) + len(modifier.GetRemove())
 	if actionCount == 0 {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"至少需要配置一个 Header 修改动作",
-		)
+		return nil, adminv1.ErrorInvalidArgument("至少需要配置一个 Header 修改动作")
 	}
 	if actionCount > routeconfig.MaxHeaderModifierActions {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"Header 修改动作数量超过限制",
-		)
+		return nil, adminv1.ErrorInvalidArgument("Header 修改动作数量超过限制")
 	}
 
 	usedNames := make(map[string]bool, actionCount)
@@ -42,16 +34,10 @@ func parseHeaderModifier(modifier *adminv1.HeaderModifier) (*resource.HeaderModi
 	for i, headerName := range modifier.GetRemove() {
 		name := httpheader.NormalizeName(headerName)
 		if !httpheader.IsValidName(name) {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"待删除的 Header 名称格式不正确",
-			)
+			return nil, adminv1.ErrorInvalidArgument("待删除的 Header 名称格式不正确")
 		}
 		if usedNames[name] {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"同一个 Header 只能配置一种修改动作",
-			)
+			return nil, adminv1.ErrorInvalidArgument("同一个 Header 只能配置一种修改动作")
 		}
 		usedNames[name] = true
 		remove[i] = name
@@ -66,24 +52,15 @@ func parseHeaderValues(
 	headers := make([]resource.HeaderValue, len(values))
 	for i, header := range values {
 		if header == nil {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"Header 名称和值不能为空",
-			)
+			return nil, adminv1.ErrorInvalidArgument("Header 名称和值不能为空")
 		}
 		name := httpheader.NormalizeName(header.GetName())
 		value := httpheader.NormalizeValue(header.GetValue())
 		if !httpheader.IsValidName(name) || value == "" || !httpheader.IsValidValue(value) {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"Header 名称或值格式不正确",
-			)
+			return nil, adminv1.ErrorInvalidArgument("Header 名称或值格式不正确")
 		}
 		if usedNames[name] {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"同一个 Header 只能配置一种修改动作",
-			)
+			return nil, adminv1.ErrorInvalidArgument("同一个 Header 只能配置一种修改动作")
 		}
 		usedNames[name] = true
 		headers[i] = resource.HeaderValue{Name: name, Value: value}

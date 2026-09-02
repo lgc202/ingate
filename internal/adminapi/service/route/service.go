@@ -8,7 +8,7 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	routebiz "github.com/lgc202/ingate/internal/adminapi/biz/route"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 )
 
 // Service 实现 Route 管理 API。
@@ -27,7 +27,7 @@ func (s *Service) ListRoutes(
 	request *adminv1.ListRoutesRequest,
 ) (*adminv1.ListRoutesResponse, error) {
 	filter := routebiz.ListFilter{
-		ResourceFilter: adminservice.ResourceFilter(
+		Filter: adminservice.ResourceFilter(
 			request.GetQuery(),
 			request.Enabled,
 			request.GetState(),

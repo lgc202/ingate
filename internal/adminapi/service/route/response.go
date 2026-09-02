@@ -6,13 +6,13 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 func routeResponse(route *resource.Route) *adminv1.Route {
-	status := biz.EnabledResourceStatus(route.Generation, route.Spec.Enabled, route.Status.Conditions)
+	status := resourceview.EnabledStatus(route.Generation, route.Spec.Enabled, route.Status.Conditions)
 	config := &adminv1.RouteConfig{
 		Enabled:                proto.Bool(route.Spec.Enabled),
 		AccessMode:             accessModeResponse(route.Spec.AccessMode),

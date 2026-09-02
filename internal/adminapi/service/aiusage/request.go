@@ -3,7 +3,6 @@ package aiusage
 import (
 	"time"
 
-	"github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
@@ -25,18 +24,12 @@ func analysisQuery(request *adminv1.GetAIUsageAnalysisRequest) (aiusagebiz.Query
 		request.GetServiceId(),
 	} {
 		if resourceID != "" && !resourceconfig.IsCanonicalID(resourceID) {
-			return aiusagebiz.Query{}, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"资源筛选条件无效",
-			)
+			return aiusagebiz.Query{}, adminv1.ErrorInvalidArgument("资源筛选条件无效")
 		}
 	}
 	for _, model := range []string{request.GetClientModel(), request.GetActualModel()} {
 		if model != "" && !routeconfig.IsValidModelName(model) {
-			return aiusagebiz.Query{}, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				"模型筛选条件无效",
-			)
+			return aiusagebiz.Query{}, adminv1.ErrorInvalidArgument("模型筛选条件无效")
 		}
 	}
 	return aiusagebiz.Query{
@@ -58,32 +51,20 @@ func analysisQuery(request *adminv1.GetAIUsageAnalysisRequest) (aiusagebiz.Query
 
 func analysisTimeRange(start, end *timestamppb.Timestamp) (time.Time, time.Time, error) {
 	if start == nil || start.CheckValid() != nil {
-		return time.Time{}, time.Time{}, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"请选择查询开始时间",
-		)
+		return time.Time{}, time.Time{}, adminv1.ErrorInvalidArgument("请选择查询开始时间")
 	}
 	if end == nil || end.CheckValid() != nil {
-		return time.Time{}, time.Time{}, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"请选择查询结束时间",
-		)
+		return time.Time{}, time.Time{}, adminv1.ErrorInvalidArgument("请选择查询结束时间")
 	}
 	requestedStart := start.AsTime()
 	requestedEnd := end.AsTime()
 	if !requestedStart.Before(requestedEnd) {
-		return time.Time{}, time.Time{}, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"查询开始时间必须早于结束时间",
-		)
+		return time.Time{}, time.Time{}, adminv1.ErrorInvalidArgument("查询开始时间必须早于结束时间")
 	}
 	startTime := alignStartTime(requestedStart)
 	endTime := alignEndTime(requestedEnd)
 	if !analyticsconfig.IsValidQueryRange(startTime, endTime) {
-		return time.Time{}, time.Time{}, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"单次最多查询 90 天 AI 用量",
-		)
+		return time.Time{}, time.Time{}, adminv1.ErrorInvalidArgument("单次最多查询 90 天 AI 用量")
 	}
 	return startTime, endTime, nil
 }

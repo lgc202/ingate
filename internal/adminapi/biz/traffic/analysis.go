@@ -3,21 +3,21 @@ package traffic
 import (
 	"time"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/analysisquery"
 )
 
 // TimeBucket 是趋势查询使用的时间粒度。
-type TimeBucket biz.TimeBucket
+type TimeBucket analysisquery.TimeBucket
 
 const (
 	// TimeBucketMinute 表示每分钟一个趋势点。
-	TimeBucketMinute TimeBucket = TimeBucket(biz.TimeBucketMinute)
+	TimeBucketMinute TimeBucket = TimeBucket(analysisquery.TimeBucketMinute)
 	// TimeBucketFiveMinutes 表示每五分钟一个趋势点。
-	TimeBucketFiveMinutes = TimeBucket(biz.TimeBucketFiveMinutes)
+	TimeBucketFiveMinutes = TimeBucket(analysisquery.TimeBucketFiveMinutes)
 	// TimeBucketHour 表示每小时一个趋势点。
-	TimeBucketHour = TimeBucket(biz.TimeBucketHour)
+	TimeBucketHour = TimeBucket(analysisquery.TimeBucketHour)
 	// TimeBucketDay 表示每天一个趋势点。
-	TimeBucketDay = TimeBucket(biz.TimeBucketDay)
+	TimeBucketDay = TimeBucket(analysisquery.TimeBucketDay)
 )
 
 // Dimension 是流量排名支持的资源维度。

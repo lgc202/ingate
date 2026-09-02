@@ -5,10 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/go-kratos/kratos/v3/errors"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/iprestrictionconfig"
 )
@@ -22,10 +20,7 @@ func parseIPRestrictionPolicySpec(
 ) (resource.IPRestrictionPolicySpec, error) {
 	displayName = strings.TrimSpace(displayName)
 	if displayName == "" {
-		return resource.IPRestrictionPolicySpec{}, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"IP 访问限制策略名称不能为空",
-		)
+		return resource.IPRestrictionPolicySpec{}, adminv1.ErrorInvalidArgument("IP 访问限制策略名称不能为空")
 	}
 	targets, err := adminservice.PolicyTargetRefs(
 		targetConfigs,
@@ -51,10 +46,7 @@ func parseIPRestrictionPolicySpec(
 
 func parseIPRanges(allow, deny []string) ([]string, []string, error) {
 	if (len(allow) > 0) == (len(deny) > 0) {
-		return nil, nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"IP 允许列表和拒绝列表必须且只能配置一个",
-		)
+		return nil, nil, adminv1.ErrorInvalidArgument("IP 允许列表和拒绝列表必须且只能配置一个")
 	}
 
 	normalizedAllow, err := parseIPRangeList(allow, "IP 允许列表")
@@ -70,10 +62,7 @@ func parseIPRanges(allow, deny []string) ([]string, []string, error) {
 
 func parseIPRangeList(values []string, listName string) ([]string, error) {
 	if len(values) > iprestrictionconfig.MaxRanges {
-		return nil, errors.BadRequest(
-			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			listName+"数量超过限制",
-		)
+		return nil, adminv1.ErrorInvalidArgument("%s", listName+"数量超过限制")
 	}
 
 	// 统一转换为 CIDR 并排序，使等价输入生成稳定的声明式配置。
@@ -81,10 +70,7 @@ func parseIPRangeList(values []string, listName string) ([]string, error) {
 	for _, value := range values {
 		normalized, valid := iprestrictionconfig.NormalizeRange(value)
 		if !valid {
-			return nil, errors.BadRequest(
-				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-				listName+"包含无效的 IP 地址或 CIDR",
-			)
+			return nil, adminv1.ErrorInvalidArgument("%s", listName+"包含无效的 IP 地址或 CIDR")
 		}
 		unique[normalized] = true
 	}

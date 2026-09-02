@@ -8,7 +8,7 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	gatewaybiz "github.com/lgc202/ingate/internal/adminapi/biz/gateway"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
 )
 
 // Service 实现 Gateway 管理 API。
