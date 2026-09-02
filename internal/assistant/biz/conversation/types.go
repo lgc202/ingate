@@ -5,13 +5,6 @@ import (
 	"time"
 )
 
-const (
-	// RoleUser 表示管理员发送的持久消息。
-	RoleUser MessageRole = "user"
-	// RoleAssistant 表示 Agent 生成的持久消息。
-	RoleAssistant MessageRole = "assistant"
-)
-
 var (
 	// ErrNotFound 表示会话或其消息对当前管理员不可见。
 	ErrNotFound = errors.New("conversation resource not found")
@@ -23,6 +16,13 @@ var (
 
 // MessageRole 表示一条持久消息在对话中的职责。
 type MessageRole string
+
+const (
+	// RoleUser 表示管理员发送的持久消息。
+	RoleUser MessageRole = "user"
+	// RoleAssistant 表示 Agent 生成的持久消息。
+	RoleAssistant MessageRole = "assistant"
+)
 
 // Conversation 表示一个管理员与运维助手的持久会话。
 type Conversation struct {

@@ -2,6 +2,9 @@ package gateway
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+// Kind 表示声明式资源类型。
+type Kind string
+
 const (
 	// KindGateway 表示 Gateway 资源类型。
 	KindGateway Kind = "Gateway"
@@ -28,9 +31,6 @@ const (
 	// KindMockResponsePolicy 表示 MockResponsePolicy 资源类型。
 	KindMockResponsePolicy Kind = "MockResponsePolicy"
 )
-
-// Kind 表示声明式资源类型。
-type Kind string
 
 // PolicyTargetRef 表示策略的生效目标。
 type PolicyTargetRef struct {

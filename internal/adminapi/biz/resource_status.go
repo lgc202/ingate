@@ -7,6 +7,9 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
+// ResourceState 表示声明式资源面向控制台的处理状态。
+type ResourceState string
+
 const (
 	// ResourceStatePending 表示资源仍在等待控制面处理。
 	ResourceStatePending ResourceState = "Pending"
@@ -17,6 +20,9 @@ const (
 	// ResourceStateDisabled 表示资源已被用户停用。
 	ResourceStateDisabled ResourceState = "Disabled"
 )
+
+// ResourceReason 表示资源进入当前状态的产品语义原因。
+type ResourceReason string
 
 const (
 	// ReasonAwaitingAcceptance 表示控制面尚未接受当前配置。
@@ -54,12 +60,6 @@ const (
 	// ReasonDeliveryFailed 表示配置发布失败。
 	ReasonDeliveryFailed ResourceReason = "DeliveryFailed"
 )
-
-// ResourceState 表示声明式资源面向控制台的处理状态。
-type ResourceState string
-
-// ResourceReason 表示资源进入当前状态的产品语义原因。
-type ResourceReason string
 
 // ResourceStatus 是控制台用例使用的资源状态，不暴露底层 Condition 协议。
 type ResourceStatus struct {

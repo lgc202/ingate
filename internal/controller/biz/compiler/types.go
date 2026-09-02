@@ -15,13 +15,6 @@ import (
 )
 
 const (
-	// SeverityError 表示配置不可发布。
-	SeverityError Severity = "Error"
-	// SeverityWarning 表示配置仍可发布，但存在需要处理的问题。
-	SeverityWarning Severity = "Warning"
-)
-
-const (
 	// ReasonInvalidSpec 表示资源字段不满足编译要求。
 	ReasonInvalidSpec = gatewayv1.ReasonInvalidSpec
 	// ReasonReferenceNotFound 表示资源引用的目标不存在。
@@ -42,6 +35,13 @@ const (
 
 // Severity 表示编译诊断的严重程度。
 type Severity string
+
+const (
+	// SeverityError 表示配置不可发布。
+	SeverityError Severity = "Error"
+	// SeverityWarning 表示配置仍可发布，但存在需要处理的问题。
+	SeverityWarning Severity = "Warning"
+)
 
 // Reason 表示资源编译状态的稳定原因。
 type Reason = gatewayv1.ConditionReason

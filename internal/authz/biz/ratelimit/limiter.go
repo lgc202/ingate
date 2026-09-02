@@ -15,6 +15,14 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
+const maxWindowSeconds = math.MaxInt64 / int64(time.Second)
+
+// ErrInvalidRule 表示 Controller 下发了 Authz 无法执行的限流规则。
+var ErrInvalidRule = errors.New("invalid rate limit rule")
+
+// Subject 表示计数器的划分方式。
+type Subject string
+
 const (
 	// SubjectShared 表示同一策略作用域的请求共享计数器。
 	SubjectShared Subject = "Shared"
@@ -22,15 +30,7 @@ const (
 	SubjectIP Subject = "IP"
 	// SubjectHeader 表示每个指定 Header 值使用独立计数器。
 	SubjectHeader Subject = "Header"
-
-	maxWindowSeconds = math.MaxInt64 / int64(time.Second)
 )
-
-// ErrInvalidRule 表示 Controller 下发了 Authz 无法执行的限流规则。
-var ErrInvalidRule = errors.New("invalid rate limit rule")
-
-// Subject 表示计数器的划分方式。
-type Subject string
 
 // Rule 是 Controller 已经完成目标解析后的可执行限流规则。
 type Rule struct {

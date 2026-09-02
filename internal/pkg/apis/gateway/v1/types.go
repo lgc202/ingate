@@ -2,6 +2,9 @@ package v1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+// ConditionType 表示声明式资源的稳定状态类型。
+type ConditionType string
+
 const (
 	// ConditionAccepted 表示资源当前版本是否被控制面接受。
 	ConditionAccepted ConditionType = "Accepted"
@@ -10,6 +13,9 @@ const (
 	// ConditionProgrammed 表示资源当前版本是否已进入生效配置。
 	ConditionProgrammed ConditionType = "Programmed"
 )
+
+// ConditionReason 表示声明式资源状态变化的稳定原因。
+type ConditionReason string
 
 const (
 	// ReasonAccepted 表示资源已被控制面接受。
@@ -44,6 +50,9 @@ const (
 	ReasonDeliveryFailed ConditionReason = "DeliveryFailed"
 )
 
+// Kind 表示声明式资源类型。
+type Kind string
+
 const (
 	// KindGateway 表示 Gateway 资源类型。
 	KindGateway Kind = "Gateway"
@@ -70,15 +79,6 @@ const (
 	// KindMockResponsePolicy 表示 MockResponsePolicy 资源类型。
 	KindMockResponsePolicy Kind = "MockResponsePolicy"
 )
-
-// ConditionType 表示声明式资源的稳定状态类型。
-type ConditionType string
-
-// ConditionReason 表示声明式资源状态变化的稳定原因。
-type ConditionReason string
-
-// Kind 表示声明式资源类型。
-type Kind string
 
 // PolicyTargetRef 表示策略的生效目标。
 type PolicyTargetRef struct {

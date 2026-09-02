@@ -11,6 +11,9 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
+// TypeFilter 表达 Route 列表的类型筛选条件。
+type TypeFilter uint8
+
 const (
 	// TypeAny 不限制 Route 类型。
 	TypeAny TypeFilter = iota
@@ -19,9 +22,6 @@ const (
 	// TypeAI 只返回 AI Route。
 	TypeAI
 )
-
-// TypeFilter 表达 Route 列表的类型筛选条件。
-type TypeFilter uint8
 
 // Store 定义 Route 管理所需的持久化能力。
 type Store interface {

@@ -50,15 +50,15 @@ const (
 		"['" + MetadataNamespace + "']['" + ServiceProtocolField + "']"
 )
 
+// UpstreamProtocol 表示模型 Service 实际使用的 HTTP API 协议。
+type UpstreamProtocol string
+
 const (
 	// UpstreamProtocolOpenAI 保持 OpenAI Chat Completions 请求与响应格式。
 	UpstreamProtocolOpenAI UpstreamProtocol = "openai"
 	// UpstreamProtocolAnthropic 把 OpenAI Chat Completions 转换为 Anthropic Messages。
 	UpstreamProtocolAnthropic UpstreamProtocol = "anthropic"
 )
-
-// UpstreamProtocol 表示模型 Service 实际使用的 HTTP API 协议。
-type UpstreamProtocol string
 
 // IsInternalHeader 判断 name 是否属于 AI 执行链路保留的内部 Header。
 func IsInternalHeader(name string) bool {

@@ -27,16 +27,16 @@ const (
 	maxStreamEventIDBytes   = 64
 )
 
+type sseWriter struct {
+	response http.ResponseWriter
+	flusher  http.Flusher
+}
+
 // StreamHandler 负责执行事件的 SSE 路由、连接生命周期和边界日志。
 type StreamHandler struct {
 	executions *executionbiz.Usecase
 	config     *conf.Stream
 	logger     *slog.Logger
-}
-
-type sseWriter struct {
-	response http.ResponseWriter
-	flusher  http.Flusher
 }
 
 // NewStreamHandler 创建 Assistant 事件流处理器，供进程装配层注入 HTTP Server。

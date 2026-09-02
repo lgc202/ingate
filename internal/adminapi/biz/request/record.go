@@ -2,6 +2,9 @@ package request
 
 import "time"
 
+// Outcome 是按 HTTP 状态码归纳的请求结果。
+type Outcome uint8
+
 const (
 	// OutcomeUnknown 表示查询时不限制请求结果。
 	OutcomeUnknown Outcome = iota
@@ -15,18 +18,15 @@ const (
 	OutcomeNoResponse
 )
 
+// RejectionReason 是网关主动拒绝请求时可向用户解释的原因。
+type RejectionReason uint8
+
 const (
 	// RejectionReasonNone 表示请求不是已识别的网关拒绝，或没有拒绝原因。
 	RejectionReasonNone RejectionReason = iota
 	// RejectionReasonTokenQuotaExceeded 表示调用方当前周期的 Token 额度已用尽。
 	RejectionReasonTokenQuotaExceeded
 )
-
-// Outcome 是按 HTTP 状态码归纳的请求结果。
-type Outcome uint8
-
-// RejectionReason 是网关主动拒绝请求时可向用户解释的原因。
-type RejectionReason uint8
 
 // ModelCall 是请求记录中的模型映射和 Token 用量。
 type ModelCall struct {

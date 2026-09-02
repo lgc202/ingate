@@ -33,6 +33,8 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/httpheader"
 )
 
+type operation string
+
 const (
 	operationRemove  operation = "remove"
 	operationRename  operation = "rename"
@@ -40,8 +42,6 @@ const (
 	operationAdd     operation = "add"
 	operationAppend  operation = "append"
 )
-
-type operation string
 
 type pluginConfig struct {
 	RequestRules  []rule `json:"reqRules"`

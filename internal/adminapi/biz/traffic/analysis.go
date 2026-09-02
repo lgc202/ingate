@@ -6,6 +6,9 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 )
 
+// TimeBucket 是趋势查询使用的时间粒度。
+type TimeBucket biz.TimeBucket
+
 const (
 	// TimeBucketMinute 表示每分钟一个趋势点。
 	TimeBucketMinute TimeBucket = TimeBucket(biz.TimeBucketMinute)
@@ -17,6 +20,9 @@ const (
 	TimeBucketDay = TimeBucket(biz.TimeBucketDay)
 )
 
+// Dimension 是流量排名支持的资源维度。
+type Dimension uint8
+
 const (
 	// DimensionGateway 按接收请求的网关排名。
 	DimensionGateway Dimension = iota + 1
@@ -26,6 +32,9 @@ const (
 	DimensionService
 )
 
+// BreakdownOrder 是资源流量排名的排序依据。
+type BreakdownOrder uint8
+
 const (
 	// BreakdownOrderRequestCount 按请求量从高到低排序。
 	BreakdownOrderRequestCount BreakdownOrder = iota + 1
@@ -34,15 +43,6 @@ const (
 	// BreakdownOrderP95Duration 按 P95 总耗时从高到低排序。
 	BreakdownOrderP95Duration
 )
-
-// TimeBucket 是趋势查询使用的时间粒度。
-type TimeBucket biz.TimeBucket
-
-// Dimension 是流量排名支持的资源维度。
-type Dimension uint8
-
-// BreakdownOrder 是资源流量排名的排序依据。
-type BreakdownOrder uint8
 
 // Filter 是流量分析的时间与资源范围。
 type Filter struct {

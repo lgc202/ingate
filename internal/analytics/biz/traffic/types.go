@@ -2,6 +2,9 @@ package traffic
 
 import "time"
 
+// TimeBucket 是流量趋势查询支持的固定时间粒度。
+type TimeBucket uint8
+
 const (
 	// TimeBucketMinute 表示每分钟一个趋势点。
 	TimeBucketMinute TimeBucket = iota + 1
@@ -13,6 +16,9 @@ const (
 	TimeBucketDay
 )
 
+// Dimension 是流量分布支持的资源维度。
+type Dimension uint8
+
 const (
 	// DimensionGateway 按接收请求的 Gateway 分组。
 	DimensionGateway Dimension = iota + 1
@@ -22,6 +28,9 @@ const (
 	DimensionUpstream
 )
 
+// BreakdownOrder 是资源流量分布的排序依据。
+type BreakdownOrder uint8
+
 const (
 	// BreakdownOrderRequestCount 按请求量从高到低排序。
 	BreakdownOrderRequestCount BreakdownOrder = iota + 1
@@ -30,15 +39,6 @@ const (
 	// BreakdownOrderP95Duration 按 P95 总耗时从高到低排序。
 	BreakdownOrderP95Duration
 )
-
-// TimeBucket 是流量趋势查询支持的固定时间粒度。
-type TimeBucket uint8
-
-// Dimension 是流量分布支持的资源维度。
-type Dimension uint8
-
-// BreakdownOrder 是资源流量分布的排序依据。
-type BreakdownOrder uint8
 
 // Filter 是流量统计的过滤条件，时间范围为左闭右开且必须对齐到整分钟。
 type Filter struct {

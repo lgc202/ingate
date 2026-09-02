@@ -7,14 +7,14 @@ import (
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
 )
 
+type commandKind uint8
+
 const (
 	commandSubmit commandKind = iota + 1
 	commandCancelCandidate
 	commandXDSEvent
 	commandACKTimeout
 )
-
-type commandKind uint8
 
 type command struct {
 	kind commandKind

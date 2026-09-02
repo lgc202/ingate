@@ -13,17 +13,17 @@ const (
 	WasmPluginPackageMockResponse = "ingate-mock-response"
 )
 
+// WasmPluginPullPolicy 表示控制面何时重新拉取 Wasm 模块。
+type WasmPluginPullPolicy string
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 const (
 	// WasmPluginPullIfNotPresent 优先复用校验和一致的本地模块。
 	WasmPluginPullIfNotPresent WasmPluginPullPolicy = "IfNotPresent"
 	// WasmPluginPullAlways 在资源版本变化时重新拉取模块。
 	WasmPluginPullAlways WasmPluginPullPolicy = "Always"
 )
-
-// WasmPluginPullPolicy 表示控制面何时重新拉取 Wasm 模块。
-type WasmPluginPullPolicy string
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // WasmPlugin 声明一个已安装的 Proxy-Wasm 插件制品。
 type WasmPlugin struct {

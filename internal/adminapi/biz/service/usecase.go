@@ -13,6 +13,9 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
+// TypeFilter 表达 Service 列表的类型筛选条件。
+type TypeFilter uint8
+
 const (
 	// TypeAny 不限制 Service 类型。
 	TypeAny TypeFilter = iota
@@ -21,9 +24,6 @@ const (
 	// TypeModel 只返回模型 Service。
 	TypeModel
 )
-
-// TypeFilter 表达 Service 列表的类型筛选条件。
-type TypeFilter uint8
 
 // Store 定义 Service 管理所需的持久化能力。
 type Store interface {

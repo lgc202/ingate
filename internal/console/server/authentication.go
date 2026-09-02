@@ -22,6 +22,16 @@ const (
 	maxSessionCookieBytes = 512
 )
 
+type loginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type sessionResponse struct {
+	Authenticated bool   `json:"authenticated"`
+	Username      string `json:"username"`
+}
+
 // SessionAuth 为单管理员控制台签发和校验无状态会话。
 // 它只解决开源单实例的管理入口保护，不建立用户、角色或权限模型。
 type SessionAuth struct {
@@ -31,16 +41,6 @@ type SessionAuth struct {
 	secret       []byte
 	ttl          time.Duration
 	secureCookie bool
-}
-
-type loginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-type sessionResponse struct {
-	Authenticated bool   `json:"authenticated"`
-	Username      string `json:"username"`
 }
 
 // NewSessionAuth 根据 Console 配置创建管理面会话认证。

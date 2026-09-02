@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+// ErrNotFound 表示请求记录不存在或已经超过明细保留期。
+var ErrNotFound = errors.New("request record not found")
+
+// StatusClass 是根据 HTTP 状态码派生的请求结果分类。
+type StatusClass uint8
+
 const (
 	// StatusClassUnknown 表示请求没有可识别的 HTTP 结果。
 	StatusClassUnknown StatusClass = iota
@@ -17,12 +23,6 @@ const (
 	// StatusClassNoResponse 表示请求没有获得有效 HTTP 状态码。
 	StatusClassNoResponse
 )
-
-// ErrNotFound 表示请求记录不存在或已经超过明细保留期。
-var ErrNotFound = errors.New("request record not found")
-
-// StatusClass 是根据 HTTP 状态码派生的请求结果分类。
-type StatusClass uint8
 
 // ModelCall 保存 AI Route 已观测到的模型映射和 Token 用量。
 // 选路前被拒绝的请求可能只有 ClientModel，不一定已经调用模型服务。

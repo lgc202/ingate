@@ -2,6 +2,11 @@ package gateway
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+// HeaderTransformationOperation 表示请求或响应 Header 的修改动作。
+type HeaderTransformationOperation string
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 const (
 	// HeaderTransformationRemove 删除指定 Header。
 	HeaderTransformationRemove HeaderTransformationOperation = "Remove"
@@ -14,11 +19,6 @@ const (
 	// HeaderTransformationAppend 向 Header 追加值。
 	HeaderTransformationAppend HeaderTransformationOperation = "Append"
 )
-
-// HeaderTransformationOperation 表示请求或响应 Header 的修改动作。
-type HeaderTransformationOperation string
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // HeaderTransformationPolicy 声明请求和响应 Header 转换策略。
 type HeaderTransformationPolicy struct {
