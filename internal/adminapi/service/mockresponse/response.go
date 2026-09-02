@@ -10,7 +10,7 @@ import (
 
 func mockResponsePolicyResponse(
 	policy *resource.MockResponsePolicy,
-	names policybiz.PolicyTargetNames,
+	names policybiz.TargetNames,
 ) *adminv1.MockResponsePolicy {
 	status := policybiz.Status(
 		policy.Generation,

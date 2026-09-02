@@ -8,7 +8,7 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
-func rateLimitPolicyResponse(policy *resource.RateLimitPolicy, names policybiz.PolicyTargetNames) *adminv1.RateLimitPolicy {
+func rateLimitPolicyResponse(policy *resource.RateLimitPolicy, names policybiz.TargetNames) *adminv1.RateLimitPolicy {
 	status := policybiz.Status(
 		policy.Generation,
 		policy.Spec.Enabled,

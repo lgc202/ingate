@@ -38,19 +38,19 @@ type Store interface {
 // Usecase 协调请求响应 Header 转换策略的插件、目标校验和持久化。
 type Usecase struct {
 	store   Store
-	targets *policy.PolicyTargetResolver
-	plugins *plugin.PluginInstallationChecker
+	targets *policy.TargetResolver
+	plugins *plugin.InstallationChecker
 }
 
 // NewUsecase 创建请求响应 Header 转换策略用例。
 func NewUsecase(
 	store Store,
 	routes policy.RouteReader,
-	plugins *plugin.PluginInstallationChecker,
+	plugins *plugin.InstallationChecker,
 ) *Usecase {
 	return &Usecase{
 		store:   store,
-		targets: policy.NewRoutePolicyTargetResolver(routes),
+		targets: policy.NewRouteTargetResolver(routes),
 		plugins: plugins,
 	}
 }

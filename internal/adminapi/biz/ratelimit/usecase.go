@@ -33,7 +33,7 @@ type Store interface {
 // Usecase 提供请求限流策略管理能力。
 type Usecase struct {
 	store   Store
-	targets *policy.PolicyTargetResolver
+	targets *policy.TargetResolver
 }
 
 // NewUsecase 创建请求限流策略用例。
@@ -44,7 +44,7 @@ func NewUsecase(
 ) *Usecase {
 	return &Usecase{
 		store:   store,
-		targets: policy.NewPolicyTargetResolver(gateways, routes),
+		targets: policy.NewTargetResolver(gateways, routes),
 	}
 }
 

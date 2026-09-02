@@ -34,7 +34,7 @@ type Store interface {
 
 // PolicyUsageLister 定义卸载插件前需要的策略引用查询能力。
 type PolicyUsageLister interface {
-	ListPolicyUsages(ctx context.Context, packageName string) ([]plugin.PluginPolicyUsage, error)
+	ListPolicyUsages(ctx context.Context, packageName string) ([]plugin.PolicyUsage, error)
 }
 
 // Catalog 定义插件安装和展示所需的进程内目录能力。
@@ -107,7 +107,7 @@ func (uc *Usecase) Get(ctx context.Context, pluginID string) (*resource.WasmPlug
 func (uc *Usecase) PolicyUsages(
 	ctx context.Context,
 	packageName string,
-) ([]plugin.PluginPolicyUsage, error) {
+) ([]plugin.PolicyUsage, error) {
 	return uc.policyUsages.ListPolicyUsages(ctx, packageName)
 }
 

@@ -10,7 +10,7 @@ import (
 
 func headerTransformationPolicyResponse(
 	policy *resource.HeaderTransformationPolicy,
-	names policybiz.PolicyTargetNames,
+	names policybiz.TargetNames,
 ) *adminv1.HeaderTransformationPolicy {
 	status := policybiz.Status(
 		policy.Generation,

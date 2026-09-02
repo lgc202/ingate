@@ -11,7 +11,7 @@ import (
 
 func tokenQuotaPolicyResponse(
 	policy *resource.TokenQuotaPolicy,
-	names policy.PolicyTargetNames,
+	names policy.TargetNames,
 ) *adminv1.TokenQuotaPolicy {
 	state, message := tokenQuotaPolicyState(policy)
 	limits := make([]*adminv1.TokenQuotaLimit, len(policy.Spec.Limits))
@@ -52,7 +52,7 @@ func tokenQuotaPolicyState(
 
 func tokenQuotaPolicyTargets(
 	policy *resource.TokenQuotaPolicy,
-	names policy.PolicyTargetNames,
+	names policy.TargetNames,
 ) []*adminv1.PolicyTarget {
 	state, message := tokenQuotaPolicyState(policy)
 	targets := make([]*adminv1.PolicyTarget, len(policy.Spec.TargetRefs))

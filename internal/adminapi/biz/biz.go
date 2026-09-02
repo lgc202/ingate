@@ -25,10 +25,10 @@ import (
 
 // ProviderSet 汇总 Admin API 各领域用例及跨领域检查能力。
 var ProviderSet = wire.NewSet(
-	policy.NewPolicyUsageFinder,
-	plugin.NewPluginUsageFinder,
-	plugin.NewPluginInstallationChecker,
-	wire.Bind(new(wasmplugin.PolicyUsageLister), new(*plugin.PluginUsageFinder)),
+	policy.NewUsageFinder,
+	plugin.NewUsageFinder,
+	plugin.NewInstallationChecker,
+	wire.Bind(new(wasmplugin.PolicyUsageLister), new(*plugin.UsageFinder)),
 	aiusage.NewUsecase,
 	caller.NewUsecase,
 	certificate.NewUsecase,

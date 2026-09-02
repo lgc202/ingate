@@ -40,7 +40,7 @@ type UsageReader interface {
 // Usecase 提供 Token 额度策略管理和实时用量查询。
 type Usecase struct {
 	store   Store
-	targets *policy.PolicyTargetResolver
+	targets *policy.TargetResolver
 	callers CallerReader
 	usage   UsageReader
 }
@@ -49,7 +49,7 @@ type Usecase struct {
 func NewUsecase(store Store, callers CallerReader, usage UsageReader) *Usecase {
 	return &Usecase{
 		store:   store,
-		targets: policy.NewCallerPolicyTargetResolver(callers),
+		targets: policy.NewCallerTargetResolver(callers),
 		callers: callers,
 		usage:   usage,
 	}

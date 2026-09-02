@@ -116,7 +116,7 @@ func (s *Service) DeleteWasmPlugin(
 
 func (s *Service) pluginResponse(
 	plugin *resource.WasmPlugin,
-	usages []plugin.PluginPolicyUsage,
+	usages []plugin.PolicyUsage,
 ) *adminv1.WasmPlugin {
 	catalog := s.plugins.CatalogInfo(plugin)
 	return pluginResponse(plugin, catalog, usages)
