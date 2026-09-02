@@ -35,7 +35,7 @@ func catalogItemResponse(item wasmpluginbiz.CatalogItem) *adminv1.WasmPluginCata
 func pluginResponse(
 	plugin *resource.WasmPlugin,
 	catalog wasmpluginbiz.CatalogInfo,
-	usages []plugin.PluginPolicyUsage,
+	usages []plugin.PolicyUsage,
 ) *adminv1.WasmPlugin {
 	status := resourceview.WasmPluginStatus(plugin.Generation, plugin.Status.Conditions)
 	response := &adminv1.WasmPlugin{

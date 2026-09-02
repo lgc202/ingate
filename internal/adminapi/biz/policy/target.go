@@ -29,46 +29,46 @@ type policyTargetKey struct {
 	id   string
 }
 
-// PolicyTargetNames 保存策略作用目标的展示名称。
-type PolicyTargetNames struct {
+// TargetNames 保存策略作用目标的展示名称。
+type TargetNames struct {
 	values map[policyTargetKey]string
 }
 
-// PolicyTargetResolver 解析策略允许引用的资源并返回展示名称。
-type PolicyTargetResolver struct {
+// TargetResolver 解析策略允许引用的资源并返回展示名称。
+type TargetResolver struct {
 	gateways GatewayReader
 	routes   RouteReader
 	callers  CallerReader
 }
 
-// NewPolicyTargetResolver 创建 Gateway 和 Route 策略目标解析器。
-func NewPolicyTargetResolver(gateways GatewayReader, routes RouteReader) *PolicyTargetResolver {
-	return &PolicyTargetResolver{gateways: gateways, routes: routes}
+// NewTargetResolver 创建 Gateway 和 Route 策略目标解析器。
+func NewTargetResolver(gateways GatewayReader, routes RouteReader) *TargetResolver {
+	return &TargetResolver{gateways: gateways, routes: routes}
 }
 
-// NewRoutePolicyTargetResolver 创建 Route 策略目标解析器。
-func NewRoutePolicyTargetResolver(routes RouteReader) *PolicyTargetResolver {
-	return &PolicyTargetResolver{routes: routes}
+// NewRouteTargetResolver 创建 Route 策略目标解析器。
+func NewRouteTargetResolver(routes RouteReader) *TargetResolver {
+	return &TargetResolver{routes: routes}
 }
 
-// NewCallerPolicyTargetResolver 创建 Caller 策略目标解析器。
-func NewCallerPolicyTargetResolver(callers CallerReader) *PolicyTargetResolver {
-	return &PolicyTargetResolver{callers: callers}
+// NewCallerTargetResolver 创建 Caller 策略目标解析器。
+func NewCallerTargetResolver(callers CallerReader) *TargetResolver {
+	return &TargetResolver{callers: callers}
 }
 
 // Name 返回目标引用对应的展示名称。
-func (n PolicyTargetNames) Name(ref resource.PolicyTargetRef) string {
+func (n TargetNames) Name(ref resource.PolicyTargetRef) string {
 	return n.values[policyTargetKey{kind: ref.Kind, id: ref.Name}]
 }
 
 // Resolve 校验策略作用目标并返回当前展示名称。
-func (r *PolicyTargetResolver) Resolve(
+func (r *TargetResolver) Resolve(
 	ctx context.Context,
 	refs []resource.PolicyTargetRef,
-) (PolicyTargetNames, error) {
+) (TargetNames, error) {
 	names, err := r.DisplayNames(ctx, refs)
 	if err != nil {
-		return PolicyTargetNames{}, err
+		return TargetNames{}, err
 	}
 	for _, ref := range refs {
 		key := policyTargetKey{kind: ref.Kind, id: ref.Name}
@@ -78,21 +78,21 @@ func (r *PolicyTargetResolver) Resolve(
 		switch ref.Kind {
 		case resource.KindGateway:
 			if r.gateways == nil {
-				return PolicyTargetNames{}, fmt.Errorf("resolve policy target: %s is not supported", ref.Kind)
+				return TargetNames{}, fmt.Errorf("resolve policy target: %s is not supported", ref.Kind)
 			}
-			return PolicyTargetNames{}, adminv1.ErrorPolicyTargetNotFound("%s", fmt.Sprintf("关联网关 %q 不存在", ref.Name))
+			return TargetNames{}, adminv1.ErrorPolicyTargetNotFound("%s", fmt.Sprintf("关联网关 %q 不存在", ref.Name))
 		case resource.KindRoute:
 			if r.routes == nil {
-				return PolicyTargetNames{}, fmt.Errorf("resolve policy target: %s is not supported", ref.Kind)
+				return TargetNames{}, fmt.Errorf("resolve policy target: %s is not supported", ref.Kind)
 			}
-			return PolicyTargetNames{}, adminv1.ErrorPolicyTargetNotFound("%s", fmt.Sprintf("关联路由 %q 不存在", ref.Name))
+			return TargetNames{}, adminv1.ErrorPolicyTargetNotFound("%s", fmt.Sprintf("关联路由 %q 不存在", ref.Name))
 		case resource.KindCaller:
 			if r.callers == nil {
-				return PolicyTargetNames{}, fmt.Errorf("resolve policy target: %s is not supported", ref.Kind)
+				return TargetNames{}, fmt.Errorf("resolve policy target: %s is not supported", ref.Kind)
 			}
-			return PolicyTargetNames{}, adminv1.ErrorPolicyTargetNotFound("%s", fmt.Sprintf("关联调用方 %q 不存在", ref.Name))
+			return TargetNames{}, adminv1.ErrorPolicyTargetNotFound("%s", fmt.Sprintf("关联调用方 %q 不存在", ref.Name))
 		default:
-			return PolicyTargetNames{}, fmt.Errorf("resolve policy target: unsupported kind %q", ref.Kind)
+			return TargetNames{}, fmt.Errorf("resolve policy target: unsupported kind %q", ref.Kind)
 		}
 	}
 	return names, nil
@@ -100,11 +100,11 @@ func (r *PolicyTargetResolver) Resolve(
 
 // DisplayNames 返回当前存在的策略作用目标展示名称。
 // 缺失引用保留为空名称供状态页展示。
-func (r *PolicyTargetResolver) DisplayNames(
+func (r *TargetResolver) DisplayNames(
 	ctx context.Context,
 	refs []resource.PolicyTargetRef,
-) (PolicyTargetNames, error) {
-	names := PolicyTargetNames{values: make(map[policyTargetKey]string, len(refs))}
+) (TargetNames, error) {
+	names := TargetNames{values: make(map[policyTargetKey]string, len(refs))}
 	targetIDs := make(map[resource.Kind][]string, 3)
 	seen := make(map[policyTargetKey]bool, len(refs))
 	for _, ref := range refs {
@@ -118,7 +118,7 @@ func (r *PolicyTargetResolver) DisplayNames(
 	if ids := targetIDs[resource.KindGateway]; len(ids) > 0 && r.gateways != nil {
 		gateways, err := r.gateways.ListByIDs(ctx, ids)
 		if err != nil {
-			return PolicyTargetNames{}, err
+			return TargetNames{}, err
 		}
 		for id, gateway := range gateways {
 			names.values[policyTargetKey{kind: resource.KindGateway, id: id}] = gateway.Spec.DisplayName
@@ -127,7 +127,7 @@ func (r *PolicyTargetResolver) DisplayNames(
 	if ids := targetIDs[resource.KindRoute]; len(ids) > 0 && r.routes != nil {
 		routes, err := r.routes.ListByIDs(ctx, ids)
 		if err != nil {
-			return PolicyTargetNames{}, err
+			return TargetNames{}, err
 		}
 		for id, route := range routes {
 			names.values[policyTargetKey{kind: resource.KindRoute, id: id}] = route.Spec.DisplayName
@@ -136,7 +136,7 @@ func (r *PolicyTargetResolver) DisplayNames(
 	if ids := targetIDs[resource.KindCaller]; len(ids) > 0 && r.callers != nil {
 		callers, err := r.callers.ListByIDs(ctx, ids)
 		if err != nil {
-			return PolicyTargetNames{}, err
+			return TargetNames{}, err
 		}
 		for id, caller := range callers {
 			names.values[policyTargetKey{kind: resource.KindCaller, id: id}] = caller.Spec.DisplayName

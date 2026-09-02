@@ -51,7 +51,7 @@ func PolicyTargetResponses(
 	disabled bool,
 	refs []resource.PolicyTargetRef,
 	statuses []resource.PolicyTargetStatus,
-	names policy.PolicyTargetNames,
+	names policy.TargetNames,
 ) []*adminv1.PolicyTarget {
 	targets := make([]*adminv1.PolicyTarget, len(refs))
 	for i, ref := range refs {

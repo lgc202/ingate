@@ -12,7 +12,7 @@ import (
 
 func ipRestrictionPolicyResponse(
 	policy *resource.IPRestrictionPolicy,
-	names policybiz.PolicyTargetNames,
+	names policybiz.TargetNames,
 ) *adminv1.IPRestrictionPolicy {
 	status := policybiz.Status(
 		policy.Generation,

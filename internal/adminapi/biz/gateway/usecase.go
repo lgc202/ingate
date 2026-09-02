@@ -43,7 +43,7 @@ type Usecase struct {
 	store             Store
 	routes            RouteLister
 	certificates      CertificateReader
-	policyUsageFinder *policy.PolicyUsageFinder
+	policyUsageFinder *policy.UsageFinder
 }
 
 // NewUsecase 创建 Gateway 用例。
@@ -51,7 +51,7 @@ func NewUsecase(
 	store Store,
 	routes RouteLister,
 	certificates CertificateReader,
-	policyUsageFinder *policy.PolicyUsageFinder,
+	policyUsageFinder *policy.UsageFinder,
 ) *Usecase {
 	return &Usecase{
 		store:             store,

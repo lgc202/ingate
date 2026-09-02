@@ -36,7 +36,7 @@ type Store interface {
 // Usecase 提供客户端 IP 访问限制策略管理能力。
 type Usecase struct {
 	store   Store
-	targets *policy.PolicyTargetResolver
+	targets *policy.TargetResolver
 }
 
 // NewUsecase 创建客户端 IP 访问限制策略用例。
@@ -47,7 +47,7 @@ func NewUsecase(
 ) *Usecase {
 	return &Usecase{
 		store:   store,
-		targets: policy.NewPolicyTargetResolver(gateways, routes),
+		targets: policy.NewTargetResolver(gateways, routes),
 	}
 }
 
