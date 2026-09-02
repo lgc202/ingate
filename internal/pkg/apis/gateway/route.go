@@ -2,6 +2,9 @@ package gateway
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+// RouteAccessMode 表示 Route 是否要求调用方身份。
+type RouteAccessMode string
+
 const (
 	// RouteAccessPublic 表示请求不需要携带访问密钥。
 	RouteAccessPublic RouteAccessMode = "Public"
@@ -9,12 +12,18 @@ const (
 	RouteAccessCaller RouteAccessMode = "Caller"
 )
 
+// PathMatchType 表示 Route 路径匹配方式。
+type PathMatchType string
+
 const (
 	// PathMatchPrefix 表示按路径前缀匹配。
 	PathMatchPrefix PathMatchType = "Prefix"
 	// PathMatchExact 表示按完整路径匹配。
 	PathMatchExact PathMatchType = "Exact"
 )
+
+// HostRewriteMode 表示转发请求时如何生成上游 Host。
+type HostRewriteMode string
 
 const (
 	// HostRewriteUpstreamHost 使用实际选中的 Upstream 端点主机名。
@@ -24,15 +33,6 @@ const (
 	// HostRewriteCustom 使用用户指定的固定主机名。
 	HostRewriteCustom HostRewriteMode = "Custom"
 )
-
-// RouteAccessMode 表示 Route 是否要求调用方身份。
-type RouteAccessMode string
-
-// PathMatchType 表示 Route 路径匹配方式。
-type PathMatchType string
-
-// HostRewriteMode 表示转发请求时如何生成上游 Host。
-type HostRewriteMode string
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 

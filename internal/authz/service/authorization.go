@@ -27,15 +27,6 @@ import (
 
 const bearerPrefix = "Bearer "
 
-// AuthorizationService 把 Envoy 鉴权请求转换为 Ingate Caller 授权决策。
-type AuthorizationService struct {
-	authv3.UnimplementedAuthorizationServer
-	authorizer  *biz.Authorizer
-	rateLimiter *ratelimit.Limiter
-	logger      *slog.Logger
-	counters    authorizationCounters
-}
-
 type authorizationCounters struct {
 	checks      atomic.Uint64
 	allowed     atomic.Uint64
@@ -51,6 +42,15 @@ type Counters struct {
 	Denied      uint64
 	RateLimited uint64
 	Failed      uint64
+}
+
+// AuthorizationService 把 Envoy 鉴权请求转换为 Ingate Caller 授权决策。
+type AuthorizationService struct {
+	authv3.UnimplementedAuthorizationServer
+	authorizer  *biz.Authorizer
+	rateLimiter *ratelimit.Limiter
+	logger      *slog.Logger
+	counters    authorizationCounters
 }
 
 // NewAuthorizationService 创建 External Authorization 协议服务。

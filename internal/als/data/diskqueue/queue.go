@@ -20,17 +20,17 @@ import (
 // ErrFull 表示本地队列已达到配置的逻辑容量上限。
 var ErrFull = errors.New("disk queue is full")
 
+type pendingUsage struct {
+	records int64
+	bytes   int64
+}
+
 // Queue 保存 Kafka 暂时不可用期间尚未投递的请求记录。
 type Queue struct {
 	log      *wal.Log
 	maxBytes int64
 	mu       sync.Mutex
 	pending  atomic.Pointer[pendingUsage]
-}
-
-type pendingUsage struct {
-	records int64
-	bytes   int64
 }
 
 // NewQueue 打开本地磁盘队列，允许已确认记录全部清空。

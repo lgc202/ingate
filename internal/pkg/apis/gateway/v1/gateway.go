@@ -2,15 +2,15 @@ package v1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+// Protocol 表示网关资源中可声明的流量协议。
+type Protocol string
+
 const (
 	// ProtocolHTTP 表示普通 HTTP 流量。
 	ProtocolHTTP Protocol = "HTTP"
 	// ProtocolHTTPS 表示由 Envoy 终止 TLS 的 HTTPS 流量。
 	ProtocolHTTPS Protocol = "HTTPS"
 )
-
-// Protocol 表示网关资源中可声明的流量协议。
-type Protocol string
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient

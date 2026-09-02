@@ -20,6 +20,15 @@ import (
 // OfficialSourceID 是进程配置中官方插件源的稳定资源标识。
 const OfficialSourceID = "00000000-0000-5000-8000-000000000001"
 
+// ErrSyncFailed 表示远程响应不符合插件目录协议。
+var ErrSyncFailed = stderrors.New("plugin source sync failed")
+
+// ErrSyncUnavailable 表示远程插件目录当前无法访问。
+var ErrSyncUnavailable = stderrors.New("plugin source is unavailable")
+
+// SyncState 表示最近一次目录同步结果。
+type SyncState string
+
 const (
 	// SyncStateReady 表示最近一次同步成功。
 	SyncStateReady SyncState = "Ready"
@@ -30,15 +39,6 @@ const (
 	// SyncStateNotSynced 表示尚未完成首次同步。
 	SyncStateNotSynced SyncState = "NotSynced"
 )
-
-// ErrSyncFailed 表示远程响应不符合插件目录协议。
-var ErrSyncFailed = stderrors.New("plugin source sync failed")
-
-// ErrSyncUnavailable 表示远程插件目录当前无法访问。
-var ErrSyncUnavailable = stderrors.New("plugin source is unavailable")
-
-// SyncState 表示最近一次目录同步结果。
-type SyncState string
 
 // Observation 是远程目录的进程内观测结果，不作为声明式事实持久化。
 type Observation struct {

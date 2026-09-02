@@ -2,6 +2,9 @@ package aiusage
 
 import "time"
 
+// TimeBucket 是模型用量趋势查询支持的固定时间粒度。
+type TimeBucket uint8
+
 const (
 	// TimeBucketMinute 表示每分钟一个趋势点。
 	TimeBucketMinute TimeBucket = iota + 1
@@ -12,6 +15,9 @@ const (
 	// TimeBucketDay 表示每天一个趋势点。
 	TimeBucketDay
 )
+
+// Dimension 是模型用量分布支持的业务维度。
+type Dimension uint8
 
 const (
 	// DimensionCaller 按调用方分组。
@@ -26,21 +32,15 @@ const (
 	DimensionUpstreamModel
 )
 
+// BreakdownOrder 是模型用量分布的排序依据。
+type BreakdownOrder uint8
+
 const (
 	// BreakdownOrderCallCount 按模型调用次数从高到低排序。
 	BreakdownOrderCallCount BreakdownOrder = iota + 1
 	// BreakdownOrderTotalTokens 按总 Token 数从高到低排序。
 	BreakdownOrderTotalTokens
 )
-
-// TimeBucket 是模型用量趋势查询支持的固定时间粒度。
-type TimeBucket uint8
-
-// Dimension 是模型用量分布支持的业务维度。
-type Dimension uint8
-
-// BreakdownOrder 是模型用量分布的排序依据。
-type BreakdownOrder uint8
 
 // Filter 是模型用量分析的时间和业务范围。
 type Filter struct {

@@ -2,6 +2,9 @@ package gateway
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+// LoadBalancingPolicy 表示 Upstream 端点的负载均衡策略。
+type LoadBalancingPolicy string
+
 const (
 	// LoadBalancingRoundRobin 表示轮询。
 	LoadBalancingRoundRobin LoadBalancingPolicy = "RoundRobin"
@@ -9,18 +12,15 @@ const (
 	LoadBalancingLeastRequest LoadBalancingPolicy = "LeastRequest"
 )
 
+// ModelProtocol 表示模型服务实际提供的 HTTP API 协议。
+type ModelProtocol string
+
 const (
 	// ModelProtocolOpenAI 表示 OpenAI Chat Completions 兼容协议。
 	ModelProtocolOpenAI ModelProtocol = "OpenAI"
 	// ModelProtocolAnthropic 表示 Anthropic Messages 协议。
 	ModelProtocolAnthropic ModelProtocol = "Anthropic"
 )
-
-// LoadBalancingPolicy 表示 Upstream 端点的负载均衡策略。
-type LoadBalancingPolicy string
-
-// ModelProtocol 表示模型服务实际提供的 HTTP API 协议。
-type ModelProtocol string
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 

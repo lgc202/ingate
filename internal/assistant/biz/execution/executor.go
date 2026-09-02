@@ -17,20 +17,20 @@ const (
 
 var errExecutionFinished = errors.New("assistant execution finished")
 
-// Executor 负责领取任务、调用 Agent，并将执行过程收敛为持久终态。
-// 它只由后台执行消费者调用，不进入 HTTP 请求链路。
-type Executor struct {
-	store  ExecutorStore
-	events EventStore
-	agent  Agent
-}
-
 // executionLease 管理一条已领取任务的执行上下文和续租协程。
 // 它不是持久化租约本身；MySQL 中的 worker_id 与 lease_expires_at 才是归属事实。
 type executionLease struct {
 	ctx     context.Context
 	cancel  context.CancelCauseFunc
 	stopped chan error
+}
+
+// Executor 负责领取任务、调用 Agent，并将执行过程收敛为持久终态。
+// 它只由后台执行消费者调用，不进入 HTTP 请求链路。
+type Executor struct {
+	store  ExecutorStore
+	events EventStore
+	agent  Agent
 }
 
 // NewExecutor 创建后台执行编排器。

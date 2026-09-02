@@ -17,11 +17,6 @@ type AdminAPIProxy struct {
 	*httputil.ReverseProxy
 }
 
-// AssistantProxy 将运维助手请求转发到 ingate-assistant。
-type AssistantProxy struct {
-	*httputil.ReverseProxy
-}
-
 // NewAdminAPIProxy 创建到 ingate-admin-api 的反向代理，保持控制台现有 API 路径与响应不变。
 func NewAdminAPIProxy(config *conf.Data_AdminAPI, logger *slog.Logger) (*AdminAPIProxy, error) {
 	proxy, err := newReverseProxy(config.GetBaseUrl(), "admin API", "管理服务暂时不可用", logger)
@@ -29,6 +24,11 @@ func NewAdminAPIProxy(config *conf.Data_AdminAPI, logger *slog.Logger) (*AdminAP
 		return nil, err
 	}
 	return &AdminAPIProxy{ReverseProxy: proxy}, nil
+}
+
+// AssistantProxy 将运维助手请求转发到 ingate-assistant。
+type AssistantProxy struct {
+	*httputil.ReverseProxy
 }
 
 // NewAssistantProxy 创建到 ingate-assistant 的反向代理；SSE 响应由标准 ReverseProxy 逐段刷新。

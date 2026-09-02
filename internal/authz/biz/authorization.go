@@ -21,6 +21,12 @@ type Identity struct {
 	AccessKeyID string
 }
 
+// CredentialSource 提供当前已同步的 Caller 凭据。
+// 接口定义在消费方，数据来源可以独立替换而不影响授权规则。
+type CredentialSource interface {
+	Lookup(keyID string) (Credential, bool)
+}
+
 // Credential 保存授权决策需要的最小 Caller 凭据信息。
 // 摘要和 Route 授权集合在构造时复制，授权过程无法修改缓存中的原始配置。
 type Credential struct {
@@ -28,22 +34,6 @@ type Credential struct {
 	digest    string
 	routeIDs  map[string]struct{}
 	expiresAt time.Time
-}
-
-// CredentialSource 提供当前已同步的 Caller 凭据。
-// 接口定义在消费方，数据来源可以独立替换而不影响授权规则。
-type CredentialSource interface {
-	Lookup(keyID string) (Credential, bool)
-}
-
-// Authorizer 根据 Caller 凭据和 Route 授权关系作出访问决策。
-type Authorizer struct {
-	credentials CredentialSource
-}
-
-// NewAuthorizer 创建 Caller 授权服务。
-func NewAuthorizer(credentials CredentialSource) *Authorizer {
-	return &Authorizer{credentials: credentials}
 }
 
 // NewCredential 复制 Caller 当前有效的凭据和 Route 授权集合。
@@ -63,6 +53,16 @@ func NewCredential(
 		routeIDs:  authorizedRoutes,
 		expiresAt: expiresAt,
 	}
+}
+
+// Authorizer 根据 Caller 凭据和 Route 授权关系作出访问决策。
+type Authorizer struct {
+	credentials CredentialSource
+}
+
+// NewAuthorizer 创建 Caller 授权服务。
+func NewAuthorizer(credentials CredentialSource) *Authorizer {
+	return &Authorizer{credentials: credentials}
 }
 
 // Authorize 验证完整访问密钥并检查 Caller 是否有权访问 Route。

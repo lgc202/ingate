@@ -23,6 +23,24 @@ const (
 	maxCatalogRedirects = 10
 )
 
+type sourceDefinition struct {
+	id          string
+	displayName string
+	catalogURL  string
+	enabled     bool
+	generation  int64
+}
+
+type sourceState struct {
+	definition  sourceDefinition
+	items       []wasmplugin.CatalogItem
+	specs       map[string]resource.WasmPluginSpec
+	etag        string
+	available   bool
+	invalidated bool
+	observation pluginsource.Observation
+}
+
 // Catalog 为并发请求提供按来源隔离的不可变目录视图。
 // 每个来源先完整下载和校验，再原子替换自己的视图；单个来源失败不影响其他来源。
 type Catalog struct {
@@ -41,24 +59,6 @@ type Catalog struct {
 	lifecycleMu sync.Mutex
 	cancel      context.CancelFunc
 	done        chan struct{}
-}
-
-type sourceDefinition struct {
-	id          string
-	displayName string
-	catalogURL  string
-	enabled     bool
-	generation  int64
-}
-
-type sourceState struct {
-	definition  sourceDefinition
-	items       []wasmplugin.CatalogItem
-	specs       map[string]resource.WasmPluginSpec
-	etag        string
-	available   bool
-	invalidated bool
-	observation pluginsource.Observation
 }
 
 // NewCatalog 创建多来源插件目录缓存。

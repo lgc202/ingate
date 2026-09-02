@@ -20,15 +20,17 @@ import (
 )
 
 const (
-	queueKeyDesiredConfig    queueKey = "desired-config"
-	queueKeyProgrammedStatus queueKey = "programmed-status"
-
 	// Wasm 制品失败通常来自临时网络或仓库故障，延迟重试可以在外部依赖恢复后自动收敛
 	// 这里只在实际拉取失败后重新入队，成功后不会形成周期性轮询
 	wasmModuleRetryDelay = 30 * time.Second
 )
 
 type queueKey string
+
+const (
+	queueKeyDesiredConfig    queueKey = "desired-config"
+	queueKeyProgrammedStatus queueKey = "programmed-status"
+)
 
 // ResourceWatcher 向控制循环提供完整资源事实和变更通知。
 //

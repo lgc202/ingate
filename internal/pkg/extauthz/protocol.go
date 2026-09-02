@@ -24,15 +24,6 @@ const (
 )
 
 const (
-	// RateLimitSubjectShared 表示命中同一策略作用域的请求共享计数器。
-	RateLimitSubjectShared RateLimitSubject = "Shared"
-	// RateLimitSubjectIP 表示每个客户端 IP 使用独立计数器。
-	RateLimitSubjectIP RateLimitSubject = "IP"
-	// RateLimitSubjectHeader 表示每个指定 Header 值使用独立计数器。
-	RateLimitSubjectHeader RateLimitSubject = "Header"
-)
-
-const (
 	// 每条规则会触发一次共享计数操作；同时限制数量和编码大小，避免内部协议放大请求成本。
 	maxRateLimitRules       = 64
 	maxRateLimitContextSize = 64 << 10
@@ -40,6 +31,15 @@ const (
 
 // RateLimitSubject 表示请求限流计数器的划分方式。
 type RateLimitSubject string
+
+const (
+	// RateLimitSubjectShared 表示命中同一策略作用域的请求共享计数器。
+	RateLimitSubjectShared RateLimitSubject = "Shared"
+	// RateLimitSubjectIP 表示每个客户端 IP 使用独立计数器。
+	RateLimitSubjectIP RateLimitSubject = "IP"
+	// RateLimitSubjectHeader 表示每个指定 Header 值使用独立计数器。
+	RateLimitSubjectHeader RateLimitSubject = "Header"
+)
 
 // RateLimitRule 是 Controller 传给 Authz 的单条可执行限流规则。
 // 该结构只属于控制面与执行组件之间的内部协议，不暴露为用户可编辑配置。

@@ -2,6 +2,9 @@ package gateway
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+// TokenQuotaPeriod 表示自然日、自然周或自然月额度周期。
+type TokenQuotaPeriod string
+
 const (
 	// TokenQuotaPeriodDay 按策略时区的自然日统计。
 	TokenQuotaPeriodDay TokenQuotaPeriod = "Day"
@@ -10,9 +13,6 @@ const (
 	// TokenQuotaPeriodMonth 按策略时区的自然月统计。
 	TokenQuotaPeriodMonth TokenQuotaPeriod = "Month"
 )
-
-// TokenQuotaPeriod 表示自然日、自然周或自然月额度周期。
-type TokenQuotaPeriod string
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 

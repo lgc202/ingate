@@ -25,6 +25,18 @@ type ModelAPIKeySource interface {
 	APIKey(serviceID string, protocol aiprotocol.UpstreamProtocol) (string, error)
 }
 
+type processorCounters struct {
+	streams atomic.Uint64
+	errors  atomic.Uint64
+}
+
+// Counters 是 AI ExtProc 运维指标使用的并发安全快照。
+type Counters struct {
+	Streams            uint64
+	Errors             uint64
+	ActiveCorrelations int
+}
+
 // ExternalProcessor 接收 Envoy 发来的 downstream 和 upstream External Processing 流
 // requests 只在单次 HTTP 请求存活期间关联两类流，不承担持久化或跨实例共享。
 type ExternalProcessor struct {
@@ -36,18 +48,6 @@ type ExternalProcessor struct {
 	quotaLimiter *tokenquota.Limiter
 	logger       *slog.Logger
 	counters     processorCounters
-}
-
-type processorCounters struct {
-	streams atomic.Uint64
-	errors  atomic.Uint64
-}
-
-// Counters 是 AI ExtProc 运维指标使用的并发安全快照。
-type Counters struct {
-	Streams            uint64
-	Errors             uint64
-	ActiveCorrelations int
 }
 
 // NewExternalProcessor 创建 External Processing 服务。

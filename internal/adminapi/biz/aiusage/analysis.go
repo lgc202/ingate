@@ -6,6 +6,9 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 )
 
+// TimeBucket 是模型用量趋势查询使用的时间粒度。
+type TimeBucket biz.TimeBucket
+
 const (
 	// TimeBucketMinute 表示每分钟一个趋势点。
 	TimeBucketMinute TimeBucket = TimeBucket(biz.TimeBucketMinute)
@@ -16,6 +19,9 @@ const (
 	// TimeBucketDay 表示每天一个趋势点。
 	TimeBucketDay = TimeBucket(biz.TimeBucketDay)
 )
+
+// Dimension 是模型用量排名支持的业务维度。
+type Dimension uint8
 
 const (
 	// DimensionCaller 按调用方排名。
@@ -30,21 +36,15 @@ const (
 	DimensionActualModel
 )
 
+// BreakdownOrder 是模型用量排名的排序依据。
+type BreakdownOrder uint8
+
 const (
 	// BreakdownOrderCallCount 按模型调用次数从高到低排序。
 	BreakdownOrderCallCount BreakdownOrder = iota + 1
 	// BreakdownOrderTotalTokens 按总 Token 数从高到低排序。
 	BreakdownOrderTotalTokens
 )
-
-// TimeBucket 是模型用量趋势查询使用的时间粒度。
-type TimeBucket biz.TimeBucket
-
-// Dimension 是模型用量排名支持的业务维度。
-type Dimension uint8
-
-// BreakdownOrder 是模型用量排名的排序依据。
-type BreakdownOrder uint8
 
 // Filter 是模型用量分析的时间与业务范围。
 type Filter struct {

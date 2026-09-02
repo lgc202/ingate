@@ -1,5 +1,8 @@
 package delivery
 
+// XDSEventKind 表示 xDS stream 生命周期和响应确认事件类型。
+type XDSEventKind string
+
 const (
 	// EventStreamOpened 表示 SotW stream 已建立。
 	EventStreamOpened XDSEventKind = "StreamOpened"
@@ -14,9 +17,6 @@ const (
 	// EventNACK 表示 Envoy 拒绝了对应 nonce 的配置版本。
 	EventNACK XDSEventKind = "NACK"
 )
-
-// XDSEventKind 表示 xDS stream 生命周期和响应确认事件类型。
-type XDSEventKind string
 
 // XDSEvent 是 xDS 层交给 Delivery 的协议事件。
 type XDSEvent struct {

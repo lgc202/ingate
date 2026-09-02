@@ -2,6 +2,9 @@ package biz
 
 import "time"
 
+// TimeBucket 是 Admin API 分析趋势使用的时间粒度。
+type TimeBucket uint8
+
 const (
 	// TimeBucketMinute 表示每分钟一个趋势点。
 	TimeBucketMinute TimeBucket = iota + 1
@@ -12,9 +15,6 @@ const (
 	// TimeBucketDay 表示每天一个趋势点。
 	TimeBucketDay
 )
-
-// TimeBucket 是 Admin API 分析趋势使用的时间粒度。
-type TimeBucket uint8
 
 // TimeBucketForRange 根据查询范围选择趋势时间粒度。
 func TimeBucketForRange(duration time.Duration) TimeBucket {

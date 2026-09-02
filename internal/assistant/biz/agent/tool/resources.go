@@ -6,33 +6,6 @@ import (
 	"time"
 )
 
-const (
-	// TrafficDimensionGateway 按逻辑网关汇总流量。
-	TrafficDimensionGateway TrafficDimension = "gateway"
-	// TrafficDimensionRoute 按路由汇总流量。
-	TrafficDimensionRoute TrafficDimension = "route"
-	// TrafficDimensionService 按 Service 汇总流量。
-	TrafficDimensionService TrafficDimension = "service"
-)
-
-const (
-	// TrafficOrderRequestCount 按请求量从高到低排序。
-	TrafficOrderRequestCount TrafficOrder = "request_count"
-	// TrafficOrderServerErrorRate 按服务端错误率从高到低排序。
-	TrafficOrderServerErrorRate TrafficOrder = "server_error_rate"
-	// TrafficOrderP95Duration 按 P95 请求耗时从高到低排序。
-	TrafficOrderP95Duration TrafficOrder = "p95_duration"
-)
-
-const (
-	// FailureOutcomeClientError 只查询客户端错误请求。
-	FailureOutcomeClientError FailureOutcome = "client_error"
-	// FailureOutcomeServerError 只查询服务端错误请求。
-	FailureOutcomeServerError FailureOutcome = "server_error"
-	// FailureOutcomeNoResponse 只查询未获得有效 HTTP 响应的请求。
-	FailureOutcomeNoResponse FailureOutcome = "no_response"
-)
-
 // ErrQueryTargetNotFound 表示模型引用的精确查询目标已经删除或超出保留期。
 // 这不是依赖服务故障：工具应把它作为可修正结果交还模型，由模型重新获取当前列表。
 var ErrQueryTargetNotFound = errors.New("assistant query target not found")
@@ -135,8 +108,26 @@ type Service struct {
 // TrafficDimension 是流量统计支持的资源分组维度。
 type TrafficDimension string
 
+const (
+	// TrafficDimensionGateway 按逻辑网关汇总流量。
+	TrafficDimensionGateway TrafficDimension = "gateway"
+	// TrafficDimensionRoute 按路由汇总流量。
+	TrafficDimensionRoute TrafficDimension = "route"
+	// TrafficDimensionService 按 Service 汇总流量。
+	TrafficDimensionService TrafficDimension = "service"
+)
+
 // TrafficOrder 是流量排名支持的排序依据。
 type TrafficOrder string
+
+const (
+	// TrafficOrderRequestCount 按请求量从高到低排序。
+	TrafficOrderRequestCount TrafficOrder = "request_count"
+	// TrafficOrderServerErrorRate 按服务端错误率从高到低排序。
+	TrafficOrderServerErrorRate TrafficOrder = "server_error_rate"
+	// TrafficOrderP95Duration 按 P95 请求耗时从高到低排序。
+	TrafficOrderP95Duration TrafficOrder = "p95_duration"
+)
 
 // TrafficQuery 描述一次流量分析的时间、资源范围和排名方式。
 type TrafficQuery struct {
@@ -179,6 +170,15 @@ type TrafficAnalysis struct {
 
 // FailureOutcome 是失败请求工具支持的结果分类。
 type FailureOutcome string
+
+const (
+	// FailureOutcomeClientError 只查询客户端错误请求。
+	FailureOutcomeClientError FailureOutcome = "client_error"
+	// FailureOutcomeServerError 只查询服务端错误请求。
+	FailureOutcomeServerError FailureOutcome = "server_error"
+	// FailureOutcomeNoResponse 只查询未获得有效 HTTP 响应的请求。
+	FailureOutcomeNoResponse FailureOutcome = "no_response"
+)
 
 // FailureQuery 描述近期失败请求的时间、资源和结果范围。
 type FailureQuery struct {

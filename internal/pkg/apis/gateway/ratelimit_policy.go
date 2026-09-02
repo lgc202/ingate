@@ -9,6 +9,9 @@ const (
 	RateLimitMaxWindowSeconds int64 = 1<<31 - 1
 )
 
+// RateLimitSubjectType 表示额度在目标内如何划分计数对象。
+type RateLimitSubjectType string
+
 const (
 	// RateLimitSubjectShared 表示目标内所有请求共享额度。
 	RateLimitSubjectShared RateLimitSubjectType = "Shared"
@@ -17,9 +20,6 @@ const (
 	// RateLimitSubjectHeader 表示每个请求 Header 值独立使用额度。
 	RateLimitSubjectHeader RateLimitSubjectType = "Header"
 )
-
-// RateLimitSubjectType 表示额度在目标内如何划分计数对象。
-type RateLimitSubjectType string
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 

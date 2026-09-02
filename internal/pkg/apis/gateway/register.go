@@ -12,6 +12,18 @@ const (
 	AnnotationUpdatedAt = GroupName + "/updated-at"
 )
 
+var (
+	// SchemeGroupVersion 表示 Ingate API internal 组版本。
+	SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: runtime.APIVersionInternal}
+	// SchemeBuilder 注册 Ingate internal API 类型。
+	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
+	// AddToScheme 将 Ingate internal API 类型注册到 Scheme。
+	AddToScheme = SchemeBuilder.AddToScheme
+)
+
+// ResourceName 表示 gateway.ingate.io 下的资源名。
+type ResourceName string
+
 const (
 	// ResourceGateway 表示 Gateway 单数资源名。
 	ResourceGateway ResourceName = "gateway"
@@ -86,18 +98,6 @@ const (
 	// ResourceMockResponsePoliciesStatus 表示 MockResponsePolicy status 子资源名。
 	ResourceMockResponsePoliciesStatus ResourceName = "mockresponsepolicies/status"
 )
-
-var (
-	// SchemeGroupVersion 表示 Ingate API internal 组版本。
-	SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: runtime.APIVersionInternal}
-	// SchemeBuilder 注册 Ingate internal API 类型。
-	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
-	// AddToScheme 将 Ingate internal API 类型注册到 Scheme。
-	AddToScheme = SchemeBuilder.AddToScheme
-)
-
-// ResourceName 表示 gateway.ingate.io 下的资源名。
-type ResourceName string
 
 // Resource 返回 gateway.ingate.io 资源名。
 func Resource(name ResourceName) schema.GroupResource {

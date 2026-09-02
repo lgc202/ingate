@@ -17,13 +17,6 @@ const (
 	DefaultNACKRollbackTimeout = 3 * time.Second
 )
 
-const (
-	// FailureRejected 表示配置被网关实例拒绝。
-	FailureRejected FailureReason = "Rejected"
-	// FailureDelivery 表示配置发布或回退过程失败。
-	FailureDelivery FailureReason = "DeliveryFailed"
-)
-
 var (
 	// ErrAlreadyRunning 表示同一个 Delivery 被重复运行。
 	ErrAlreadyRunning = errors.New("delivery is already running")
@@ -45,6 +38,13 @@ type Options struct {
 
 // FailureReason 表示最近一次配置发布失败的稳定分类。
 type FailureReason string
+
+const (
+	// FailureRejected 表示配置被网关实例拒绝。
+	FailureRejected FailureReason = "Rejected"
+	// FailureDelivery 表示配置发布或回退过程失败。
+	FailureDelivery FailureReason = "DeliveryFailed"
+)
 
 // Failure 记录最近一次发布失败所对应的资源版本。
 type Failure struct {

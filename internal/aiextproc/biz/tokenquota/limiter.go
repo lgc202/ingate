@@ -13,6 +13,9 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/tokenquotaconfig"
 )
 
+// Period 表示额度对应的自然周期。
+type Period string
+
 const (
 	// PeriodDay 表示额度按策略时区的自然日重置。
 	PeriodDay Period = "day"
@@ -21,9 +24,6 @@ const (
 	// PeriodMonth 表示额度按策略时区的自然月重置。
 	PeriodMonth Period = "month"
 )
-
-// Period 表示额度对应的自然周期。
-type Period string
 
 // Limit 定义一个自然周期内允许使用的总 Token 数。
 type Limit struct {
@@ -72,12 +72,6 @@ type Counter interface {
 	Add(ctx context.Context, buckets []Bucket, tokens int64) error
 }
 
-// Limiter 按请求开始时的策略快照检查并结算额度。
-type Limiter struct {
-	policies PolicySource
-	counter  Counter
-}
-
 // Session 保存一次模型调用开始时命中的额度周期。
 // 策略在请求处理中发生修改时，本次调用仍结算到开始时检查过的计数器。
 type Session struct {
@@ -88,6 +82,12 @@ type Session struct {
 type Rejection struct {
 	Period  Period
 	ResetAt time.Time
+}
+
+// Limiter 按请求开始时的策略快照检查并结算额度。
+type Limiter struct {
+	policies PolicySource
+	counter  Counter
 }
 
 // NewLimiter 创建 Token 额度执行器。

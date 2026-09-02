@@ -25,6 +25,8 @@ import (
 	"strings"
 )
 
+type declarationCategory uint8
+
 const (
 	categoryConst declarationCategory = iota
 	categoryVar
@@ -33,7 +35,10 @@ const (
 	categoryPrivateFunc
 )
 
-type declarationCategory uint8
+type constructorDeclaration struct {
+	name  string
+	index int
+}
 
 func main() {
 	roots := os.Args[1:]
@@ -96,10 +101,21 @@ func verifyFile(path string) ([]string, error) {
 	}
 
 	violations := verifyProviderSetFile(path, fileSet, file)
+	typeDeclarations, structDeclarations := collectTypeDeclarations(file)
+	constructors := collectConstructors(file, structDeclarations)
+	violations = append(violations, verifyAttachedDeclarations(
+		path,
+		fileSet,
+		file,
+		typeDeclarations,
+		structDeclarations,
+		constructors,
+	)...)
+
 	var highest declarationCategory
 	hasDeclaration := false
 	for _, declaration := range file.Decls {
-		category, ok := classifyDeclaration(declaration)
+		category, ok := classifyDeclaration(declaration, typeDeclarations, structDeclarations)
 		if !ok {
 			continue
 		}
@@ -120,6 +136,116 @@ func verifyFile(path string) ([]string, error) {
 		}
 	}
 	return violations, nil
+}
+
+func collectTypeDeclarations(file *ast.File) (map[string]int, map[string]int) {
+	types := make(map[string]int)
+	structs := make(map[string]int)
+	for index, declaration := range file.Decls {
+		general, ok := declaration.(*ast.GenDecl)
+		if !ok || general.Tok != token.TYPE {
+			continue
+		}
+		for _, specification := range general.Specs {
+			typeSpecification := specification.(*ast.TypeSpec)
+			types[typeSpecification.Name.Name] = index
+			if _, ok := typeSpecification.Type.(*ast.StructType); ok {
+				structs[typeSpecification.Name.Name] = index
+			}
+		}
+	}
+	return types, structs
+}
+
+func collectConstructors(file *ast.File, structs map[string]int) map[string]constructorDeclaration {
+	constructors := make(map[string]constructorDeclaration)
+	for index, declaration := range file.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok || function.Recv != nil || !strings.HasPrefix(function.Name.Name, "New") {
+			continue
+		}
+		owner := constructorOwner(function, structs)
+		if owner != "" {
+			constructors[owner] = constructorDeclaration{
+				name:  function.Name.Name,
+				index: index,
+			}
+		}
+	}
+	return constructors
+}
+
+func verifyAttachedDeclarations(
+	path string,
+	fileSet *token.FileSet,
+	file *ast.File,
+	types map[string]int,
+	structs map[string]int,
+	constructors map[string]constructorDeclaration,
+) []string {
+	var violations []string
+	for index, declaration := range file.Decls {
+		owner := constantOwner(declaration)
+		if owner == "" {
+			continue
+		}
+		typeIndex, ok := types[owner]
+		if !ok {
+			continue
+		}
+		if index == typeIndex+1 {
+			continue
+		}
+		position := fileSet.Position(declaration.Pos())
+		violations = append(violations, fmt.Sprintf(
+			"%s:%d: const declarations for %s must immediately follow its type declaration",
+			path,
+			position.Line,
+			owner,
+		))
+	}
+
+	constructedStructSeen := false
+	for index, declaration := range file.Decls {
+		general, ok := declaration.(*ast.GenDecl)
+		if !ok || general.Tok != token.TYPE {
+			continue
+		}
+		for _, specification := range general.Specs {
+			typeSpecification := specification.(*ast.TypeSpec)
+			structIndex, isStruct := structs[typeSpecification.Name.Name]
+			if !isStruct || structIndex != index {
+				continue
+			}
+			constructor, hasConstructor := constructors[typeSpecification.Name.Name]
+			if !hasConstructor {
+				if constructedStructSeen {
+					position := fileSet.Position(typeSpecification.Pos())
+					violations = append(violations, fmt.Sprintf(
+						"%s:%d: struct %s without a constructor must appear before structs with constructors",
+						path,
+						position.Line,
+						typeSpecification.Name.Name,
+					))
+				}
+				continue
+			}
+
+			constructedStructSeen = true
+			if constructor.index == index+1 {
+				continue
+			}
+			position := fileSet.Position(file.Decls[constructor.index].Pos())
+			violations = append(violations, fmt.Sprintf(
+				"%s:%d: constructor %s must immediately follow struct %s",
+				path,
+				position.Line,
+				constructor.name,
+				typeSpecification.Name.Name,
+			))
+		}
+	}
+	return violations
 }
 
 func verifyProviderSetFile(path string, fileSet *token.FileSet, file *ast.File) []string {
@@ -158,11 +284,18 @@ func declarationName(category declarationCategory) string {
 	}
 }
 
-func classifyDeclaration(declaration ast.Decl) (declarationCategory, bool) {
+func classifyDeclaration(
+	declaration ast.Decl,
+	types map[string]int,
+	structs map[string]int,
+) (declarationCategory, bool) {
 	switch value := declaration.(type) {
 	case *ast.GenDecl:
 		switch value.Tok {
 		case token.CONST:
+			if _, ok := types[constantOwner(value)]; ok {
+				return categoryType, true
+			}
 			return categoryConst, true
 		case token.VAR:
 			return categoryVar, true
@@ -172,6 +305,9 @@ func classifyDeclaration(declaration ast.Decl) (declarationCategory, bool) {
 			return 0, false
 		}
 	case *ast.FuncDecl:
+		if value.Recv == nil && constructorOwner(value, structs) != "" {
+			return categoryType, true
+		}
 		if ast.IsExported(value.Name.Name) {
 			return categoryExportedFunc, true
 		}
@@ -179,6 +315,79 @@ func classifyDeclaration(declaration ast.Decl) (declarationCategory, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func constructorOwner(function *ast.FuncDecl, structs map[string]int) string {
+	if function.Name.Name != "New" {
+		name := strings.TrimPrefix(function.Name.Name, "New")
+		if _, ok := structs[name]; ok {
+			return name
+		}
+		return ""
+	}
+	if function.Type.Results == nil {
+		return ""
+	}
+	for _, result := range function.Type.Results.List {
+		resultType := result.Type
+		if pointer, ok := resultType.(*ast.StarExpr); ok {
+			resultType = pointer.X
+		}
+		identifier, ok := resultType.(*ast.Ident)
+		if !ok {
+			continue
+		}
+		if _, ok := structs[identifier.Name]; ok {
+			return identifier.Name
+		}
+	}
+	return ""
+}
+
+func constantOwner(declaration ast.Decl) string {
+	general, ok := declaration.(*ast.GenDecl)
+	if !ok || general.Tok != token.CONST {
+		return ""
+	}
+
+	var owner string
+	for _, specification := range general.Specs {
+		value := specification.(*ast.ValueSpec)
+		if value.Type != nil {
+			identifier, ok := value.Type.(*ast.Ident)
+			if !ok || owner != "" && owner != identifier.Name {
+				return ""
+			}
+			owner = identifier.Name
+			continue
+		}
+		if len(value.Values) == 0 {
+			if owner == "" {
+				return ""
+			}
+			continue
+		}
+		for _, expression := range value.Values {
+			convertedOwner := constantConversionOwner(expression)
+			if convertedOwner == "" || owner != "" && owner != convertedOwner {
+				return ""
+			}
+			owner = convertedOwner
+		}
+	}
+	return owner
+}
+
+func constantConversionOwner(expression ast.Expr) string {
+	conversion, ok := expression.(*ast.CallExpr)
+	if !ok || len(conversion.Args) != 1 {
+		return ""
+	}
+	identifier, ok := conversion.Fun.(*ast.Ident)
+	if !ok {
+		return ""
+	}
+	return identifier.Name
 }
 
 func categoryName(category declarationCategory) string {

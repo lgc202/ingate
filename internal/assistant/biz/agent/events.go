@@ -6,13 +6,6 @@ import (
 	"errors"
 )
 
-const (
-	// RoleUser 表示来自管理员的上下文消息。
-	RoleUser Role = iota + 1
-	// RoleAssistant 表示此前由 Agent 生成的上下文消息。
-	RoleAssistant
-)
-
 var (
 	// ErrModelNotConfigured 表示当前没有可用于运维助手的模型连接。
 	ErrModelNotConfigured = errors.New("assistant model is not configured")
@@ -23,6 +16,13 @@ var (
 // Role 表示进入模型上下文的消息角色。
 // 工具消息由 Eino 在单次循环内维护，不属于跨执行恢复的持久对话。
 type Role uint8
+
+const (
+	// RoleUser 表示来自管理员的上下文消息。
+	RoleUser Role = iota + 1
+	// RoleAssistant 表示此前由 Agent 生成的上下文消息。
+	RoleAssistant
+)
 
 // Message 是 Agent 恢复上下文时需要的最小消息结构。
 // ID、会话归属和创建时间属于存储事实，不应进入模型循环协议。
