@@ -15,16 +15,16 @@ const (
 // ModelProtocol 表示模型服务实际提供的 HTTP API 协议。
 type ModelProtocol string
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +genclient
-// +genclient:nonNamespaced
-
 const (
 	// ModelProtocolOpenAI 表示 OpenAI Chat Completions 兼容协议。
 	ModelProtocolOpenAI ModelProtocol = "OpenAI"
 	// ModelProtocolAnthropic 表示 Anthropic Messages 协议。
 	ModelProtocolAnthropic ModelProtocol = "Anthropic"
 )
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +genclient
+// +genclient:nonNamespaced
 
 // Upstream 声明一个逻辑上游服务。
 type Upstream struct {

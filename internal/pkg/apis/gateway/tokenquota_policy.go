@@ -5,8 +5,6 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // TokenQuotaPeriod 表示自然日、自然周或自然月额度周期。
 type TokenQuotaPeriod string
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 const (
 	// TokenQuotaPeriodDay 按策略时区的自然日统计。
 	TokenQuotaPeriodDay TokenQuotaPeriod = "Day"
@@ -15,6 +13,8 @@ const (
 	// TokenQuotaPeriodMonth 按策略时区的自然月统计。
 	TokenQuotaPeriodMonth TokenQuotaPeriod = "Month"
 )
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // TokenQuotaPolicy 声明调用方可使用的模型 Token 额度。
 type TokenQuotaPolicy struct {

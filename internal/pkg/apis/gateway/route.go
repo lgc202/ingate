@@ -25,8 +25,6 @@ const (
 // HostRewriteMode 表示转发请求时如何生成上游 Host。
 type HostRewriteMode string
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 const (
 	// HostRewriteUpstreamHost 使用实际选中的 Upstream 端点主机名。
 	HostRewriteUpstreamHost HostRewriteMode = "UpstreamHost"
@@ -35,6 +33,8 @@ const (
 	// HostRewriteCustom 使用用户指定的固定主机名。
 	HostRewriteCustom HostRewriteMode = "Custom"
 )
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Route 声明一组请求匹配条件和对应的转发行为。
 type Route struct {
