@@ -12,6 +12,7 @@ import (
 	"time"
 
 	redisclient "github.com/redis/go-redis/v9"
+	"github.com/samber/lo"
 
 	"github.com/lgc202/ingate/internal/aiextproc/biz/tokenquota"
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
@@ -185,16 +186,14 @@ func (c *TokenCounter) ping(ctx context.Context) error {
 }
 
 func bucketKeys(buckets []tokenquota.Bucket) []string {
-	keys := make([]string, 0, len(buckets))
-	for _, bucket := range buckets {
+	return lo.Map(buckets, func(bucket tokenquota.Bucket, _ int) string {
 		// Caller ID 作为 Redis Cluster hash tag，保证一次 Lua 结算涉及的 Key 位于同一 slot
-		keys = append(keys, fmt.Sprintf(
+		return fmt.Sprintf(
 			"ingate:token-quota:{%s}:%s:%s:%d",
 			bucket.CallerID,
 			bucket.PolicyID,
 			bucket.Period,
 			bucket.Start.Unix(),
-		))
-	}
-	return keys
+		)
+	})
 }

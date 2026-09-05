@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/samber/lo"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/lgc202/ingate/internal/aiextproc/biz/tokenquota"
@@ -36,11 +37,10 @@ func (c *ConfigCache) ActivePolicies(callerID string) ([]tokenquota.Policy, erro
 			tokenquotaconfig.MaxPoliciesPerCaller,
 		)
 	}
-	policies := make([]tokenquota.Policy, 0, len(indexed))
-	for _, policy := range indexed {
+	policies := lo.MapToSlice(indexed, func(_ string, policy tokenquota.Policy) tokenquota.Policy {
 		policy.Limits = slices.Clone(policy.Limits)
-		policies = append(policies, policy)
-	}
+		return policy
+	})
 	c.tokenQuotaMu.RUnlock()
 
 	return policies, nil

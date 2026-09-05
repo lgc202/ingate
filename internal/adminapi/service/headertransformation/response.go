@@ -1,6 +1,8 @@
 package headertransformation
 
 import (
+	"github.com/samber/lo"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	policybiz "github.com/lgc202/ingate/internal/adminapi/biz/policy"
 	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
@@ -43,15 +45,13 @@ func headerTransformationPolicyResponse(
 func headerTransformationRuleResponses(
 	rules []resource.HeaderTransformationRule,
 ) []*adminv1.HeaderTransformationRule {
-	responses := make([]*adminv1.HeaderTransformationRule, len(rules))
-	for i, rule := range rules {
-		responses[i] = &adminv1.HeaderTransformationRule{
+	return lo.Map(rules, func(rule resource.HeaderTransformationRule, _ int) *adminv1.HeaderTransformationRule {
+		return &adminv1.HeaderTransformationRule{
 			Operation: headerTransformationOperationResponse(rule.Operation),
 			Name:      rule.Name,
 			Value:     rule.Value,
 		}
-	}
-	return responses
+	})
 }
 
 func headerTransformationOperationResponse(

@@ -9,6 +9,7 @@ import (
 
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	matcherv3 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
+	"github.com/samber/lo"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/httpheader"
@@ -98,11 +99,9 @@ func exactHeaderMatcher(name, value string) *routev3.HeaderMatcher {
 }
 
 func routeMatchHeaderValues(match *routev3.RouteMatch) map[string]string {
-	values := make(map[string]string, len(match.GetHeaders()))
-	for _, header := range match.GetHeaders() {
-		values[strings.ToLower(header.GetName())] = header.GetStringMatch().GetExact()
-	}
-	return values
+	return lo.Associate(match.GetHeaders(), func(header *routev3.HeaderMatcher) (string, string) {
+		return strings.ToLower(header.GetName()), header.GetStringMatch().GetExact()
+	})
 }
 
 func routeHeaderMatchesOverlap(left, right map[string]string) bool {

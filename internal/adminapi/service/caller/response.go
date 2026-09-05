@@ -3,6 +3,8 @@ package caller
 import (
 	"slices"
 
+	"github.com/samber/lo"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	callerbiz "github.com/lgc202/ingate/internal/adminapi/biz/caller"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
@@ -10,18 +12,16 @@ import (
 )
 
 func callerResponse(caller *resource.Caller) *adminv1.Caller {
-	accessKeys := make([]*adminv1.AccessKey, len(caller.Spec.AccessKeys))
-	for i, accessKey := range caller.Spec.AccessKeys {
-		accessKeys[i] = accessKeyResponse(accessKey)
-	}
 	return &adminv1.Caller{
-		Id:         caller.Name,
-		Name:       caller.Spec.DisplayName,
-		Enabled:    caller.Spec.Enabled,
-		RouteIds:   slices.Clone(caller.Spec.RouteRefs),
-		AccessKeys: accessKeys,
-		Version:    caller.Generation,
-		CreatedAt:  adminservice.Timestamp(caller.CreationTimestamp.Time),
+		Id:       caller.Name,
+		Name:     caller.Spec.DisplayName,
+		Enabled:  caller.Spec.Enabled,
+		RouteIds: slices.Clone(caller.Spec.RouteRefs),
+		AccessKeys: lo.Map(caller.Spec.AccessKeys, func(key resource.AccessKey, _ int) *adminv1.AccessKey {
+			return accessKeyResponse(key)
+		}),
+		Version:   caller.Generation,
+		CreatedAt: adminservice.Timestamp(caller.CreationTimestamp.Time),
 		UpdatedAt: adminservice.Timestamp(
 			adminservice.ResourceUpdatedAt(caller.Annotations),
 		),

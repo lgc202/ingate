@@ -11,6 +11,7 @@ import (
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	httprbacv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/rbac/v3"
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+	"github.com/samber/lo"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -121,10 +122,9 @@ func buildIPRestrictionHTTPFilter() (*hcmv3.HttpFilter, error) {
 }
 
 func applyIPRestrictionPolicies(routes []*routev3.Route, policies []ipRestrictionPolicy) error {
-	principals := make([]*rbacconfigv3.Principal, 0, len(policies))
-	for _, policy := range policies {
-		principals = append(principals, restrictionPrincipal(policy))
-	}
+	principals := lo.Map(policies, func(policy ipRestrictionPolicy, _ int) *rbacconfigv3.Principal {
+		return restrictionPrincipal(policy)
+	})
 	rules := &httprbacv3.RBAC{Rules: &rbacconfigv3.RBAC{
 		Action: rbacconfigv3.RBAC_ALLOW,
 		Policies: map[string]*rbacconfigv3.Policy{
@@ -159,15 +159,14 @@ func restrictionPrincipal(policy ipRestrictionPolicy) *rbacconfigv3.Principal {
 }
 
 func anyIPPrincipal(prefixes []netip.Prefix) *rbacconfigv3.Principal {
-	principals := make([]*rbacconfigv3.Principal, 0, len(prefixes))
-	for _, prefix := range prefixes {
-		principals = append(principals, &rbacconfigv3.Principal{Identifier: &rbacconfigv3.Principal_DirectRemoteIp{
+	principals := lo.Map(prefixes, func(prefix netip.Prefix, _ int) *rbacconfigv3.Principal {
+		return &rbacconfigv3.Principal{Identifier: &rbacconfigv3.Principal_DirectRemoteIp{
 			DirectRemoteIp: &corev3.CidrRange{
 				AddressPrefix: prefix.Addr().String(),
 				PrefixLen:     wrapperspb.UInt32(uint32(prefix.Bits())),
 			},
-		}})
-	}
+		}}
+	})
 	if len(principals) == 1 {
 		return principals[0]
 	}

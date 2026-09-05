@@ -3,6 +3,8 @@ package route
 import (
 	"strings"
 
+	"github.com/samber/lo"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
@@ -142,13 +144,12 @@ func forwardingResponse(spec resource.RouteSpec) *adminv1.RouteForwarding {
 		}
 	}
 
-	targets := make([]*adminv1.ServiceTarget, len(spec.UpstreamRefs))
-	for i, serviceRef := range spec.UpstreamRefs {
-		targets[i] = &adminv1.ServiceTarget{
+	targets := lo.Map(spec.UpstreamRefs, func(serviceRef resource.UpstreamRef, _ int) *adminv1.ServiceTarget {
+		return &adminv1.ServiceTarget{
 			ServiceId: serviceRef.Name,
 			Weight:    uint32(serviceRef.Weight),
 		}
-	}
+	})
 	return &adminv1.RouteForwarding{
 		Kind: &adminv1.RouteForwarding_Service{
 			Service: &adminv1.ServiceForwarding{Targets: targets},
@@ -157,20 +158,17 @@ func forwardingResponse(spec resource.RouteSpec) *adminv1.RouteForwarding {
 }
 
 func aiRouteResponse(aiRoute *resource.AIRoute) *adminv1.AIRoute {
-	models := make([]*adminv1.AIModel, len(aiRoute.Models))
-	for i, model := range aiRoute.Models {
-		modelResponse := &adminv1.AIModel{
-			Name:    model.Name,
-			Targets: make([]*adminv1.AIModelTarget, len(model.Targets)),
+	models := lo.Map(aiRoute.Models, func(model resource.AIModel, _ int) *adminv1.AIModel {
+		return &adminv1.AIModel{
+			Name: model.Name,
+			Targets: lo.Map(model.Targets, func(target resource.AIModelTarget, _ int) *adminv1.AIModelTarget {
+				return &adminv1.AIModelTarget{
+					ServiceId: target.UpstreamRef,
+					Model:     target.Model,
+					Weight:    uint32(target.Weight),
+				}
+			}),
 		}
-		for j, target := range model.Targets {
-			modelResponse.Targets[j] = &adminv1.AIModelTarget{
-				ServiceId: target.UpstreamRef,
-				Model:     target.Model,
-				Weight:    uint32(target.Weight),
-			}
-		}
-		models[i] = modelResponse
-	}
+	})
 	return &adminv1.AIRoute{Models: models}
 }

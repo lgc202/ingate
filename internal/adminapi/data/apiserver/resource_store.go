@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/samber/lo"
 	"golang.org/x/sync/errgroup"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -212,15 +213,7 @@ func listByIDs[T any](
 	resourceIDs []string,
 	get func(context.Context, string) (T, error),
 ) (map[string]T, error) {
-	uniqueIDs := make([]string, 0, len(resourceIDs))
-	seenIDs := make(map[string]bool, len(resourceIDs))
-	for _, resourceID := range resourceIDs {
-		if seenIDs[resourceID] {
-			continue
-		}
-		seenIDs[resourceID] = true
-		uniqueIDs = append(uniqueIDs, resourceID)
-	}
+	uniqueIDs := lo.Uniq(resourceIDs)
 
 	resources := make([]T, len(uniqueIDs))
 	found := make([]bool, len(uniqueIDs))

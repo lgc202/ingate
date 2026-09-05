@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"slices"
 
+	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
@@ -23,10 +24,9 @@ func ValidatePolicyTargetRefs(
 		refs = refs[:policyconfig.MaxTargets]
 	}
 
-	supportedKinds := make([]string, len(allowedKinds))
-	for i, kind := range allowedKinds {
-		supportedKinds[i] = string(kind)
-	}
+	supportedKinds := lo.Map(allowedKinds, func(kind resource.Kind, _ int) string {
+		return string(kind)
+	})
 
 	seen := make(map[resource.PolicyTargetRef]bool, len(refs))
 	for i, ref := range refs {

@@ -1,6 +1,7 @@
 package aiusage
 
 import (
+	"github.com/samber/lo"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
@@ -8,30 +9,26 @@ import (
 )
 
 func trendResponse(result aiusagebiz.TrendResult) *analyticsv1.GetAIUsageTrendResponse {
-	response := &analyticsv1.GetAIUsageTrendResponse{
+	return &analyticsv1.GetAIUsageTrendResponse{
 		Summary: metricsResponse(result.Summary),
-		Points:  make([]*analyticsv1.AIUsageTrendPoint, 0, len(result.Points)),
+		Points: lo.Map(result.Points, func(point aiusagebiz.TrendPoint, _ int) *analyticsv1.AIUsageTrendPoint {
+			return &analyticsv1.AIUsageTrendPoint{
+				StartedAt: timestamppb.New(point.StartedAt),
+				Metrics:   metricsResponse(point.Metrics),
+			}
+		}),
 	}
-	for _, point := range result.Points {
-		response.Points = append(response.Points, &analyticsv1.AIUsageTrendPoint{
-			StartedAt: timestamppb.New(point.StartedAt),
-			Metrics:   metricsResponse(point.Metrics),
-		})
-	}
-	return response
 }
 
 func breakdownResponse(items []aiusagebiz.BreakdownItem) *analyticsv1.ListAIUsageBreakdownResponse {
-	response := &analyticsv1.ListAIUsageBreakdownResponse{
-		Items: make([]*analyticsv1.AIUsageBreakdownItem, 0, len(items)),
+	return &analyticsv1.ListAIUsageBreakdownResponse{
+		Items: lo.Map(items, func(item aiusagebiz.BreakdownItem, _ int) *analyticsv1.AIUsageBreakdownItem {
+			return &analyticsv1.AIUsageBreakdownItem{
+				DimensionValue: item.DimensionValue,
+				Metrics:        metricsResponse(item.Metrics),
+			}
+		}),
 	}
-	for _, item := range items {
-		response.Items = append(response.Items, &analyticsv1.AIUsageBreakdownItem{
-			DimensionValue: item.DimensionValue,
-			Metrics:        metricsResponse(item.Metrics),
-		})
-	}
-	return response
 }
 
 func metricsResponse(metrics aiusagebiz.Metrics) *analyticsv1.AIUsageMetrics {

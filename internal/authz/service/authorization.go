@@ -13,6 +13,7 @@ import (
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
+	"github.com/samber/lo"
 	"google.golang.org/genproto/googleapis/rpc/code"
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
@@ -199,18 +200,16 @@ func parseRateLimitRules(encoded string) ([]ratelimit.Rule, error) {
 	if err != nil {
 		return nil, err
 	}
-	rules := make([]ratelimit.Rule, 0, len(compiled))
-	for _, rule := range compiled {
-		rules = append(rules, ratelimit.Rule{
+	return lo.Map(compiled, func(rule extauthz.RateLimitRule, _ int) ratelimit.Rule {
+		return ratelimit.Rule{
 			PolicyID:      rule.PolicyID,
 			Scope:         rule.Scope,
 			Subject:       ratelimit.Subject(rule.Subject),
 			HeaderName:    rule.HeaderName,
 			Requests:      rule.Requests,
 			WindowSeconds: rule.WindowSeconds,
-		})
-	}
-	return rules, nil
+		}
+	}), nil
 }
 
 func bearerCredential(headerValue string) string {

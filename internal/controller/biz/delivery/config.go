@@ -6,6 +6,7 @@ import (
 	listenerv3 "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	resourcev3 "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
+	"github.com/samber/lo"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
@@ -59,25 +60,20 @@ func dynamicTypeURLs() []string {
 
 // cloneConfig 隔离编译结果与异步发布过程，避免调用方后续修改 protobuf 对象。
 func cloneConfig(value compiler.EnvoyConfig) compiler.EnvoyConfig {
-	cloned := compiler.EnvoyConfig{
-		Listeners: make([]*listenerv3.Listener, 0, len(value.Listeners)),
-		Routes:    make([]*routev3.RouteConfiguration, 0, len(value.Routes)),
-		Clusters:  make([]*clusterv3.Cluster, 0, len(value.Clusters)),
-		Endpoints: make([]*endpointv3.ClusterLoadAssignment, 0, len(value.Endpoints)),
+	return compiler.EnvoyConfig{
+		Listeners: lo.Map(value.Listeners, func(listener *listenerv3.Listener, _ int) *listenerv3.Listener {
+			return proto.CloneOf(listener)
+		}),
+		Routes: lo.Map(value.Routes, func(route *routev3.RouteConfiguration, _ int) *routev3.RouteConfiguration {
+			return proto.CloneOf(route)
+		}),
+		Clusters: lo.Map(value.Clusters, func(cluster *clusterv3.Cluster, _ int) *clusterv3.Cluster {
+			return proto.CloneOf(cluster)
+		}),
+		Endpoints: lo.Map(value.Endpoints, func(endpoint *endpointv3.ClusterLoadAssignment, _ int) *endpointv3.ClusterLoadAssignment {
+			return proto.CloneOf(endpoint)
+		}),
 	}
-	for _, listener := range value.Listeners {
-		cloned.Listeners = append(cloned.Listeners, proto.CloneOf(listener))
-	}
-	for _, route := range value.Routes {
-		cloned.Routes = append(cloned.Routes, proto.CloneOf(route))
-	}
-	for _, cluster := range value.Clusters {
-		cloned.Clusters = append(cloned.Clusters, proto.CloneOf(cluster))
-	}
-	for _, endpoint := range value.Endpoints {
-		cloned.Endpoints = append(cloned.Endpoints, proto.CloneOf(endpoint))
-	}
-	return cloned
 }
 
 func configsEqual(a, b compiler.EnvoyConfig) bool {
