@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/samber/lo"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
@@ -13,12 +15,9 @@ import (
 // checkCertificateReferences 预检 HTTPS Listener 引用的证书。
 // 最终发布结果仍由 Controller status 表达。
 func (uc *Usecase) checkCertificateReferences(ctx context.Context, spec resource.GatewaySpec) error {
-	certificateIDs := make([]string, 0, len(spec.Listeners))
-	for _, listener := range spec.Listeners {
-		if listener.Protocol == resource.ProtocolHTTPS {
-			certificateIDs = append(certificateIDs, listener.CertificateRef)
-		}
-	}
+	certificateIDs := lo.FilterMap(spec.Listeners, func(listener resource.Listener, _ int) (string, bool) {
+		return listener.CertificateRef, listener.Protocol == resource.ProtocolHTTPS
+	})
 	certificates, err := uc.certificates.ListByIDs(ctx, certificateIDs)
 	if err != nil {
 		return err

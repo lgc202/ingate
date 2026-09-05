@@ -1,6 +1,8 @@
 package servicemanagement
 
 import (
+	"github.com/samber/lo"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
@@ -12,14 +14,13 @@ func serviceResponse(service *resource.Upstream) *adminv1.Service {
 		service.Generation,
 		service.Status.Conditions,
 	)
-	endpoints := make([]*adminv1.ServiceEndpoint, len(service.Spec.Endpoints))
-	for i, endpoint := range service.Spec.Endpoints {
-		endpoints[i] = &adminv1.ServiceEndpoint{
+	endpoints := lo.Map(service.Spec.Endpoints, func(endpoint resource.Endpoint, _ int) *adminv1.ServiceEndpoint {
+		return &adminv1.ServiceEndpoint{
 			Address: endpoint.Address,
 			Port:    uint32(endpoint.Port),
 			Weight:  uint32(endpoint.Weight),
 		}
-	}
+	})
 	response := &adminv1.Service{
 		Id:            service.Name,
 		Name:          service.Spec.DisplayName,

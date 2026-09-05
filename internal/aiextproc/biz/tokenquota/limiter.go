@@ -9,6 +9,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/samber/lo"
+
 	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 	"github.com/lgc202/ingate/internal/pkg/tokenquotaconfig"
 )
@@ -133,9 +135,8 @@ func (l *Limiter) CurrentUsage(ctx context.Context, callerID string, now time.Ti
 	if err != nil {
 		return nil, err
 	}
-	usages := make([]Usage, len(buckets))
-	for i, bucket := range buckets {
-		usages[i] = Usage{
+	return lo.Map(buckets, func(bucket Bucket, i int) Usage {
+		return Usage{
 			PolicyID:   bucket.PolicyID,
 			PolicyName: bucket.PolicyName,
 			Period:     bucket.Period,
@@ -144,8 +145,7 @@ func (l *Limiter) CurrentUsage(ctx context.Context, callerID string, now time.Ti
 			Start:      bucket.Start,
 			End:        bucket.End,
 		}
-	}
-	return usages, nil
+	}), nil
 }
 
 // Charge 使用模型厂商返回的实际 Token 结算本次调用。

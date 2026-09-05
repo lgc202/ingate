@@ -8,6 +8,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -178,10 +179,9 @@ func listResourceCopies[T metav1.Object](
 		return nil, fmt.Errorf("list %s: %w", resourceType, err)
 	}
 
-	resources := make([]T, len(shared))
-	for i, resource := range shared {
-		resources[i] = deepCopy(resource)
-	}
+	resources := lo.Map(shared, func(resource T, _ int) T {
+		return deepCopy(resource)
+	})
 	slices.SortFunc(resources, func(a, b T) int {
 		return cmp.Compare(a.GetName(), b.GetName())
 	})

@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/samber/lo"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
@@ -344,10 +345,7 @@ func wasmModuleGenerations(
 			retained[generation] = true
 		}
 	}
-	result := make([]compiler.ResourceGeneration, 0, len(retained))
-	for generation := range retained {
-		result = append(result, generation)
-	}
+	result := lo.Keys(retained)
 	slices.SortFunc(result, func(a, b compiler.ResourceGeneration) int {
 		return cmp.Or(
 			cmp.Compare(a.Kind, b.Kind),

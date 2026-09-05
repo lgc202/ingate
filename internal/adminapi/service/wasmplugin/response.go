@@ -1,8 +1,10 @@
 package wasmplugin
 
 import (
+	"github.com/samber/lo"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz/plugin"
+	pluginbiz "github.com/lgc202/ingate/internal/adminapi/biz/plugin"
 	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
 	wasmpluginbiz "github.com/lgc202/ingate/internal/adminapi/biz/wasmplugin"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
@@ -10,11 +12,11 @@ import (
 )
 
 func catalogResponse(items []wasmpluginbiz.CatalogItem) *adminv1.ListWasmPluginCatalogResponse {
-	plugins := make([]*adminv1.WasmPluginCatalogItem, len(items))
-	for i, item := range items {
-		plugins[i] = catalogItemResponse(item)
+	return &adminv1.ListWasmPluginCatalogResponse{
+		Plugins: lo.Map(items, func(item wasmpluginbiz.CatalogItem, _ int) *adminv1.WasmPluginCatalogItem {
+			return catalogItemResponse(item)
+		}),
 	}
-	return &adminv1.ListWasmPluginCatalogResponse{Plugins: plugins}
 }
 
 func catalogItemResponse(item wasmpluginbiz.CatalogItem) *adminv1.WasmPluginCatalogItem {
@@ -35,7 +37,7 @@ func catalogItemResponse(item wasmpluginbiz.CatalogItem) *adminv1.WasmPluginCata
 func pluginResponse(
 	plugin *resource.WasmPlugin,
 	catalog wasmpluginbiz.CatalogInfo,
-	usages []plugin.PolicyUsage,
+	usages []pluginbiz.PolicyUsage,
 ) *adminv1.WasmPlugin {
 	status := resourceview.WasmPluginStatus(plugin.Generation, plugin.Status.Conditions)
 	response := &adminv1.WasmPlugin{
@@ -55,14 +57,13 @@ func pluginResponse(
 		UpdatedAt:        adminservice.Timestamp(adminservice.ResourceUpdatedAt(plugin.Annotations)),
 		LatestVersion:    catalog.LatestVersion,
 		UpgradeAvailable: catalog.UpgradeAvailable,
-		Usages:           make([]*adminv1.WasmPluginPolicyUsage, len(usages)),
-	}
-	for i, usage := range usages {
-		response.Usages[i] = &adminv1.WasmPluginPolicyUsage{
-			PolicyId:   usage.PolicyID,
-			PolicyKind: string(usage.PolicyKind),
-			PolicyName: usage.DisplayName,
-		}
+		Usages: lo.Map(usages, func(usage pluginbiz.PolicyUsage, _ int) *adminv1.WasmPluginPolicyUsage {
+			return &adminv1.WasmPluginPolicyUsage{
+				PolicyId:   usage.PolicyID,
+				PolicyKind: string(usage.PolicyKind),
+				PolicyName: usage.DisplayName,
+			}
+		}),
 	}
 	return response
 }

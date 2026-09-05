@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -97,10 +98,9 @@ func policyTargetStatuses(
 	if len(targetRefs) > policyconfig.MaxTargets {
 		targetRefs = targetRefs[:policyconfig.MaxTargets]
 	}
-	existingConditions := make(map[gatewayv1.PolicyTargetRef][]metav1.Condition, len(existing))
-	for _, status := range existing {
-		existingConditions[status.TargetRef] = status.Conditions
-	}
+	existingConditions := lo.Associate(existing, func(status gatewayv1.PolicyTargetStatus) (gatewayv1.PolicyTargetRef, []metav1.Condition) {
+		return status.TargetRef, status.Conditions
+	})
 
 	result := make([]gatewayv1.PolicyTargetStatus, 0, len(targetRefs))
 	for _, targetRef := range targetRefs {

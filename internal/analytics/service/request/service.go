@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	kerrors "github.com/go-kratos/kratos/v3/errors"
+	"github.com/samber/lo"
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
@@ -43,12 +44,10 @@ func (s *Service) ListRequests(
 	if err != nil {
 		return nil, kerrors.InternalServer("FORMAT_PAGE_TOKEN_FAILED", "format page token failed").WithCause(err)
 	}
-	requests := make([]*analyticsv1.RequestSummary, 0, len(page.Records))
-	for i := range page.Records {
-		requests = append(requests, summaryResponse(page.Records[i]))
-	}
 	return &analyticsv1.ListRequestsResponse{
-		Requests:      requests,
+		Requests: lo.Map(page.Records, func(record requestbiz.Summary, _ int) *analyticsv1.RequestSummary {
+			return summaryResponse(record)
+		}),
 		NextPageToken: nextPageToken,
 	}, nil
 }

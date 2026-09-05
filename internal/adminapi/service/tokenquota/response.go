@@ -1,6 +1,8 @@
 package tokenquota
 
 import (
+	"github.com/samber/lo"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz/policy"
 	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
@@ -14,13 +16,12 @@ func tokenQuotaPolicyResponse(
 	names policy.TargetNames,
 ) *adminv1.TokenQuotaPolicy {
 	state, message := tokenQuotaPolicyState(policy)
-	limits := make([]*adminv1.TokenQuotaLimit, len(policy.Spec.Limits))
-	for i, limit := range policy.Spec.Limits {
-		limits[i] = &adminv1.TokenQuotaLimit{
+	limits := lo.Map(policy.Spec.Limits, func(limit resource.TokenQuotaLimit, _ int) *adminv1.TokenQuotaLimit {
+		return &adminv1.TokenQuotaLimit{
 			Period: tokenQuotaPeriodResponse(limit.Period),
 			Tokens: limit.Tokens,
 		}
-	}
+	})
 	return &adminv1.TokenQuotaPolicy{
 		Id:        policy.Name,
 		Name:      policy.Spec.DisplayName,
@@ -55,17 +56,15 @@ func tokenQuotaPolicyTargets(
 	names policy.TargetNames,
 ) []*adminv1.PolicyTarget {
 	state, message := tokenQuotaPolicyState(policy)
-	targets := make([]*adminv1.PolicyTarget, len(policy.Spec.TargetRefs))
-	for i, ref := range policy.Spec.TargetRefs {
-		targets[i] = &adminv1.PolicyTarget{
+	return lo.Map(policy.Spec.TargetRefs, func(ref resource.PolicyTargetRef, _ int) *adminv1.PolicyTarget {
+		return &adminv1.PolicyTarget{
 			Kind:    adminv1.PolicyTargetKind_POLICY_TARGET_KIND_CALLER,
 			Id:      ref.Name,
 			Name:    names.Name(ref),
 			State:   state,
 			Message: message,
 		}
-	}
-	return targets
+	})
 }
 
 func tokenQuotaPeriodResponse(period resource.TokenQuotaPeriod) adminv1.TokenQuotaPeriod {
@@ -84,18 +83,18 @@ func tokenQuotaPeriodResponse(period resource.TokenQuotaPeriod) adminv1.TokenQuo
 func tokenQuotaUsageResponse(
 	usages []tokenquotabiz.Usage,
 ) *adminv1.GetCallerTokenQuotaUsageResponse {
-	responses := make([]*adminv1.CallerTokenQuotaUsage, len(usages))
-	for i, usage := range usages {
-		responses[i] = &adminv1.CallerTokenQuotaUsage{
-			PolicyId:        usage.PolicyID,
-			PolicyName:      usage.PolicyName,
-			Period:          tokenQuotaPeriodResponse(usage.Period),
-			UsedTokens:      usage.Used,
-			LimitTokens:     usage.Limit,
-			RemainingTokens: max(0, usage.Limit-usage.Used),
-			StartedAt:       adminservice.Timestamp(usage.StartedAt),
-			ResetsAt:        adminservice.Timestamp(usage.ResetAt),
-		}
+	return &adminv1.GetCallerTokenQuotaUsageResponse{
+		Usages: lo.Map(usages, func(usage tokenquotabiz.Usage, _ int) *adminv1.CallerTokenQuotaUsage {
+			return &adminv1.CallerTokenQuotaUsage{
+				PolicyId:        usage.PolicyID,
+				PolicyName:      usage.PolicyName,
+				Period:          tokenQuotaPeriodResponse(usage.Period),
+				UsedTokens:      usage.Used,
+				LimitTokens:     usage.Limit,
+				RemainingTokens: max(0, usage.Limit-usage.Used),
+				StartedAt:       adminservice.Timestamp(usage.StartedAt),
+				ResetsAt:        adminservice.Timestamp(usage.ResetAt),
+			}
+		}),
 	}
-	return &adminv1.GetCallerTokenQuotaUsageResponse{Usages: responses}
 }

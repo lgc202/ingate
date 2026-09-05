@@ -3,6 +3,8 @@ package protocol
 import (
 	"slices"
 
+	"github.com/samber/lo"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz/policy"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
@@ -55,18 +57,16 @@ func PolicyTargetResponses(
 	statuses []resource.PolicyTargetStatus,
 	names policy.TargetNames,
 ) []*adminv1.PolicyTarget {
-	targets := make([]*adminv1.PolicyTarget, len(refs))
-	for i, ref := range refs {
+	return lo.Map(refs, func(ref resource.PolicyTargetRef, _ int) *adminv1.PolicyTarget {
 		status := policy.TargetStatus(generation, disabled, ref, statuses)
-		targets[i] = &adminv1.PolicyTarget{
+		return &adminv1.PolicyTarget{
 			Kind:    policyTargetKindResponse(ref.Kind),
 			Id:      ref.Name,
 			Name:    names.Name(ref),
 			State:   ResourceState(status.State),
 			Message: ResourceMessage(status.Reason),
 		}
-	}
-	return targets
+	})
 }
 
 func parsePolicyTargetKind(kind adminv1.PolicyTargetKind) (resource.Kind, error) {

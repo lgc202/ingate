@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"slices"
 
+	"github.com/samber/lo"
+
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
@@ -14,10 +16,9 @@ func affectedPolicyTargets(
 	resources []compiler.ResourceGeneration,
 	desired []compiler.CompiledPolicyTarget,
 ) []compiler.CompiledPolicyTarget {
-	resourceIndex := make(map[string]compiler.ResourceGeneration, len(resources))
-	for _, resource := range resources {
-		resourceIndex[resourceGenerationKey(resource.Kind, resource.Name)] = resource
-	}
+	resourceIndex := lo.Associate(resources, func(resource compiler.ResourceGeneration) (string, compiler.ResourceGeneration) {
+		return resourceGenerationKey(resource.Kind, resource.Name), resource
+	})
 
 	resultSet := make(map[compiler.CompiledPolicyTarget]bool, len(desired))
 	for _, target := range desired {
@@ -33,10 +34,7 @@ func affectedPolicyTargets(
 		}
 	}
 
-	result := make([]compiler.CompiledPolicyTarget, 0, len(resultSet))
-	for target := range resultSet {
-		result = append(result, target)
-	}
+	result := lo.Keys(resultSet)
 	slices.SortFunc(result, compareCompiledPolicyTarget)
 	return result
 }

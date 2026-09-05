@@ -1,6 +1,8 @@
 package mockresponse
 
 import (
+	"github.com/samber/lo"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	policybiz "github.com/lgc202/ingate/internal/adminapi/biz/policy"
 	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
@@ -43,9 +45,7 @@ func mockResponsePolicyResponse(
 }
 
 func mockResponseHeaderResponses(values []resource.HeaderValue) []*adminv1.MockResponseHeader {
-	headers := make([]*adminv1.MockResponseHeader, len(values))
-	for i, value := range values {
-		headers[i] = &adminv1.MockResponseHeader{Name: value.Name, Value: value.Value}
-	}
-	return headers
+	return lo.Map(values, func(value resource.HeaderValue, _ int) *adminv1.MockResponseHeader {
+		return &adminv1.MockResponseHeader{Name: value.Name, Value: value.Value}
+	})
 }
