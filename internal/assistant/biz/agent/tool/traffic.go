@@ -8,6 +8,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
+	"github.com/samber/lo"
 )
 
 const (
@@ -120,14 +121,13 @@ func analyzeTraffic(
 		return trafficAnalysisOutput{}, err
 	}
 
-	ranking := make([]trafficResourceInfo, 0, len(result.Items))
-	for _, item := range result.Items {
-		ranking = append(ranking, trafficResourceInfo{
+	ranking := lo.Map(result.Items, func(item ResourceTrafficMetrics, _ int) trafficResourceInfo {
+		return trafficResourceInfo{
 			ResourceID:   item.ID,
 			ResourceName: item.Name,
 			Metrics:      trafficMetrics(item.Metrics),
-		})
-	}
+		}
+	})
 	return trafficAnalysisOutput{
 		Summary: fmt.Sprintf(
 			"流量分析完成，共统计 %d 次请求，返回 %d 个 %s 排名结果",

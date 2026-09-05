@@ -22,6 +22,7 @@ require (
 	github.com/prometheus/client_golang v1.22.0
 	github.com/proxy-wasm/proxy-wasm-go-sdk v0.0.0-20260105142703-44c7d5847745
 	github.com/redis/go-redis/v9 v9.22.0
+	github.com/samber/lo v1.53.0
 	github.com/tetratelabs/wazero v1.7.2
 	github.com/tidwall/gjson v1.19.0
 	github.com/tidwall/sjson v1.2.5

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/samber/lo"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
 )
@@ -39,15 +41,14 @@ func (c *Client) ListGateways(
 }
 
 func gatewayFromAPI(gateway *adminv1.Gateway) agenttool.Gateway {
-	listeners := make([]agenttool.Listener, 0, len(gateway.GetListeners()))
-	for _, listener := range gateway.GetListeners() {
-		listeners = append(listeners, agenttool.Listener{
+	listeners := lo.Map(gateway.GetListeners(), func(listener *adminv1.GatewayListener, _ int) agenttool.Listener {
+		return agenttool.Listener{
 			Name:     listener.GetName(),
 			Protocol: gatewayProtocol(listener.GetProtocol()),
 			Port:     listener.GetPort(),
 			Hostname: listener.GetHostname(),
-		})
-	}
+		}
+	})
 	return agenttool.Gateway{
 		ID:        gateway.GetId(),
 		Name:      gateway.GetName(),
