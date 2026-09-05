@@ -36,10 +36,11 @@ func Generate(keyID string) (string, error) {
 
 // ParseKeyID 从格式正确的完整访问密钥中提取公开标识。
 func ParseKeyID(value string) (string, error) {
-	if !strings.HasPrefix(value, prefix) {
+	remainder, ok := strings.CutPrefix(value, prefix)
+	if !ok {
 		return "", errInvalidAccessKey
 	}
-	keyID, encodedSecret, ok := strings.Cut(strings.TrimPrefix(value, prefix), separator)
+	keyID, encodedSecret, ok := strings.Cut(remainder, separator)
 	if !ok || !isCanonicalKeyID(keyID) || encodedSecret == "" {
 		return "", errInvalidAccessKey
 	}

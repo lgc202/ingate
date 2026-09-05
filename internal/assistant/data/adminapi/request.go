@@ -181,8 +181,7 @@ func copyOptionalUint64(value *uint64) *uint64 {
 	if value == nil {
 		return nil
 	}
-	copied := *value
-	return &copied
+	return new(*value)
 }
 
 func validateFailureResponse(

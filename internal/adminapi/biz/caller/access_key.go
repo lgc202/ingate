@@ -116,8 +116,7 @@ func newAccessKey(displayName string, expiresAt *time.Time) (IssuedAccessKey, er
 		CreatedAt:    metav1.NewTime(now),
 	}
 	if expiresAt != nil {
-		expiration := metav1.NewTime(expiresAt.UTC())
-		accessKey.ExpiresAt = &expiration
+		accessKey.ExpiresAt = new(metav1.NewTime(expiresAt.UTC()))
 	}
 	return IssuedAccessKey{AccessKey: accessKey, Secret: secret}, nil
 }

@@ -186,11 +186,9 @@ func compareRouteEntries(a, b routeEntry) int {
 		}
 		return 1
 	}
-	if result := cmp.Compare(a.routeID, b.routeID); result != 0 {
-		return result
-	}
-	if result := cmp.Compare(a.method, b.method); result != 0 {
-		return result
-	}
-	return cmp.Compare(a.variant, b.variant)
+	return cmp.Or(
+		cmp.Compare(a.routeID, b.routeID),
+		cmp.Compare(a.method, b.method),
+		cmp.Compare(a.variant, b.variant),
+	)
 }

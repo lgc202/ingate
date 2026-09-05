@@ -70,8 +70,7 @@ func modelUpdate(request *assistantv1.UpdateModelConnectionRequest) (modelconfig
 	}
 	apiKey := request.ApiKey
 	if request.GetClearApiKey() {
-		empty := ""
-		apiKey = &empty
+		apiKey = new("")
 	}
 	return modelconfigbiz.Update{
 		Connection: modelconfigbiz.Connection{

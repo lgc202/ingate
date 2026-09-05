@@ -83,12 +83,8 @@ func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
 }
 
 func defaultRouteSpec(spec *resource.RouteSpec) {
-	if spec.HostRewrite.Mode == "" {
-		spec.HostRewrite.Mode = resource.HostRewriteUpstreamHost
-	}
-	if spec.Timeout.RequestMillis == 0 {
-		spec.Timeout.RequestMillis = routeconfig.DefaultRequestTimeoutMillis
-	}
+	spec.HostRewrite.Mode = cmp.Or(spec.HostRewrite.Mode, resource.HostRewriteUpstreamHost)
+	spec.Timeout.RequestMillis = cmp.Or(spec.Timeout.RequestMillis, routeconfig.DefaultRequestTimeoutMillis)
 }
 
 func canonicalizeRouteSpec(spec *resource.RouteSpec) {

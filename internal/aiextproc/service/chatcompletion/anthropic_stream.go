@@ -2,6 +2,7 @@ package chatcompletion
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -137,9 +138,7 @@ func (s *AnthropicStream) convertEvent(event []byte) ([]byte, bool, error) {
 	if len(data) == 0 {
 		return nil, false, nil
 	}
-	if eventType == "" {
-		eventType = gjson.GetBytes(data, "type").String()
-	}
+	eventType = cmp.Or(eventType, gjson.GetBytes(data, "type").String())
 	if s.finished {
 		return nil, false, errors.New("anthropic stream contains an event after completion")
 	}
@@ -303,9 +302,7 @@ func (s *AnthropicStream) finish() ([]byte, bool, error) {
 	if !s.started {
 		return nil, false, errors.New("anthropic stream ended before message_start")
 	}
-	if s.stopReason == "" {
-		s.stopReason = anthropic.StopReasonEndTurn
-	}
+	s.stopReason = cmp.Or(s.stopReason, anthropic.StopReasonEndTurn)
 	finishReason := openAIFinishReason(s.stopReason)
 	if err := s.updateMetadata("", finishReason); err != nil {
 		return nil, false, err

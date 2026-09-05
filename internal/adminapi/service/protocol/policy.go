@@ -1,6 +1,8 @@
 package protocol
 
 import (
+	"slices"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz/policy"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
@@ -81,12 +83,7 @@ func parsePolicyTargetKind(kind adminv1.PolicyTargetKind) (resource.Kind, error)
 }
 
 func allowedPolicyTargetKind(kind resource.Kind, allowed []resource.Kind) bool {
-	for _, candidate := range allowed {
-		if kind == candidate {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(allowed, kind)
 }
 
 func policyTargetKindResponse(kind resource.Kind) adminv1.PolicyTargetKind {

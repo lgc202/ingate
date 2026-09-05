@@ -175,12 +175,9 @@ func (r Resources) Generations() []ResourceGeneration {
 
 // HasErrors 返回结果是否包含阻塞发布的诊断。
 func (r Result) HasErrors() bool {
-	for _, diagnostic := range r.Diagnostics {
-		if diagnostic.Severity == SeverityError {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(r.Diagnostics, func(diagnostic Diagnostic) bool {
+		return diagnostic.Severity == SeverityError
+	})
 }
 
 func newResourceGeneration(kind gatewayv1.Kind, resource metav1.Object) ResourceGeneration {

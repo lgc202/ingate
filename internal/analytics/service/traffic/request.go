@@ -1,6 +1,7 @@
 package traffic
 
 import (
+	"cmp"
 	"slices"
 	"time"
 
@@ -45,10 +46,7 @@ func buildBreakdownQuery(request *analyticsv1.ListTrafficBreakdownRequest) (traf
 	if err != nil {
 		return trafficbiz.BreakdownQuery{}, err
 	}
-	limit := request.GetLimit()
-	if limit == 0 {
-		limit = defaultBreakdown
-	}
+	limit := cmp.Or(request.GetLimit(), defaultBreakdown)
 	if limit > maxBreakdown {
 		return trafficbiz.BreakdownQuery{}, invalidArgument("limit exceeds maximum")
 	}

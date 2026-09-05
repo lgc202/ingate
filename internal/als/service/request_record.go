@@ -1,6 +1,7 @@
 package service
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"math"
@@ -57,14 +58,8 @@ func parseRequestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) 
 	}
 	aiMetadata := metadataFields(common.GetMetadata(), aiprotocol.MetadataNamespace)
 	authzMetadata := metadataFields(common.GetMetadata(), extauthz.MetadataNamespace)
-	host := aiMetadata[aiprotocol.ClientHostField].GetStringValue()
-	if host == "" {
-		host = request.GetAuthority()
-	}
-	path := aiMetadata[aiprotocol.ClientPathField].GetStringValue()
-	if path == "" {
-		path = request.GetPath()
-	}
+	host := cmp.Or(aiMetadata[aiprotocol.ClientHostField].GetStringValue(), request.GetAuthority())
+	path := cmp.Or(aiMetadata[aiprotocol.ClientPathField].GetStringValue(), request.GetPath())
 
 	record := &alsv1.RequestRecord{
 		RequestId:           request.GetRequestId(),
@@ -168,8 +163,7 @@ func metadataTokenCount(value *structpb.Value) *uint64 {
 	if number < 0 || number > maxExactMetadataInteger || math.Trunc(number) != number {
 		return nil
 	}
-	count := uint64(number)
-	return &count
+	return new(uint64(number))
 }
 
 func httpProtocol(version accesslogdata.HTTPAccessLogEntry_HTTPVersion) string {

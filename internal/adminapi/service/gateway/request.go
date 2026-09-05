@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 
@@ -117,10 +118,7 @@ func parseProtocol(protocol adminv1.GatewayProtocol) (resource.Protocol, error) 
 }
 
 func checkListenerOverlap(listener resource.Listener, existing []resource.Listener) error {
-	hostname := listener.Hostname
-	if hostname == "" {
-		hostname = "*"
-	}
+	hostname := cmp.Or(listener.Hostname, "*")
 	for _, current := range existing {
 		if listener.Port != current.Port {
 			continue
@@ -128,10 +126,7 @@ func checkListenerOverlap(listener resource.Listener, existing []resource.Listen
 		if listener.Protocol != current.Protocol {
 			return adminv1.ErrorInvalidArgument("%s", fmt.Sprintf("端口 %d 不能同时用于 HTTP 和 HTTPS", listener.Port))
 		}
-		currentHostname := current.Hostname
-		if currentHostname == "" {
-			currentHostname = "*"
-		}
+		currentHostname := cmp.Or(current.Hostname, "*")
 		if hostnameutil.Overlaps(hostname, currentHostname) {
 			return adminv1.ErrorInvalidArgument("%s", fmt.Sprintf("端口 %d 上的监听域名范围不能重叠", listener.Port))
 		}

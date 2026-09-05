@@ -141,6 +141,5 @@ func durationNanoseconds(duration *time.Duration) *uint64 {
 	if duration == nil {
 		return nil
 	}
-	nanoseconds := uint64(*duration)
-	return &nanoseconds
+	return new(uint64(*duration))
 }

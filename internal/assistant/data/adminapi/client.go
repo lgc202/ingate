@@ -78,8 +78,7 @@ func optionalProtoDuration(value *durationpb.Duration) *time.Duration {
 	if value == nil {
 		return nil
 	}
-	duration := value.AsDuration()
-	return &duration
+	return new(value.AsDuration())
 }
 
 func protoDuration(value *durationpb.Duration) time.Duration {

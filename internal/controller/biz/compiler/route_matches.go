@@ -59,10 +59,10 @@ func (c *compilation) buildHeaderMatchers(route *gatewayv1.Route) ([]*routev3.He
 		headers[i].Value = httpheader.NormalizeValue(headers[i].Value)
 	}
 	slices.SortFunc(headers, func(a, b gatewayv1.HeaderMatch) int {
-		if result := cmp.Compare(a.Name, b.Name); result != 0 {
-			return result
-		}
-		return cmp.Compare(a.Value, b.Value)
+		return cmp.Or(
+			cmp.Compare(a.Name, b.Name),
+			cmp.Compare(a.Value, b.Value),
+		)
 	})
 	matchers := make([]*routev3.HeaderMatcher, 0, len(headers))
 	seenNames := make(map[string]bool, len(headers))

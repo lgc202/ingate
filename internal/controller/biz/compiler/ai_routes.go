@@ -221,10 +221,10 @@ func (c *compilation) buildAIModelClusters(
 	}
 	targets := slices.Clone(model.Targets)
 	slices.SortFunc(targets, func(a, b gatewayv1.AIModelTarget) int {
-		if result := cmp.Compare(a.UpstreamRef, b.UpstreamRef); result != 0 {
-			return result
-		}
-		return cmp.Compare(a.Model, b.Model)
+		return cmp.Or(
+			cmp.Compare(a.UpstreamRef, b.UpstreamRef),
+			cmp.Compare(a.Model, b.Model),
+		)
 	})
 
 	clusters := make([]*routev3.WeightedCluster_ClusterWeight, 0, len(targets))
@@ -322,10 +322,5 @@ func routeUsesReservedAIHeader(route *gatewayv1.Route) bool {
 			return true
 		}
 	}
-	for _, name := range modifier.Remove {
-		if aiprotocol.IsInternalHeader(name) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(modifier.Remove, aiprotocol.IsInternalHeader)
 }

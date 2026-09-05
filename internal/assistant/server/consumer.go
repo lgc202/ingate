@@ -72,17 +72,14 @@ func (c *ExecutionConsumer) Start(ctx context.Context) error {
 	}
 
 	var group sync.WaitGroup
-	group.Add(c.concurrency + 1)
-	go func() {
-		defer group.Done()
+	group.Go(func() {
 		c.recoverExpiredExecutions(runCtx)
-	}()
+	})
 	for slot := 1; slot <= c.concurrency; slot++ {
 		workerID := fmt.Sprintf("%s/%d", c.instanceID, slot)
-		go func() {
-			defer group.Done()
+		group.Go(func() {
 			c.serveSlot(runCtx, workerID, slot)
-		}()
+		})
 	}
 	group.Wait()
 	return nil

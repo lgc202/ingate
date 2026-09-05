@@ -142,16 +142,14 @@ func durationValue(value *durationpb.Duration) *time.Duration {
 	if value == nil {
 		return nil
 	}
-	duration := value.AsDuration()
-	return &duration
+	return new(value.AsDuration())
 }
 
 func cloneUint64(value *uint64) *uint64 {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 // validateRecord 校验跨进程协议边界上 ClickHouse 列类型和查询所需的最小字段。

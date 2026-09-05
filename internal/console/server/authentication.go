@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -104,7 +105,7 @@ func (a *SessionAuth) login(response http.ResponseWriter, request *http.Request)
 		writeResponse(response, http.StatusBadRequest, "登录信息格式不正确", nil)
 		return
 	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		writeResponse(response, http.StatusBadRequest, "登录信息格式不正确", nil)
 		return
 	}

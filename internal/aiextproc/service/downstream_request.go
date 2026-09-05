@@ -1,6 +1,7 @@
 package service
 
 import (
+	"cmp"
 	"errors"
 	"strings"
 	"time"
@@ -30,10 +31,7 @@ func (s *streamState) handleDownstreamHeaders(
 	}
 	// Header 阶段先创建关联状态，Body 阶段解析出的模型和原文随后写入同一对象。
 	s.requestID, s.request = s.processor.registerRequest(identity)
-	host := headerValue(headers, ":authority")
-	if host == "" {
-		host = headerValue(headers, "host")
-	}
+	host := cmp.Or(headerValue(headers, ":authority"), headerValue(headers, "host"))
 	path, _, _ := strings.Cut(headerValue(headers, ":path"), "?")
 	// upstream 协议转换会改写 Host 和 Path，必须在任何请求 mutation 发生前保存客户端原始值
 	s.request.setClientRequest(host, path)

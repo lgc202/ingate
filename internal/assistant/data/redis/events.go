@@ -2,6 +2,7 @@
 package redis
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -92,9 +93,7 @@ func (s *EventStore) Read(
 	limit int64,
 	block time.Duration,
 ) ([]execution.StreamEvent, error) {
-	if lastID == "" {
-		lastID = "0-0"
-	}
+	lastID = cmp.Or(lastID, "0-0")
 	streams, err := s.client.XRead(ctx, &redisgo.XReadArgs{
 		Streams: []string{eventKey(executionID), lastID},
 		Count:   limit,

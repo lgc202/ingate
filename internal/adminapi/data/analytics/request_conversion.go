@@ -132,8 +132,7 @@ func optionalUint64(value *uint64) *uint64 {
 	if value == nil {
 		return nil
 	}
-	result := *value
-	return &result
+	return new(*value)
 }
 
 func analyticsStatusClass(outcome requestbiz.Outcome) analyticsv1.StatusClass {

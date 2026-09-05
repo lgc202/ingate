@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -173,11 +174,9 @@ func (s *Store) Retain(generations []compiler.ResourceGeneration) {
 			retained[generation] = true
 		}
 	}
-	for generation := range s.resolved {
-		if !retained[generation] {
-			delete(s.resolved, generation)
-		}
-	}
+	maps.DeleteFunc(s.resolved, func(generation compiler.ResourceGeneration, _ compiler.WasmModule) bool {
+		return !retained[generation]
+	})
 }
 
 func (s *Store) pullHTTP(ctx context.Context, sourceURL, expectedSHA string) ([]byte, error) {

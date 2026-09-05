@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
@@ -67,10 +68,7 @@ func checkListenerClaims(submittedSpec resource.GatewaySpec, existingGateway res
 }
 
 func listenerHostname(listener resource.Listener) string {
-	if listener.Hostname == "" {
-		return "*"
-	}
-	return listener.Hostname
+	return cmp.Or(listener.Hostname, "*")
 }
 
 func describeHostnameClaim(hostname string) string {

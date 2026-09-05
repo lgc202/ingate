@@ -1,6 +1,7 @@
 package request
 
 import (
+	"cmp"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -18,10 +19,7 @@ func listOptions(request *adminv1.ListRequestRecordsRequest) (requestbiz.ListOpt
 	if err != nil {
 		return requestbiz.ListOptions{}, err
 	}
-	pageSize := int(request.GetPageSize())
-	if pageSize == 0 {
-		pageSize = defaultPageSize
-	}
+	pageSize := cmp.Or(int(request.GetPageSize()), defaultPageSize)
 	return requestbiz.ListOptions{
 		Filter:    filter,
 		PageSize:  pageSize,
@@ -98,8 +96,7 @@ func requestStatusCode(
 		requestbiz.ClassifyStatusCode(requestedStatusCode) != outcome {
 		return nil, adminv1.ErrorInvalidArgument("HTTP 状态码与请求结果不一致")
 	}
-	value := uint16(requestedStatusCode)
-	return &value, nil
+	return new(uint16(requestedStatusCode)), nil
 }
 
 func requiredTimestamp(value *timestamppb.Timestamp, userMessage string) (time.Time, error) {

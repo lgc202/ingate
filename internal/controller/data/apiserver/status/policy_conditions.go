@@ -58,8 +58,7 @@ func policyConditions(
 			return conditions
 		}
 		if gatewayv1.ConditionReason(programmed.Reason) != gatewayv1.ReasonNotApplied && failure == nil {
-			current := *programmed
-			failure = &current
+			failure = new(*programmed)
 		}
 	}
 

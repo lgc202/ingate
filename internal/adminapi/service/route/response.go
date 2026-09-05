@@ -3,8 +3,6 @@ package route
 import (
 	"slices"
 
-	"google.golang.org/protobuf/proto"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
@@ -14,7 +12,7 @@ import (
 func routeResponse(route *resource.Route) *adminv1.Route {
 	status := resourceview.EnabledStatus(route.Generation, route.Spec.Enabled, route.Status.Conditions)
 	config := &adminv1.RouteConfig{
-		Enabled:                proto.Bool(route.Spec.Enabled),
+		Enabled:                new(route.Spec.Enabled),
 		AccessMode:             accessModeResponse(route.Spec.AccessMode),
 		GatewayIds:             slices.Clone(route.Spec.GatewayRefs),
 		Hostnames:              slices.Clone(route.Spec.Hostnames),

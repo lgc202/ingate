@@ -1,6 +1,8 @@
 package status
 
 import (
+	"cmp"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
@@ -119,10 +121,7 @@ func (i diagnosticIndex) forWasmPlugin(name string) compileDecision {
 }
 
 func decisionFromDiagnostic(diagnostic compiler.Diagnostic) conditionDecision {
-	reason := diagnostic.Reason
-	if reason == "" {
-		reason = gatewayv1.ReasonCompileFailed
-	}
+	reason := cmp.Or(diagnostic.Reason, gatewayv1.ReasonCompileFailed)
 	message := diagnostic.Message
 	if message == "" || diagnostic.Kind == "" {
 		message = messageCompileFailed

@@ -66,15 +66,15 @@ func (s *OpenAIStream) Convert(chunk []byte, endOfStream bool) ([]byte, Response
 }
 
 func (s *OpenAIStream) convertLine(line []byte) ([]byte, bool, error) {
-	carriageReturn := bytes.HasSuffix(line, []byte{'\r'})
-	line = bytes.TrimSuffix(line, []byte{'\r'})
-	if !bytes.HasPrefix(line, []byte("data:")) {
+	line, carriageReturn := bytes.CutSuffix(line, []byte{'\r'})
+	payloadLine, ok := bytes.CutPrefix(line, []byte("data:"))
+	if !ok {
 		if carriageReturn {
 			line = append(line, '\r')
 		}
 		return line, false, nil
 	}
-	payload := bytes.TrimSpace(line[len("data:"):])
+	payload := bytes.TrimSpace(payloadLine)
 	if bytes.Equal(payload, []byte("[DONE]")) {
 		if s.finished {
 			return nil, false, errors.New("OpenAI stream contains multiple completion events")
