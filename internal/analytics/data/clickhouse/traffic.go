@@ -63,7 +63,7 @@ func (s *Store) QueryTrafficSummary(ctx context.Context, filter traffic.Filter) 
 	if err := row.validateCounts(); err != nil {
 		return traffic.Summary{}, fmt.Errorf("restore traffic summary: %w", err)
 	}
-	return row.Metrics, nil
+	return traffic.Summary{Metrics: row.Metrics}, nil
 }
 
 // QueryTrafficTrend 从分钟聚合状态查询流量和延迟趋势。

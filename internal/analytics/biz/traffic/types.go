@@ -80,7 +80,9 @@ type TrendResult struct {
 }
 
 // Summary 是整个查询范围内的流量和延迟汇总。
-type Summary = Metrics
+type Summary struct {
+	Metrics
+}
 
 // BreakdownQuery 是资源维度流量分布查询参数。
 type BreakdownQuery struct {
