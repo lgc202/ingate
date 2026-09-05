@@ -30,6 +30,14 @@ type trafficDurations struct {
 	p99     time.Duration
 }
 
+type trafficMetricsRow struct {
+	traffic.Metrics
+	averageDurationNanoseconds uint64
+	p50DurationNanoseconds     uint64
+	p95DurationNanoseconds     uint64
+	p99DurationNanoseconds     uint64
+}
+
 // QueryTrafficSummary 查询整个时间范围的流量和延迟汇总。
 func (s *Store) QueryTrafficSummary(ctx context.Context, filter traffic.Filter) (traffic.Summary, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, s.queryTimeout)
@@ -45,47 +53,17 @@ func (s *Store) QueryTrafficSummary(ctx context.Context, filter traffic.Filter) 
 	args := []any{filter.StartTime, filter.EndTime}
 	args = appendTrafficFilters(&statement, args, filter)
 
-	var (
-		summary           traffic.Summary
-		averageDurationNS uint64
-		p50DurationNS     uint64
-		p95DurationNS     uint64
-		p99DurationNS     uint64
-	)
-	if err := s.connection.QueryRow(queryCtx, statement.String(), args...).Scan(
-		&summary.RequestCount,
-		&summary.ClientErrorCount,
-		&summary.ServerErrorCount,
-		&summary.NoResponseCount,
-		&averageDurationNS,
-		&p50DurationNS,
-		&p95DurationNS,
-		&p99DurationNS,
-	); err != nil {
+	var row trafficMetricsRow
+	if err := s.connection.QueryRow(queryCtx, statement.String(), args...).Scan(row.scanTargets()...); err != nil {
 		return traffic.Summary{}, fmt.Errorf("query traffic summary: %w", err)
 	}
-	durations, err := trafficDurationsFromNanoseconds(
-		averageDurationNS,
-		p50DurationNS,
-		p95DurationNS,
-		p99DurationNS,
-	)
-	if err != nil {
+	if err := row.restoreDurations(); err != nil {
 		return traffic.Summary{}, fmt.Errorf("restore traffic summary durations: %w", err)
 	}
-	if err := validateTrafficCounts(
-		summary.RequestCount,
-		summary.ClientErrorCount,
-		summary.ServerErrorCount,
-		summary.NoResponseCount,
-	); err != nil {
+	if err := row.validateCounts(); err != nil {
 		return traffic.Summary{}, fmt.Errorf("restore traffic summary: %w", err)
 	}
-	summary.AverageDuration = durations.average
-	summary.P50Duration = durations.p50
-	summary.P95Duration = durations.p95
-	summary.P99Duration = durations.p99
-	return summary, nil
+	return traffic.Summary{Metrics: row.Metrics}, nil
 }
 
 // QueryTrafficTrend 从分钟聚合状态查询流量和延迟趋势。
@@ -130,55 +108,26 @@ func (s *Store) QueryTrafficTrend(
 
 	var previousStart time.Time
 	for rows.Next() {
-		var (
-			point             traffic.TrendPoint
-			averageDurationNS uint64
-			p50DurationNS     uint64
-			p95DurationNS     uint64
-			p99DurationNS     uint64
-		)
-		if err := rows.Scan(
-			&point.StartedAt,
-			&point.RequestCount,
-			&point.ClientErrorCount,
-			&point.ServerErrorCount,
-			&point.NoResponseCount,
-			&averageDurationNS,
-			&p50DurationNS,
-			&p95DurationNS,
-			&p99DurationNS,
-		); err != nil {
+		var startedAt time.Time
+		var row trafficMetricsRow
+		targets := append([]any{&startedAt}, row.scanTargets()...)
+		if err := rows.Scan(targets...); err != nil {
 			return nil, fmt.Errorf("scan traffic trend: %w", err)
 		}
-		if !analyticsconfig.IsSupportedTime(point.StartedAt) ||
-			point.StartedAt.Before(query.Filter.StartTime) ||
-			!point.StartedAt.Before(query.Filter.EndTime) ||
-			!previousStart.IsZero() && !point.StartedAt.After(previousStart) {
+		if !analyticsconfig.IsSupportedTime(startedAt) ||
+			startedAt.Before(query.Filter.StartTime) ||
+			!startedAt.Before(query.Filter.EndTime) ||
+			!previousStart.IsZero() && !startedAt.After(previousStart) {
 			return nil, errors.New("stored traffic trend contains an invalid or unordered timestamp")
 		}
-		durations, err := trafficDurationsFromNanoseconds(
-			averageDurationNS,
-			p50DurationNS,
-			p95DurationNS,
-			p99DurationNS,
-		)
-		if err != nil {
+		if err := row.restoreDurations(); err != nil {
 			return nil, fmt.Errorf("restore traffic trend durations: %w", err)
 		}
-		if err := validateTrafficCounts(
-			point.RequestCount,
-			point.ClientErrorCount,
-			point.ServerErrorCount,
-			point.NoResponseCount,
-		); err != nil {
+		if err := row.validateCounts(); err != nil {
 			return nil, fmt.Errorf("restore traffic trend point: %w", err)
 		}
-		point.AverageDuration = durations.average
-		point.P50Duration = durations.p50
-		point.P95Duration = durations.p95
-		point.P99Duration = durations.p99
-		points = append(points, point)
-		previousStart = point.StartedAt
+		points = append(points, traffic.TrendPoint{StartedAt: startedAt, Metrics: row.Metrics})
+		previousStart = startedAt
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("read traffic trend rows: %w", err)
@@ -231,52 +180,23 @@ func (s *Store) QueryTrafficBreakdown(
 	items = make([]traffic.BreakdownItem, 0, query.Limit)
 	seen := make(map[string]bool, query.Limit)
 	for rows.Next() {
-		var (
-			item              traffic.BreakdownItem
-			averageDurationNS uint64
-			p50DurationNS     uint64
-			p95DurationNS     uint64
-			p99DurationNS     uint64
-		)
-		if err := rows.Scan(
-			&item.ResourceID,
-			&item.RequestCount,
-			&item.ClientErrorCount,
-			&item.ServerErrorCount,
-			&item.NoResponseCount,
-			&averageDurationNS,
-			&p50DurationNS,
-			&p95DurationNS,
-			&p99DurationNS,
-		); err != nil {
+		var resourceID string
+		var row trafficMetricsRow
+		targets := append([]any{&resourceID}, row.scanTargets()...)
+		if err := rows.Scan(targets...); err != nil {
 			return nil, fmt.Errorf("scan traffic breakdown: %w", err)
 		}
-		if !resourceconfig.IsCanonicalID(item.ResourceID) || seen[item.ResourceID] {
+		if !resourceconfig.IsCanonicalID(resourceID) || seen[resourceID] {
 			return nil, errors.New("stored traffic breakdown contains an invalid or duplicate resource ID")
 		}
-		seen[item.ResourceID] = true
-		durations, err := trafficDurationsFromNanoseconds(
-			averageDurationNS,
-			p50DurationNS,
-			p95DurationNS,
-			p99DurationNS,
-		)
-		if err != nil {
+		seen[resourceID] = true
+		if err := row.restoreDurations(); err != nil {
 			return nil, fmt.Errorf("restore traffic breakdown durations: %w", err)
 		}
-		if err := validateTrafficCounts(
-			item.RequestCount,
-			item.ClientErrorCount,
-			item.ServerErrorCount,
-			item.NoResponseCount,
-		); err != nil {
+		if err := row.validateCounts(); err != nil {
 			return nil, fmt.Errorf("restore traffic breakdown item: %w", err)
 		}
-		item.AverageDuration = durations.average
-		item.P50Duration = durations.p50
-		item.P95Duration = durations.p95
-		item.P99Duration = durations.p99
-		items = append(items, item)
+		items = append(items, traffic.BreakdownItem{ResourceID: resourceID, Metrics: row.Metrics})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("read traffic breakdown rows: %w", err)
@@ -446,14 +366,39 @@ func trafficDurationsFromNanoseconds(
 	return trafficDurations{average: average, p50: p50, p95: p95, p99: p99}, nil
 }
 
-func validateTrafficCounts(
-	requestCount uint64,
-	clientErrorCount uint64,
-	serverErrorCount uint64,
-	noResponseCount uint64,
-) error {
-	remaining := requestCount
-	for _, count := range []uint64{clientErrorCount, serverErrorCount, noResponseCount} {
+func (r *trafficMetricsRow) scanTargets() []any {
+	return []any{
+		&r.RequestCount,
+		&r.ClientErrorCount,
+		&r.ServerErrorCount,
+		&r.NoResponseCount,
+		&r.averageDurationNanoseconds,
+		&r.p50DurationNanoseconds,
+		&r.p95DurationNanoseconds,
+		&r.p99DurationNanoseconds,
+	}
+}
+
+func (r *trafficMetricsRow) restoreDurations() error {
+	durations, err := trafficDurationsFromNanoseconds(
+		r.averageDurationNanoseconds,
+		r.p50DurationNanoseconds,
+		r.p95DurationNanoseconds,
+		r.p99DurationNanoseconds,
+	)
+	if err != nil {
+		return err
+	}
+	r.AverageDuration = durations.average
+	r.P50Duration = durations.p50
+	r.P95Duration = durations.p95
+	r.P99Duration = durations.p99
+	return nil
+}
+
+func (r trafficMetricsRow) validateCounts() error {
+	remaining := r.RequestCount
+	for _, count := range []uint64{r.ClientErrorCount, r.ServerErrorCount, r.NoResponseCount} {
 		if count > remaining {
 			return errors.New("request outcome counts exceed the request count")
 		}

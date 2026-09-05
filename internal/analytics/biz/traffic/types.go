@@ -55,9 +55,8 @@ type TrendQuery struct {
 	Bucket TimeBucket
 }
 
-// TrendPoint 是一个时间段内的流量和延迟统计。
-type TrendPoint struct {
-	StartedAt        time.Time
+// Metrics 是一个时间范围内的流量和延迟指标。
+type Metrics struct {
 	RequestCount     uint64
 	ClientErrorCount uint64
 	ServerErrorCount uint64
@@ -66,6 +65,12 @@ type TrendPoint struct {
 	P50Duration      time.Duration
 	P95Duration      time.Duration
 	P99Duration      time.Duration
+}
+
+// TrendPoint 是一个时间段内的流量和延迟统计。
+type TrendPoint struct {
+	StartedAt time.Time
+	Metrics
 }
 
 // TrendResult 汇总一个时间范围的整体指标及其分桶趋势。
@@ -76,14 +81,7 @@ type TrendResult struct {
 
 // Summary 是整个查询范围内的流量和延迟汇总。
 type Summary struct {
-	RequestCount     uint64
-	ClientErrorCount uint64
-	ServerErrorCount uint64
-	NoResponseCount  uint64
-	AverageDuration  time.Duration
-	P50Duration      time.Duration
-	P95Duration      time.Duration
-	P99Duration      time.Duration
+	Metrics
 }
 
 // BreakdownQuery 是资源维度流量分布查询参数。
@@ -96,15 +94,8 @@ type BreakdownQuery struct {
 
 // BreakdownItem 是单个资源的流量和延迟统计。
 type BreakdownItem struct {
-	ResourceID       string
-	RequestCount     uint64
-	ClientErrorCount uint64
-	ServerErrorCount uint64
-	NoResponseCount  uint64
-	AverageDuration  time.Duration
-	P50Duration      time.Duration
-	P95Duration      time.Duration
-	P99Duration      time.Duration
+	ResourceID string
+	Metrics
 }
 
 // ResourceTrafficQuery 是资源列表批量读取流量摘要的查询参数。
