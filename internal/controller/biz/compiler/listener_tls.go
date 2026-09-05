@@ -36,10 +36,10 @@ func (c *compilation) configureHTTPSListener(
 
 	gatewayListeners := slices.Clone(group.gatewayListeners)
 	slices.SortFunc(gatewayListeners, func(a, b gatewayListener) int {
-		if result := cmp.Compare(a.gatewayID, b.gatewayID); result != 0 {
-			return result
-		}
-		return cmp.Compare(a.hostname, b.hostname)
+		return cmp.Or(
+			cmp.Compare(a.gatewayID, b.gatewayID),
+			cmp.Compare(a.hostname, b.hostname),
+		)
 	})
 	for _, gatewayListener := range gatewayListeners {
 		filterChain, err := buildHTTPSFilterChain(

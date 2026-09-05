@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"context"
+	"maps"
 	"time"
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
@@ -101,11 +102,9 @@ func (s *deliveryState) pruneProgress(versions ...string) {
 		}
 	}
 	for _, stream := range s.streams {
-		for version := range stream.versions {
-			if !keep[version] {
-				delete(stream.versions, version)
-			}
-		}
+		maps.DeleteFunc(stream.versions, func(version string, _ *responseProgress) bool {
+			return !keep[version]
+		})
 	}
 }
 

@@ -2,6 +2,7 @@
 package ratelimit
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -87,10 +88,10 @@ func NewLimiter(counter Counter) *Limiter {
 func (l *Limiter) Admit(ctx context.Context, rules []Rule, request Request) (*Rejection, error) {
 	ordered := slices.Clone(rules)
 	slices.SortFunc(ordered, func(left, right Rule) int {
-		if result := strings.Compare(left.PolicyID, right.PolicyID); result != 0 {
-			return result
-		}
-		return strings.Compare(left.Scope, right.Scope)
+		return cmp.Or(
+			strings.Compare(left.PolicyID, right.PolicyID),
+			strings.Compare(left.Scope, right.Scope),
+		)
 	})
 	// 每条策略使用独立 Redis Key，既保持策略统计独立，也避免 Redis Cluster 跨 slot 操作
 	// 请求被后续策略拒绝时，已通过的前序策略仍计入该次尝试

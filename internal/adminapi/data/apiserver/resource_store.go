@@ -119,12 +119,10 @@ func (s *resourceStore[Item, Object, List, Spec]) Delete(
 ) error {
 	resourceID := observed.GetName()
 	err := s.retryResourceMutation(ctx, observed, func(current Object) error {
-		uid := current.GetUID()
-		resourceVersion := current.GetResourceVersion()
 		return s.client.Delete(ctx, resourceID, metav1.DeleteOptions{
 			Preconditions: &metav1.Preconditions{
-				UID:             &uid,
-				ResourceVersion: &resourceVersion,
+				UID:             new(current.GetUID()),
+				ResourceVersion: new(current.GetResourceVersion()),
 			},
 		})
 	})

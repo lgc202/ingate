@@ -54,18 +54,13 @@ func CanonicalizePolicyTargetRefs(refs []resource.PolicyTargetRef) {
 		}
 	}
 	slices.SortFunc(refs, func(left, right resource.PolicyTargetRef) int {
-		if order := cmp.Compare(left.Kind, right.Kind); order != 0 {
-			return order
-		}
-		return cmp.Compare(left.Name, right.Name)
+		return cmp.Or(
+			cmp.Compare(left.Kind, right.Kind),
+			cmp.Compare(left.Name, right.Name),
+		)
 	})
 }
 
 func kindAllowed(kind resource.Kind, allowed []resource.Kind) bool {
-	for _, candidate := range allowed {
-		if kind == candidate {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(allowed, kind)
 }

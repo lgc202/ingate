@@ -2,6 +2,7 @@
 package conversation
 
 import (
+	"cmp"
 	"context"
 	"strings"
 	"unicode"
@@ -36,9 +37,7 @@ func NewUsecase(store Store) *Usecase {
 // Create 创建属于指定管理员的会话，并为空标题生成默认名称。
 func (uc *Usecase) Create(ctx context.Context, actorID, title string) (Conversation, error) {
 	title = strings.TrimSpace(title)
-	if title == "" {
-		title = defaultTitle
-	}
+	title = cmp.Or(title, defaultTitle)
 	if !IsValidTitle(title) {
 		return Conversation{}, ErrInvalidTitle
 	}

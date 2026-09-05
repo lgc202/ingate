@@ -67,10 +67,10 @@ func compareSources(left, right Source) int {
 		}
 		return 1
 	}
-	if result := cmp.Compare(left.DisplayName, right.DisplayName); result != 0 {
-		return result
-	}
-	return cmp.Compare(left.ID, right.ID)
+	return cmp.Or(
+		cmp.Compare(left.DisplayName, right.DisplayName),
+		cmp.Compare(left.ID, right.ID),
+	)
 }
 
 func sourcePageStart(sources []Source, cursor string) (int, error) {

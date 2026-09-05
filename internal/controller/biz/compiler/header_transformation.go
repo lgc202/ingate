@@ -252,10 +252,7 @@ func applyHeaderTransformationPolicies(
 }
 
 func listenerHasWasmFilter(filters []wasmFilter, name string) bool {
-	for _, filter := range filters {
-		if filter.name == name {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(filters, func(filter wasmFilter) bool {
+		return filter.name == name
+	})
 }

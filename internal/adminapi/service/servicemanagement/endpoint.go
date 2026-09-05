@@ -1,6 +1,7 @@
 package servicemanagement
 
 import (
+	"cmp"
 	"fmt"
 	"net"
 	"strconv"
@@ -47,10 +48,7 @@ func parseEndpoint(config *adminv1.ServiceEndpoint) (resource.Endpoint, error) {
 	if !upstreamconfig.IsValidEndpointPort(port) {
 		return resource.Endpoint{}, adminv1.ErrorInvalidArgument("服务端点端口必须在 1 到 65535 之间")
 	}
-	weight := int(config.GetWeight())
-	if weight == 0 {
-		weight = upstreamconfig.DefaultEndpointWeight
-	}
+	weight := cmp.Or(int(config.GetWeight()), upstreamconfig.DefaultEndpointWeight)
 	if !upstreamconfig.IsValidEndpointWeight(weight) {
 		return resource.Endpoint{}, adminv1.ErrorInvalidArgument("服务端点权重必须在 1 到 1000 之间")
 	}

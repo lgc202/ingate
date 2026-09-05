@@ -1,6 +1,7 @@
 package wasmplugin
 
 import (
+	"cmp"
 	"context"
 	"strings"
 
@@ -99,7 +100,5 @@ func canonicalizeSpec(spec *resource.WasmPluginSpec) {
 	spec.URL = strings.TrimSpace(spec.URL)
 	spec.SHA256 = strings.TrimSpace(spec.SHA256)
 	spec.RootID = strings.TrimSpace(spec.RootID)
-	if spec.PullPolicy == "" {
-		spec.PullPolicy = resource.WasmPluginPullIfNotPresent
-	}
+	spec.PullPolicy = cmp.Or(spec.PullPolicy, resource.WasmPluginPullIfNotPresent)
 }

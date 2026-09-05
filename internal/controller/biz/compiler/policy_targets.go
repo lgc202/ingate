@@ -142,23 +142,19 @@ func (c *compilation) recordPolicyTargets(
 func compiledPolicyTargets(policyTargetSet map[CompiledPolicyTarget]bool) []CompiledPolicyTarget {
 	result := slices.Collect(maps.Keys(policyTargetSet))
 	slices.SortFunc(result, func(a, b CompiledPolicyTarget) int {
-		if result := compareResourceGeneration(a.Policy, b.Policy); result != 0 {
-			return result
-		}
-		return compareResourceGeneration(a.Target, b.Target)
+		return cmp.Or(
+			compareResourceGeneration(a.Policy, b.Policy),
+			compareResourceGeneration(a.Target, b.Target),
+		)
 	})
 	return result
 }
 
 func compareResourceGeneration(a, b ResourceGeneration) int {
-	if result := cmp.Compare(a.Kind, b.Kind); result != 0 {
-		return result
-	}
-	if result := cmp.Compare(a.Name, b.Name); result != 0 {
-		return result
-	}
-	if result := cmp.Compare(string(a.UID), string(b.UID)); result != 0 {
-		return result
-	}
-	return cmp.Compare(a.Generation, b.Generation)
+	return cmp.Or(
+		cmp.Compare(a.Kind, b.Kind),
+		cmp.Compare(a.Name, b.Name),
+		cmp.Compare(string(a.UID), string(b.UID)),
+		cmp.Compare(a.Generation, b.Generation),
+	)
 }

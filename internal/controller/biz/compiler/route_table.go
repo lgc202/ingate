@@ -145,13 +145,11 @@ func (t *routeTable) sortedAttachments() []routeAttachment {
 }
 
 func compareRouteAttachments(a, b routeAttachment) int {
-	if result := compareListenerKeys(a.listenerKey, b.listenerKey); result != 0 {
-		return result
-	}
-	if result := cmp.Compare(a.gatewayID, b.gatewayID); result != 0 {
-		return result
-	}
-	return cmp.Compare(a.routeID, b.routeID)
+	return cmp.Or(
+		compareListenerKeys(a.listenerKey, b.listenerKey),
+		cmp.Compare(a.gatewayID, b.gatewayID),
+		cmp.Compare(a.routeID, b.routeID),
+	)
 }
 
 func envoyRouteName(gatewayID, routeID, method, variant string) string {

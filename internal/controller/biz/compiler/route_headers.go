@@ -80,10 +80,10 @@ func normalizedHeaderValues(values []gatewayv1.HeaderValue) []gatewayv1.HeaderVa
 		result[i].Value = httpheader.NormalizeValue(result[i].Value)
 	}
 	slices.SortFunc(result, func(a, b gatewayv1.HeaderValue) int {
-		if result := cmp.Compare(a.Name, b.Name); result != 0 {
-			return result
-		}
-		return cmp.Compare(a.Value, b.Value)
+		return cmp.Or(
+			cmp.Compare(a.Name, b.Name),
+			cmp.Compare(a.Value, b.Value),
+		)
 	})
 	return result
 }

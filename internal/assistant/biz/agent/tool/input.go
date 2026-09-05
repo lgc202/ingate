@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"strings"
@@ -31,8 +32,8 @@ func invalidInputf(format string, args ...any) error {
 // invalidInputReason 识别模型可以通过重新调用工具修正的参数错误。
 // 这类错误属于 Agent 循环的正常反馈，不能与网络、存储等系统故障混在一起。
 func invalidInputReason(err error) (string, bool) {
-	var inputErr *invalidInputError
-	if !errors.As(err, &inputErr) {
+	inputErr, ok := errors.AsType[*invalidInputError](err)
+	if !ok {
 		return "", false
 	}
 	return inputErr.Error(), true
@@ -53,9 +54,7 @@ func recoverableToolError(err error) (summary, status string, ok bool) {
 func normalizeResourceScope(scopeType, scopeID string) (string, string, error) {
 	scopeType = strings.ToLower(strings.TrimSpace(scopeType))
 	scopeID = strings.TrimSpace(scopeID)
-	if scopeType == "" {
-		scopeType = "all"
-	}
+	scopeType = cmp.Or(scopeType, "all")
 	if scopeType == "all" {
 		if scopeID != "" {
 			return "", "", invalidInputf("scope_id must be omitted when scope_type is all")
@@ -97,9 +96,7 @@ func observationTimeRange(hours int32, startValue, endValue string) (time.Time, 
 				maxObservationHours,
 			)
 		}
-		if hours == 0 {
-			hours = defaultObservationHours
-		}
+		hours = cmp.Or(hours, defaultObservationHours)
 		endTime := time.Now().UTC()
 		return endTime.Add(-time.Duration(hours) * time.Hour), endTime, nil
 	}

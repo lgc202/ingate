@@ -79,9 +79,7 @@ func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
 
 func canonicalizeUpstreamSpec(spec *resource.UpstreamSpec) {
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
-	if spec.LoadBalancing == "" {
-		spec.LoadBalancing = resource.LoadBalancingRoundRobin
-	}
+	spec.LoadBalancing = cmp.Or(spec.LoadBalancing, resource.LoadBalancingRoundRobin)
 	for i := range spec.Endpoints {
 		spec.Endpoints[i].Address = upstreamconfig.NormalizeAddress(spec.Endpoints[i].Address)
 		if spec.Endpoints[i].Weight == 0 {
@@ -100,11 +98,7 @@ func canonicalizeUpstreamSpec(spec *resource.UpstreamSpec) {
 	}
 	if spec.HealthCheck != nil {
 		spec.HealthCheck.Path = strings.TrimSpace(spec.HealthCheck.Path)
-		if spec.HealthCheck.IntervalSeconds == 0 {
-			spec.HealthCheck.IntervalSeconds = upstreamconfig.DefaultHealthCheckIntervalSeconds
-		}
-		if spec.HealthCheck.TimeoutSeconds == 0 {
-			spec.HealthCheck.TimeoutSeconds = upstreamconfig.DefaultHealthCheckTimeoutSeconds
-		}
+		spec.HealthCheck.IntervalSeconds = cmp.Or(spec.HealthCheck.IntervalSeconds, upstreamconfig.DefaultHealthCheckIntervalSeconds)
+		spec.HealthCheck.TimeoutSeconds = cmp.Or(spec.HealthCheck.TimeoutSeconds, upstreamconfig.DefaultHealthCheckTimeoutSeconds)
 	}
 }

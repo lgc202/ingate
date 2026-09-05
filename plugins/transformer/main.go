@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
@@ -277,12 +278,9 @@ func applyOperations(headers [][2]string, operations []headerOperation) [][2]str
 }
 
 func hasHeader(headers [][2]string, name string) bool {
-	for _, header := range headers {
-		if strings.EqualFold(header[0], name) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(headers, func(header [2]string) bool {
+		return strings.EqualFold(header[0], name)
+	})
 }
 
 func removeHeader(headers [][2]string, name string) [][2]string {

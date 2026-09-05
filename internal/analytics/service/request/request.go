@@ -2,6 +2,7 @@ package request
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -52,10 +53,7 @@ func buildListOptions(request *analyticsv1.ListRequestsRequest) (requestbiz.List
 	if err != nil {
 		return requestbiz.ListOptions{}, err
 	}
-	pageSize := request.GetPageSize()
-	if pageSize == 0 {
-		pageSize = defaultPageSize
-	}
+	pageSize := cmp.Or(request.GetPageSize(), defaultPageSize)
 	if pageSize > maxPageSize {
 		return requestbiz.ListOptions{}, invalidArgument("page_size exceeds maximum")
 	}
@@ -176,7 +174,7 @@ func parsePageToken(value string, filter requestbiz.Filter) (*requestbiz.Cursor,
 	if err := decoder.Decode(&token); err != nil {
 		return nil, fmt.Errorf("parse page token value: %w", err)
 	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return nil, errors.New("page token contains trailing data")
 	}
 	if token.StartedAtNanoseconds == nil || !requestrecord.IsValidID(token.ID) {

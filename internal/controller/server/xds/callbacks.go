@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"sync"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -80,11 +81,9 @@ func (c *Callbacks) OnStreamClosed(streamID int64, _ *corev3.Node) {
 	if nodeID != "" && c.nodeStreams[nodeID] == streamID {
 		delete(c.nodeStreams, nodeID)
 	}
-	for key := range c.sent {
-		if key.streamID == streamID {
-			delete(c.sent, key)
-		}
-	}
+	maps.DeleteFunc(c.sent, func(key sentKey, _ sentResponse) bool {
+		return key.streamID == streamID
+	})
 	c.mu.Unlock()
 
 	if streamCtx == nil {

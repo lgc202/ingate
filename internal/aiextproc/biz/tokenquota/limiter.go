@@ -262,10 +262,10 @@ func (l *Limiter) currentBuckets(callerID string, now time.Time) ([]Bucket, erro
 		}
 	}
 	slices.SortFunc(buckets, func(left, right Bucket) int {
-		if result := cmp.Compare(left.PolicyID, right.PolicyID); result != 0 {
-			return result
-		}
-		return cmp.Compare(periodOrder(left.Period), periodOrder(right.Period))
+		return cmp.Or(
+			cmp.Compare(left.PolicyID, right.PolicyID),
+			cmp.Compare(periodOrder(left.Period), periodOrder(right.Period)),
+		)
 	})
 	return buckets, nil
 }

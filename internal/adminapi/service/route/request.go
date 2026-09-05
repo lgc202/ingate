@@ -2,6 +2,7 @@ package route
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
@@ -131,12 +132,7 @@ func usesReservedAIHeader(
 			return true
 		}
 	}
-	for _, name := range modifier.Remove {
-		if aiprotocol.IsInternalHeader(name) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(modifier.Remove, aiprotocol.IsInternalHeader)
 }
 
 func parseAccessMode(mode adminv1.RouteAccessMode) (resource.RouteAccessMode, error) {

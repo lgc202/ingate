@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -231,12 +232,8 @@ func normalizeOptions(options Options) (Options, error) {
 	if options.NACKRollbackTimeout < 0 {
 		return Options{}, errors.New("NACK rollback timeout must not be negative")
 	}
-	if options.ACKTimeout == 0 {
-		options.ACKTimeout = defaults.ACKTimeout
-	}
-	if options.NACKRollbackTimeout == 0 {
-		options.NACKRollbackTimeout = defaults.NACKRollbackTimeout
-	}
+	options.ACKTimeout = cmp.Or(options.ACKTimeout, defaults.ACKTimeout)
+	options.NACKRollbackTimeout = cmp.Or(options.NACKRollbackTimeout, defaults.NACKRollbackTimeout)
 	return options, nil
 }
 

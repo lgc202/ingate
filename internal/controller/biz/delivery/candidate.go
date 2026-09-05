@@ -96,13 +96,11 @@ func (d *Delivery) setCandidate(result compiler.Result) {
 	}
 	d.state.sequence++
 	d.state.candidate = &candidateState{
-		publishedConfig: publishedConfig{
-			version:       result.Version,
-			config:        result.Config,
-			resources:     cloneResourceGenerations(result.ResourceGenerations),
-			policyTargets: clonePolicyTargets(result.PolicyTargets),
-		},
-		sequence: d.state.sequence,
+		version:       result.Version,
+		config:        result.Config,
+		resources:     cloneResourceGenerations(result.ResourceGenerations),
+		policyTargets: clonePolicyTargets(result.PolicyTargets),
+		sequence:      d.state.sequence,
 		// 保留 Active 用过的动态类型，才能通过 Candidate 的空响应确认资源删除
 		requiredTypes:        transitionTypeURLs(d.state.active, result.Config),
 		failurePolicyTargets: affectedPolicyTargets(d.state.active, result.ResourceGenerations, result.PolicyTargets),

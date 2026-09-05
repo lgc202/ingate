@@ -2,12 +2,12 @@
 package plugincatalog
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -114,16 +114,12 @@ func (c *Catalog) Items() []wasmplugin.CatalogItem {
 	c.stateMu.RUnlock()
 
 	slices.SortFunc(items, func(left, right wasmplugin.CatalogItem) int {
-		if result := strings.Compare(left.SourceName, right.SourceName); result != 0 {
-			return result
-		}
-		if result := strings.Compare(left.Name, right.Name); result != 0 {
-			return result
-		}
-		if result := strings.Compare(left.Package, right.Package); result != 0 {
-			return result
-		}
-		return strings.Compare(left.SourceID, right.SourceID)
+		return cmp.Or(
+			cmp.Compare(left.SourceName, right.SourceName),
+			cmp.Compare(left.Name, right.Name),
+			cmp.Compare(left.Package, right.Package),
+			cmp.Compare(left.SourceID, right.SourceID),
+		)
 	})
 	return items
 }

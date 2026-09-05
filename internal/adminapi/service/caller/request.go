@@ -77,6 +77,5 @@ func parseExpiration(value *timestamppb.Timestamp) (*time.Time, error) {
 	if err := value.CheckValid(); err != nil {
 		return nil, adminv1.ErrorInvalidArgument("到期时间格式不正确").WithCause(err)
 	}
-	expiresAt := value.AsTime()
-	return &expiresAt, nil
+	return new(value.AsTime()), nil
 }

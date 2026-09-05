@@ -47,8 +47,7 @@ func (r *RequestRepository) List(ctx context.Context, options requestbiz.ListOpt
 		PageToken: options.PageToken,
 	}
 	if filter.StatusCode != nil {
-		value := uint32(*filter.StatusCode)
-		request.Filter.StatusCode = &value
+		request.Filter.StatusCode = new(uint32(*filter.StatusCode))
 	}
 	reply, err := r.client.ListRequests(ctx, request)
 	if err != nil && ctx.Err() != nil {

@@ -145,8 +145,7 @@ func durationMillisPointer(value *time.Duration) *float64 {
 	if value == nil {
 		return nil
 	}
-	milliseconds := durationMillis(*value)
-	return &milliseconds
+	return new(durationMillis(*value))
 }
 
 func aiModelCallInfoFromRecord(call *AIModelCall) *aiModelCallInfo {

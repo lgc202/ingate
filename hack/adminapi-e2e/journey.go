@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -247,8 +248,7 @@ func (j *journey) updateCleanupVersion(path string, version int64) {
 func (j *journey) cleanup() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	for i := len(j.cleanupStack) - 1; i >= 0; i-- {
-		ref := j.cleanupStack[i]
+	for _, ref := range slices.Backward(j.cleanupStack) {
 		path := ref.path + "?" + url.Values{"version": {strconv.FormatInt(ref.version, 10)}}.Encode()
 		if err := j.client.call(ctx, http.MethodDelete, path, nil, nil); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "cleanup %s failed: %v\n", ref.path, err)

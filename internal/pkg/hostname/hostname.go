@@ -13,8 +13,8 @@ func Normalize(value string) (string, bool) {
 	}
 
 	value = strings.ToLower(value)
-	if strings.HasPrefix(value, "*.") {
-		if !validDNSName(strings.TrimPrefix(value, "*.")) {
+	if after, ok := strings.CutPrefix(value, "*."); ok {
+		if !validDNSName(after) {
 			return "", false
 		}
 		return value, true

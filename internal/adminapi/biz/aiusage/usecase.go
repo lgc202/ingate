@@ -2,6 +2,7 @@
 package aiusage
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz/analysisquery"
@@ -30,12 +31,8 @@ func NewUsecase(analyzer Analyzer) *Usecase {
 
 // Analyze 查询同一范围内的模型用量汇总、趋势与排名。
 func (uc *Usecase) Analyze(ctx context.Context, query Query) (Analysis, error) {
-	if query.Limit == 0 {
-		query.Limit = defaultBreakdownLimit
-	}
-	if query.Order == 0 {
-		query.Order = BreakdownOrderCallCount
-	}
+	query.Limit = cmp.Or(query.Limit, defaultBreakdownLimit)
+	query.Order = cmp.Or(query.Order, BreakdownOrderCallCount)
 	query.Bucket = TimeBucket(analysisquery.TimeBucketForRange(query.Filter.EndTime.Sub(query.Filter.StartTime)))
 	return uc.analyzer.Analyze(ctx, query)
 }

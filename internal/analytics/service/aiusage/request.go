@@ -1,6 +1,7 @@
 package aiusage
 
 import (
+	"cmp"
 	"time"
 
 	"github.com/go-kratos/kratos/v3/errors"
@@ -43,10 +44,7 @@ func buildBreakdownQuery(request *analyticsv1.ListAIUsageBreakdownRequest) (aius
 	if err != nil {
 		return aiusagebiz.BreakdownQuery{}, err
 	}
-	limit := request.GetLimit()
-	if limit == 0 {
-		limit = defaultBreakdownLimit
-	}
+	limit := cmp.Or(request.GetLimit(), defaultBreakdownLimit)
 	if limit > maxBreakdownLimit {
 		return aiusagebiz.BreakdownQuery{}, invalidArgument("limit exceeds maximum")
 	}
