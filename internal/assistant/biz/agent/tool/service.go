@@ -7,6 +7,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
+	"github.com/samber/lo"
 )
 
 type serviceToolOutput struct {
@@ -59,10 +60,9 @@ func listServices(
 	if err != nil {
 		return serviceToolOutput{}, err
 	}
-	items := make([]serviceInfo, 0, len(result.Items))
-	for _, service := range result.Items {
-		items = append(items, serviceInfo(service))
-	}
+	items := lo.Map(result.Items, func(service Service, _ int) serviceInfo {
+		return serviceInfo(service)
+	})
 	return serviceToolOutput{
 		Summary: fmt.Sprintf("找到 %d 个服务", len(items)),
 		Source:  "admin_api",

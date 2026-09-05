@@ -8,6 +8,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
+	"github.com/samber/lo"
 )
 
 const (
@@ -103,9 +104,8 @@ func listRecentFailures(
 	if err != nil {
 		return failureToolOutput{}, err
 	}
-	items := make([]failureInfo, 0, len(result.Items))
-	for _, record := range result.Items {
-		items = append(items, failureInfo{
+	items := lo.Map(result.Items, func(record Failure, _ int) failureInfo {
+		return failureInfo{
 			RecordID:       record.RecordID,
 			StartedAt:      record.StartedAt.Format(time.RFC3339Nano),
 			Method:         record.Method,
@@ -116,8 +116,8 @@ func listRecentFailures(
 			GatewayID:      record.GatewayID,
 			RouteID:        record.RouteID,
 			ServiceID:      record.ServiceID,
-		})
-	}
+		}
+	})
 	return failureToolOutput{
 		Summary: fmt.Sprintf(
 			"指定时间范围内找到 %d 条%s请求记录",

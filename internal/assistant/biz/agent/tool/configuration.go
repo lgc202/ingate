@@ -8,6 +8,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 )
 
 type routeConfigurationInput struct {
@@ -103,26 +104,24 @@ func getRouteConfiguration(
 	if err != nil {
 		return routeConfigurationErrorResult(err)
 	}
-	serviceNames := make(map[string]string, len(configuration.Services))
-	services := make([]serviceInfo, 0, len(configuration.Services))
-	for _, service := range configuration.Services {
-		serviceNames[service.ID] = service.Name
-		services = append(services, serviceInfo(service))
-	}
-	targets := make([]routeTargetInfo, 0, len(configuration.Targets))
-	for _, target := range configuration.Targets {
-		targets = append(targets, routeTargetInfo{
+	serviceNames := lo.Associate(configuration.Services, func(service Service) (string, string) {
+		return service.ID, service.Name
+	})
+	services := lo.Map(configuration.Services, func(service Service, _ int) serviceInfo {
+		return serviceInfo(service)
+	})
+	targets := lo.Map(configuration.Targets, func(target RouteTarget, _ int) routeTargetInfo {
+		return routeTargetInfo{
 			ServiceID:    target.ServiceID,
 			ServiceName:  serviceNames[target.ServiceID],
 			ExposedModel: target.ExposedModel,
 			Model:        target.Model,
 			Weight:       target.Weight,
-		})
-	}
-	gateways := make([]gatewayInfo, 0, len(configuration.Gateways))
-	for _, gateway := range configuration.Gateways {
-		gateways = append(gateways, gatewayInfoFromResource(gateway))
-	}
+		}
+	})
+	gateways := lo.Map(configuration.Gateways, func(gateway Gateway, _ int) gatewayInfo {
+		return gatewayInfoFromResource(gateway)
+	})
 	timeout := routeTimeout(configuration.RequestTimeout.Milliseconds())
 	retry := routeRetry(
 		configuration.RetryAttempts,

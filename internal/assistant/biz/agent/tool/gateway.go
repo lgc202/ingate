@@ -7,6 +7,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
+	"github.com/samber/lo"
 )
 
 type gatewayToolOutput struct {
@@ -64,10 +65,9 @@ func listGateways(
 	if err != nil {
 		return gatewayToolOutput{}, err
 	}
-	items := make([]gatewayInfo, 0, len(result.Items))
-	for _, gateway := range result.Items {
-		items = append(items, gatewayInfoFromResource(gateway))
-	}
+	items := lo.Map(result.Items, func(gateway Gateway, _ int) gatewayInfo {
+		return gatewayInfoFromResource(gateway)
+	})
 	return gatewayToolOutput{
 		Summary: fmt.Sprintf("找到 %d 个网关", len(items)),
 		Source:  "admin_api",
@@ -78,10 +78,9 @@ func listGateways(
 }
 
 func gatewayInfoFromResource(gateway Gateway) gatewayInfo {
-	listeners := make([]listenerInfo, 0, len(gateway.Listeners))
-	for _, listener := range gateway.Listeners {
-		listeners = append(listeners, listenerInfo(listener))
-	}
+	listeners := lo.Map(gateway.Listeners, func(listener Listener, _ int) listenerInfo {
+		return listenerInfo(listener)
+	})
 	return gatewayInfo{
 		ID:        gateway.ID,
 		Name:      gateway.Name,

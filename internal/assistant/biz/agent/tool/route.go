@@ -7,6 +7,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
+	"github.com/samber/lo"
 )
 
 type routeToolOutput struct {
@@ -62,10 +63,9 @@ func listRoutes(
 	if err != nil {
 		return routeToolOutput{}, err
 	}
-	items := make([]routeInfo, 0, len(result.Items))
-	for _, route := range result.Items {
-		items = append(items, routeInfo(route))
-	}
+	items := lo.Map(result.Items, func(route Route, _ int) routeInfo {
+		return routeInfo(route)
+	})
 	return routeToolOutput{
 		Summary: fmt.Sprintf("找到 %d 条路由", len(items)),
 		Source:  "admin_api",

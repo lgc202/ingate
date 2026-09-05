@@ -9,6 +9,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 )
 
 type callerTokenQuotaInput struct {
@@ -90,9 +91,8 @@ func getCallerTokenQuota(
 }
 
 func callerTokenQuotaInfoFromQuota(quota CallerTokenQuota) callerTokenQuotaInfo {
-	usages := make([]tokenQuotaUsageInfo, 0, len(quota.Usages))
-	for _, usage := range quota.Usages {
-		usages = append(usages, tokenQuotaUsageInfo{
+	usages := lo.Map(quota.Usages, func(usage TokenQuotaUsage, _ int) tokenQuotaUsageInfo {
+		return tokenQuotaUsageInfo{
 			PolicyID:        usage.PolicyID,
 			PolicyName:      usage.PolicyName,
 			Period:          usage.Period,
@@ -101,8 +101,8 @@ func callerTokenQuotaInfoFromQuota(quota CallerTokenQuota) callerTokenQuotaInfo 
 			RemainingTokens: usage.RemainingTokens,
 			StartedAt:       quotaTime(usage.StartedAt),
 			ResetsAt:        quotaTime(usage.ResetsAt),
-		})
-	}
+		}
+	})
 	return callerTokenQuotaInfo{
 		ID:      quota.CallerID,
 		Name:    quota.CallerName,

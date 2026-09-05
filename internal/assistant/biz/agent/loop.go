@@ -12,6 +12,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
+	"github.com/samber/lo"
 )
 
 // executeModelLoop 建立并消费一次 Eino 模型—工具循环。
@@ -67,14 +68,14 @@ func executeModelLoop(
 func modelMessages(messages []Message) []adk.Message {
 	// 数据库消息在进入循环时一次性转换。之后的模型消息和工具结果由 Eino 在本次
 	// 内存上下文中维护，不反向污染会话的持久消息。
-	result := make([]adk.Message, 0, len(messages))
-	for _, message := range messages {
+	return lo.FilterMap(messages, func(message Message, _ int) (adk.Message, bool) {
 		switch message.Role {
 		case RoleUser:
-			result = append(result, schema.UserMessage(message.Content))
+			return schema.UserMessage(message.Content), true
 		case RoleAssistant:
-			result = append(result, schema.AssistantMessage(message.Content, nil))
+			return schema.AssistantMessage(message.Content, nil), true
+		default:
+			return nil, false
 		}
-	}
-	return result
+	})
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/samber/lo"
 	"golang.org/x/sync/errgroup"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
@@ -168,13 +169,10 @@ func routePathMatchType(matchType adminv1.RoutePathMatchType) string {
 }
 
 func routeMethods(methods []adminv1.HTTPMethod) []string {
-	result := make([]string, 0, len(methods))
-	for _, method := range methods {
-		if name := httpMethod(method); name != "" {
-			result = append(result, name)
-		}
-	}
-	return result
+	return lo.FilterMap(methods, func(method adminv1.HTTPMethod, _ int) (string, bool) {
+		name := httpMethod(method)
+		return name, name != ""
+	})
 }
 
 func httpMethod(method adminv1.HTTPMethod) string {
@@ -203,33 +201,24 @@ func httpMethod(method adminv1.HTTPMethod) string {
 func routeTargets(route *adminv1.Route) []agenttool.RouteTarget {
 	forwarding := route.GetConfig().GetForwarding()
 	if forwarding.GetAi() == nil {
-		services := forwarding.GetService().GetTargets()
-		targets := make([]agenttool.RouteTarget, 0, len(services))
-		for _, target := range services {
-			targets = append(targets, agenttool.RouteTarget{
+		return lo.Map(forwarding.GetService().GetTargets(), func(target *adminv1.ServiceTarget, _ int) agenttool.RouteTarget {
+			return agenttool.RouteTarget{
 				ServiceID: target.GetServiceId(),
 				Weight:    target.GetWeight(),
-			})
-		}
-		return targets
+			}
+		})
 	}
 
-	var count int
-	for _, model := range forwarding.GetAi().GetModels() {
-		count += len(model.GetTargets())
-	}
-	targets := make([]agenttool.RouteTarget, 0, count)
-	for _, model := range forwarding.GetAi().GetModels() {
-		for _, target := range model.GetTargets() {
-			targets = append(targets, agenttool.RouteTarget{
+	return lo.FlatMap(forwarding.GetAi().GetModels(), func(model *adminv1.AIModel, _ int) []agenttool.RouteTarget {
+		return lo.Map(model.GetTargets(), func(target *adminv1.AIModelTarget, _ int) agenttool.RouteTarget {
+			return agenttool.RouteTarget{
 				ServiceID:    target.GetServiceId(),
 				ExposedModel: model.GetName(),
 				Model:        target.GetModel(),
 				Weight:       target.GetWeight(),
-			})
-		}
-	}
-	return targets
+			}
+		})
+	})
 }
 
 func hostRewriteMode(mode adminv1.HostRewriteMode) string {
@@ -247,35 +236,22 @@ func hostRewriteMode(mode adminv1.HostRewriteMode) string {
 
 func routeServiceIDs(route *adminv1.Route) []string {
 	forwarding := route.GetConfig().GetForwarding()
-	services := forwarding.GetService().GetTargets()
-	serviceIDs := make([]string, 0, len(services))
-	seen := make(map[string]bool, len(services))
-	for _, service := range services {
-		serviceID := service.GetServiceId()
-		if !seen[serviceID] {
-			seen[serviceID] = true
-			serviceIDs = append(serviceIDs, serviceID)
-		}
-	}
-	for _, model := range forwarding.GetAi().GetModels() {
-		for _, target := range model.GetTargets() {
-			serviceID := target.GetServiceId()
-			if !seen[serviceID] {
-				seen[serviceID] = true
-				serviceIDs = append(serviceIDs, serviceID)
-			}
-		}
-	}
-	return serviceIDs
+	serviceIDs := lo.Map(forwarding.GetService().GetTargets(), func(target *adminv1.ServiceTarget, _ int) string {
+		return target.GetServiceId()
+	})
+	modelServiceIDs := lo.FlatMap(forwarding.GetAi().GetModels(), func(model *adminv1.AIModel, _ int) []string {
+		return lo.Map(model.GetTargets(), func(target *adminv1.AIModelTarget, _ int) string {
+			return target.GetServiceId()
+		})
+	})
+	return lo.Uniq(append(serviceIDs, modelServiceIDs...))
 }
 
 func routeModelNames(route *adminv1.Route) []string {
 	models := route.GetConfig().GetForwarding().GetAi().GetModels()
-	names := make([]string, 0, len(models))
-	for _, model := range models {
-		names = append(names, model.GetName())
-	}
-	return names
+	return lo.Map(models, func(model *adminv1.AIModel, _ int) string {
+		return model.GetName()
+	})
 }
 
 func validateRouteResponse(route *adminv1.Route) error {

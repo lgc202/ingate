@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	kerrors "github.com/go-kratos/kratos/v3/errors"
+	"github.com/samber/lo"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -52,14 +53,12 @@ func (s *Service) ListConversations(
 	if err != nil {
 		return nil, kerrors.InternalServer("ENCODE_CURSOR_FAILED", "request failed").WithCause(err)
 	}
-	response := &assistantv1.ListConversationsResponse{
-		Conversations: make([]*assistantv1.Conversation, 0, len(page.Items)),
-		NextCursor:    nextCursor,
-	}
-	for _, item := range page.Items {
-		response.Conversations = append(response.Conversations, conversationResponse(item))
-	}
-	return response, nil
+	return &assistantv1.ListConversationsResponse{
+		Conversations: lo.Map(page.Items, func(item conversationbiz.Conversation, _ int) *assistantv1.Conversation {
+			return conversationResponse(item)
+		}),
+		NextCursor: nextCursor,
+	}, nil
 }
 
 // GetConversation 返回当前管理员可见的单个会话。
@@ -152,14 +151,12 @@ func (s *Service) ListMessages(
 	if err != nil {
 		return nil, kerrors.InternalServer("ENCODE_CURSOR_FAILED", "request failed").WithCause(err)
 	}
-	response := &assistantv1.ListMessagesResponse{
-		Messages:   make([]*assistantv1.Message, 0, len(page.Items)),
+	return &assistantv1.ListMessagesResponse{
+		Messages: lo.Map(page.Items, func(item conversationbiz.Message, _ int) *assistantv1.Message {
+			return messageResponse(item)
+		}),
 		NextCursor: nextCursor,
-	}
-	for _, item := range page.Items {
-		response.Messages = append(response.Messages, messageResponse(item))
-	}
-	return response, nil
+	}, nil
 }
 
 func mapError(err error) error {

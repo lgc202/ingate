@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	kerrors "github.com/go-kratos/kratos/v3/errors"
+	"github.com/samber/lo"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	assistantv1 "github.com/lgc202/ingate/api/assistant/v1"
@@ -75,13 +76,11 @@ func (s *Service) ListAgentExecutionSteps(
 	if err != nil {
 		return nil, mapError(err)
 	}
-	response := &assistantv1.ListAgentExecutionStepsResponse{
-		Steps: make([]*assistantv1.AgentExecutionStep, 0, len(items)),
-	}
-	for _, item := range items {
-		response.Steps = append(response.Steps, stepResponse(item))
-	}
-	return response, nil
+	return &assistantv1.ListAgentExecutionStepsResponse{
+		Steps: lo.Map(items, func(item executionbiz.Step, _ int) *assistantv1.AgentExecutionStep {
+			return stepResponse(item)
+		}),
+	}, nil
 }
 
 // CancelAgentExecution 请求取消当前管理员尚未结束的 Agent 执行。
