@@ -101,8 +101,9 @@ func (d *Delivery) setCandidate(result compiler.Result) {
 		resources:     cloneResourceGenerations(result.ResourceGenerations),
 		policyTargets: clonePolicyTargets(result.PolicyTargets),
 		sequence:      d.state.sequence,
-		// 保留 Active 用过的动态类型，才能通过 Candidate 的空响应确认资源删除
-		requiredTypes:        transitionTypeURLs(d.state.active, result.Config),
+		// RDS 和 EDS 是按名称订阅；父资源删除后 Envoy 会取消子资源订阅，
+		// 因此只等待 Candidate 仍使用的类型，不能等待已取消订阅类型的空 ACK。
+		requiredTypes:        configTypeURLs(result.Config),
 		failurePolicyTargets: affectedPolicyTargets(d.state.active, result.ResourceGenerations, result.PolicyTargets),
 	}
 	d.state.lastFailure = nil

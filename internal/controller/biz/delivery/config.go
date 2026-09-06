@@ -12,29 +12,6 @@ import (
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
 )
 
-// transitionTypeURLs 同时保留 Active 和 Candidate 使用的类型，
-// 确保资源删除也会产生待确认的空响应。
-func transitionTypeURLs(active *publishedConfig, candidate compiler.EnvoyConfig) []string {
-	typeURLs := dynamicTypeURLs()
-	required := make(map[string]bool, len(typeURLs))
-	for _, typeURL := range configTypeURLs(candidate) {
-		required[typeURL] = true
-	}
-	if active != nil {
-		for _, typeURL := range configTypeURLs(active.config) {
-			required[typeURL] = true
-		}
-	}
-
-	result := make([]string, 0, len(required))
-	for _, typeURL := range typeURLs {
-		if required[typeURL] {
-			result = append(result, typeURL)
-		}
-	}
-	return result
-}
-
 func configTypeURLs(value compiler.EnvoyConfig) []string {
 	result := []string{resourcev3.ListenerType}
 	if len(value.Routes) > 0 {
@@ -47,15 +24,6 @@ func configTypeURLs(value compiler.EnvoyConfig) []string {
 		result = append(result, resourcev3.EndpointType)
 	}
 	return result
-}
-
-func dynamicTypeURLs() []string {
-	return []string{
-		resourcev3.ListenerType,
-		resourcev3.RouteType,
-		resourcev3.ClusterType,
-		resourcev3.EndpointType,
-	}
 }
 
 // cloneConfig 隔离编译结果与异步发布过程，避免调用方后续修改 protobuf 对象。
