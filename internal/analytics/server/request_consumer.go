@@ -34,15 +34,17 @@ type RequestConsumer struct {
 	recorder        *requestbiz.Recorder
 	logger          *slog.Logger
 	batchMaxRecords int
-	done            chan struct{}
-	running         atomic.Bool
-	lifecycleMu     sync.Mutex
-	cancel          context.CancelFunc
-	stopping        bool
-	received        atomic.Uint64
-	stored          atomic.Uint64
-	invalid         atomic.Uint64
-	duplicate       atomic.Uint64
+
+	done        chan struct{}
+	running     atomic.Bool
+	lifecycleMu sync.Mutex
+	cancel      context.CancelFunc
+	stopping    bool
+
+	received  atomic.Uint64
+	stored    atomic.Uint64
+	invalid   atomic.Uint64
+	duplicate atomic.Uint64
 }
 
 // NewRequestConsumer 创建使用手动 offset 提交的消费者组成员。

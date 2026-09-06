@@ -8,7 +8,7 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	callerbiz "github.com/lgc202/ingate/internal/adminapi/biz/caller"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
+	"github.com/lgc202/ingate/internal/adminapi/service/conversion"
 )
 
 // Service 实现调用方管理 API。
@@ -28,8 +28,8 @@ func (s *Service) ListCallers(
 ) (*adminv1.ListCallersResponse, error) {
 	page, err := s.callers.List(
 		ctx,
-		adminservice.PageRequest(request.GetLimit(), request.GetCursor()),
-		adminservice.ResourceFilter(
+		conversion.PageRequest(request.GetLimit(), request.GetCursor()),
+		conversion.ResourceFilter(
 			request.GetQuery(),
 			request.Enabled,
 			adminv1.ResourceState_RESOURCE_STATE_UNSPECIFIED,

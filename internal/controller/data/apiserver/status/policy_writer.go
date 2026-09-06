@@ -113,7 +113,7 @@ func (w *Writer) updateIPRestrictionPolicy(
 	return nil
 }
 
-func (w *Writer) updateHeaderTransformationPolicy(
+func (w *Writer) updateHeaderPolicy(
 	ctx context.Context,
 	source compiler.ResourceGeneration,
 	compile *compileDecision,

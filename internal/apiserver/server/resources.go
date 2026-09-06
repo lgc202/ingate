@@ -10,18 +10,18 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
-	callerstorage "github.com/lgc202/ingate/internal/apiserver/registry/caller"
-	certificatestorage "github.com/lgc202/ingate/internal/apiserver/registry/certificate"
-	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway"
-	headertransformationpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/headertransformationpolicy"
-	iprestrictionpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/iprestrictionpolicy"
-	mockresponsepolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/mockresponsepolicy"
-	pluginsourcestorage "github.com/lgc202/ingate/internal/apiserver/registry/pluginsource"
-	ratelimitpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/ratelimitpolicy"
-	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/route"
-	tokenquotapolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/tokenquotapolicy"
-	upstreamstorage "github.com/lgc202/ingate/internal/apiserver/registry/upstream"
-	wasmpluginstorage "github.com/lgc202/ingate/internal/apiserver/registry/wasmplugin"
+	"github.com/lgc202/ingate/internal/apiserver/registry/caller"
+	"github.com/lgc202/ingate/internal/apiserver/registry/certificate"
+	"github.com/lgc202/ingate/internal/apiserver/registry/gateway"
+	"github.com/lgc202/ingate/internal/apiserver/registry/plugin/source"
+	"github.com/lgc202/ingate/internal/apiserver/registry/plugin/wasm"
+	"github.com/lgc202/ingate/internal/apiserver/registry/policy/headertransformation"
+	"github.com/lgc202/ingate/internal/apiserver/registry/policy/iprestriction"
+	"github.com/lgc202/ingate/internal/apiserver/registry/policy/mockresponse"
+	"github.com/lgc202/ingate/internal/apiserver/registry/policy/ratelimit"
+	"github.com/lgc202/ingate/internal/apiserver/registry/policy/tokenquota"
+	"github.com/lgc202/ingate/internal/apiserver/registry/route"
+	"github.com/lgc202/ingate/internal/apiserver/registry/upstream"
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -51,62 +51,62 @@ func installResources(
 		{
 			resource:       gatewayv1.ResourceGateways,
 			statusResource: gatewayv1.ResourceGatewaysStatus,
-			newStorage:     gatewaystorage.NewREST,
+			newStorage:     gateway.NewREST,
 		},
 		{
 			resource:       gatewayv1.ResourceRoutes,
 			statusResource: gatewayv1.ResourceRoutesStatus,
-			newStorage:     routestorage.NewREST,
+			newStorage:     route.NewREST,
 		},
 		{
 			resource:       gatewayv1.ResourceUpstreams,
 			statusResource: gatewayv1.ResourceUpstreamsStatus,
-			newStorage:     upstreamstorage.NewREST,
+			newStorage:     upstream.NewREST,
 		},
 		{
 			resource:       gatewayv1.ResourceCertificates,
 			statusResource: gatewayv1.ResourceCertificatesStatus,
-			newStorage:     certificatestorage.NewREST,
+			newStorage:     certificate.NewREST,
 		},
 		{
 			resource:       gatewayv1.ResourceRateLimitPolicies,
 			statusResource: gatewayv1.ResourceRateLimitPoliciesStatus,
-			newStorage:     ratelimitpolicystorage.NewREST,
+			newStorage:     ratelimit.NewREST,
 		},
 		{
 			resource:       gatewayv1.ResourceIPRestrictionPolicies,
 			statusResource: gatewayv1.ResourceIPRestrictionPoliciesStatus,
-			newStorage:     iprestrictionpolicystorage.NewREST,
+			newStorage:     iprestriction.NewREST,
 		},
 		{
 			resource:       gatewayv1.ResourceCallers,
 			statusResource: gatewayv1.ResourceCallersStatus,
-			newStorage:     callerstorage.NewREST,
+			newStorage:     caller.NewREST,
 		},
 		{
 			resource:       gatewayv1.ResourceTokenQuotaPolicies,
 			statusResource: gatewayv1.ResourceTokenQuotaPoliciesStatus,
-			newStorage:     tokenquotapolicystorage.NewREST,
+			newStorage:     tokenquota.NewREST,
 		},
 		{
 			resource:       gatewayv1.ResourceWasmPlugins,
 			statusResource: gatewayv1.ResourceWasmPluginsStatus,
-			newStorage:     wasmpluginstorage.NewREST,
+			newStorage:     wasm.NewREST,
 		},
 		{
 			resource:       gatewayv1.ResourcePluginSources,
 			statusResource: gatewayv1.ResourcePluginSourcesStatus,
-			newStorage:     pluginsourcestorage.NewREST,
+			newStorage:     source.NewREST,
 		},
 		{
 			resource:       gatewayv1.ResourceHeaderTransformationPolicies,
 			statusResource: gatewayv1.ResourceHeaderTransformationPoliciesStatus,
-			newStorage:     headertransformationpolicystorage.NewREST,
+			newStorage:     headertransformation.NewREST,
 		},
 		{
 			resource:       gatewayv1.ResourceMockResponsePolicies,
 			statusResource: gatewayv1.ResourceMockResponsePoliciesStatus,
-			newStorage:     mockresponsepolicystorage.NewREST,
+			newStorage:     mockresponse.NewREST,
 		},
 	}
 	storage := make(map[string]rest.Storage, len(registrations)*2)

@@ -10,9 +10,8 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 // preparedRoute 保存一条 Route 进入 Listener 挂载阶段所需的已校验数据。
@@ -151,7 +150,7 @@ func (c *compilation) routeHostnames(route *gatewayv1.Route) ([]string, bool) {
 	if len(route.Spec.Hostnames) == 0 {
 		return nil, true
 	}
-	if len(route.Spec.Hostnames) > routeconfig.MaxHostnames {
+	if len(route.Spec.Hostnames) > apivalidation.MaxHostnames {
 		c.addRouteError(
 			route.Name,
 			ReasonInvalidSpec,
@@ -196,7 +195,7 @@ func (c *compilation) routeGatewayIDs(route *gatewayv1.Route) ([]string, bool) {
 		)
 		return nil, false
 	}
-	if len(route.Spec.GatewayRefs) > routeconfig.MaxGatewayRefs {
+	if len(route.Spec.GatewayRefs) > apivalidation.MaxGatewayRefs {
 		c.addRouteError(
 			route.Name,
 			ReasonInvalidSpec,
@@ -208,7 +207,7 @@ func (c *compilation) routeGatewayIDs(route *gatewayv1.Route) ([]string, bool) {
 	valid := true
 	seenGatewayIDs := make(map[string]bool, len(route.Spec.GatewayRefs))
 	for _, gatewayID := range route.Spec.GatewayRefs {
-		if !resourceconfig.IsCanonicalID(gatewayID) || seenGatewayIDs[gatewayID] {
+		if !apivalidation.IsCanonicalID(gatewayID) || seenGatewayIDs[gatewayID] {
 			c.addRouteError(
 				route.Name,
 				ReasonInvalidSpec,

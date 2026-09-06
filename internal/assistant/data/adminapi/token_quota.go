@@ -44,7 +44,7 @@ func (c *Client) GetCallerTokenQuota(
 
 	usages := make([]agenttool.TokenQuotaUsage, 0, len(result.GetUsages()))
 	for _, usage := range result.GetUsages() {
-		if err := validateTokenQuotaUsageResponse(usage); err != nil {
+		if err := validateTokenQuotaUsage(usage); err != nil {
 			return agenttool.CallerTokenQuota{}, err
 		}
 		usages = append(usages, tokenQuotaUsageFromAPI(usage))
@@ -83,7 +83,7 @@ func tokenQuotaPeriodFromAPI(period adminv1.TokenQuotaPeriod) string {
 	}
 }
 
-func validateTokenQuotaUsageResponse(usage *adminv1.CallerTokenQuotaUsage) error {
+func validateTokenQuotaUsage(usage *adminv1.CallerTokenQuotaUsage) error {
 	if usage == nil || !validResourceID(usage.GetPolicyId()) || usage.GetPolicyName() == "" ||
 		usage.GetUsedTokens() < 0 || usage.GetLimitTokens() <= 0 ||
 		usage.GetRemainingTokens() < 0 || usage.GetRemainingTokens() > usage.GetLimitTokens() ||

@@ -10,8 +10,7 @@ import (
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	"github.com/lgc202/ingate/internal/pkg/accesskey"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
-	"github.com/lgc202/ingate/internal/pkg/callerconfig"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 func validateCaller(caller *resource.Caller) field.ErrorList {
@@ -35,9 +34,9 @@ func validateCaller(caller *resource.Caller) field.ErrorList {
 func validateRouteRefs(routeIDs []string, path *field.Path) field.ErrorList {
 	routeCount := len(routeIDs)
 	var errs field.ErrorList
-	if routeCount > callerconfig.MaxRouteRefs {
-		errs = append(errs, field.TooMany(path, routeCount, callerconfig.MaxRouteRefs))
-		routeIDs = routeIDs[:callerconfig.MaxRouteRefs]
+	if routeCount > apivalidation.MaxRouteRefs {
+		errs = append(errs, field.TooMany(path, routeCount, apivalidation.MaxRouteRefs))
+		routeIDs = routeIDs[:apivalidation.MaxRouteRefs]
 	}
 
 	seenRouteIDs := make(map[string]bool, len(routeIDs))
@@ -45,7 +44,7 @@ func validateRouteRefs(routeIDs []string, path *field.Path) field.ErrorList {
 		routePath := path.Index(i)
 		if routeID == "" {
 			errs = append(errs, field.Required(routePath, "routeRef is required"))
-		} else if !resourceconfig.IsCanonicalID(routeID) {
+		} else if !apivalidation.IsCanonicalID(routeID) {
 			errs = append(errs, field.Invalid(routePath, routeID, "routeRef must be a canonical UUID"))
 		} else if seenRouteIDs[routeID] {
 			errs = append(errs, field.Duplicate(routePath, routeID))
@@ -58,16 +57,16 @@ func validateRouteRefs(routeIDs []string, path *field.Path) field.ErrorList {
 func validateAccessKeys(accessKeys []resource.AccessKey, path *field.Path) field.ErrorList {
 	accessKeyCount := len(accessKeys)
 	var errs field.ErrorList
-	if accessKeyCount > callerconfig.MaxAccessKeys {
-		errs = append(errs, field.TooMany(path, accessKeyCount, callerconfig.MaxAccessKeys))
-		accessKeys = accessKeys[:callerconfig.MaxAccessKeys]
+	if accessKeyCount > apivalidation.MaxAccessKeys {
+		errs = append(errs, field.TooMany(path, accessKeyCount, apivalidation.MaxAccessKeys))
+		accessKeys = accessKeys[:apivalidation.MaxAccessKeys]
 	}
 
 	seenAccessKeyIDs := make(map[string]bool, len(accessKeys))
 	seenDisplayNames := make([]string, 0, len(accessKeys))
 	for i, accessKey := range accessKeys {
 		accessKeyPath := path.Index(i)
-		if !resourceconfig.IsCanonicalID(accessKey.ID) {
+		if !apivalidation.IsCanonicalID(accessKey.ID) {
 			errs = append(errs, field.Invalid(
 				accessKeyPath.Child("id"),
 				accessKey.ID,
@@ -78,13 +77,13 @@ func validateAccessKeys(accessKeys []resource.AccessKey, path *field.Path) field
 		}
 		seenAccessKeyIDs[accessKey.ID] = true
 
-		if !callerconfig.IsValidAccessKeyDisplayName(accessKey.DisplayName) {
+		if !apivalidation.IsValidAccessKeyDisplayName(accessKey.DisplayName) {
 			errs = append(errs, field.Invalid(
 				accessKeyPath.Child("displayName"),
 				accessKey.DisplayName,
 				fmt.Sprintf(
 					"displayName is required and must not exceed %d bytes",
-					callerconfig.MaxAccessKeyDisplayNameBytes,
+					apivalidation.MaxAccessKeyDisplayNameBytes,
 				),
 			))
 		} else {

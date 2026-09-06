@@ -4,22 +4,22 @@ package service
 import (
 	"github.com/google/wire"
 
-	"github.com/lgc202/ingate/internal/adminapi/service/aiusage"
+	"github.com/lgc202/ingate/internal/adminapi/service/analytics/aiusage"
+	"github.com/lgc202/ingate/internal/adminapi/service/analytics/requestrecord"
+	"github.com/lgc202/ingate/internal/adminapi/service/analytics/traffic"
 	"github.com/lgc202/ingate/internal/adminapi/service/caller"
-	"github.com/lgc202/ingate/internal/adminapi/service/certificate"
-	"github.com/lgc202/ingate/internal/adminapi/service/gateway"
-	"github.com/lgc202/ingate/internal/adminapi/service/headertransformation"
 	"github.com/lgc202/ingate/internal/adminapi/service/health"
-	"github.com/lgc202/ingate/internal/adminapi/service/iprestriction"
-	"github.com/lgc202/ingate/internal/adminapi/service/mockresponse"
-	"github.com/lgc202/ingate/internal/adminapi/service/pluginsource"
-	"github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
-	"github.com/lgc202/ingate/internal/adminapi/service/request"
-	"github.com/lgc202/ingate/internal/adminapi/service/route"
-	"github.com/lgc202/ingate/internal/adminapi/service/servicemanagement"
-	"github.com/lgc202/ingate/internal/adminapi/service/tokenquota"
-	"github.com/lgc202/ingate/internal/adminapi/service/traffic"
-	"github.com/lgc202/ingate/internal/adminapi/service/wasmplugin"
+	"github.com/lgc202/ingate/internal/adminapi/service/plugin/source"
+	"github.com/lgc202/ingate/internal/adminapi/service/plugin/wasm"
+	"github.com/lgc202/ingate/internal/adminapi/service/policy/headertransformation"
+	"github.com/lgc202/ingate/internal/adminapi/service/policy/iprestriction"
+	"github.com/lgc202/ingate/internal/adminapi/service/policy/mockresponse"
+	"github.com/lgc202/ingate/internal/adminapi/service/policy/ratelimit"
+	"github.com/lgc202/ingate/internal/adminapi/service/policy/tokenquota"
+	"github.com/lgc202/ingate/internal/adminapi/service/routing/certificate"
+	"github.com/lgc202/ingate/internal/adminapi/service/routing/gateway"
+	"github.com/lgc202/ingate/internal/adminapi/service/routing/route"
+	routingservice "github.com/lgc202/ingate/internal/adminapi/service/routing/service"
 )
 
 // ProviderSet 汇总 Admin API 的产品协议实现。
@@ -32,12 +32,12 @@ var ProviderSet = wire.NewSet(
 	health.NewService,
 	iprestriction.NewService,
 	mockresponse.NewService,
-	pluginsource.NewService,
+	source.NewService,
 	ratelimit.NewService,
-	request.NewService,
+	requestrecord.NewService,
 	route.NewService,
-	servicemanagement.NewService,
+	routingservice.NewService,
 	tokenquota.NewService,
 	traffic.NewService,
-	wasmplugin.NewService,
+	wasm.NewService,
 )

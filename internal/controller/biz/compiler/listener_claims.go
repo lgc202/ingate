@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/gatewayconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 )
 
@@ -75,7 +75,7 @@ func (c *compilation) buildGatewayListeners(gateway *gatewayv1.Gateway) []gatewa
 		)
 		return nil
 	}
-	if listenerCount > gatewayconfig.MaxListeners {
+	if listenerCount > apivalidation.MaxListeners {
 		c.addResourceError(
 			gatewayv1.KindGateway,
 			gateway.Name,
@@ -84,7 +84,7 @@ func (c *compilation) buildGatewayListeners(gateway *gatewayv1.Gateway) []gatewa
 				"gateway %q declares %d listeners; the maximum is %d",
 				gateway.Name,
 				listenerCount,
-				gatewayconfig.MaxListeners,
+				apivalidation.MaxListeners,
 			),
 		)
 		return nil
@@ -106,7 +106,7 @@ func (c *compilation) buildGatewayListener(
 	listener gatewayv1.Listener,
 	seenNames map[string]bool,
 ) (gatewayListener, bool) {
-	if !gatewayconfig.IsValidListenerName(listener.Name) {
+	if !apivalidation.IsValidListenerName(listener.Name) {
 		c.addResourceError(
 			gatewayv1.KindGateway,
 			gatewayID,
@@ -134,7 +134,7 @@ func (c *compilation) buildGatewayListener(
 	}
 	seenNames[listener.Name] = true
 
-	if !gatewayconfig.IsValidListenerPort(listener.Port) {
+	if !apivalidation.IsValidListenerPort(listener.Port) {
 		c.addResourceError(
 			gatewayv1.KindGateway,
 			gatewayID,

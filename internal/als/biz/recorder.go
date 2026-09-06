@@ -81,10 +81,12 @@ type Recorder struct {
 	publisher RecordPublisher
 	queue     RecordQueue
 	logger    *slog.Logger
-	spoolMu   sync.Mutex
-	spooling  atomic.Bool
-	kafkaOK   atomic.Bool
-	queueOK   atomic.Bool
+
+	spoolMu  sync.Mutex
+	spooling atomic.Bool
+	kafkaOK  atomic.Bool
+	queueOK  atomic.Bool
+
 	accepted  atomic.Uint64
 	queued    atomic.Uint64
 	replayed  atomic.Uint64

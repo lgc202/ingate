@@ -12,8 +12,8 @@ import (
 
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/requestrecord"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 const modelCallColumns = `
@@ -223,9 +223,9 @@ func scanModelCallRow(rows driver.Rows) (modelCallRow, error) {
 		return modelCallRow{}, fmt.Errorf("scan model call: %w", err)
 	}
 	if !requestrecord.IsValidID(row.requestRecordID) ||
-		!routeconfig.IsValidModelName(row.call.ClientModel) ||
-		!routeconfig.IsValidModelName(row.call.UpstreamModel) ||
-		row.call.ResponseModel != "" && !routeconfig.IsValidModelName(row.call.ResponseModel) {
+		!apivalidation.IsValidModelName(row.call.ClientModel) ||
+		!apivalidation.IsValidModelName(row.call.UpstreamModel) ||
+		row.call.ResponseModel != "" && !apivalidation.IsValidModelName(row.call.ResponseModel) {
 		return modelCallRow{}, errors.New("stored model call has an invalid identity or model mapping")
 	}
 	switch row.call.UpstreamProtocol {

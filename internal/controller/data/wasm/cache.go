@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
-	"github.com/lgc202/ingate/internal/pkg/wasmconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 const maxSourcePointerBytes = sha256.Size*2 + 1
@@ -35,7 +35,7 @@ func (s *Store) cachedSource(
 	if !ok {
 		return compiler.WasmModule{}, false, nil
 	}
-	if !wasmconfig.IsValidSHA256Digest(moduleSHA) {
+	if !apivalidation.IsValidSHA256Digest(moduleSHA) {
 		if err := removeCacheFile(pointerPath); err != nil {
 			return compiler.WasmModule{}, false, fmt.Errorf("remove invalid Wasm source pointer: %w", err)
 		}

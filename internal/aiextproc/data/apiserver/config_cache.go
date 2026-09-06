@@ -15,11 +15,11 @@ import (
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/apiserverclient"
 	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 	informers "github.com/lgc202/ingate/internal/pkg/generated/informers/externalversions"
 	gatewaylisters "github.com/lgc202/ingate/internal/pkg/generated/listers/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/upstreamconfig"
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
@@ -174,7 +174,7 @@ func (c *ConfigCache) APIKey(
 	if actualProtocol != expectedProtocol {
 		return "", fmt.Errorf("model service %q protocol changed while xDS was converging", serviceID)
 	}
-	if !upstreamconfig.IsValidModelAPIKey(upstream.Spec.Model.APIKey) {
+	if !apivalidation.IsValidModelAPIKey(upstream.Spec.Model.APIKey) {
 		return "", fmt.Errorf("model service %q has an invalid API key", serviceID)
 	}
 	return upstream.Spec.Model.APIKey, nil

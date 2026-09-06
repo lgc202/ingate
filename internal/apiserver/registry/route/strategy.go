@@ -14,10 +14,9 @@ import (
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	"github.com/lgc202/ingate/internal/pkg/httpheader"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 // strategy 定义 Route 资源在 API Server 存储前后的处理规则。
@@ -84,13 +83,13 @@ func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
 
 func defaultRouteSpec(spec *resource.RouteSpec) {
 	spec.HostRewrite.Mode = cmp.Or(spec.HostRewrite.Mode, resource.HostRewriteUpstreamHost)
-	spec.Timeout.RequestMillis = cmp.Or(spec.Timeout.RequestMillis, routeconfig.DefaultRequestTimeoutMillis)
+	spec.Timeout.RequestMillis = cmp.Or(spec.Timeout.RequestMillis, apivalidation.DefaultRequestTimeoutMillis)
 }
 
 func canonicalizeRouteSpec(spec *resource.RouteSpec) {
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
 	for i := range spec.GatewayRefs {
-		if gatewayID, valid := resourceconfig.NormalizeID(spec.GatewayRefs[i]); valid {
+		if gatewayID, valid := apivalidation.NormalizeID(spec.GatewayRefs[i]); valid {
 			spec.GatewayRefs[i] = gatewayID
 		}
 	}
@@ -118,7 +117,7 @@ func canonicalizeRouteSpec(spec *resource.RouteSpec) {
 		)
 	})
 	for i := range spec.UpstreamRefs {
-		if upstreamID, valid := resourceconfig.NormalizeID(spec.UpstreamRefs[i].Name); valid {
+		if upstreamID, valid := apivalidation.NormalizeID(spec.UpstreamRefs[i].Name); valid {
 			spec.UpstreamRefs[i].Name = upstreamID
 		}
 	}
@@ -132,7 +131,7 @@ func canonicalizeRouteSpec(spec *resource.RouteSpec) {
 		for i := range spec.AI.Models {
 			for j := range spec.AI.Models[i].Targets {
 				target := &spec.AI.Models[i].Targets[j]
-				if upstreamID, valid := resourceconfig.NormalizeID(target.UpstreamRef); valid {
+				if upstreamID, valid := apivalidation.NormalizeID(target.UpstreamRef); valid {
 					target.UpstreamRef = upstreamID
 				}
 			}

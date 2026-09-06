@@ -11,7 +11,7 @@ import (
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
 	"github.com/lgc202/ingate/internal/controller/biz/delivery"
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/policyconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 // policyConditions 汇总各目标状态：任一目标生效即视为策略已生效，
@@ -95,8 +95,8 @@ func policyTargetStatuses(
 	targets map[resourceKey]compiler.ResourceGeneration,
 	allowedTargetKinds ...gatewayv1.Kind,
 ) []gatewayv1.PolicyTargetStatus {
-	if len(targetRefs) > policyconfig.MaxTargets {
-		targetRefs = targetRefs[:policyconfig.MaxTargets]
+	if len(targetRefs) > apivalidation.MaxTargets {
+		targetRefs = targetRefs[:apivalidation.MaxTargets]
 	}
 	existingConditions := lo.Associate(existing, func(status gatewayv1.PolicyTargetStatus) (gatewayv1.PolicyTargetRef, []metav1.Condition) {
 		return status.TargetRef, status.Conditions
@@ -134,7 +134,7 @@ func policyTargetStatuses(
 			Policy: resource,
 			Target: target,
 		}
-		meta.SetStatusCondition(&conditions, policyTargetProgrammedCondition(
+		meta.SetStatusCondition(&conditions, targetProgrammedCondition(
 			policyConditions,
 			resolved,
 			resource,
@@ -150,7 +150,7 @@ func policyTargetStatuses(
 	return result
 }
 
-func policyTargetProgrammedCondition(
+func targetProgrammedCondition(
 	policyConditions []metav1.Condition,
 	resolved conditionDecision,
 	resource compiler.ResourceGeneration,

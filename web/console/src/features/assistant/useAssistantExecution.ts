@@ -19,7 +19,7 @@ import {
 } from './assistant-session';
 
 const executionPollIntervalMillis = 800;
-const executionPersistenceIntervalMillis = 1_000;
+const persistIntervalMillis = 1_000;
 
 interface ExecutionNotice {
   message: string;
@@ -128,7 +128,7 @@ export function useAssistantExecution({
 
               terminalFromEvent = isTerminalStreamEvent(event) || terminalFromEvent;
               const now = Date.now();
-              if (terminalFromEvent || now - lastStoredAt >= executionPersistenceIntervalMillis) {
+              if (terminalFromEvent || now - lastStoredAt >= persistIntervalMillis) {
                 storeActiveExecution({
                   executionID: execution.id,
                   conversationID: execution.conversationId,

@@ -7,8 +7,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 // selectedModelService 是 Envoy 完成负载均衡后交给 upstream ExtProc 的非敏感线路信息
@@ -19,7 +18,7 @@ type selectedModelService struct {
 	model    string
 }
 
-func selectedModelServiceFromAttributes(
+func modelServiceFromAttributes(
 	attributes map[string]*structpb.Struct,
 	model string,
 ) (selectedModelService, error) {
@@ -41,10 +40,10 @@ func selectedModelServiceFromAttributes(
 }
 
 func (s selectedModelService) validate() error {
-	if !resourceconfig.IsCanonicalID(s.id) {
+	if !apivalidation.IsCanonicalID(s.id) {
 		return errors.New("service ID must be a canonical UUID")
 	}
-	if !routeconfig.IsValidModelName(s.model) {
+	if !apivalidation.IsValidModelName(s.model) {
 		return errors.New("upstream model is invalid")
 	}
 	switch s.protocol {

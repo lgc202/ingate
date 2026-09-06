@@ -4,10 +4,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	"github.com/lgc202/ingate/internal/pkg/httpheader"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 func validateGatewayRefs(refs []string, path *field.Path) field.ErrorList {
@@ -15,16 +14,16 @@ func validateGatewayRefs(refs []string, path *field.Path) field.ErrorList {
 		return field.ErrorList{field.Required(path, "at least one gatewayRef is required")}
 	}
 	var errs field.ErrorList
-	if len(refs) > routeconfig.MaxGatewayRefs {
-		errs = append(errs, field.TooMany(path, len(refs), routeconfig.MaxGatewayRefs))
-		refs = refs[:routeconfig.MaxGatewayRefs]
+	if len(refs) > apivalidation.MaxGatewayRefs {
+		errs = append(errs, field.TooMany(path, len(refs), apivalidation.MaxGatewayRefs))
+		refs = refs[:apivalidation.MaxGatewayRefs]
 	}
 	seen := make(map[string]bool, len(refs))
 	for i, ref := range refs {
 		refPath := path.Index(i)
 		if ref == "" {
 			errs = append(errs, field.Required(refPath, "gatewayRef is required"))
-		} else if !resourceconfig.IsCanonicalID(ref) {
+		} else if !apivalidation.IsCanonicalID(ref) {
 			errs = append(errs, field.Invalid(refPath, ref, "gatewayRef must be a canonical UUID"))
 		} else if seen[ref] {
 			errs = append(errs, field.Duplicate(refPath, ref))
@@ -37,9 +36,9 @@ func validateGatewayRefs(refs []string, path *field.Path) field.ErrorList {
 
 func validateHostnames(hostnames []string, path *field.Path) field.ErrorList {
 	var errs field.ErrorList
-	if len(hostnames) > routeconfig.MaxHostnames {
-		errs = append(errs, field.TooMany(path, len(hostnames), routeconfig.MaxHostnames))
-		hostnames = hostnames[:routeconfig.MaxHostnames]
+	if len(hostnames) > apivalidation.MaxHostnames {
+		errs = append(errs, field.TooMany(path, len(hostnames), apivalidation.MaxHostnames))
+		hostnames = hostnames[:apivalidation.MaxHostnames]
 	}
 	seen := make(map[string]bool, len(hostnames))
 	for i, hostname := range hostnames {
@@ -68,7 +67,7 @@ func validateRouteMatch(match resource.RouteMatch, path *field.Path) field.Error
 			string(resource.PathMatchExact),
 		}))
 	}
-	if !routeconfig.IsValidPath(match.Path.Value) {
+	if !apivalidation.IsValidPath(match.Path.Value) {
 		errs = append(errs, field.Invalid(
 			path.Child("path", "value"),
 			match.Path.Value,
@@ -77,15 +76,15 @@ func validateRouteMatch(match resource.RouteMatch, path *field.Path) field.Error
 	}
 
 	methods := match.Methods
-	if len(methods) > routeconfig.MaxHTTPMethods {
-		errs = append(errs, field.TooMany(path.Child("methods"), len(methods), routeconfig.MaxHTTPMethods))
-		methods = methods[:routeconfig.MaxHTTPMethods]
+	if len(methods) > apivalidation.MaxHTTPMethods {
+		errs = append(errs, field.TooMany(path.Child("methods"), len(methods), apivalidation.MaxHTTPMethods))
+		methods = methods[:apivalidation.MaxHTTPMethods]
 	}
 	seenMethods := make(map[string]bool, len(methods))
 	for i, method := range methods {
 		methodPath := path.Child("methods").Index(i)
-		if !routeconfig.IsSupportedHTTPMethod(method) {
-			errs = append(errs, field.NotSupported(methodPath, method, routeconfig.SupportedHTTPMethods()))
+		if !apivalidation.IsSupportedHTTPMethod(method) {
+			errs = append(errs, field.NotSupported(methodPath, method, apivalidation.SupportedHTTPMethods()))
 		} else if seenMethods[method] {
 			errs = append(errs, field.Duplicate(methodPath, method))
 		} else {
@@ -94,9 +93,9 @@ func validateRouteMatch(match resource.RouteMatch, path *field.Path) field.Error
 	}
 
 	headers := match.Headers
-	if len(headers) > routeconfig.MaxHeaderMatches {
-		errs = append(errs, field.TooMany(path.Child("headers"), len(headers), routeconfig.MaxHeaderMatches))
-		headers = headers[:routeconfig.MaxHeaderMatches]
+	if len(headers) > apivalidation.MaxHeaderMatches {
+		errs = append(errs, field.TooMany(path.Child("headers"), len(headers), apivalidation.MaxHeaderMatches))
+		headers = headers[:apivalidation.MaxHeaderMatches]
 	}
 	seenHeaders := make(map[string]bool, len(headers))
 	for i, header := range headers {

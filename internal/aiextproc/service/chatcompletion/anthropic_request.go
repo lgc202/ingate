@@ -10,7 +10,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/tidwall/sjson"
 
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 const (
@@ -52,7 +52,7 @@ type openAIContentBlock struct {
 // RewriteAnthropicRequest 把 OpenAI Chat Completions 请求转换为 Anthropic Messages 请求
 // 当前只接收文本消息和两种协议共有的采样参数，不能可靠转换的能力会明确拒绝。
 func RewriteAnthropicRequest(body []byte, upstreamModel string) (UpstreamRequest, error) {
-	if !routeconfig.IsValidModelName(upstreamModel) {
+	if !apivalidation.IsValidModelName(upstreamModel) {
 		return UpstreamRequest{}, errors.New("upstream model is invalid")
 	}
 	if !json.Valid(body) {
@@ -62,7 +62,7 @@ func RewriteAnthropicRequest(body []byte, upstreamModel string) (UpstreamRequest
 	if err := json.Unmarshal(body, &source); err != nil {
 		return UpstreamRequest{}, invalidRequest("request body does not match Chat Completions")
 	}
-	if !routeconfig.IsValidModelName(source.Model) {
+	if !apivalidation.IsValidModelName(source.Model) {
 		return UpstreamRequest{}, invalidRequest("model must be a valid non-empty string")
 	}
 	if len(source.Messages) == 0 {

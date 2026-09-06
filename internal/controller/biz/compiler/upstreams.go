@@ -16,7 +16,7 @@ import (
 
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/upstreamconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 const (
@@ -152,7 +152,7 @@ func (c *compilation) upstreamModelProtocol(upstream *gatewayv1.Upstream) (aipro
 	if upstream.Spec.Model == nil {
 		return "", true
 	}
-	if !upstreamconfig.IsValidModelAPIKey(upstream.Spec.Model.APIKey) {
+	if !apivalidation.IsValidModelAPIKey(upstream.Spec.Model.APIKey) {
 		c.addResourceError(
 			gatewayv1.KindUpstream,
 			upstream.Name,
@@ -187,7 +187,7 @@ func (c *compilation) validUpstreamHealthCheck(upstream *gatewayv1.Upstream) boo
 	if healthCheck == nil {
 		return true
 	}
-	if !upstreamconfig.IsValidHealthCheckPath(healthCheck.Path) {
+	if !apivalidation.IsValidHealthCheckPath(healthCheck.Path) {
 		c.addResourceError(
 			gatewayv1.KindUpstream,
 			upstream.Name,
@@ -196,7 +196,7 @@ func (c *compilation) validUpstreamHealthCheck(upstream *gatewayv1.Upstream) boo
 		)
 		return false
 	}
-	if !upstreamconfig.IsValidHealthCheckInterval(healthCheck.IntervalSeconds) {
+	if !apivalidation.IsValidHealthCheckInterval(healthCheck.IntervalSeconds) {
 		c.addResourceError(
 			gatewayv1.KindUpstream,
 			upstream.Name,
@@ -209,7 +209,7 @@ func (c *compilation) validUpstreamHealthCheck(upstream *gatewayv1.Upstream) boo
 		)
 		return false
 	}
-	if !upstreamconfig.IsValidHealthCheckTimeout(
+	if !apivalidation.IsValidHealthCheckTimeout(
 		healthCheck.TimeoutSeconds,
 		healthCheck.IntervalSeconds,
 	) {

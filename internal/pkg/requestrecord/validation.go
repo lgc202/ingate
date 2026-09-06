@@ -8,8 +8,7 @@ import (
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 // Validate 校验 ALS 与 Analytics 之间持久化请求记录的共享不变量。
@@ -48,7 +47,7 @@ func Validate(record *alsv1.RequestRecord) error {
 		record.GetCallerId(),
 		record.GetAccessKeyId(),
 	} {
-		if resourceID != "" && !resourceconfig.IsCanonicalID(resourceID) {
+		if resourceID != "" && !apivalidation.IsCanonicalID(resourceID) {
 			return errors.New("request record contains an invalid resource ID")
 		}
 	}
@@ -79,11 +78,11 @@ func validateModelCall(upstreamID string, call *alsv1.AIModelCall) error {
 		call.OutputTokens == nil && call.TotalTokens == nil {
 		return errors.New("request record contains an empty AI model call")
 	}
-	if !routeconfig.IsValidModelName(call.GetClientModel()) {
+	if !apivalidation.IsValidModelName(call.GetClientModel()) {
 		return errors.New("request record client model is invalid")
 	}
 	for _, model := range []string{call.GetUpstreamModel(), call.GetResponseModel()} {
-		if model != "" && !routeconfig.IsValidModelName(model) {
+		if model != "" && !apivalidation.IsValidModelName(model) {
 			return errors.New("request record contains an invalid model name")
 		}
 	}

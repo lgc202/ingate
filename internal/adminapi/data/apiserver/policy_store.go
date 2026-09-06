@@ -13,38 +13,6 @@ type HeaderTransformationPolicyStore = resourceStore[
 	resource.HeaderTransformationPolicySpec,
 ]
 
-// IPRestrictionPolicyStore 读写 IPRestrictionPolicy 声明式资源。
-type IPRestrictionPolicyStore = resourceStore[
-	resource.IPRestrictionPolicy,
-	*resource.IPRestrictionPolicy,
-	*resource.IPRestrictionPolicyList,
-	resource.IPRestrictionPolicySpec,
-]
-
-// MockResponsePolicyStore 读写 MockResponsePolicy 声明式资源。
-type MockResponsePolicyStore = resourceStore[
-	resource.MockResponsePolicy,
-	*resource.MockResponsePolicy,
-	*resource.MockResponsePolicyList,
-	resource.MockResponsePolicySpec,
-]
-
-// RateLimitPolicyStore 读写 RateLimitPolicy 声明式资源。
-type RateLimitPolicyStore = resourceStore[
-	resource.RateLimitPolicy,
-	*resource.RateLimitPolicy,
-	*resource.RateLimitPolicyList,
-	resource.RateLimitPolicySpec,
-]
-
-// TokenQuotaPolicyStore 读写 TokenQuotaPolicy 声明式资源。
-type TokenQuotaPolicyStore = resourceStore[
-	resource.TokenQuotaPolicy,
-	*resource.TokenQuotaPolicy,
-	*resource.TokenQuotaPolicyList,
-	resource.TokenQuotaPolicySpec,
-]
-
 // NewHeaderTransformationPolicyStore 创建 HeaderTransformationPolicy Store。
 func NewHeaderTransformationPolicyStore(client clientset.Interface) *HeaderTransformationPolicyStore {
 	return &HeaderTransformationPolicyStore{
@@ -66,6 +34,14 @@ func NewHeaderTransformationPolicyStore(client clientset.Interface) *HeaderTrans
 		},
 	}
 }
+
+// IPRestrictionPolicyStore 读写 IPRestrictionPolicy 声明式资源。
+type IPRestrictionPolicyStore = resourceStore[
+	resource.IPRestrictionPolicy,
+	*resource.IPRestrictionPolicy,
+	*resource.IPRestrictionPolicyList,
+	resource.IPRestrictionPolicySpec,
+]
 
 // NewIPRestrictionPolicyStore 创建 IPRestrictionPolicy Store。
 func NewIPRestrictionPolicyStore(client clientset.Interface) *IPRestrictionPolicyStore {
@@ -89,6 +65,14 @@ func NewIPRestrictionPolicyStore(client clientset.Interface) *IPRestrictionPolic
 	}
 }
 
+// MockResponsePolicyStore 读写 MockResponsePolicy 声明式资源。
+type MockResponsePolicyStore = resourceStore[
+	resource.MockResponsePolicy,
+	*resource.MockResponsePolicy,
+	*resource.MockResponsePolicyList,
+	resource.MockResponsePolicySpec,
+]
+
 // NewMockResponsePolicyStore 创建 MockResponsePolicy Store。
 func NewMockResponsePolicyStore(client clientset.Interface) *MockResponsePolicyStore {
 	return &MockResponsePolicyStore{
@@ -111,6 +95,14 @@ func NewMockResponsePolicyStore(client clientset.Interface) *MockResponsePolicyS
 	}
 }
 
+// RateLimitPolicyStore 读写 RateLimitPolicy 声明式资源。
+type RateLimitPolicyStore = resourceStore[
+	resource.RateLimitPolicy,
+	*resource.RateLimitPolicy,
+	*resource.RateLimitPolicyList,
+	resource.RateLimitPolicySpec,
+]
+
 // NewRateLimitPolicyStore 创建 RateLimitPolicy Store。
 func NewRateLimitPolicyStore(client clientset.Interface) *RateLimitPolicyStore {
 	return &RateLimitPolicyStore{
@@ -132,6 +124,14 @@ func NewRateLimitPolicyStore(client clientset.Interface) *RateLimitPolicyStore {
 		},
 	}
 }
+
+// TokenQuotaPolicyStore 读写 TokenQuotaPolicy 声明式资源。
+type TokenQuotaPolicyStore = resourceStore[
+	resource.TokenQuotaPolicy,
+	*resource.TokenQuotaPolicy,
+	*resource.TokenQuotaPolicyList,
+	resource.TokenQuotaPolicySpec,
+]
 
 // NewTokenQuotaPolicyStore 创建 TokenQuotaPolicy Store。
 func NewTokenQuotaPolicyStore(client clientset.Interface) *TokenQuotaPolicyStore {

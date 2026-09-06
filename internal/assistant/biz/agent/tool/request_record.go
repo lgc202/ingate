@@ -26,25 +26,30 @@ type requestRecordOutput struct {
 }
 
 type requestRecordInfo struct {
-	RecordID              string           `json:"record_id"`
-	StartedAt             string           `json:"started_at"`
-	Method                string           `json:"method"`
-	Host                  string           `json:"host"`
-	Path                  string           `json:"path"`
-	StatusCode            uint32           `json:"status_code"`
-	Outcome               string           `json:"outcome"`
-	DurationMillis        float64          `json:"duration_millis"`
-	TimeToFirstByteMillis *float64         `json:"time_to_first_byte_millis,omitempty"`
-	RequestBytes          uint64           `json:"request_bytes"`
-	ResponseBytes         uint64           `json:"response_bytes"`
-	GatewayID             string           `json:"gateway_id,omitempty"`
-	RouteID               string           `json:"route_id,omitempty"`
-	ServiceID             string           `json:"service_id,omitempty"`
-	Protocol              string           `json:"protocol,omitempty"`
-	RejectionReason       string           `json:"rejection_reason,omitempty"`
-	ServiceAttempts       uint32           `json:"service_attempts"`
-	AIModelCall           *aiModelCallInfo `json:"ai_model_call,omitempty"`
-	CallerID              string           `json:"caller_id,omitempty"`
+	RecordID  string `json:"record_id"`
+	StartedAt string `json:"started_at"`
+
+	Method string `json:"method"`
+	Host   string `json:"host"`
+	Path   string `json:"path"`
+
+	StatusCode      uint32 `json:"status_code"`
+	Outcome         string `json:"outcome"`
+	RejectionReason string `json:"rejection_reason,omitempty"`
+
+	DurationMillis        float64  `json:"duration_millis"`
+	TimeToFirstByteMillis *float64 `json:"time_to_first_byte_millis,omitempty"`
+	RequestBytes          uint64   `json:"request_bytes"`
+	ResponseBytes         uint64   `json:"response_bytes"`
+
+	GatewayID string `json:"gateway_id,omitempty"`
+	RouteID   string `json:"route_id,omitempty"`
+	ServiceID string `json:"service_id,omitempty"`
+
+	Protocol        string           `json:"protocol,omitempty"`
+	ServiceAttempts uint32           `json:"service_attempts"`
+	CallerID        string           `json:"caller_id,omitempty"`
+	AIModelCall     *aiModelCallInfo `json:"ai_model_call,omitempty"`
 }
 
 type aiModelCallInfo struct {

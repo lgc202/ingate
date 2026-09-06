@@ -11,7 +11,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/tidwall/gjson"
 
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 type openAIStreamResponse struct {
@@ -37,15 +37,18 @@ type openAIStreamDelta struct {
 // AnthropicStream 把 Anthropic SSE 增量转换为 OpenAI Chat Completions SSE
 // 状态只属于一次请求，负责跨 ExtProc Body chunk 拼接不完整事件。
 type AnthropicStream struct {
-	buffer              []byte
-	clientModel         string
-	messageID           string
-	created             int64
-	started             bool
-	roleSent            bool
-	finished            bool
-	stopReason          anthropic.StopReason
-	metadata            ResponseMetadata
+	buffer []byte
+
+	clientModel string
+	messageID   string
+	created     int64
+
+	started    bool
+	roleSent   bool
+	finished   bool
+	stopReason anthropic.StopReason
+	metadata   ResponseMetadata
+
 	inputTokens         int64
 	cacheReadTokens     int64
 	cacheCreationTokens int64
@@ -145,133 +148,143 @@ func (s *AnthropicStream) convertEvent(event []byte) ([]byte, bool, error) {
 
 	switch eventType {
 	case "message_start":
-		if s.started {
-			return nil, false, errors.New("anthropic stream contains multiple message_start events")
-		}
-		// message_start 建立后续增量事件共用的响应 ID、模型和初始用量
-		var start anthropic.MessageStartEvent
-		if err := json.Unmarshal(data, &start); err != nil {
-			return nil, false, fmt.Errorf("unmarshal anthropic message_start: %w", err)
-		}
-		if start.Message.ID == "" || !routeconfig.IsValidModelName(start.Message.Model) {
-			return nil, false, errors.New("anthropic message_start is missing a valid message ID or model")
-		}
-		s.messageID = start.Message.ID
-		s.created = time.Now().Unix()
-		s.started = true
-		s.inputTokens = start.Message.Usage.InputTokens
-		s.cacheReadTokens = start.Message.Usage.CacheReadInputTokens
-		s.cacheCreationTokens = start.Message.Usage.CacheCreationInputTokens
-		s.outputTokens = start.Message.Usage.OutputTokens
-		if err := s.updateMetadata(start.Message.Model, ""); err != nil {
-			return nil, false, err
-		}
-		return nil, true, nil
-
+		return s.startMessage(data)
 	case "content_block_delta":
-		if !s.started {
-			return nil, false, errors.New("anthropic content_block_delta preceded message_start")
-		}
-		// 一个 Anthropic 文本 delta 对应一个 OpenAI chat.completion.chunk
-		var delta anthropic.ContentBlockDeltaEvent
-		if err := json.Unmarshal(data, &delta); err != nil {
-			return nil, false, fmt.Errorf("unmarshal anthropic content_block_delta: %w", err)
-		}
-		if delta.Delta.Type != "text_delta" {
-			return nil, false, fmt.Errorf(
-				"anthropic stream contains unsupported content delta %q",
-				delta.Delta.Type,
-			)
-		}
-		role := ""
-		if !s.roleSent {
-			role = "assistant"
-			s.roleSent = true
-		}
-		return s.textChunk(role, delta.Delta.Text)
-
+		return s.convertTextDelta(data)
 	case "content_block_start":
-		if !s.started {
-			return nil, false, errors.New("anthropic content_block_start preceded message_start")
-		}
-		var start anthropic.ContentBlockStartEvent
-		if err := json.Unmarshal(data, &start); err != nil {
-			return nil, false, fmt.Errorf("unmarshal anthropic content_block_start: %w", err)
-		}
-		if start.ContentBlock.Type != "text" {
-			return nil, false, fmt.Errorf(
-				"anthropic stream contains unsupported content block %q",
-				start.ContentBlock.Type,
-			)
-		}
-		if start.ContentBlock.Text == "" {
-			return nil, false, nil
-		}
-		role := ""
-		if !s.roleSent {
-			role = "assistant"
-			s.roleSent = true
-		}
-		return s.textChunk(role, start.ContentBlock.Text)
-
+		return s.convertTextBlock(data)
 	case "message_delta":
-		if !s.started {
-			return nil, false, errors.New("anthropic message_delta preceded message_start")
-		}
-		var delta anthropic.MessageDeltaEvent
-		if err := json.Unmarshal(data, &delta); err != nil {
-			return nil, false, fmt.Errorf("unmarshal anthropic message_delta: %w", err)
-		}
-		if delta.Delta.StopReason != "" {
-			s.stopReason = delta.Delta.StopReason
-		}
-		// Anthropic 流中的 usage 是累计值，后到事件覆盖前值，不能逐次相加
-		// 字段未出现时保留 message_start 的值，避免可选字段的零值误覆盖
-		if delta.Usage.JSON.InputTokens.Valid() {
-			s.inputTokens = delta.Usage.InputTokens
-		}
-		if delta.Usage.JSON.CacheReadInputTokens.Valid() {
-			s.cacheReadTokens = delta.Usage.CacheReadInputTokens
-		}
-		if delta.Usage.JSON.CacheCreationInputTokens.Valid() {
-			s.cacheCreationTokens = delta.Usage.CacheCreationInputTokens
-		}
-		if delta.Usage.JSON.OutputTokens.Valid() {
-			s.outputTokens = delta.Usage.OutputTokens
-		}
-		finishReason := ""
-		if s.stopReason != "" {
-			finishReason = openAIFinishReason(s.stopReason)
-		}
-		if err := s.updateMetadata("", finishReason); err != nil {
-			return nil, false, err
-		}
-		return nil, true, nil
-
+		return s.updateMessage(data)
 	case "message_stop":
 		// finish 统一生成结束原因、可选 usage chunk 和 [DONE]
 		return s.finish()
-
 	case "error":
-		// 流中错误也转换为 OpenAI 错误对象，并正常结束 SSE，避免客户端一直等待
-		converted, changed, err := RewriteAnthropicErrorResponse(data)
-		if err != nil {
-			return nil, false, err
-		}
-		if !changed {
-			return nil, false, nil
-		}
-		output := appendSSEData(nil, converted)
-		output = appendSSEData(output, []byte("[DONE]"))
-		s.finished = true
-		return output, false, nil
-
+		return s.convertError(data)
 	case "ping", "content_block_stop":
 		return nil, false, nil
-
 	default:
 		return nil, false, nil
 	}
+}
+
+func (s *AnthropicStream) startMessage(data []byte) ([]byte, bool, error) {
+	if s.started {
+		return nil, false, errors.New("anthropic stream contains multiple message_start events")
+	}
+	// message_start 建立后续增量事件共用的响应 ID、模型和初始用量。
+	var event anthropic.MessageStartEvent
+	if err := json.Unmarshal(data, &event); err != nil {
+		return nil, false, fmt.Errorf("unmarshal anthropic message_start: %w", err)
+	}
+	if event.Message.ID == "" || !apivalidation.IsValidModelName(event.Message.Model) {
+		return nil, false, errors.New("anthropic message_start is missing a valid message ID or model")
+	}
+	s.messageID = event.Message.ID
+	s.created = time.Now().Unix()
+	s.started = true
+	s.inputTokens = event.Message.Usage.InputTokens
+	s.cacheReadTokens = event.Message.Usage.CacheReadInputTokens
+	s.cacheCreationTokens = event.Message.Usage.CacheCreationInputTokens
+	s.outputTokens = event.Message.Usage.OutputTokens
+	if err := s.updateMetadata(event.Message.Model, ""); err != nil {
+		return nil, false, err
+	}
+	return nil, true, nil
+}
+
+func (s *AnthropicStream) convertTextDelta(data []byte) ([]byte, bool, error) {
+	if !s.started {
+		return nil, false, errors.New("anthropic content_block_delta preceded message_start")
+	}
+	var event anthropic.ContentBlockDeltaEvent
+	if err := json.Unmarshal(data, &event); err != nil {
+		return nil, false, fmt.Errorf("unmarshal anthropic content_block_delta: %w", err)
+	}
+	if event.Delta.Type != "text_delta" {
+		return nil, false, fmt.Errorf(
+			"anthropic stream contains unsupported content delta %q",
+			event.Delta.Type,
+		)
+	}
+	return s.textChunk(s.nextRole(), event.Delta.Text)
+}
+
+func (s *AnthropicStream) convertTextBlock(data []byte) ([]byte, bool, error) {
+	if !s.started {
+		return nil, false, errors.New("anthropic content_block_start preceded message_start")
+	}
+	var event anthropic.ContentBlockStartEvent
+	if err := json.Unmarshal(data, &event); err != nil {
+		return nil, false, fmt.Errorf("unmarshal anthropic content_block_start: %w", err)
+	}
+	if event.ContentBlock.Type != "text" {
+		return nil, false, fmt.Errorf(
+			"anthropic stream contains unsupported content block %q",
+			event.ContentBlock.Type,
+		)
+	}
+	if event.ContentBlock.Text == "" {
+		return nil, false, nil
+	}
+	return s.textChunk(s.nextRole(), event.ContentBlock.Text)
+}
+
+func (s *AnthropicStream) updateMessage(data []byte) ([]byte, bool, error) {
+	if !s.started {
+		return nil, false, errors.New("anthropic message_delta preceded message_start")
+	}
+	var event anthropic.MessageDeltaEvent
+	if err := json.Unmarshal(data, &event); err != nil {
+		return nil, false, fmt.Errorf("unmarshal anthropic message_delta: %w", err)
+	}
+	if event.Delta.StopReason != "" {
+		s.stopReason = event.Delta.StopReason
+	}
+	// Anthropic 流中的 usage 是累计值，后到事件覆盖前值，不能逐次相加。
+	// 字段未出现时保留 message_start 的值，避免可选字段的零值误覆盖。
+	if event.Usage.JSON.InputTokens.Valid() {
+		s.inputTokens = event.Usage.InputTokens
+	}
+	if event.Usage.JSON.CacheReadInputTokens.Valid() {
+		s.cacheReadTokens = event.Usage.CacheReadInputTokens
+	}
+	if event.Usage.JSON.CacheCreationInputTokens.Valid() {
+		s.cacheCreationTokens = event.Usage.CacheCreationInputTokens
+	}
+	if event.Usage.JSON.OutputTokens.Valid() {
+		s.outputTokens = event.Usage.OutputTokens
+	}
+	finishReason := ""
+	if s.stopReason != "" {
+		finishReason = openAIFinishReason(s.stopReason)
+	}
+	if err := s.updateMetadata("", finishReason); err != nil {
+		return nil, false, err
+	}
+	return nil, true, nil
+}
+
+func (s *AnthropicStream) convertError(data []byte) ([]byte, bool, error) {
+	// 流中错误也转换为 OpenAI 错误对象，并正常结束 SSE，避免客户端一直等待。
+	converted, changed, err := RewriteAnthropicErrorResponse(data)
+	if err != nil {
+		return nil, false, err
+	}
+	if !changed {
+		return nil, false, nil
+	}
+	output := appendSSEData(nil, converted)
+	output = appendSSEData(output, []byte("[DONE]"))
+	s.finished = true
+	return output, false, nil
+}
+
+func (s *AnthropicStream) nextRole() string {
+	if s.roleSent {
+		return ""
+	}
+	s.roleSent = true
+	return "assistant"
 }
 
 func (s *AnthropicStream) textChunk(role, content string) ([]byte, bool, error) {
@@ -362,9 +375,7 @@ func (s *AnthropicStream) updateMetadata(model, finishReason string) error {
 	if finishReason != "" {
 		s.metadata.FinishReason = finishReason
 	}
-	if usage.Found {
-		s.metadata.Usage = usage
-	}
+	s.metadata.Usage = usage
 	return nil
 }
 

@@ -10,11 +10,10 @@ import (
 
 	"golang.org/x/mod/semver"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz/wasmplugin"
+	wasmbiz "github.com/lgc202/ingate/internal/adminapi/biz/plugin/wasm"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/httpurl"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
-	"github.com/lgc202/ingate/internal/pkg/wasmconfig"
 )
 
 const (
@@ -69,7 +68,7 @@ func parseManifest(
 	}
 	state := sourceState{
 		definition: definition,
-		items:      make([]wasmplugin.CatalogItem, 0, len(document.Plugins)),
+		items:      make([]wasmbiz.CatalogItem, 0, len(document.Plugins)),
 		specs:      make(map[string]resource.WasmPluginSpec, len(document.Plugins)),
 	}
 	for _, plugin := range document.Plugins {
@@ -104,7 +103,7 @@ func addManifestPlugin(
 			maxPluginReleases,
 		)
 	}
-	if !resourceconfig.IsValidDisplayName(displayName) {
+	if !apivalidation.IsValidDisplayName(displayName) {
 		return fmt.Errorf("plugin %q has invalid name", packageName)
 	}
 	if _, exists := state.specs[packageName]; exists {
@@ -137,7 +136,7 @@ func addManifestPlugin(
 	if !exists {
 		return nil
 	}
-	state.items = append(state.items, wasmplugin.CatalogItem{
+	state.items = append(state.items, wasmbiz.CatalogItem{
 		SourceID:    state.definition.id,
 		SourceName:  state.definition.displayName,
 		Package:     packageName,
@@ -191,13 +190,13 @@ func latestCompatibleRelease(
 			)
 		}
 		seenVersions[releaseVersion] = true
-		if !wasmconfig.IsValidArtifactURL(releaseArtifactURL(release)) {
+		if !apivalidation.IsValidArtifactURL(releaseArtifactURL(release)) {
 			return manifestRelease{}, false, fmt.Errorf(
 				"release %q has invalid artifact repository",
 				release.Version,
 			)
 		}
-		if !wasmconfig.IsValidSHA256Digest(release.Artifact.SHA256) {
+		if !apivalidation.IsValidSHA256Digest(release.Artifact.SHA256) {
 			return manifestRelease{}, false, fmt.Errorf(
 				"release %q has invalid SHA-256 digest",
 				release.Version,

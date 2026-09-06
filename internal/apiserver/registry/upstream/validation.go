@@ -9,7 +9,7 @@ import (
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
-	"github.com/lgc202/ingate/internal/pkg/upstreamconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 // validateUpstream 校验 HTTP 上游的连接配置和端点集合是否自洽。
@@ -32,7 +32,7 @@ func validateUpstream(upstream *resource.Upstream) field.ErrorList {
 			},
 		))
 	}
-	if spec.TLS != nil && !upstreamconfig.IsValidAddress(spec.TLS.ServerName) {
+	if spec.TLS != nil && !apivalidation.IsValidAddress(spec.TLS.ServerName) {
 		errs = append(errs, field.Invalid(
 			specPath.Child("tls", "serverName"),
 			spec.TLS.ServerName,
@@ -66,13 +66,13 @@ func validateModel(model *resource.ModelUpstream, path *field.Path) field.ErrorL
 			},
 		))
 	}
-	if !upstreamconfig.IsValidModelAPIKey(model.APIKey) {
+	if !apivalidation.IsValidModelAPIKey(model.APIKey) {
 		errs = append(errs, field.Invalid(
 			path.Child("apiKey"),
 			"<redacted>",
 			fmt.Sprintf(
 				"apiKey must be a valid HTTP header value of at most %d bytes without surrounding whitespace",
-				upstreamconfig.MaxModelAPIKeyBytes,
+				apivalidation.MaxModelAPIKeyBytes,
 			),
 		))
 	}
@@ -86,40 +86,40 @@ func validateEndpoints(endpoints []resource.Endpoint, path *field.Path) field.Er
 	}
 
 	var errs field.ErrorList
-	if endpointCount > upstreamconfig.MaxEndpoints {
-		errs = append(errs, field.TooMany(path, endpointCount, upstreamconfig.MaxEndpoints))
-		endpoints = endpoints[:upstreamconfig.MaxEndpoints]
+	if endpointCount > apivalidation.MaxEndpoints {
+		errs = append(errs, field.TooMany(path, endpointCount, apivalidation.MaxEndpoints))
+		endpoints = endpoints[:apivalidation.MaxEndpoints]
 	}
 
 	seenEndpointKeys := make(map[string]bool, len(endpoints))
 	for i, endpoint := range endpoints {
 		endpointPath := path.Index(i)
-		if !upstreamconfig.IsValidAddress(endpoint.Address) {
+		if !apivalidation.IsValidAddress(endpoint.Address) {
 			errs = append(errs, field.Invalid(
 				endpointPath.Child("address"),
 				endpoint.Address,
 				"address must be an IP address or DNS hostname",
 			))
 		}
-		if !upstreamconfig.IsValidEndpointPort(endpoint.Port) {
+		if !apivalidation.IsValidEndpointPort(endpoint.Port) {
 			errs = append(errs, field.Invalid(
 				endpointPath.Child("port"),
 				endpoint.Port,
 				fmt.Sprintf(
 					"port must be between %d and %d",
-					upstreamconfig.MinEndpointPort,
-					upstreamconfig.MaxEndpointPort,
+					apivalidation.MinEndpointPort,
+					apivalidation.MaxEndpointPort,
 				),
 			))
 		}
-		if !upstreamconfig.IsValidEndpointWeight(endpoint.Weight) {
+		if !apivalidation.IsValidEndpointWeight(endpoint.Weight) {
 			errs = append(errs, field.Invalid(
 				endpointPath.Child("weight"),
 				endpoint.Weight,
 				fmt.Sprintf(
 					"weight must be between %d and %d",
-					upstreamconfig.MinEndpointWeight,
-					upstreamconfig.MaxEndpointWeight,
+					apivalidation.MinEndpointWeight,
+					apivalidation.MaxEndpointWeight,
 				),
 			))
 		}
@@ -139,25 +139,25 @@ func validateHealthCheck(
 	path *field.Path,
 ) field.ErrorList {
 	var errs field.ErrorList
-	if !upstreamconfig.IsValidHealthCheckPath(healthCheck.Path) {
+	if !apivalidation.IsValidHealthCheckPath(healthCheck.Path) {
 		errs = append(errs, field.Invalid(
 			path.Child("path"),
 			healthCheck.Path,
 			"path must be an absolute request path without a query or fragment",
 		))
 	}
-	if !upstreamconfig.IsValidHealthCheckInterval(healthCheck.IntervalSeconds) {
+	if !apivalidation.IsValidHealthCheckInterval(healthCheck.IntervalSeconds) {
 		errs = append(errs, field.Invalid(
 			path.Child("intervalSeconds"),
 			healthCheck.IntervalSeconds,
 			fmt.Sprintf(
 				"intervalSeconds must be between %d and %d",
-				upstreamconfig.MinHealthCheckIntervalSeconds,
-				upstreamconfig.MaxHealthCheckIntervalSeconds,
+				apivalidation.MinHealthCheckIntervalSeconds,
+				apivalidation.MaxHealthCheckIntervalSeconds,
 			),
 		))
 	}
-	if !upstreamconfig.IsValidHealthCheckTimeout(
+	if !apivalidation.IsValidHealthCheckTimeout(
 		healthCheck.TimeoutSeconds,
 		healthCheck.IntervalSeconds,
 	) {
@@ -166,8 +166,8 @@ func validateHealthCheck(
 			healthCheck.TimeoutSeconds,
 			fmt.Sprintf(
 				"timeoutSeconds must be between %d and %d and less than intervalSeconds",
-				upstreamconfig.MinHealthCheckTimeoutSeconds,
-				upstreamconfig.MaxHealthCheckTimeoutSeconds,
+				apivalidation.MinHealthCheckTimeoutSeconds,
+				apivalidation.MaxHealthCheckTimeoutSeconds,
 			),
 		))
 	}

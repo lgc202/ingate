@@ -62,6 +62,33 @@ func (c *Client) GetRouteConfiguration(
 
 	gatewayIDs := slices.Clone(config.GetGatewayIds())
 	serviceIDs := routeServiceIDs(route)
+	gateways, services, err := c.routeReferences(ctx, routeID, gatewayIDs, serviceIDs)
+	if err != nil {
+		return agenttool.RouteConfiguration{}, err
+	}
+
+	return agenttool.RouteConfiguration{
+		Route:             routeFromAPI(route),
+		Hostnames:         slices.Clone(config.GetHostnames()),
+		PathMatchType:     routePathMatchType(config.GetMatch().GetPath().GetType()),
+		Methods:           routeMethods(config.GetMatch().GetMethods()),
+		Targets:           routeTargets(route),
+		RequestTimeout:    milliseconds(config.GetTimeout().GetRequestMillis()),
+		RetryAttempts:     config.GetRetry().GetAttempts(),
+		PerTryTimeout:     milliseconds(config.GetRetry().GetPerTryTimeoutMillis()),
+		HostRewriteMode:   hostRewriteMode(config.GetHostRewrite().GetMode()),
+		HostRewriteTarget: config.GetHostRewrite().GetHostname(),
+		Gateways:          gateways,
+		Services:          services,
+	}, nil
+}
+
+func (c *Client) routeReferences(
+	ctx context.Context,
+	routeID string,
+	gatewayIDs []string,
+	serviceIDs []string,
+) ([]agenttool.Gateway, []agenttool.Service, error) {
 	gateways := make([]agenttool.Gateway, len(gatewayIDs))
 	services := make([]agenttool.Service, len(serviceIDs))
 	group, lookupCtx := errgroup.WithContext(ctx)
@@ -105,23 +132,9 @@ func (c *Client) GetRouteConfiguration(
 		})
 	}
 	if err := group.Wait(); err != nil {
-		return agenttool.RouteConfiguration{}, err
+		return nil, nil, err
 	}
-
-	return agenttool.RouteConfiguration{
-		Route:             routeFromAPI(route),
-		Hostnames:         slices.Clone(config.GetHostnames()),
-		PathMatchType:     routePathMatchType(config.GetMatch().GetPath().GetType()),
-		Methods:           routeMethods(config.GetMatch().GetMethods()),
-		Targets:           routeTargets(route),
-		RequestTimeout:    milliseconds(config.GetTimeout().GetRequestMillis()),
-		RetryAttempts:     config.GetRetry().GetAttempts(),
-		PerTryTimeout:     milliseconds(config.GetRetry().GetPerTryTimeoutMillis()),
-		HostRewriteMode:   hostRewriteMode(config.GetHostRewrite().GetMode()),
-		HostRewriteTarget: config.GetHostRewrite().GetHostname(),
-		Gateways:          gateways,
-		Services:          services,
-	}, nil
+	return gateways, services, nil
 }
 
 func routeFromAPI(route *adminv1.Route) agenttool.Route {

@@ -2,7 +2,6 @@ package apiserver
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/samber/lo"
@@ -12,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
+	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
@@ -149,7 +148,7 @@ func (s *resourceStore[Item, Object, List, Spec]) retryResourceMutation(
 		}
 		if current.GetUID() != observed.GetUID() ||
 			current.GetGeneration() != observed.GetGeneration() {
-			return apperror.ResourceVersionConflict()
+			return adminv1.ErrorResourceVersionConflict("资源已被其他用户修改，请刷新后重试")
 		}
 
 		err := mutate(current)
@@ -171,7 +170,7 @@ func listError(resourceName string, err error) error {
 		return nil
 	}
 	if apierrors.IsBadRequest(err) || apierrors.IsResourceExpired(err) {
-		return apperror.InvalidCursor(err)
+		return pagination.InvalidCursor(err)
 	}
 	return fmt.Errorf("list %s: %w", resourceName, translateResourceError(err))
 }
@@ -193,13 +192,13 @@ func translateResourceError(err error) error {
 	var domainErr error
 	switch {
 	case apierrors.IsNotFound(err):
-		domainErr = apperror.ResourceNotFound()
+		domainErr = adminv1.ErrorResourceNotFound("资源不存在或已被删除")
 	case apierrors.IsAlreadyExists(err):
-		domainErr = apperror.ResourceAlreadyExists()
+		domainErr = adminv1.ErrorResourceAlreadyExists("资源已存在")
 	case apierrors.IsConflict(err):
-		domainErr = apperror.ResourceVersionConflict()
+		domainErr = adminv1.ErrorResourceVersionConflict("资源已被其他用户修改，请刷新后重试")
 	case apierrors.IsInvalid(err):
-		return apperror.InvalidResource(err)
+		return adminv1.ErrorInvalidArgument("配置内容不正确").WithCause(err)
 	default:
 		return err
 	}
@@ -222,7 +221,7 @@ func listByIDs[T any](
 	for i, resourceID := range uniqueIDs {
 		group.Go(func() error {
 			resource, err := get(lookupCtx, resourceID)
-			if errors.Is(err, apperror.ResourceNotFound()) {
+			if adminv1.IsResourceNotFound(err) {
 				return nil
 			}
 			if err != nil {

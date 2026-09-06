@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
-	aiusagebiz "github.com/lgc202/ingate/internal/adminapi/biz/aiusage"
+	aiusagebiz "github.com/lgc202/ingate/internal/adminapi/biz/analytics/aiusage"
 )
 
 // AIUsageRepository 通过 Analytics gRPC 查询模型调用与 Token 聚合结果。

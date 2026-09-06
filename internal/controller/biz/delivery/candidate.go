@@ -76,7 +76,7 @@ func (d *Delivery) handleCancelCandidate(ctx context.Context) error {
 		return nil
 	}
 	failureResources := d.candidateResources()
-	failurePolicyTargets := d.candidateFailurePolicyTargets()
+	failurePolicyTargets := d.candidateFailureTargets()
 	if len(failureResources) == 0 && d.state.lastFailure != nil {
 		failureResources = cloneResourceGenerations(d.state.lastFailure.Resources)
 		failurePolicyTargets = clonePolicyTargets(d.state.lastFailure.PolicyTargets)

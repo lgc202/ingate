@@ -102,7 +102,7 @@ func verifyFile(path string) ([]string, error) {
 
 	violations := verifyProviderSetFile(path, fileSet, file)
 	typeDeclarations, structDeclarations := collectTypeDeclarations(file)
-	constructors := collectConstructors(file, structDeclarations)
+	constructors := collectConstructors(file, typeDeclarations)
 	violations = append(violations, verifyAttachedDeclarations(
 		path,
 		fileSet,
@@ -115,7 +115,7 @@ func verifyFile(path string) ([]string, error) {
 	var highest declarationCategory
 	hasDeclaration := false
 	for _, declaration := range file.Decls {
-		category, ok := classifyDeclaration(declaration, typeDeclarations, structDeclarations)
+		category, ok := classifyDeclaration(declaration, typeDeclarations)
 		if !ok {
 			continue
 		}
@@ -157,14 +157,14 @@ func collectTypeDeclarations(file *ast.File) (map[string]int, map[string]int) {
 	return types, structs
 }
 
-func collectConstructors(file *ast.File, structs map[string]int) map[string]constructorDeclaration {
+func collectConstructors(file *ast.File, types map[string]int) map[string]constructorDeclaration {
 	constructors := make(map[string]constructorDeclaration)
 	for index, declaration := range file.Decls {
 		function, ok := declaration.(*ast.FuncDecl)
 		if !ok || function.Recv != nil || !strings.HasPrefix(function.Name.Name, "New") {
 			continue
 		}
-		owner := constructorOwner(function, structs)
+		owner := constructorOwner(function, types)
 		if owner != "" {
 			constructors[owner] = constructorDeclaration{
 				name:  function.Name.Name,
@@ -213,13 +213,13 @@ func verifyAttachedDeclarations(
 		}
 		for _, specification := range general.Specs {
 			typeSpecification := specification.(*ast.TypeSpec)
-			structIndex, isStruct := structs[typeSpecification.Name.Name]
-			if !isStruct || structIndex != index {
+			typeIndex, isType := types[typeSpecification.Name.Name]
+			if !isType || typeIndex != index {
 				continue
 			}
 			constructor, hasConstructor := constructors[typeSpecification.Name.Name]
 			if !hasConstructor {
-				if constructedStructSeen {
+				if _, isStruct := structs[typeSpecification.Name.Name]; isStruct && constructedStructSeen {
 					position := fileSet.Position(typeSpecification.Pos())
 					violations = append(violations, fmt.Sprintf(
 						"%s:%d: struct %s without a constructor must appear before structs with constructors",
@@ -231,13 +231,15 @@ func verifyAttachedDeclarations(
 				continue
 			}
 
-			constructedStructSeen = true
+			if _, isStruct := structs[typeSpecification.Name.Name]; isStruct {
+				constructedStructSeen = true
+			}
 			if constructor.index == index+1 {
 				continue
 			}
 			position := fileSet.Position(file.Decls[constructor.index].Pos())
 			violations = append(violations, fmt.Sprintf(
-				"%s:%d: constructor %s must immediately follow struct %s",
+				"%s:%d: constructor %s must immediately follow type %s",
 				path,
 				position.Line,
 				constructor.name,
@@ -287,7 +289,6 @@ func declarationName(category declarationCategory) string {
 func classifyDeclaration(
 	declaration ast.Decl,
 	types map[string]int,
-	structs map[string]int,
 ) (declarationCategory, bool) {
 	switch value := declaration.(type) {
 	case *ast.GenDecl:
@@ -305,7 +306,7 @@ func classifyDeclaration(
 			return 0, false
 		}
 	case *ast.FuncDecl:
-		if value.Recv == nil && constructorOwner(value, structs) != "" {
+		if value.Recv == nil && constructorOwner(value, types) != "" {
 			return categoryType, true
 		}
 		if ast.IsExported(value.Name.Name) {
@@ -317,10 +318,10 @@ func classifyDeclaration(
 	}
 }
 
-func constructorOwner(function *ast.FuncDecl, structs map[string]int) string {
+func constructorOwner(function *ast.FuncDecl, types map[string]int) string {
 	if function.Name.Name != "New" {
 		name := strings.TrimPrefix(function.Name.Name, "New")
-		if _, ok := structs[name]; ok {
+		if _, ok := types[name]; ok {
 			return name
 		}
 		return ""
@@ -337,7 +338,7 @@ func constructorOwner(function *ast.FuncDecl, structs map[string]int) string {
 		if !ok {
 			continue
 		}
-		if _, ok := structs[identifier.Name]; ok {
+		if _, ok := types[identifier.Name]; ok {
 			return identifier.Name
 		}
 	}

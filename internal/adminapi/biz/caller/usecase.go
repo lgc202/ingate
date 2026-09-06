@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
+	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
-	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resource/query"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -71,10 +71,10 @@ func NewUsecase(
 func (uc *Usecase) List(
 	ctx context.Context,
 	page pagination.Request,
-	filter resourceview.Filter,
+	filter query.Filter,
 ) (pagination.Result[resource.Caller], error) {
-	return resourceview.FilterPage(ctx, page, uc.store.ListPage, func(caller resource.Caller) bool {
-		return filter.Match(caller.Spec.DisplayName, caller.Spec.Enabled, resourceview.Status{})
+	return query.FilterPage(ctx, page, uc.store.ListPage, func(caller resource.Caller) bool {
+		return filter.Match(caller.Spec.DisplayName, caller.Spec.Enabled, "")
 	})
 }
 
@@ -119,7 +119,7 @@ func (uc *Usecase) Replace(
 	}
 
 	if current.Generation != expectedGeneration {
-		return nil, apperror.ResourceVersionConflict()
+		return nil, adminv1.ErrorResourceVersionConflict("资源已被其他用户修改，请刷新后重试")
 	}
 	if err := uc.checkAuthorizedRoutes(ctx, spec.RouteRefs); err != nil {
 		return nil, err
@@ -137,7 +137,7 @@ func (uc *Usecase) Delete(ctx context.Context, callerID string, expectedGenerati
 	}
 
 	if current.Generation != expectedGeneration {
-		return apperror.ResourceVersionConflict()
+		return adminv1.ErrorResourceVersionConflict("资源已被其他用户修改，请刷新后重试")
 	}
 	if err := uc.checkNotReferenced(ctx, current); err != nil {
 		return err

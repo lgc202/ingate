@@ -28,8 +28,8 @@ import (
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
 
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/httpheader"
-	"github.com/lgc202/ingate/internal/pkg/mockresponseconfig"
 )
 
 type pluginConfig struct {
@@ -127,15 +127,15 @@ func decodeConfig(raw []byte) (pluginConfig, error) {
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
 		return pluginConfig{}, errors.New("configuration must contain exactly one JSON value")
 	}
-	if config.StatusCode < mockresponseconfig.MinStatusCode ||
-		config.StatusCode > mockresponseconfig.MaxStatusCode {
+	if config.StatusCode < apivalidation.MinStatusCode ||
+		config.StatusCode > apivalidation.MaxStatusCode {
 		return pluginConfig{}, fmt.Errorf("status code %d is outside 200-599", config.StatusCode)
 	}
-	if len(config.Headers) > mockresponseconfig.MaxHeaders+1 {
-		return pluginConfig{}, fmt.Errorf("header count exceeds %d", mockresponseconfig.MaxHeaders+1)
+	if len(config.Headers) > apivalidation.MaxHeaders+1 {
+		return pluginConfig{}, fmt.Errorf("header count exceeds %d", apivalidation.MaxHeaders+1)
 	}
-	if len(config.Body) > mockresponseconfig.MaxBodyBytes {
-		return pluginConfig{}, fmt.Errorf("body exceeds %d bytes", mockresponseconfig.MaxBodyBytes)
+	if len(config.Body) > apivalidation.MaxBodyBytes {
+		return pluginConfig{}, fmt.Errorf("body exceeds %d bytes", apivalidation.MaxBodyBytes)
 	}
 	seen := make(map[string]bool, len(config.Headers))
 	for index := range config.Headers {

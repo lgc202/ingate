@@ -9,7 +9,7 @@ import (
 
 	"github.com/lgc202/ingate/internal/analytics/biz/traffic"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 // trafficAggregates 合并 AggregatingMergeTree 中跨分钟或跨数据 Part 的聚合状态。
@@ -32,10 +32,10 @@ type trafficDurations struct {
 
 type trafficMetricsRow struct {
 	traffic.Metrics
-	averageDurationNanoseconds uint64
-	p50DurationNanoseconds     uint64
-	p95DurationNanoseconds     uint64
-	p99DurationNanoseconds     uint64
+	averageNanos uint64
+	p50Nanos     uint64
+	p95Nanos     uint64
+	p99Nanos     uint64
 }
 
 // QueryTrafficSummary 查询整个时间范围的流量和延迟汇总。
@@ -186,7 +186,7 @@ func (s *Store) QueryTrafficBreakdown(
 		if err := rows.Scan(targets...); err != nil {
 			return nil, fmt.Errorf("scan traffic breakdown: %w", err)
 		}
-		if !resourceconfig.IsCanonicalID(resourceID) || seen[resourceID] {
+		if !apivalidation.IsCanonicalID(resourceID) || seen[resourceID] {
 			return nil, errors.New("stored traffic breakdown contains an invalid or duplicate resource ID")
 		}
 		seen[resourceID] = true
@@ -338,25 +338,25 @@ func trafficBreakdownOrder(order traffic.BreakdownOrder) (string, error) {
 	}
 }
 
-func trafficDurationsFromNanoseconds(
+func durationsFromNanos(
 	averageNanoseconds uint64,
 	p50Nanoseconds uint64,
 	p95Nanoseconds uint64,
 	p99Nanoseconds uint64,
 ) (trafficDurations, error) {
-	average, err := requiredDurationFromNanoseconds(averageNanoseconds)
+	average, err := durationFromNanos(averageNanoseconds)
 	if err != nil {
 		return trafficDurations{}, err
 	}
-	p50, err := requiredDurationFromNanoseconds(p50Nanoseconds)
+	p50, err := durationFromNanos(p50Nanoseconds)
 	if err != nil {
 		return trafficDurations{}, err
 	}
-	p95, err := requiredDurationFromNanoseconds(p95Nanoseconds)
+	p95, err := durationFromNanos(p95Nanoseconds)
 	if err != nil {
 		return trafficDurations{}, err
 	}
-	p99, err := requiredDurationFromNanoseconds(p99Nanoseconds)
+	p99, err := durationFromNanos(p99Nanoseconds)
 	if err != nil {
 		return trafficDurations{}, err
 	}
@@ -372,19 +372,19 @@ func (r *trafficMetricsRow) scanTargets() []any {
 		&r.ClientErrorCount,
 		&r.ServerErrorCount,
 		&r.NoResponseCount,
-		&r.averageDurationNanoseconds,
-		&r.p50DurationNanoseconds,
-		&r.p95DurationNanoseconds,
-		&r.p99DurationNanoseconds,
+		&r.averageNanos,
+		&r.p50Nanos,
+		&r.p95Nanos,
+		&r.p99Nanos,
 	}
 }
 
 func (r *trafficMetricsRow) restoreDurations() error {
-	durations, err := trafficDurationsFromNanoseconds(
-		r.averageDurationNanoseconds,
-		r.p50DurationNanoseconds,
-		r.p95DurationNanoseconds,
-		r.p99DurationNanoseconds,
+	durations, err := durationsFromNanos(
+		r.averageNanos,
+		r.p50Nanos,
+		r.p95Nanos,
+		r.p99Nanos,
 	)
 	if err != nil {
 		return err

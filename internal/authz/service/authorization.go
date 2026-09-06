@@ -22,8 +22,8 @@ import (
 
 	"github.com/lgc202/ingate/internal/authz/biz"
 	"github.com/lgc202/ingate/internal/authz/biz/ratelimit"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/extauthz"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 const bearerPrefix = "Bearer "
@@ -43,6 +43,14 @@ type Counters struct {
 	Denied      uint64
 	RateLimited uint64
 	Failed      uint64
+}
+
+type checkInput struct {
+	headers        map[string]string
+	clientIP       string
+	routeID        string
+	callerRequired bool
+	rateLimitRules []ratelimit.Rule
 }
 
 // AuthorizationService 把 Envoy 鉴权请求转换为 Ingate Caller 授权决策。
@@ -70,97 +78,23 @@ func NewAuthorizationService(
 // Check 在 Envoy 转发请求前完成 Caller 授权和共享请求限流。
 func (s *AuthorizationService) Check(ctx context.Context, request *authv3.CheckRequest) (*authv3.CheckResponse, error) {
 	s.counters.checks.Add(1)
-	attributes := request.GetAttributes()
-	if attributes == nil {
-		s.counters.failed.Add(1)
-		return nil, status.Error(codes.InvalidArgument, "authorization request attributes are required")
-	}
-	httpAttributes := attributes.GetRequest().GetHttp()
-	if httpAttributes == nil {
-		s.counters.failed.Add(1)
-		return nil, status.Error(codes.InvalidArgument, "authorization HTTP request attributes are required")
-	}
-	contextExtensions := attributes.GetContextExtensions()
-	requiresCaller, err := parseCallerRequirement(contextExtensions)
+	input, err := parseCheckInput(request)
 	if err != nil {
 		s.counters.failed.Add(1)
-		return nil, status.Error(codes.FailedPrecondition, "caller authorization context is invalid")
-	}
-	rateLimitRules, err := parseRateLimitRules(contextExtensions[extauthz.RateLimitsContext])
-	if err != nil {
-		s.counters.failed.Add(1)
-		return nil, status.Error(codes.FailedPrecondition, "rate limit authorization context is invalid")
-	}
-	if !requiresCaller && len(rateLimitRules) == 0 {
-		s.counters.failed.Add(1)
-		return nil, status.Error(codes.FailedPrecondition, "authorization rule is required")
+		return nil, err
 	}
 
-	var identity biz.Identity
-	if requiresCaller {
-		routeID := contextExtensions[extauthz.RouteIDContext]
-		if !resourceconfig.IsCanonicalID(routeID) {
-			s.counters.failed.Add(1)
-			return nil, status.Error(codes.FailedPrecondition, "authorization Route ID is invalid")
-		}
-		credential := bearerCredential(httpAttributes.GetHeaders()["authorization"])
-		identity, err = s.authorizer.Authorize(credential, routeID)
-		if errors.Is(err, biz.ErrForbidden) {
-			s.counters.denied.Add(1)
-			response := deniedResponse(
-				typev3.StatusCode_Forbidden,
-				code.Code_PERMISSION_DENIED,
-				"forbidden",
-				"Caller is not authorized for this route.",
-			)
-			response.DynamicMetadata = identityMetadata(identity)
-			return response, nil
-		}
-		if err != nil {
-			s.counters.denied.Add(1)
-			return deniedResponse(
-				typev3.StatusCode_Unauthorized,
-				code.Code_UNAUTHENTICATED,
-				"unauthenticated",
-				"Access key is missing or invalid.",
-			), nil
-		}
+	identity, response := s.checkCaller(input)
+	if response != nil {
+		return response, nil
+	}
+	response, err = s.checkRateLimit(ctx, input, identity)
+	if response != nil || err != nil {
+		return response, err
 	}
 
-	if len(rateLimitRules) > 0 {
-		rejection, err := s.rateLimiter.Admit(ctx, rateLimitRules, ratelimit.Request{
-			ClientIP: attributes.GetSource().GetAddress().GetSocketAddress().GetAddress(),
-			Headers:  httpAttributes.GetHeaders(),
-		})
-		if err != nil {
-			s.counters.failed.Add(1)
-			if ctx.Err() != nil {
-				return nil, status.FromContextError(ctx.Err()).Err()
-			}
-			s.logger.ErrorContext(ctx, "enforce request rate limit failed", "err", err)
-			return nil, status.Error(codes.Unavailable, "request rate limit is unavailable")
-		}
-		if rejection != nil {
-			s.counters.rateLimited.Add(1)
-			response := rateLimitedResponse(rejection.RetryAfter)
-			response.DynamicMetadata = identityMetadata(identity)
-			return response, nil
-		}
-	}
-
-	var headersToRemove []string
-	if requiresCaller {
-		// Caller 密钥由网关消费；公开 Route 上的 Authorization 则属于上游业务，必须原样保留。
-		headersToRemove = []string{"authorization"}
-	}
 	s.counters.allowed.Add(1)
-	return &authv3.CheckResponse{
-		Status: &statuspb.Status{Code: int32(code.Code_OK)},
-		HttpResponse: &authv3.CheckResponse_OkResponse{OkResponse: &authv3.OkHttpResponse{
-			HeadersToRemove: headersToRemove,
-		}},
-		DynamicMetadata: identityMetadata(identity),
-	}, nil
+	return allowedResponse(identity, input.callerRequired), nil
 }
 
 // Counters 返回鉴权与请求限流结果的累计计数。
@@ -171,6 +105,118 @@ func (s *AuthorizationService) Counters() Counters {
 		Denied:      s.counters.denied.Load(),
 		RateLimited: s.counters.rateLimited.Load(),
 		Failed:      s.counters.failed.Load(),
+	}
+}
+
+func (s *AuthorizationService) checkCaller(input checkInput) (biz.Identity, *authv3.CheckResponse) {
+	if !input.callerRequired {
+		return biz.Identity{}, nil
+	}
+
+	identity, err := s.authorizer.Authorize(bearerCredential(input.headers["authorization"]), input.routeID)
+	if err == nil {
+		return identity, nil
+	}
+
+	s.counters.denied.Add(1)
+	if errors.Is(err, biz.ErrForbidden) {
+		response := deniedResponse(
+			typev3.StatusCode_Forbidden,
+			code.Code_PERMISSION_DENIED,
+			"forbidden",
+			"Caller is not authorized for this route.",
+		)
+		response.DynamicMetadata = identityMetadata(identity)
+		return biz.Identity{}, response
+	}
+	return biz.Identity{}, deniedResponse(
+		typev3.StatusCode_Unauthorized,
+		code.Code_UNAUTHENTICATED,
+		"unauthenticated",
+		"Access key is missing or invalid.",
+	)
+}
+
+func (s *AuthorizationService) checkRateLimit(
+	ctx context.Context,
+	input checkInput,
+	identity biz.Identity,
+) (*authv3.CheckResponse, error) {
+	if len(input.rateLimitRules) == 0 {
+		return nil, nil
+	}
+
+	rejection, err := s.rateLimiter.Admit(ctx, input.rateLimitRules, ratelimit.Request{
+		ClientIP: input.clientIP,
+		Headers:  input.headers,
+	})
+	if err != nil {
+		s.counters.failed.Add(1)
+		if ctx.Err() != nil {
+			return nil, status.FromContextError(ctx.Err()).Err()
+		}
+		s.logger.ErrorContext(ctx, "enforce request rate limit failed", "err", err)
+		return nil, status.Error(codes.Unavailable, "request rate limit is unavailable")
+	}
+	if rejection == nil {
+		return nil, nil
+	}
+
+	s.counters.rateLimited.Add(1)
+	response := rateLimitedResponse(rejection.RetryAfter)
+	response.DynamicMetadata = identityMetadata(identity)
+	return response, nil
+}
+
+func parseCheckInput(request *authv3.CheckRequest) (checkInput, error) {
+	attributes := request.GetAttributes()
+	if attributes == nil {
+		return checkInput{}, status.Error(codes.InvalidArgument, "authorization request attributes are required")
+	}
+	httpAttributes := attributes.GetRequest().GetHttp()
+	if httpAttributes == nil {
+		return checkInput{}, status.Error(codes.InvalidArgument, "authorization HTTP request attributes are required")
+	}
+	contextExtensions := attributes.GetContextExtensions()
+	requiresCaller, err := parseCallerRequirement(contextExtensions)
+	if err != nil {
+		return checkInput{}, status.Error(codes.FailedPrecondition, "caller authorization context is invalid")
+	}
+	rateLimitRules, err := parseRateLimitRules(contextExtensions[extauthz.RateLimitsContext])
+	if err != nil {
+		return checkInput{}, status.Error(codes.FailedPrecondition, "rate limit authorization context is invalid")
+	}
+	if !requiresCaller && len(rateLimitRules) == 0 {
+		return checkInput{}, status.Error(codes.FailedPrecondition, "authorization rule is required")
+	}
+
+	routeID := contextExtensions[extauthz.RouteIDContext]
+	if requiresCaller {
+		if !apivalidation.IsCanonicalID(routeID) {
+			return checkInput{}, status.Error(codes.FailedPrecondition, "authorization Route ID is invalid")
+		}
+	}
+	return checkInput{
+		headers:        httpAttributes.GetHeaders(),
+		clientIP:       attributes.GetSource().GetAddress().GetSocketAddress().GetAddress(),
+		routeID:        routeID,
+		callerRequired: requiresCaller,
+		rateLimitRules: rateLimitRules,
+	}, nil
+}
+
+func allowedResponse(identity biz.Identity, callerRequired bool) *authv3.CheckResponse {
+	var headersToRemove []string
+	if callerRequired {
+		// Caller 密钥由网关消费；公开 Route 上的 Authorization 则属于上游业务，必须原样保留。
+		headersToRemove = []string{"authorization"}
+	}
+	return &authv3.CheckResponse{
+		Status: &statuspb.Status{Code: int32(code.Code_OK)},
+		HttpResponse: &authv3.CheckResponse_OkResponse{OkResponse: &authv3.OkHttpResponse{
+			HeadersToRemove: headersToRemove,
+		}},
+		DynamicMetadata: identityMetadata(identity),
 	}
 }
 

@@ -10,9 +10,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
+	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
-	"github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
+	sourcebiz "github.com/lgc202/ingate/internal/adminapi/biz/plugin/source"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
@@ -75,8 +75,8 @@ func (c *Catalog) syncAll(ctx context.Context) error {
 				return nil
 			case ctx.Err() != nil:
 				return ctx.Err()
-			case errors.Is(err, pluginsource.ErrSyncFailed),
-				errors.Is(err, pluginsource.ErrSyncUnavailable):
+			case errors.Is(err, sourcebiz.ErrSyncFailed),
+				errors.Is(err, sourcebiz.ErrSyncUnavailable):
 				// 远程来源错误已经写入该来源的观测状态，并在状态变化时记录一次。
 				return nil
 			default:
@@ -94,9 +94,9 @@ func (c *Catalog) sourceDefinition(
 	ctx context.Context,
 	sourceID string,
 ) (sourceDefinition, error) {
-	if sourceID == pluginsource.OfficialSourceID {
+	if sourceID == sourcebiz.OfficialSourceID {
 		if c.official.catalogURL == "" {
-			return sourceDefinition{}, apperror.ResourceNotFound()
+			return sourceDefinition{}, adminv1.ErrorResourceNotFound("资源不存在或已被删除")
 		}
 		return c.official, nil
 	}
@@ -134,9 +134,9 @@ func (c *Catalog) syncSource(ctx context.Context, definition sourceDefinition) e
 	manifest, err := c.fetchManifest(ctx, definition.catalogURL, previous.etag)
 	if err != nil {
 		c.recordSyncFailure(ctx, definition, previous, err)
-		category := pluginsource.ErrSyncFailed
-		if errors.Is(err, pluginsource.ErrSyncUnavailable) {
-			category = pluginsource.ErrSyncUnavailable
+		category := sourcebiz.ErrSyncFailed
+		if errors.Is(err, sourcebiz.ErrSyncUnavailable) {
+			category = sourcebiz.ErrSyncUnavailable
 		}
 		return fmt.Errorf(
 			"%w: sync plugin source %q: %w",
@@ -146,37 +146,45 @@ func (c *Catalog) syncSource(ctx context.Context, definition sourceDefinition) e
 		)
 	}
 	if manifest.notModified {
-		recovered := previous.observation.State == pluginsource.SyncStateError
 		applySourceDefinition(&previous, definition)
-		previous.available = true
-		previous.observation = pluginsource.Observation{
-			State:        pluginsource.SyncStateReady,
-			PluginCount:  len(previous.items),
-			LastSyncedAt: time.Now(),
-		}
-		stored, err := c.storeStateIfCurrent(ctx, definition, previous)
-		if err != nil {
-			return err
-		}
-		if stored && recovered {
-			c.logger.Info("plugin source recovered", "source_id", definition.id)
-		}
-		return nil
+		return c.storeSuccessfulSync(
+			ctx,
+			definition,
+			previous,
+			previous.etag,
+			previous.observation.State == sourcebiz.SyncStateError,
+		)
 	}
 	state, err := parseManifest(manifest.data, definition, version.String())
 	if err != nil {
 		c.recordSyncFailure(ctx, definition, previous, err)
 		return fmt.Errorf(
 			"%w: parse plugin source %q manifest: %w",
-			pluginsource.ErrSyncFailed,
+			sourcebiz.ErrSyncFailed,
 			definition.id,
 			err,
 		)
 	}
-	state.etag = manifest.etag
+	return c.storeSuccessfulSync(
+		ctx,
+		definition,
+		state,
+		manifest.etag,
+		previous.observation.State == sourcebiz.SyncStateError,
+	)
+}
+
+func (c *Catalog) storeSuccessfulSync(
+	ctx context.Context,
+	definition sourceDefinition,
+	state sourceState,
+	etag string,
+	recovered bool,
+) error {
+	state.etag = etag
 	state.available = true
-	state.observation = pluginsource.Observation{
-		State:        pluginsource.SyncStateReady,
+	state.observation = sourcebiz.Observation{
+		State:        sourcebiz.SyncStateReady,
 		PluginCount:  len(state.items),
 		LastSyncedAt: time.Now(),
 	}
@@ -184,7 +192,7 @@ func (c *Catalog) syncSource(ctx context.Context, definition sourceDefinition) e
 	if err != nil {
 		return err
 	}
-	if stored && previous.observation.State == pluginsource.SyncStateError {
+	if stored && recovered {
 		c.logger.Info("plugin source recovered", "source_id", definition.id)
 	}
 	return nil
@@ -206,12 +214,12 @@ func (c *Catalog) fetchManifest(
 	request.Header.Set("User-Agent", "ingate/"+version.String())
 	response, err := c.client.Do(request)
 	if err != nil {
-		if errors.Is(err, pluginsource.ErrSyncFailed) {
+		if errors.Is(err, sourcebiz.ErrSyncFailed) {
 			return manifestResponse{}, err
 		}
 		return manifestResponse{}, fmt.Errorf(
 			"%w: send HTTP request: %w",
-			pluginsource.ErrSyncUnavailable,
+			sourcebiz.ErrSyncUnavailable,
 			err,
 		)
 	}
@@ -231,7 +239,7 @@ func (c *Catalog) fetchManifest(
 		if response.StatusCode >= http.StatusInternalServerError {
 			return manifestResponse{}, fmt.Errorf(
 				"%w: unexpected HTTP status %s",
-				pluginsource.ErrSyncUnavailable,
+				sourcebiz.ErrSyncUnavailable,
 				response.Status,
 			)
 		}
@@ -245,7 +253,7 @@ func (c *Catalog) fetchManifest(
 	if err != nil {
 		return manifestResponse{}, fmt.Errorf(
 			"%w: read response body: %w",
-			pluginsource.ErrSyncUnavailable,
+			sourcebiz.ErrSyncUnavailable,
 			err,
 		)
 	}
@@ -287,12 +295,12 @@ func (c *Catalog) removeDeletedSource(ctx context.Context, sourceID string) erro
 	}
 	defer release()
 
-	if sourceID != pluginsource.OfficialSourceID {
+	if sourceID != sourcebiz.OfficialSourceID {
 		_, err := c.store.Get(ctx, sourceID)
 		switch {
 		case err == nil:
 			return nil
-		case !errors.Is(err, apperror.ResourceNotFound()):
+		case !adminv1.IsResourceNotFound(err):
 			return fmt.Errorf("verify deleted plugin source %q: %w", sourceID, err)
 		}
 	}

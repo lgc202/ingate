@@ -14,7 +14,7 @@ import (
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
-	"github.com/lgc202/ingate/internal/pkg/upstreamconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 // strategy 定义 Upstream 资源在 API Server 存储前后的处理规则。
@@ -81,9 +81,9 @@ func canonicalizeUpstreamSpec(spec *resource.UpstreamSpec) {
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
 	spec.LoadBalancing = cmp.Or(spec.LoadBalancing, resource.LoadBalancingRoundRobin)
 	for i := range spec.Endpoints {
-		spec.Endpoints[i].Address = upstreamconfig.NormalizeAddress(spec.Endpoints[i].Address)
+		spec.Endpoints[i].Address = apivalidation.NormalizeAddress(spec.Endpoints[i].Address)
 		if spec.Endpoints[i].Weight == 0 {
-			spec.Endpoints[i].Weight = upstreamconfig.DefaultEndpointWeight
+			spec.Endpoints[i].Weight = apivalidation.DefaultEndpointWeight
 		}
 	}
 	slices.SortFunc(spec.Endpoints, func(left, right resource.Endpoint) int {
@@ -94,11 +94,11 @@ func canonicalizeUpstreamSpec(spec *resource.UpstreamSpec) {
 		)
 	})
 	if spec.TLS != nil {
-		spec.TLS.ServerName = upstreamconfig.NormalizeAddress(spec.TLS.ServerName)
+		spec.TLS.ServerName = apivalidation.NormalizeAddress(spec.TLS.ServerName)
 	}
 	if spec.HealthCheck != nil {
 		spec.HealthCheck.Path = strings.TrimSpace(spec.HealthCheck.Path)
-		spec.HealthCheck.IntervalSeconds = cmp.Or(spec.HealthCheck.IntervalSeconds, upstreamconfig.DefaultHealthCheckIntervalSeconds)
-		spec.HealthCheck.TimeoutSeconds = cmp.Or(spec.HealthCheck.TimeoutSeconds, upstreamconfig.DefaultHealthCheckTimeoutSeconds)
+		spec.HealthCheck.IntervalSeconds = cmp.Or(spec.HealthCheck.IntervalSeconds, apivalidation.DefaultHealthCheckIntervalSeconds)
+		spec.HealthCheck.TimeoutSeconds = cmp.Or(spec.HealthCheck.TimeoutSeconds, apivalidation.DefaultHealthCheckTimeoutSeconds)
 	}
 }

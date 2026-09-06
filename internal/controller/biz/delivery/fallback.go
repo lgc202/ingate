@@ -43,7 +43,7 @@ func (d *Delivery) candidateResources() []compiler.ResourceGeneration {
 	return cloneResourceGenerations(d.state.candidate.resources)
 }
 
-func (d *Delivery) candidateFailurePolicyTargets() []compiler.CompiledPolicyTarget {
+func (d *Delivery) candidateFailureTargets() []compiler.CompiledPolicyTarget {
 	if d.state.candidate == nil {
 		return nil
 	}

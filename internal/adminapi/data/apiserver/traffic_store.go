@@ -8,18 +8,6 @@ import (
 // CallerStore 读写 Caller 声明式资源。
 type CallerStore = resourceStore[resource.Caller, *resource.Caller, *resource.CallerList, resource.CallerSpec]
 
-// CertificateStore 读写 Certificate 声明式资源。
-type CertificateStore = resourceStore[resource.Certificate, *resource.Certificate, *resource.CertificateList, resource.CertificateSpec]
-
-// GatewayStore 读写 Gateway 声明式资源。
-type GatewayStore = resourceStore[resource.Gateway, *resource.Gateway, *resource.GatewayList, resource.GatewaySpec]
-
-// RouteStore 读写 Route 声明式资源。
-type RouteStore = resourceStore[resource.Route, *resource.Route, *resource.RouteList, resource.RouteSpec]
-
-// UpstreamStore 读写 Upstream 声明式资源。
-type UpstreamStore = resourceStore[resource.Upstream, *resource.Upstream, *resource.UpstreamList, resource.UpstreamSpec]
-
 // NewCallerStore 创建 Caller Store。
 func NewCallerStore(client clientset.Interface) *CallerStore {
 	return &CallerStore{
@@ -35,6 +23,9 @@ func NewCallerStore(client clientset.Interface) *CallerStore {
 		setSpec: func(object *resource.Caller, spec resource.CallerSpec) { object.Spec = spec },
 	}
 }
+
+// CertificateStore 读写 Certificate 声明式资源。
+type CertificateStore = resourceStore[resource.Certificate, *resource.Certificate, *resource.CertificateList, resource.CertificateSpec]
 
 // NewCertificateStore 创建 Certificate Store。
 func NewCertificateStore(client clientset.Interface) *CertificateStore {
@@ -52,6 +43,9 @@ func NewCertificateStore(client clientset.Interface) *CertificateStore {
 	}
 }
 
+// GatewayStore 读写 Gateway 声明式资源。
+type GatewayStore = resourceStore[resource.Gateway, *resource.Gateway, *resource.GatewayList, resource.GatewaySpec]
+
 // NewGatewayStore 创建 Gateway Store。
 func NewGatewayStore(client clientset.Interface) *GatewayStore {
 	return &GatewayStore{
@@ -68,6 +62,9 @@ func NewGatewayStore(client clientset.Interface) *GatewayStore {
 	}
 }
 
+// RouteStore 读写 Route 声明式资源。
+type RouteStore = resourceStore[resource.Route, *resource.Route, *resource.RouteList, resource.RouteSpec]
+
 // NewRouteStore 创建 Route Store。
 func NewRouteStore(client clientset.Interface) *RouteStore {
 	return &RouteStore{
@@ -83,6 +80,9 @@ func NewRouteStore(client clientset.Interface) *RouteStore {
 		setSpec: func(object *resource.Route, spec resource.RouteSpec) { object.Spec = spec },
 	}
 }
+
+// UpstreamStore 读写 Upstream 声明式资源。
+type UpstreamStore = resourceStore[resource.Upstream, *resource.Upstream, *resource.UpstreamList, resource.UpstreamSpec]
 
 // NewUpstreamStore 创建 Upstream Store。
 func NewUpstreamStore(client clientset.Interface) *UpstreamStore {

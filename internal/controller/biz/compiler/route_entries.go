@@ -9,7 +9,7 @@ import (
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 // routeEntryTemplate 保存普通 Route 和 AI Route 生成 Envoy Route 时共享的匹配与 Header 配置。
@@ -94,7 +94,7 @@ func (c *compilation) buildRouteEntries(
 func (c *compilation) buildRouteEntryTemplate(route *gatewayv1.Route) (routeEntryTemplate, bool) {
 	path := strings.TrimSpace(route.Spec.Match.Path.Value)
 	valid := true
-	if !routeconfig.IsValidPath(path) {
+	if !apivalidation.IsValidPath(path) {
 		c.addRouteError(
 			route.Name,
 			ReasonInvalidSpec,

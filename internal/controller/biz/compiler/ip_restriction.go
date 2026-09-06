@@ -16,7 +16,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/iprestrictionconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 const (
@@ -80,20 +80,20 @@ func (c *compilation) ipRestrictionPolicy(policy *gatewayv1.IPRestrictionPolicy)
 
 func (c *compilation) ipPrefixes(policy *gatewayv1.IPRestrictionPolicy, values []string) ([]netip.Prefix, bool) {
 	valid := true
-	if len(values) > iprestrictionconfig.MaxRanges {
+	if len(values) > apivalidation.MaxRanges {
 		c.addResourceError(
 			gatewayv1.KindIPRestrictionPolicy,
 			policy.Name,
 			ReasonInvalidSpec,
 			fmt.Sprintf("IP restriction policy %q contains too many IP ranges", policy.Name),
 		)
-		values = values[:iprestrictionconfig.MaxRanges]
+		values = values[:apivalidation.MaxRanges]
 		valid = false
 	}
 
 	prefixes := make([]netip.Prefix, 0, len(values))
 	for _, value := range values {
-		normalized, ok := iprestrictionconfig.NormalizeRange(value)
+		normalized, ok := apivalidation.NormalizeRange(value)
 		if !ok {
 			c.addResourceError(
 				gatewayv1.KindIPRestrictionPolicy,

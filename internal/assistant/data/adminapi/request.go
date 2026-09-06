@@ -12,8 +12,8 @@ import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/requestrecord"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 // ListFailures 查询排障所需的失败请求元数据，不读取请求内容和凭据。
@@ -275,11 +275,11 @@ func validateAIModelCallResponse(call *adminv1.AIModelCall, serviceID string) er
 	if call == nil {
 		return nil
 	}
-	if !routeconfig.IsValidModelName(call.GetClientModel()) {
+	if !apivalidation.IsValidModelName(call.GetClientModel()) {
 		return errors.New("AI client model is invalid")
 	}
 	for _, model := range []string{call.GetTargetModel(), call.GetResponseModel()} {
-		if model != "" && !routeconfig.IsValidModelName(model) {
+		if model != "" && !apivalidation.IsValidModelName(model) {
 			return errors.New("AI model name is invalid")
 		}
 	}

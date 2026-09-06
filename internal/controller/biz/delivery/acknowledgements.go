@@ -25,7 +25,7 @@ func (d *Delivery) handleXDSEvent(ctx context.Context, event XDSEvent) error {
 		d.handleResponseSent(event)
 		return nil
 	case EventAcceptedVersionObserved:
-		d.handleAcceptedVersionObserved(event)
+		d.handleAcceptedVersion(event)
 		return nil
 	case EventACK:
 		d.handleACK(event)
@@ -62,7 +62,7 @@ func (d *Delivery) handleResponseSent(event XDSEvent) {
 	}
 }
 
-func (d *Delivery) handleAcceptedVersionObserved(event XDSEvent) {
+func (d *Delivery) handleAcceptedVersion(event XDSEvent) {
 	if event.TypeURL == "" || event.AcceptedVersion == "" {
 		return
 	}

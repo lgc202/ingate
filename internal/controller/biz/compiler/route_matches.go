@@ -12,12 +12,12 @@ import (
 	"github.com/samber/lo"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/httpheader"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 func (c *compilation) buildRouteMethods(route *gatewayv1.Route) ([]string, bool) {
-	if len(route.Spec.Match.Methods) > routeconfig.MaxHTTPMethods {
+	if len(route.Spec.Match.Methods) > apivalidation.MaxHTTPMethods {
 		c.addRouteError(
 			route.Name,
 			ReasonInvalidSpec,
@@ -30,7 +30,7 @@ func (c *compilation) buildRouteMethods(route *gatewayv1.Route) ([]string, bool)
 	valid := true
 	for _, methodValue := range route.Spec.Match.Methods {
 		method := strings.ToUpper(strings.TrimSpace(methodValue))
-		if !routeconfig.IsSupportedHTTPMethod(method) || methods[method] {
+		if !apivalidation.IsSupportedHTTPMethod(method) || methods[method] {
 			c.addRouteError(
 				route.Name,
 				ReasonInvalidSpec,
@@ -45,7 +45,7 @@ func (c *compilation) buildRouteMethods(route *gatewayv1.Route) ([]string, bool)
 }
 
 func (c *compilation) buildHeaderMatchers(route *gatewayv1.Route) ([]*routev3.HeaderMatcher, bool) {
-	if len(route.Spec.Match.Headers) > routeconfig.MaxHeaderMatches {
+	if len(route.Spec.Match.Headers) > apivalidation.MaxHeaderMatches {
 		c.addRouteError(
 			route.Name,
 			ReasonInvalidSpec,

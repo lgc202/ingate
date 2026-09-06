@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/upstreamconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 const systemCABundlePath = "/etc/ssl/certs/ca-certificates.crt"
@@ -21,8 +21,8 @@ func (c *compilation) upstreamTransportSocket(
 		return nil, true
 	}
 
-	serverName := upstreamconfig.NormalizeAddress(upstream.Spec.TLS.ServerName)
-	if !upstreamconfig.IsValidAddress(serverName) {
+	serverName := apivalidation.NormalizeAddress(upstream.Spec.TLS.ServerName)
+	if !apivalidation.IsValidAddress(serverName) {
 		c.addResourceError(
 			gatewayv1.KindUpstream,
 			upstream.Name,

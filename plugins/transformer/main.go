@@ -30,7 +30,7 @@ import (
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
 
-	"github.com/lgc202/ingate/internal/pkg/headertransformationconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/httpheader"
 )
 
@@ -202,8 +202,8 @@ func compileRules(rules []rule) ([]headerOperation, error) {
 			return nil, fmt.Errorf("rule %d does not contain headers", ruleIndex+1)
 		}
 		for headerIndex, header := range rule.Headers {
-			if len(operations) >= headertransformationconfig.MaxRules {
-				return nil, fmt.Errorf("header operation count exceeds %d", headertransformationconfig.MaxRules)
+			if len(operations) >= apivalidation.MaxRules {
+				return nil, fmt.Errorf("header operation count exceeds %d", apivalidation.MaxRules)
 			}
 			compiled, err := rule.Operation.compile(header)
 			if err != nil {

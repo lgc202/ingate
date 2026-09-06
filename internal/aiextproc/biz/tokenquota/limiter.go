@@ -11,8 +11,7 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
-	"github.com/lgc202/ingate/internal/pkg/tokenquotaconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 // Period 表示额度对应的自然周期。
@@ -154,7 +153,7 @@ func (l *Limiter) Charge(ctx context.Context, session *Session, tokens int64) er
 	if session == nil || tokens == 0 {
 		return nil
 	}
-	if !tokenquotaconfig.IsValidTokenLimit(tokens) {
+	if !apivalidation.IsValidTokenLimit(tokens) {
 		return fmt.Errorf("charge token count %d is outside the supported range", tokens)
 	}
 	if err := l.counter.Add(ctx, session.buckets, tokens); err != nil {
@@ -184,82 +183,29 @@ func (l *Limiter) readCounters(ctx context.Context, buckets []Bucket) ([]int64, 
 }
 
 func (l *Limiter) currentBuckets(callerID string, now time.Time) ([]Bucket, error) {
-	if !resourceconfig.IsCanonicalID(callerID) {
+	if !apivalidation.IsCanonicalID(callerID) {
 		return nil, errors.New("caller ID must be a canonical UUID")
 	}
-	policies, err := l.policies.ActivePolicies(callerID)
+	policies, err := l.activePolicies(callerID)
 	if err != nil {
 		return nil, err
 	}
-	if len(policies) > tokenquotaconfig.MaxPoliciesPerCaller {
-		return nil, fmt.Errorf(
-			"caller %q matches %d token quota policies; limit is %d",
-			callerID,
-			len(policies),
-			tokenquotaconfig.MaxPoliciesPerCaller,
-		)
-	}
-	policies = slices.Clone(policies)
-	slices.SortFunc(policies, func(left, right Policy) int {
-		return cmp.Compare(left.ID, right.ID)
-	})
 
-	buckets := make([]Bucket, 0, len(policies)*tokenquotaconfig.MaxLimits)
+	buckets := make([]Bucket, 0, len(policies)*apivalidation.MaxLimits)
 	seenPolicyIDs := make(map[string]bool, len(policies))
 	for policyIndex, policy := range policies {
-		if !resourceconfig.IsCanonicalID(policy.ID) {
+		if !apivalidation.IsCanonicalID(policy.ID) {
 			return nil, fmt.Errorf("token quota policy %d has an invalid ID", policyIndex)
 		}
 		if seenPolicyIDs[policy.ID] {
 			return nil, fmt.Errorf("token quota policy %d duplicates ID %q", policyIndex, policy.ID)
 		}
 		seenPolicyIDs[policy.ID] = true
-		if !resourceconfig.IsValidDisplayName(policy.Name) {
-			return nil, fmt.Errorf("token quota policy %q has an invalid name", policy.ID)
+		policyBuckets, err := bucketsForPolicy(callerID, policy, now)
+		if err != nil {
+			return nil, err
 		}
-		if policy.TimeZone == nil {
-			return nil, fmt.Errorf("token quota policy %q has no time zone", policy.ID)
-		}
-		if len(policy.Limits) == 0 || len(policy.Limits) > tokenquotaconfig.MaxLimits {
-			return nil, fmt.Errorf("token quota policy %q has invalid limit count", policy.ID)
-		}
-		seenPeriods := make(map[Period]bool, len(policy.Limits))
-		for limitIndex, limit := range policy.Limits {
-			if seenPeriods[limit.Period] {
-				return nil, fmt.Errorf(
-					"token quota policy %q limit %d duplicates period %q",
-					policy.ID,
-					limitIndex,
-					limit.Period,
-				)
-			}
-			seenPeriods[limit.Period] = true
-			if !tokenquotaconfig.IsValidTokenLimit(limit.Tokens) {
-				return nil, fmt.Errorf(
-					"token quota policy %q limit %d has invalid token count",
-					policy.ID,
-					limitIndex,
-				)
-			}
-			start, end, err := periodWindow(now, policy.TimeZone, limit.Period)
-			if err != nil {
-				return nil, fmt.Errorf(
-					"token quota policy %q limit %d: %w",
-					policy.ID,
-					limitIndex,
-					err,
-				)
-			}
-			buckets = append(buckets, Bucket{
-				CallerID:   callerID,
-				PolicyID:   policy.ID,
-				PolicyName: policy.Name,
-				Period:     limit.Period,
-				Start:      start,
-				End:        end,
-				Limit:      limit.Tokens,
-			})
-		}
+		buckets = append(buckets, policyBuckets...)
 	}
 	slices.SortFunc(buckets, func(left, right Bucket) int {
 		return cmp.Or(
@@ -267,6 +213,78 @@ func (l *Limiter) currentBuckets(callerID string, now time.Time) ([]Bucket, erro
 			cmp.Compare(periodOrder(left.Period), periodOrder(right.Period)),
 		)
 	})
+	return buckets, nil
+}
+
+func (l *Limiter) activePolicies(callerID string) ([]Policy, error) {
+	policies, err := l.policies.ActivePolicies(callerID)
+	if err != nil {
+		return nil, err
+	}
+	if len(policies) > apivalidation.MaxPoliciesPerCaller {
+		return nil, fmt.Errorf(
+			"caller %q matches %d token quota policies; limit is %d",
+			callerID,
+			len(policies),
+			apivalidation.MaxPoliciesPerCaller,
+		)
+	}
+	policies = slices.Clone(policies)
+	slices.SortFunc(policies, func(left, right Policy) int {
+		return cmp.Compare(left.ID, right.ID)
+	})
+	return policies, nil
+}
+
+func bucketsForPolicy(callerID string, policy Policy, now time.Time) ([]Bucket, error) {
+	if !apivalidation.IsValidDisplayName(policy.Name) {
+		return nil, fmt.Errorf("token quota policy %q has an invalid name", policy.ID)
+	}
+	if policy.TimeZone == nil {
+		return nil, fmt.Errorf("token quota policy %q has no time zone", policy.ID)
+	}
+	if len(policy.Limits) == 0 || len(policy.Limits) > apivalidation.MaxLimits {
+		return nil, fmt.Errorf("token quota policy %q has invalid limit count", policy.ID)
+	}
+
+	buckets := make([]Bucket, 0, len(policy.Limits))
+	seenPeriods := make(map[Period]bool, len(policy.Limits))
+	for limitIndex, limit := range policy.Limits {
+		if seenPeriods[limit.Period] {
+			return nil, fmt.Errorf(
+				"token quota policy %q limit %d duplicates period %q",
+				policy.ID,
+				limitIndex,
+				limit.Period,
+			)
+		}
+		seenPeriods[limit.Period] = true
+		if !apivalidation.IsValidTokenLimit(limit.Tokens) {
+			return nil, fmt.Errorf(
+				"token quota policy %q limit %d has invalid token count",
+				policy.ID,
+				limitIndex,
+			)
+		}
+		start, end, err := periodWindow(now, policy.TimeZone, limit.Period)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"token quota policy %q limit %d: %w",
+				policy.ID,
+				limitIndex,
+				err,
+			)
+		}
+		buckets = append(buckets, Bucket{
+			CallerID:   callerID,
+			PolicyID:   policy.ID,
+			PolicyName: policy.Name,
+			Period:     limit.Period,
+			Start:      start,
+			End:        end,
+			Limit:      limit.Tokens,
+		})
+	}
 	return buckets, nil
 }
 

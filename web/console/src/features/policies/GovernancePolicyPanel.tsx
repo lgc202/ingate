@@ -57,9 +57,9 @@ export function GovernancePolicyPanel({
       }] : [];
     })
     : [];
-	const candidates = workspace.policies.filter((policy) => (
-		policySupportsTargetKind(policy, targetKind) && !policyTargetsResource(policy, targetKind, targetID)
-	));
+  const candidates = workspace.policies.filter((policy) => (
+    policySupportsTargetKind(policy, targetKind) && !policyTargetsResource(policy, targetKind, targetID)
+  ));
 
   const openEditor = () => {
     setSelectedPolicyKeys([]);
@@ -107,7 +107,7 @@ export function GovernancePolicyPanel({
     setSubmitting(true);
     try {
       const remainsInherited = targetKind === 'Route'
-		&& policy.targets.some((target) => (
+        && policy.targets.some((target) => (
           target.kind === 'Gateway' && inheritedGatewayIDs.includes(target.id)
         ));
       const result = await updateGovernancePolicyTargets(

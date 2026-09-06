@@ -1,31 +1,30 @@
 package policy
 
 import (
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz/resourceview"
+	"github.com/lgc202/ingate/internal/adminapi/biz/resource/status"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // Status 返回策略总体状态，停用配置只有进入 Active 后才显示为已停用。
-func Status(generation int64, enabled bool, targetCount int, conditions []metav1.Condition) resourceview.Status {
-	if !enabled && configurationApplied(generation, conditions) {
-		return resourceview.Status{State: resourceview.StateDisabled, Reason: resourceview.ReasonDisabled}
+func Status(generation int64, enabled bool, targetCount int, conditions []metav1.Condition) status.Status {
+	if !enabled && status.IsApplied(generation, conditions) {
+		return status.Status{State: status.StateDisabled, Reason: status.ReasonDisabled}
 	}
-	programmed := currentCondition(generation, conditions, resource.ConditionProgrammed)
+	programmed := status.ProgrammedCondition(generation, conditions)
 	if programmed != nil && programmed.Status == metav1.ConditionTrue {
-		return resourceview.Status{State: resourceview.StateReady, Reason: resourceview.ReasonReady}
+		return status.Status{State: status.StateReady, Reason: status.ReasonReady}
 	}
 	if programmed != nil &&
 		programmed.Status == metav1.ConditionFalse &&
 		resource.ConditionReason(programmed.Reason) == resource.ReasonNotApplied {
 		if targetCount == 0 {
-			return resourceview.Status{State: resourceview.StateReady, Reason: resourceview.ReasonUnapplied}
+			return status.Status{State: status.StateReady, Reason: status.ReasonUnapplied}
 		}
-		return resourceview.Status{State: resourceview.StatePending, Reason: resourceview.ReasonTargetNotApplied}
+		return status.Status{State: status.StatePending, Reason: status.ReasonTargetNotApplied}
 	}
-	return resourceview.StatusFromConditions(generation, conditions)
+	return status.FromConditions(generation, conditions)
 }
 
 // TargetStatus 返回指定策略目标的生效状态。
@@ -34,53 +33,37 @@ func TargetStatus(
 	disabled bool,
 	ref resource.PolicyTargetRef,
 	targets []resource.PolicyTargetStatus,
-) resourceview.Status {
+) status.Status {
 	if disabled {
-		return resourceview.Status{State: resourceview.StateDisabled, Reason: resourceview.ReasonDisabled}
+		return status.Status{State: status.StateDisabled, Reason: status.ReasonDisabled}
 	}
 	return targetStatus(generation, targetConditions(targets, ref))
 }
 
-func targetStatus(generation int64, conditions []metav1.Condition) resourceview.Status {
-	resolvedRefs, hasResolvedRefs := conditionForGeneration(
-		generation,
-		conditions,
-		resource.ConditionResolvedRefs,
-	)
-	programmed := currentCondition(generation, conditions, resource.ConditionProgrammed)
+func targetStatus(generation int64, conditions []metav1.Condition) status.Status {
+	resolvedRefs, hasResolvedRefs := status.ResolvedRefsCondition(generation, conditions)
+	programmed := status.ProgrammedCondition(generation, conditions)
 
 	if resolvedRefs != nil && resolvedRefs.Status == metav1.ConditionFalse {
-		return resourceview.ErrorStatus(resolvedRefs)
+		return status.FromErrorCondition(resolvedRefs)
 	}
 	if programmed != nil &&
 		programmed.Status == metav1.ConditionFalse &&
 		resource.ConditionReason(programmed.Reason) == resource.ReasonNotApplied {
-		return resourceview.Status{State: resourceview.StatePending, Reason: resourceview.ReasonTargetNotApplied}
+		return status.Status{State: status.StatePending, Reason: status.ReasonTargetNotApplied}
 	}
 	if programmed != nil &&
 		programmed.Status == metav1.ConditionFalse &&
 		resource.ConditionReason(programmed.Reason) != resource.ReasonPending {
-		return resourceview.ErrorStatus(programmed)
+		return status.FromErrorCondition(programmed)
 	}
 	if hasResolvedRefs && (resolvedRefs == nil || resolvedRefs.Status != metav1.ConditionTrue) {
-		return resourceview.Status{State: resourceview.StatePending, Reason: resourceview.ReasonCheckingReferences}
+		return status.Status{State: status.StatePending, Reason: status.ReasonCheckingReferences}
 	}
 	if programmed == nil || programmed.Status != metav1.ConditionTrue {
-		return resourceview.Status{State: resourceview.StatePending, Reason: resourceview.ReasonProgramming}
+		return status.Status{State: status.StatePending, Reason: status.ReasonProgramming}
 	}
-	return resourceview.Status{State: resourceview.StateReady, Reason: resourceview.ReasonReady}
-}
-
-func configurationApplied(generation int64, conditions []metav1.Condition) bool {
-	programmed := currentCondition(generation, conditions, resource.ConditionProgrammed)
-	if programmed == nil {
-		return false
-	}
-	if programmed.Status == metav1.ConditionTrue {
-		return true
-	}
-	return programmed.Status == metav1.ConditionFalse &&
-		resource.ConditionReason(programmed.Reason) == resource.ReasonNotApplied
+	return status.Status{State: status.StateReady, Reason: status.ReasonReady}
 }
 
 func targetConditions(targets []resource.PolicyTargetStatus, ref resource.PolicyTargetRef) []metav1.Condition {
@@ -90,28 +73,4 @@ func targetConditions(targets []resource.PolicyTargetStatus, ref resource.Policy
 		}
 	}
 	return nil
-}
-
-func conditionForGeneration(
-	generation int64,
-	conditions []metav1.Condition,
-	conditionType resource.ConditionType,
-) (*metav1.Condition, bool) {
-	value := apimeta.FindStatusCondition(conditions, string(conditionType))
-	if value == nil {
-		return nil, false
-	}
-	if value.ObservedGeneration != generation {
-		return nil, true
-	}
-	return value, true
-}
-
-func currentCondition(
-	generation int64,
-	conditions []metav1.Condition,
-	conditionType resource.ConditionType,
-) *metav1.Condition {
-	value, _ := conditionForGeneration(generation, conditions, conditionType)
-	return value
 }

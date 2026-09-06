@@ -9,10 +9,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
-	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
+	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/analytics/traffic"
 )
 
-type trafficMetricValues struct {
+type trafficMetricsInput struct {
 	requestCount     uint64
 	clientErrorCount uint64
 	serverErrorCount uint64
@@ -37,7 +37,7 @@ func trafficSummary(summary *analyticsv1.TrafficSummary) (trafficbiz.Metrics, er
 	if summary == nil {
 		return trafficbiz.Metrics{}, errors.New("analytics returned an empty traffic summary")
 	}
-	return trafficMetrics(trafficMetricValues{
+	return trafficMetrics(trafficMetricsInput{
 		requestCount:     summary.GetRequestCount(),
 		clientErrorCount: summary.GetClientErrorCount(),
 		serverErrorCount: summary.GetServerErrorCount(),
@@ -66,7 +66,7 @@ func trafficTrend(
 		if i > 0 && !startedAt.After(previousStart) {
 			return nil, errors.New("analytics returned unordered traffic trend points")
 		}
-		metrics, err := trafficMetrics(trafficMetricValues{
+		metrics, err := trafficMetrics(trafficMetricsInput{
 			requestCount:     point.GetRequestCount(),
 			clientErrorCount: point.GetClientErrorCount(),
 			serverErrorCount: point.GetServerErrorCount(),
@@ -100,7 +100,7 @@ func trafficBreakdown(items []*analyticsv1.TrafficBreakdownItem) ([]trafficbiz.B
 			return nil, errors.New("analytics returned duplicate traffic breakdown items")
 		}
 		seen[resourceID] = true
-		metrics, err := trafficMetrics(trafficMetricValues{
+		metrics, err := trafficMetrics(trafficMetricsInput{
 			requestCount:     item.GetRequestCount(),
 			clientErrorCount: item.GetClientErrorCount(),
 			serverErrorCount: item.GetServerErrorCount(),
@@ -157,7 +157,7 @@ func resourceTrafficSummaries(
 	return summaries, nil
 }
 
-func trafficMetrics(value trafficMetricValues) (trafficbiz.Metrics, error) {
+func trafficMetrics(value trafficMetricsInput) (trafficbiz.Metrics, error) {
 	nonErrorCount := value.requestCount
 	if value.clientErrorCount > nonErrorCount {
 		return trafficbiz.Metrics{}, errors.New("analytics traffic counts are inconsistent")

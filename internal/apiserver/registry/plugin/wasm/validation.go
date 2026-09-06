@@ -1,0 +1,99 @@
+package wasm
+
+import (
+	"crypto/sha256"
+	"fmt"
+	"strings"
+
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
+)
+
+func validatePlugin(plugin *resource.WasmPlugin) field.ErrorList {
+	metadataNamePath := field.NewPath("metadata", "name")
+	specPath := field.NewPath("spec")
+	spec := plugin.Spec
+	errs := apiregistry.ValidateResourceID(plugin.Name, metadataNamePath)
+
+	if spec.SourceID == "" {
+		errs = append(errs, field.Required(specPath.Child("sourceID"), "sourceID is required"))
+	} else if !apivalidation.IsCanonicalID(spec.SourceID) {
+		errs = append(errs, field.Invalid(
+			specPath.Child("sourceID"),
+			spec.SourceID,
+			"sourceID must be a canonical UUID",
+		))
+	}
+	errs = append(errs, apiregistry.ValidateDisplayName(
+		spec.DisplayName,
+		specPath.Child("displayName"),
+	)...)
+	packageValid := true
+	if messages := utilvalidation.IsDNS1123Subdomain(spec.Package); len(messages) > 0 {
+		errs = append(errs, field.Invalid(specPath.Child("package"), spec.Package, strings.Join(messages, "; ")))
+		packageValid = false
+	} else if !resource.IsSupportedWasmPluginPackage(spec.Package) {
+		errs = append(errs, field.NotSupported(
+			specPath.Child("package"),
+			spec.Package,
+			resource.SupportedWasmPluginPackages(),
+		))
+		packageValid = false
+	}
+	if packageValid && plugin.Name != apivalidation.PluginID(spec.Package) {
+		errs = append(errs, field.Invalid(
+			metadataNamePath,
+			plugin.Name,
+			"must be the stable resource ID derived from spec.package",
+		))
+	}
+	if !apivalidation.IsValidVersion(spec.Version) {
+		errs = append(errs, field.Invalid(
+			specPath.Child("version"),
+			spec.Version,
+			"version must be a semantic version without a v prefix",
+		))
+	}
+	if !apivalidation.IsValidArtifactURL(spec.URL) {
+		errs = append(errs, field.Invalid(
+			specPath.Child("url"),
+			spec.URL,
+			"url must identify an HTTP, HTTPS, or OCI Wasm artifact",
+		))
+	}
+	if spec.SHA256 == "" {
+		errs = append(errs, field.Required(specPath.Child("sha256"), "sha256 is required"))
+	} else if !apivalidation.IsValidSHA256Digest(spec.SHA256) {
+		errs = append(errs, field.Invalid(
+			specPath.Child("sha256"),
+			spec.SHA256,
+			fmt.Sprintf(
+				"sha256 must contain %d lowercase hexadecimal characters",
+				sha256.Size*2,
+			),
+		))
+	}
+	if !apivalidation.IsValidRootID(spec.RootID) {
+		errs = append(errs, field.Invalid(
+			specPath.Child("rootID"),
+			spec.RootID,
+			fmt.Sprintf(
+				"rootID must not exceed %d bytes or contain control characters",
+				apivalidation.MaxRootIDBytes,
+			),
+		))
+	}
+	switch spec.PullPolicy {
+	case resource.WasmPluginPullIfNotPresent, resource.WasmPluginPullAlways:
+	default:
+		errs = append(errs, field.NotSupported(specPath.Child("pullPolicy"), spec.PullPolicy, []string{
+			string(resource.WasmPluginPullIfNotPresent),
+			string(resource.WasmPluginPullAlways),
+		}))
+	}
+	return errs
+}

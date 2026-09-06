@@ -7,8 +7,7 @@ import (
 	"slices"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/policyconfig"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 func (c *compilation) validPolicyTargets(
@@ -17,14 +16,14 @@ func (c *compilation) validPolicyTargets(
 	targets []gatewayv1.PolicyTargetRef,
 	allowedTargetKinds ...gatewayv1.Kind,
 ) []gatewayv1.PolicyTargetRef {
-	if len(targets) > policyconfig.MaxTargets {
+	if len(targets) > apivalidation.MaxTargets {
 		c.addResourceError(
 			policyKind,
 			policyID,
 			ReasonInvalidSpec,
 			fmt.Sprintf("policy %q contains too many targets", policyID),
 		)
-		targets = targets[:policyconfig.MaxTargets]
+		targets = targets[:apivalidation.MaxTargets]
 	}
 
 	validTargets := make([]gatewayv1.PolicyTargetRef, 0, len(targets))
@@ -39,7 +38,7 @@ func (c *compilation) validPolicyTargets(
 			)
 			continue
 		}
-		if !resourceconfig.IsCanonicalID(target.Name) {
+		if !apivalidation.IsCanonicalID(target.Name) {
 			c.addResourceError(
 				policyKind,
 				policyID,

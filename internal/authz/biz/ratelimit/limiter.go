@@ -13,7 +13,7 @@ import (
 
 	"golang.org/x/net/http/httpguts"
 
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 const maxWindowSeconds = math.MaxInt64 / int64(time.Second)
@@ -113,7 +113,7 @@ func (l *Limiter) Admit(ctx context.Context, rules []Rule, request Request) (*Re
 
 func (r Rule) limit(request Request) (Limit, error) {
 	switch {
-	case !resourceconfig.IsCanonicalID(r.PolicyID):
+	case !apivalidation.IsCanonicalID(r.PolicyID):
 		return Limit{}, fmt.Errorf("%w: policy ID is invalid", ErrInvalidRule)
 	case r.Scope == "":
 		return Limit{}, fmt.Errorf("%w: scope is missing", ErrInvalidRule)

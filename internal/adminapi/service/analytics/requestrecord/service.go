@@ -1,0 +1,66 @@
+// Package requestrecord 提供控制台请求记录查询 API。
+package requestrecord
+
+import (
+	"context"
+
+	adminv1 "github.com/lgc202/ingate/api/admin/v1"
+	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/analytics/requestrecord"
+	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
+	"github.com/lgc202/ingate/internal/pkg/requestrecord"
+)
+
+// Service 实现请求记录查询 API。
+type Service struct {
+	records *requestbiz.Usecase
+}
+
+// NewService 创建请求记录协议服务。
+func NewService(records *requestbiz.Usecase) *Service {
+	return &Service{records: records}
+}
+
+// ListRequestRecords 按时间倒序查询请求记录。
+func (s *Service) ListRequestRecords(
+	ctx context.Context,
+	request *adminv1.ListRequestRecordsRequest,
+) (*adminv1.ListRequestRecordsResponse, error) {
+	options, err := listOptions(request)
+	if err != nil {
+		return nil, err
+	}
+	page, err := s.records.List(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	records := make([]*adminv1.RequestRecordSummary, len(page.Records))
+	for i := range page.Records {
+		records[i] = summaryResponse(&page.Records[i])
+	}
+	return &adminv1.ListRequestRecordsResponse{
+		Records:       records,
+		NextPageToken: page.NextPageToken,
+	}, nil
+}
+
+// GetRequestRecord 查询单次请求记录。
+func (s *Service) GetRequestRecord(
+	ctx context.Context,
+	request *adminv1.GetRequestRecordRequest,
+) (*adminv1.RequestRecord, error) {
+	if !requestrecord.IsValidID(request.GetId()) {
+		return nil, adminv1.ErrorInvalidArgument("请求记录标识无效")
+	}
+	startedAt, err := requiredTimestamp(request.GetStartedAt(), "请选择请求开始时间")
+	if err != nil {
+		return nil, err
+	}
+	if !analyticsconfig.IsSupportedTime(startedAt) {
+		return nil, adminv1.ErrorInvalidArgument("请求开始时间超出支持范围")
+	}
+	record, err := s.records.Get(ctx, request.GetId(), startedAt)
+	if err != nil {
+		return nil, err
+	}
+	return recordResponse(record), nil
+}

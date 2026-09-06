@@ -2,7 +2,6 @@ package caller
 
 import (
 	"context"
-	"fmt"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
@@ -19,10 +18,10 @@ func (uc *Usecase) checkAuthorizedRoutes(ctx context.Context, routeIDs []string)
 	for _, routeID := range routeIDs {
 		route := routes[routeID]
 		if route == nil {
-			return adminv1.ErrorResourceReferenceNotFound("%s", fmt.Sprintf("授权路由 %q 不存在", routeID))
+			return adminv1.ErrorResourceReferenceNotFound("授权路由 %q 不存在", routeID)
 		}
 		if route.Spec.AccessMode != resource.RouteAccessCaller {
-			return adminv1.ErrorBusinessRuleViolation("%s", fmt.Sprintf("路由 %q 不使用调用方密钥", route.Spec.DisplayName))
+			return adminv1.ErrorBusinessRuleViolation("路由 %q 不使用调用方密钥", route.Spec.DisplayName)
 		}
 	}
 	return nil
@@ -37,11 +36,10 @@ func (uc *Usecase) checkNotReferenced(ctx context.Context, caller *resource.Call
 		func(policy resource.TokenQuotaPolicy) (bool, error) {
 			for _, target := range policy.Spec.TargetRefs {
 				if target.Kind == resource.KindCaller && target.Name == caller.Name {
-					return false, adminv1.ErrorResourceReferenced("%s", fmt.Sprintf(
+					return false, adminv1.ErrorResourceReferenced(
 						"调用方 %q 仍被 Token 额度策略 %q 应用",
 						caller.Spec.DisplayName,
 						policy.Spec.DisplayName,
-					),
 					)
 				}
 			}
