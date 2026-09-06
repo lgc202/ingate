@@ -11,25 +11,25 @@ import (
 	"github.com/samber/lo"
 )
 
-type routeConfigurationInput struct {
+type routeConfigInput struct {
 	RouteID string `json:"route_id" jsonschema_description:"要检查的路由 ID；使用 analyze_traffic 或 list_routes 返回的 ID"`
 }
 
-type routeConfigurationOutput struct {
-	Summary  string                  `json:"summary"`
-	Source   string                  `json:"source,omitempty"`
-	Status   string                  `json:"status"`
-	Route    *routeConfigurationInfo `json:"route,omitempty"`
-	Gateways []gatewayInfo           `json:"gateways,omitempty"`
-	Services []serviceInfo           `json:"services,omitempty"`
+type routeConfigOutput struct {
+	Summary  string           `json:"summary"`
+	Source   string           `json:"source,omitempty"`
+	Status   string           `json:"status"`
+	Route    *routeConfigInfo `json:"route,omitempty"`
+	Gateways []gatewayInfo    `json:"gateways,omitempty"`
+	Services []serviceInfo    `json:"services,omitempty"`
 }
 
-// RouteConfigurationReader 是单条路由配置工具实际使用的查询边界。
-type RouteConfigurationReader interface {
+// RouteConfigReader 是单条路由配置工具实际使用的查询边界。
+type RouteConfigReader interface {
 	GetRouteConfiguration(context.Context, string) (RouteConfiguration, error)
 }
 
-type routeConfigurationInfo struct {
+type routeConfigInfo struct {
 	ID            string                `json:"id"`
 	Name          string                `json:"name"`
 	Type          string                `json:"type"`
@@ -74,11 +74,11 @@ type routeHostRewriteInfo struct {
 	Hostname string `json:"hostname,omitempty"`
 }
 
-func newRouteConfigurationTool(resources RouteConfigurationReader) (einotool.BaseTool, error) {
+func newRouteConfigTool(resources RouteConfigReader) (einotool.BaseTool, error) {
 	definition, err := utils.InferTool(
 		getRouteConfigTool,
 		"查询一条路由及其关联网关、目标服务的完整生效关系。用于流量异常后的配置核查，不用于流量排名。",
-		func(ctx context.Context, input routeConfigurationInput) (routeConfigurationOutput, error) {
+		func(ctx context.Context, input routeConfigInput) (routeConfigOutput, error) {
 			return getRouteConfiguration(ctx, resources, input)
 		},
 	)
@@ -90,19 +90,19 @@ func newRouteConfigurationTool(resources RouteConfigurationReader) (einotool.Bas
 
 func getRouteConfiguration(
 	ctx context.Context,
-	resources RouteConfigurationReader,
-	input routeConfigurationInput,
-) (routeConfigurationOutput, error) {
+	resources RouteConfigReader,
+	input routeConfigInput,
+) (routeConfigOutput, error) {
 	routeID := strings.TrimSpace(input.RouteID)
 	if _, err := uuid.Parse(routeID); err != nil {
-		return routeConfigurationErrorResult(
+		return routeConfigErrorResult(
 			invalidInputf("route_id must be a valid route ID returned by analyze_traffic or list_routes"),
 		)
 	}
 
 	configuration, err := resources.GetRouteConfiguration(ctx, routeID)
 	if err != nil {
-		return routeConfigurationErrorResult(err)
+		return routeConfigErrorResult(err)
 	}
 	serviceNames := lo.Associate(configuration.Services, func(service Service) (string, string) {
 		return service.ID, service.Name
@@ -133,7 +133,7 @@ func getRouteConfiguration(
 	)
 
 	route := configuration.Route
-	return routeConfigurationOutput{
+	return routeConfigOutput{
 		Summary: fmt.Sprintf(
 			"已解析路由 %s 关联的 %d 个网关和 %d 个目标服务",
 			route.Name,
@@ -142,7 +142,7 @@ func getRouteConfiguration(
 		),
 		Source: "admin_api",
 		Status: "complete",
-		Route: &routeConfigurationInfo{
+		Route: &routeConfigInfo{
 			ID:         route.ID,
 			Name:       route.Name,
 			Type:       route.Type,
@@ -191,12 +191,12 @@ func routeHostRewrite(mode, hostname string) *routeHostRewriteInfo {
 	return &routeHostRewriteInfo{Mode: mode, Hostname: hostname}
 }
 
-func routeConfigurationErrorResult(err error) (routeConfigurationOutput, error) {
+func routeConfigErrorResult(err error) (routeConfigOutput, error) {
 	summary, status, ok := recoverableToolError(err)
 	if !ok {
-		return routeConfigurationOutput{}, err
+		return routeConfigOutput{}, err
 	}
-	return routeConfigurationOutput{
+	return routeConfigOutput{
 		Summary: summary,
 		Status:  status,
 	}, nil

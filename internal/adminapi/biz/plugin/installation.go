@@ -6,7 +6,7 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/wasmconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 // WasmPluginGetter 定义跨策略校验插件安装状态所需的读取能力。
@@ -28,7 +28,7 @@ func NewInstallationChecker(plugins WasmPluginGetter) *InstallationChecker {
 
 // Installed 返回指定插件包是否已经安装。
 func (c *InstallationChecker) Installed(ctx context.Context, packageName string) (bool, error) {
-	_, err := c.plugins.Get(ctx, wasmconfig.PluginID(packageName))
+	_, err := c.plugins.Get(ctx, apivalidation.PluginID(packageName))
 	if adminv1.IsResourceNotFound(err) {
 		return false, nil
 	}

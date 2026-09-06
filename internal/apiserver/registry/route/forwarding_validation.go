@@ -7,8 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 func validateForwarding(spec resource.RouteSpec, path *field.Path) field.ErrorList {
@@ -22,24 +21,24 @@ func validateForwarding(spec resource.RouteSpec, path *field.Path) field.ErrorLi
 		}
 	}
 	var errs field.ErrorList
-	if len(spec.UpstreamRefs) > routeconfig.MaxServiceTargets {
+	if len(spec.UpstreamRefs) > apivalidation.MaxServiceTargets {
 		errs = append(errs, field.TooMany(
 			path.Child("upstreamRefs"),
 			len(spec.UpstreamRefs),
-			routeconfig.MaxServiceTargets,
+			apivalidation.MaxServiceTargets,
 		))
 	}
 
 	upstreamRefs := spec.UpstreamRefs
-	if len(upstreamRefs) > routeconfig.MaxServiceTargets {
-		upstreamRefs = upstreamRefs[:routeconfig.MaxServiceTargets]
+	if len(upstreamRefs) > apivalidation.MaxServiceTargets {
+		upstreamRefs = upstreamRefs[:apivalidation.MaxServiceTargets]
 	}
 	seenUpstreamRefs := make(map[string]bool, len(upstreamRefs))
 	for i, ref := range upstreamRefs {
 		refPath := path.Child("upstreamRefs").Index(i)
 		if ref.Name == "" {
 			errs = append(errs, field.Required(refPath.Child("name"), "upstreamRef.name is required"))
-		} else if !resourceconfig.IsCanonicalID(ref.Name) {
+		} else if !apivalidation.IsCanonicalID(ref.Name) {
 			errs = append(errs, field.Invalid(
 				refPath.Child("name"),
 				ref.Name,
@@ -50,7 +49,7 @@ func validateForwarding(spec resource.RouteSpec, path *field.Path) field.ErrorLi
 		} else {
 			seenUpstreamRefs[ref.Name] = true
 		}
-		if ref.Weight < routeconfig.MinTargetWeight || ref.Weight > routeconfig.MaxTargetWeight {
+		if ref.Weight < apivalidation.MinTargetWeight || ref.Weight > apivalidation.MaxTargetWeight {
 			errs = append(errs, field.Invalid(
 				refPath.Child("weight"),
 				ref.Weight,
@@ -80,79 +79,92 @@ func validateAIForwarding(spec resource.RouteSpec, path *field.Path) field.Error
 			"at least one client model is required",
 		))
 	}
-	if len(spec.AI.Models) > routeconfig.MaxAIModels {
+	if len(spec.AI.Models) > apivalidation.MaxAIModels {
 		errs = append(errs, field.TooMany(
 			path.Child("ai", "models"),
 			len(spec.AI.Models),
-			routeconfig.MaxAIModels,
+			apivalidation.MaxAIModels,
 		))
 	}
 
 	models := spec.AI.Models
-	if len(models) > routeconfig.MaxAIModels {
-		models = models[:routeconfig.MaxAIModels]
+	if len(models) > apivalidation.MaxAIModels {
+		models = models[:apivalidation.MaxAIModels]
 	}
 	modelsPath := path.Child("ai", "models")
 	seenModels := make(map[string]bool, len(models))
 	for i, model := range models {
-		modelPath := modelsPath.Index(i)
-		if !routeconfig.IsValidModelName(model.Name) {
-			errs = append(errs, field.Invalid(
-				modelPath.Child("name"),
-				model.Name,
-				"client model name is invalid",
-			))
-		} else if seenModels[model.Name] {
-			errs = append(errs, field.Duplicate(modelPath.Child("name"), model.Name))
-		} else {
-			seenModels[model.Name] = true
-		}
+		errs = append(errs, validateAIModel(model, modelsPath.Index(i), seenModels)...)
+	}
+	return errs
+}
 
-		if len(model.Targets) == 0 {
-			errs = append(errs, field.Required(modelPath.Child("targets"), "at least one model target is required"))
-			continue
+func validateAIModel(
+	model resource.AIModel,
+	path *field.Path,
+	seenModels map[string]bool,
+) field.ErrorList {
+	var errs field.ErrorList
+	if !apivalidation.IsValidModelName(model.Name) {
+		errs = append(errs, field.Invalid(
+			path.Child("name"),
+			model.Name,
+			"client model name is invalid",
+		))
+	} else if seenModels[model.Name] {
+		errs = append(errs, field.Duplicate(path.Child("name"), model.Name))
+	} else {
+		seenModels[model.Name] = true
+	}
+
+	if len(model.Targets) == 0 {
+		return append(errs, field.Required(path.Child("targets"), "at least one model target is required"))
+	}
+	if len(model.Targets) > apivalidation.MaxAIModelTargets {
+		errs = append(errs, field.TooMany(
+			path.Child("targets"),
+			len(model.Targets),
+			apivalidation.MaxAIModelTargets,
+		))
+	}
+	targets := model.Targets
+	if len(targets) > apivalidation.MaxAIModelTargets {
+		targets = targets[:apivalidation.MaxAIModelTargets]
+	}
+	return append(errs, validateAIModelTargets(targets, path.Child("targets"))...)
+}
+
+func validateAIModelTargets(targets []resource.AIModelTarget, path *field.Path) field.ErrorList {
+	var errs field.ErrorList
+	seenUpstreamRefs := make(map[string]bool, len(targets))
+	for i, target := range targets {
+		targetPath := path.Index(i)
+		if target.UpstreamRef == "" {
+			errs = append(errs, field.Required(targetPath.Child("upstreamRef"), "upstreamRef is required"))
+		} else if !apivalidation.IsCanonicalID(target.UpstreamRef) {
+			errs = append(errs, field.Invalid(
+				targetPath.Child("upstreamRef"),
+				target.UpstreamRef,
+				"upstreamRef must be a canonical UUID",
+			))
+		} else if seenUpstreamRefs[target.UpstreamRef] {
+			errs = append(errs, field.Duplicate(targetPath.Child("upstreamRef"), target.UpstreamRef))
+		} else {
+			seenUpstreamRefs[target.UpstreamRef] = true
 		}
-		if len(model.Targets) > routeconfig.MaxAIModelTargets {
-			errs = append(errs, field.TooMany(
-				modelPath.Child("targets"),
-				len(model.Targets),
-				routeconfig.MaxAIModelTargets,
+		if !apivalidation.IsValidModelName(target.Model) {
+			errs = append(errs, field.Invalid(
+				targetPath.Child("model"),
+				target.Model,
+				"upstream model name is invalid",
 			))
 		}
-		targets := model.Targets
-		if len(targets) > routeconfig.MaxAIModelTargets {
-			targets = targets[:routeconfig.MaxAIModelTargets]
-		}
-		seenTargets := make(map[string]bool, len(targets))
-		for j, target := range targets {
-			targetPath := modelPath.Child("targets").Index(j)
-			if target.UpstreamRef == "" {
-				errs = append(errs, field.Required(targetPath.Child("upstreamRef"), "upstreamRef is required"))
-			} else if !resourceconfig.IsCanonicalID(target.UpstreamRef) {
-				errs = append(errs, field.Invalid(
-					targetPath.Child("upstreamRef"),
-					target.UpstreamRef,
-					"upstreamRef must be a canonical UUID",
-				))
-			} else if seenTargets[target.UpstreamRef] {
-				errs = append(errs, field.Duplicate(targetPath.Child("upstreamRef"), target.UpstreamRef))
-			} else {
-				seenTargets[target.UpstreamRef] = true
-			}
-			if !routeconfig.IsValidModelName(target.Model) {
-				errs = append(errs, field.Invalid(
-					targetPath.Child("model"),
-					target.Model,
-					"upstream model name is invalid",
-				))
-			}
-			if target.Weight < routeconfig.MinTargetWeight || target.Weight > routeconfig.MaxTargetWeight {
-				errs = append(errs, field.Invalid(
-					targetPath.Child("weight"),
-					target.Weight,
-					"weight is out of range",
-				))
-			}
+		if target.Weight < apivalidation.MinTargetWeight || target.Weight > apivalidation.MaxTargetWeight {
+			errs = append(errs, field.Invalid(
+				targetPath.Child("weight"),
+				target.Weight,
+				"weight is out of range",
+			))
 		}
 	}
 	return errs

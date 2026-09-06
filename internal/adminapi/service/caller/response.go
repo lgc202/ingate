@@ -7,7 +7,7 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	callerbiz "github.com/lgc202/ingate/internal/adminapi/biz/caller"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service/protocol"
+	"github.com/lgc202/ingate/internal/adminapi/service/conversion"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -21,9 +21,9 @@ func callerResponse(caller *resource.Caller) *adminv1.Caller {
 			return accessKeyResponse(key)
 		}),
 		Version:   caller.Generation,
-		CreatedAt: adminservice.Timestamp(caller.CreationTimestamp.Time),
-		UpdatedAt: adminservice.Timestamp(
-			adminservice.ResourceUpdatedAt(caller.Annotations),
+		CreatedAt: conversion.Timestamp(caller.CreationTimestamp.Time),
+		UpdatedAt: conversion.Timestamp(
+			conversion.ResourceUpdatedAt(caller.Annotations),
 		),
 	}
 }
@@ -33,10 +33,10 @@ func accessKeyResponse(key resource.AccessKey) *adminv1.AccessKey {
 		Id:        key.ID,
 		Name:      key.DisplayName,
 		Enabled:   key.Enabled,
-		CreatedAt: adminservice.Timestamp(key.CreatedAt.Time),
+		CreatedAt: conversion.Timestamp(key.CreatedAt.Time),
 	}
 	if key.ExpiresAt != nil {
-		response.ExpiresAt = adminservice.Timestamp(key.ExpiresAt.Time)
+		response.ExpiresAt = conversion.Timestamp(key.ExpiresAt.Time)
 	}
 	return response
 }

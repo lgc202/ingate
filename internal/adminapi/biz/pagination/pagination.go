@@ -1,7 +1,11 @@
 // Package pagination 定义 Admin API 业务层的分页遍历语义。
 package pagination
 
-import "context"
+import (
+	"context"
+
+	adminv1 "github.com/lgc202/ingate/api/admin/v1"
+)
 
 const internalPageLimit = 200
 
@@ -15,6 +19,15 @@ type Request struct {
 type Result[T any] struct {
 	Items      []T
 	NextCursor string
+}
+
+// InvalidCursor 返回分页游标无法解析或已经失效错误。
+func InvalidCursor(cause error) error {
+	err := adminv1.ErrorInvalidArgument("分页游标无效或已过期")
+	if cause == nil {
+		return err
+	}
+	return err.WithCause(cause)
 }
 
 // VisitPages 分页遍历跨资源校验所需对象，visit 返回 true 时提前结束。

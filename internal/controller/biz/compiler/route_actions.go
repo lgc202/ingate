@@ -11,9 +11,8 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 const defaultRetryOn = "connect-failure,refused-stream,reset,5xx"
@@ -30,7 +29,7 @@ func (c *compilation) buildWeightedClusters(
 		)
 		return nil, false
 	}
-	if len(route.Spec.UpstreamRefs) > routeconfig.MaxServiceTargets {
+	if len(route.Spec.UpstreamRefs) > apivalidation.MaxServiceTargets {
 		c.addRouteError(
 			route.Name,
 			ReasonInvalidSpec,
@@ -56,9 +55,9 @@ func (c *compilation) buildWeightedClusters(
 		var reason Reason
 		var message string
 		switch {
-		case !resourceconfig.IsCanonicalID(upstreamRef.Name) || duplicateUpstream ||
-			upstreamRef.Weight < routeconfig.MinTargetWeight ||
-			upstreamRef.Weight > routeconfig.MaxTargetWeight:
+		case !apivalidation.IsCanonicalID(upstreamRef.Name) || duplicateUpstream ||
+			upstreamRef.Weight < apivalidation.MinTargetWeight ||
+			upstreamRef.Weight > apivalidation.MaxTargetWeight:
 			reason = ReasonInvalidSpec
 			message = fmt.Sprintf("route %q has an invalid upstream reference %q", route.Name, upstreamRef.Name)
 		case !exists:
@@ -100,8 +99,8 @@ func (c *compilation) buildRouteAction(
 		return nil, false
 	}
 	requestTimeoutMillis := route.Spec.Timeout.RequestMillis
-	if requestTimeoutMillis < routeconfig.MinRequestTimeoutMillis ||
-		requestTimeoutMillis > routeconfig.MaxRequestTimeoutMillis {
+	if requestTimeoutMillis < apivalidation.MinRequestTimeoutMillis ||
+		requestTimeoutMillis > apivalidation.MaxRequestTimeoutMillis {
 		c.addRouteError(
 			route.Name,
 			ReasonInvalidSpec,
@@ -159,10 +158,10 @@ func (c *compilation) buildRetryPolicy(
 	requestTimeoutMillis int,
 ) (*routev3.RetryPolicy, bool) {
 	retry := route.Spec.Retry
-	if retry.Attempts < routeconfig.MinRetryAttempts ||
-		retry.Attempts > routeconfig.MaxRetryAttempts ||
-		retry.PerTryTimeoutMillis < routeconfig.MinPerTryTimeoutMillis ||
-		retry.PerTryTimeoutMillis > routeconfig.MaxPerTryTimeoutMillis ||
+	if retry.Attempts < apivalidation.MinRetryAttempts ||
+		retry.Attempts > apivalidation.MaxRetryAttempts ||
+		retry.PerTryTimeoutMillis < apivalidation.MinPerTryTimeoutMillis ||
+		retry.PerTryTimeoutMillis > apivalidation.MaxPerTryTimeoutMillis ||
 		retry.PerTryTimeoutMillis > requestTimeoutMillis {
 		c.addRouteError(
 			route.Name,

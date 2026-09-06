@@ -11,8 +11,8 @@ import (
 
 	"github.com/lgc202/ingate/internal/aiextproc/service/chatcompletion"
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/extauthz"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 // handleDownstreamHeaders 为一次客户端请求建立关联标识
@@ -96,8 +96,8 @@ func callerIdentityFromMetadata(metadata *corev3.Metadata) (callerIdentity, erro
 		return callerIdentity{}, errors.New("caller identity metadata is incomplete")
 	}
 	if identity.callerID != "" &&
-		(!resourceconfig.IsCanonicalID(identity.callerID) ||
-			!resourceconfig.IsCanonicalID(identity.accessKeyID)) {
+		(!apivalidation.IsCanonicalID(identity.callerID) ||
+			!apivalidation.IsCanonicalID(identity.accessKeyID)) {
 		return callerIdentity{}, errors.New("caller identity metadata is invalid")
 	}
 	return identity, nil

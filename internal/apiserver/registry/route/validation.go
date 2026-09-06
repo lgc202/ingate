@@ -5,8 +5,8 @@ import (
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 // validateRoute 只校验资源自身结构，Gateway 和 Upstream 引用由 Controller 最终裁决。
@@ -62,8 +62,8 @@ func validateHostRewrite(rewrite resource.HostRewrite, path *field.Path) field.E
 func validateTimeoutAndRetry(spec resource.RouteSpec, path *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	requestTimeoutMillis := spec.Timeout.RequestMillis
-	if requestTimeoutMillis < routeconfig.MinRequestTimeoutMillis ||
-		requestTimeoutMillis > routeconfig.MaxRequestTimeoutMillis {
+	if requestTimeoutMillis < apivalidation.MinRequestTimeoutMillis ||
+		requestTimeoutMillis > apivalidation.MaxRequestTimeoutMillis {
 		errs = append(errs, field.Invalid(
 			path.Child("timeout", "requestMillis"),
 			requestTimeoutMillis,
@@ -73,16 +73,16 @@ func validateTimeoutAndRetry(spec resource.RouteSpec, path *field.Path) field.Er
 	if spec.Retry == nil {
 		return errs
 	}
-	if spec.Retry.Attempts < routeconfig.MinRetryAttempts ||
-		spec.Retry.Attempts > routeconfig.MaxRetryAttempts {
+	if spec.Retry.Attempts < apivalidation.MinRetryAttempts ||
+		spec.Retry.Attempts > apivalidation.MaxRetryAttempts {
 		errs = append(errs, field.Invalid(
 			path.Child("retry", "attempts"),
 			spec.Retry.Attempts,
 			"retry.attempts is out of range",
 		))
 	}
-	if spec.Retry.PerTryTimeoutMillis < routeconfig.MinPerTryTimeoutMillis ||
-		spec.Retry.PerTryTimeoutMillis > routeconfig.MaxPerTryTimeoutMillis {
+	if spec.Retry.PerTryTimeoutMillis < apivalidation.MinPerTryTimeoutMillis ||
+		spec.Retry.PerTryTimeoutMillis > apivalidation.MaxPerTryTimeoutMillis {
 		errs = append(errs, field.Invalid(
 			path.Child("retry", "perTryTimeoutMillis"),
 			spec.Retry.PerTryTimeoutMillis,

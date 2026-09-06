@@ -12,6 +12,7 @@ import {
   Panel,
   ResourceFilterField,
   ResourceListFilters,
+  ResourceSelect,
   ResourceStatePanel,
   Toast,
 } from '@/components/ui';
@@ -276,10 +277,6 @@ function DetailItem({ label, value, wide = false }: { label: string; value: stri
 function ResourceDetailItem({ label, id, names, path, deletedLabel }: { label: string; id: string; names: Map<string, string>; path: string; deletedLabel: string }) {
   const name = names.get(id);
   return <div><span>{label}</span>{name ? <Link className="request-resource-link" to={`${path}?detail=${encodeURIComponent(id)}`}>{name}<ArrowRight /></Link> : <strong>{deletedLabel}</strong>}</div>;
-}
-
-function ResourceSelect({ value, placeholder, options, onChange }: { value?: string; placeholder: string; options?: Array<{ id: string; name: string }>; onChange: (value?: string) => void }) {
-  return <select className="select" value={value ?? ''} onChange={(event) => onChange(event.target.value || undefined)}><option value="">{placeholder}</option>{options?.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select>;
 }
 
 interface ResourceNames {

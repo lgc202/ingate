@@ -10,7 +10,7 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/callerconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 func parseCallerSpec(
@@ -34,7 +34,7 @@ func parseCallerSpec(
 }
 
 func parseRouteIDs(routeIDs []string) ([]string, error) {
-	if len(routeIDs) > callerconfig.MaxRouteRefs {
+	if len(routeIDs) > apivalidation.MaxRouteRefs {
 		return nil, adminv1.ErrorInvalidArgument("授权路由数量超过限制")
 	}
 
@@ -60,7 +60,7 @@ func parseAccessKey(
 	expiresAt *timestamppb.Timestamp,
 ) (string, *time.Time, error) {
 	displayName = strings.TrimSpace(displayName)
-	if !callerconfig.IsValidAccessKeyDisplayName(displayName) {
+	if !apivalidation.IsValidAccessKeyDisplayName(displayName) {
 		return "", nil, adminv1.ErrorInvalidArgument("密钥名称不能为空或超过长度限制")
 	}
 	expiration, err := parseExpiration(expiresAt)

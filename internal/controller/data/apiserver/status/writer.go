@@ -96,7 +96,7 @@ func (w *Writer) updateResource(
 	case gatewayv1.KindIPRestrictionPolicy:
 		return w.updateIPRestrictionPolicy(ctx, resource, compile, deliveryState, targets)
 	case gatewayv1.KindHeaderTransformationPolicy:
-		return w.updateHeaderTransformationPolicy(ctx, resource, compile, deliveryState, targets)
+		return w.updateHeaderPolicy(ctx, resource, compile, deliveryState, targets)
 	case gatewayv1.KindMockResponsePolicy:
 		return w.updateMockResponsePolicy(ctx, resource, compile, deliveryState, targets)
 	case gatewayv1.KindWasmPlugin:

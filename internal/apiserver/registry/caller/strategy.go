@@ -13,7 +13,7 @@ import (
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 type strategy struct {
@@ -76,13 +76,13 @@ func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
 func canonicalizeCallerSpec(spec *resource.CallerSpec) {
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
 	for i := range spec.RouteRefs {
-		if routeID, valid := resourceconfig.NormalizeID(spec.RouteRefs[i]); valid {
+		if routeID, valid := apivalidation.NormalizeID(spec.RouteRefs[i]); valid {
 			spec.RouteRefs[i] = routeID
 		}
 	}
 	slices.Sort(spec.RouteRefs)
 	for i := range spec.AccessKeys {
-		if accessKeyID, valid := resourceconfig.NormalizeID(spec.AccessKeys[i].ID); valid {
+		if accessKeyID, valid := apivalidation.NormalizeID(spec.AccessKeys[i].ID); valid {
 			spec.AccessKeys[i].ID = accessKeyID
 		}
 		spec.AccessKeys[i].DisplayName = strings.TrimSpace(spec.AccessKeys[i].DisplayName)

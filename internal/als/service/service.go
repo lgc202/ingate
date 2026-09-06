@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 
+	accesslogdata "github.com/envoyproxy/go-control-plane/envoy/data/accesslog/v3"
 	accesslogservice "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v3"
 	"github.com/google/wire"
 	"google.golang.org/grpc/codes"
@@ -42,18 +43,9 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 		if err != nil {
 			return err
 		}
-		if identifier := message.GetIdentifier(); identifier != nil {
-			// Envoy 只保证在流首批消息中携带标识，后续批次沿用当前流记录的节点 ID。
-			currentNodeID := identifier.GetNode().GetId()
-			if identifier.GetLogName() != requestrecord.StreamName ||
-				currentNodeID == "" ||
-				(nodeID != "" && currentNodeID != nodeID) {
-				return status.Error(codes.InvalidArgument, "envoy access log stream identity is invalid")
-			}
-			nodeID = currentNodeID
-		}
-		if nodeID == "" {
-			return status.Error(codes.InvalidArgument, "envoy node identity is required")
+		nodeID, err = accessLogNodeID(nodeID, message)
+		if err != nil {
+			return err
 		}
 		if tcpLogs := message.GetTcpLogs(); tcpLogs != nil {
 			// Ingate 当前只代理 HTTP 流量，忽略意外的 TCP 记录比主动断开整条 ALS 流更安全。
@@ -64,21 +56,7 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 		if len(entries) == 0 {
 			continue
 		}
-		records := make([]*alsv1.RequestRecord, 0, len(entries))
-		discardedCount := 0
-		var firstParseErr error
-		for _, entry := range entries {
-			record, err := parseRequestRecord(nodeID, entry)
-			if err != nil {
-				// 单条坏记录不应拖累同批有效记录，更不能让 Envoy 因 gRPC 失败反复重连。
-				discardedCount++
-				if firstParseErr == nil {
-					firstParseErr = err
-				}
-				continue
-			}
-			records = append(records, record)
-		}
+		records, discardedCount, firstParseErr := parseRequestRecords(nodeID, entries)
 		if discardedCount > 0 {
 			s.recorder.Discard(discardedCount)
 			s.logger.WarnContext(
@@ -103,4 +81,48 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 			return status.Error(codes.Unavailable, "request record storage is unavailable")
 		}
 	}
+}
+
+func accessLogNodeID(
+	current string,
+	message *accesslogservice.StreamAccessLogsMessage,
+) (string, error) {
+	identifier := message.GetIdentifier()
+	if identifier == nil {
+		if current == "" {
+			return "", status.Error(codes.InvalidArgument, "envoy node identity is required")
+		}
+		return current, nil
+	}
+
+	// Envoy 只保证在流首批消息中携带标识，后续批次沿用当前流记录的节点 ID。
+	nodeID := identifier.GetNode().GetId()
+	if identifier.GetLogName() != requestrecord.StreamName ||
+		nodeID == "" ||
+		(current != "" && nodeID != current) {
+		return "", status.Error(codes.InvalidArgument, "envoy access log stream identity is invalid")
+	}
+	return nodeID, nil
+}
+
+func parseRequestRecords(
+	nodeID string,
+	entries []*accesslogdata.HTTPAccessLogEntry,
+) ([]*alsv1.RequestRecord, int, error) {
+	records := make([]*alsv1.RequestRecord, 0, len(entries))
+	discarded := 0
+	var firstErr error
+	for _, entry := range entries {
+		record, err := parseRequestRecord(nodeID, entry)
+		if err != nil {
+			// 单条坏记录不应拖累同批有效记录，更不能让 Envoy 因 gRPC 失败反复重连。
+			discarded++
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		records = append(records, record)
+	}
+	return records, discarded, firstErr
 }

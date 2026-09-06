@@ -18,9 +18,9 @@ import (
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/extauthz"
 	"github.com/lgc202/ingate/internal/pkg/requestrecord"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 const (
@@ -188,8 +188,8 @@ func resourceIDs(routeName string) (string, string, error) {
 		return "", "", nil
 	}
 	if len(parts) < 3 ||
-		!resourceconfig.IsCanonicalID(parts[1]) ||
-		!resourceconfig.IsCanonicalID(parts[2]) {
+		!apivalidation.IsCanonicalID(parts[1]) ||
+		!apivalidation.IsCanonicalID(parts[2]) {
 		return "", "", errors.New("HTTP access log route identity is invalid")
 	}
 	return parts[1], parts[2], nil

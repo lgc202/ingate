@@ -11,11 +11,11 @@ import (
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/headertransformationconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/httpheader"
 )
 
-type compiledHeaderTransformationPolicy struct {
+type compiledHeaderPolicy struct {
 	source  ResourceGeneration
 	filter  wasmFilter
 	targets []gatewayv1.PolicyTargetRef
@@ -40,8 +40,8 @@ type transformerHeader struct {
 	AppendValue string `json:"appendValue,omitempty"`
 }
 
-func (c *compilation) compileHeaderTransformationPolicies() []compiledHeaderTransformationPolicy {
-	result := make([]compiledHeaderTransformationPolicy, 0, len(c.headerTransformationPolicies))
+func (c *compilation) compileHeaderPolicies() []compiledHeaderPolicy {
+	result := make([]compiledHeaderPolicy, 0, len(c.headerTransformationPolicies))
 	for _, policyID := range slices.Sorted(maps.Keys(c.headerTransformationPolicies)) {
 		policy := c.headerTransformationPolicies[policyID]
 		targets := c.validPolicyTargets(
@@ -53,7 +53,7 @@ func (c *compilation) compileHeaderTransformationPolicies() []compiledHeaderTran
 		if !policy.Spec.Enabled {
 			continue
 		}
-		configuration, valid := c.headerTransformationConfiguration(policy)
+		configuration, valid := c.compileHeaderPolicyConfig(policy)
 		if !valid {
 			continue
 		}
@@ -85,7 +85,7 @@ func (c *compilation) compileHeaderTransformationPolicies() []compiledHeaderTran
 			)
 			continue
 		}
-		result = append(result, compiledHeaderTransformationPolicy{
+		result = append(result, compiledHeaderPolicy{
 			source: newResourceGeneration(gatewayv1.KindHeaderTransformationPolicy, policy),
 			filter: wasmFilter{
 				name:          policy.Name,
@@ -101,7 +101,7 @@ func (c *compilation) compileHeaderTransformationPolicies() []compiledHeaderTran
 	return result
 }
 
-func (c *compilation) headerTransformationConfiguration(policy *gatewayv1.HeaderTransformationPolicy) ([]byte, bool) {
+func (c *compilation) compileHeaderPolicyConfig(policy *gatewayv1.HeaderTransformationPolicy) ([]byte, bool) {
 	ruleCount := len(policy.Spec.RequestRules) + len(policy.Spec.ResponseRules)
 	if ruleCount == 0 {
 		c.addResourceError(
@@ -112,7 +112,7 @@ func (c *compilation) headerTransformationConfiguration(policy *gatewayv1.Header
 		)
 		return nil, false
 	}
-	if ruleCount > headertransformationconfig.MaxRules {
+	if ruleCount > apivalidation.MaxRules {
 		c.addResourceError(
 			gatewayv1.KindHeaderTransformationPolicy,
 			policy.Name,
@@ -215,11 +215,11 @@ func compileTransformerHeader(
 	}
 }
 
-func matchingHeaderTransformationPolicies(
-	policies []compiledHeaderTransformationPolicy,
+func matchingHeaderPolicies(
+	policies []compiledHeaderPolicy,
 	key policyRouteKey,
-) ([]compiledHeaderTransformationPolicy, []matchedPolicyTarget) {
-	matched := make([]compiledHeaderTransformationPolicy, 0)
+) ([]compiledHeaderPolicy, []matchedPolicyTarget) {
+	matched := make([]compiledHeaderPolicy, 0)
 	targets := make([]matchedPolicyTarget, 0)
 	for _, compiled := range policies {
 		_, matchedTargets := matchingPolicyTargets(compiled.targets, key)
@@ -232,9 +232,9 @@ func matchingHeaderTransformationPolicies(
 	return matched, targets
 }
 
-func applyHeaderTransformationPolicies(
+func applyHeaderPolicies(
 	routes []*routev3.Route,
-	policies []compiledHeaderTransformationPolicy,
+	policies []compiledHeaderPolicy,
 	config *listenerFilterConfig,
 ) error {
 	for _, policy := range policies {

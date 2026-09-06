@@ -8,8 +8,8 @@ import (
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/httpheader"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 func (c *compilation) buildHeaderModifier(
@@ -20,7 +20,7 @@ func (c *compilation) buildHeaderModifier(
 		return nil, nil, true
 	}
 	actionCount := len(modifier.Set) + len(modifier.Add) + len(modifier.Remove)
-	if actionCount == 0 || actionCount > routeconfig.MaxHeaderModifierActions {
+	if actionCount == 0 || actionCount > apivalidation.MaxHeaderModifierActions {
 		c.addRouteError(
 			route.Name,
 			ReasonInvalidSpec,

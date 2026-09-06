@@ -80,17 +80,17 @@ func (r *TargetResolver) Resolve(
 			if r.gateways == nil {
 				return TargetNames{}, fmt.Errorf("resolve policy target: %s is not supported", ref.Kind)
 			}
-			return TargetNames{}, adminv1.ErrorPolicyTargetNotFound("%s", fmt.Sprintf("关联网关 %q 不存在", ref.Name))
+			return TargetNames{}, adminv1.ErrorPolicyTargetNotFound("关联网关 %q 不存在", ref.Name)
 		case resource.KindRoute:
 			if r.routes == nil {
 				return TargetNames{}, fmt.Errorf("resolve policy target: %s is not supported", ref.Kind)
 			}
-			return TargetNames{}, adminv1.ErrorPolicyTargetNotFound("%s", fmt.Sprintf("关联路由 %q 不存在", ref.Name))
+			return TargetNames{}, adminv1.ErrorPolicyTargetNotFound("关联路由 %q 不存在", ref.Name)
 		case resource.KindCaller:
 			if r.callers == nil {
 				return TargetNames{}, fmt.Errorf("resolve policy target: %s is not supported", ref.Kind)
 			}
-			return TargetNames{}, adminv1.ErrorPolicyTargetNotFound("%s", fmt.Sprintf("关联调用方 %q 不存在", ref.Name))
+			return TargetNames{}, adminv1.ErrorPolicyTargetNotFound("关联调用方 %q 不存在", ref.Name)
 		default:
 			return TargetNames{}, fmt.Errorf("resolve policy target: unsupported kind %q", ref.Kind)
 		}

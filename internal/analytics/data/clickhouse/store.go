@@ -12,7 +12,6 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
 	"github.com/lgc202/ingate/internal/analytics/conf"
-	"github.com/lgc202/ingate/internal/pkg/clickhouseclient"
 	"github.com/lgc202/ingate/internal/pkg/tlsconfig"
 )
 
@@ -53,7 +52,7 @@ type Store struct {
 func NewStore(ctx context.Context, config *conf.Data_ClickHouse) (*Store, error) {
 	writeTimeout := config.GetWriteTimeout().AsDuration()
 	queryTimeout := config.GetQueryTimeout().AsDuration()
-	connection, err := clickhouseclient.Open(clientConfig(config))
+	connection, err := openConnection(clientConfig(config))
 	if err != nil {
 		return nil, err
 	}
@@ -191,20 +190,20 @@ func clickHouseRelease(version string) (int, int, error) {
 //
 // 底层连接的读取期限覆盖写入和查询两类操作中更长的一方，各方法仍通过 Context
 // 施加自己的业务超时。
-func clientConfig(config *conf.Data_ClickHouse) clickhouseclient.Config {
+func clientConfig(config *conf.Data_ClickHouse) connectionConfig {
 	writeTimeout := config.GetWriteTimeout().AsDuration()
 	queryTimeout := config.GetQueryTimeout().AsDuration()
-	return clickhouseclient.Config{
-		Addresses:             config.GetAddresses(),
-		Database:              config.GetDatabase(),
-		Username:              config.GetUsername(),
-		Password:              config.GetPassword(),
-		DialTimeout:           config.GetDialTimeout().AsDuration(),
-		ReadTimeout:           max(writeTimeout, queryTimeout),
-		MaxOpenConnections:    int(config.GetMaxOpenConnections()),
-		MaxIdleConnections:    int(config.GetMaxIdleConnections()),
-		ConnectionMaxLifetime: config.GetConnectionMaxLifetime().AsDuration(),
-		TLS: tlsconfig.ClientConfig{
+	return connectionConfig{
+		addresses:       config.GetAddresses(),
+		database:        config.GetDatabase(),
+		username:        config.GetUsername(),
+		password:        config.GetPassword(),
+		dialTimeout:     config.GetDialTimeout().AsDuration(),
+		readTimeout:     max(writeTimeout, queryTimeout),
+		maxOpenConns:    int(config.GetMaxOpenConnections()),
+		maxIdleConns:    int(config.GetMaxIdleConnections()),
+		connMaxLifetime: config.GetConnectionMaxLifetime().AsDuration(),
+		tls: tlsconfig.ClientConfig{
 			Enabled:         config.GetTls().GetEnabled(),
 			CAFile:          config.GetTls().GetCaFile(),
 			CertificateFile: config.GetTls().GetCertFile(),

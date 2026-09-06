@@ -11,10 +11,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
 	"github.com/lgc202/ingate/internal/pkg/accesskey"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/callerconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 // IssuedAccessKey 包含只在本次调用中存在的完整访问密钥。
@@ -41,14 +40,14 @@ func (uc *Usecase) IssueAccessKey(
 		return IssuedAccessKey{}, err
 	}
 	if current.Generation != input.ExpectedGeneration {
-		return IssuedAccessKey{}, apperror.ResourceVersionConflict()
+		return IssuedAccessKey{}, adminv1.ErrorResourceVersionConflict("资源已被其他用户修改，请刷新后重试")
 	}
-	if len(current.Spec.AccessKeys) >= callerconfig.MaxAccessKeys {
+	if len(current.Spec.AccessKeys) >= apivalidation.MaxAccessKeys {
 		return IssuedAccessKey{}, adminv1.ErrorBusinessRuleViolation("访问密钥数量已达上限")
 	}
 	for _, accessKey := range current.Spec.AccessKeys {
 		if strings.EqualFold(accessKey.DisplayName, input.DisplayName) {
-			return IssuedAccessKey{}, adminv1.ErrorResourceAlreadyExists("%s", fmt.Sprintf("访问密钥名称 %q 已存在", input.DisplayName))
+			return IssuedAccessKey{}, adminv1.ErrorResourceAlreadyExists("访问密钥名称 %q 已存在", input.DisplayName)
 		}
 	}
 
@@ -80,7 +79,7 @@ func (uc *Usecase) DisableAccessKey(
 		return nil, err
 	}
 	if current.Generation != expectedGeneration {
-		return nil, apperror.ResourceVersionConflict()
+		return nil, adminv1.ErrorResourceVersionConflict("资源已被其他用户修改，请刷新后重试")
 	}
 
 	spec := current.Spec

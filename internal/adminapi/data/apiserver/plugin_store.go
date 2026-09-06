@@ -13,14 +13,6 @@ type PluginSourceStore = resourceStore[
 	resource.PluginSourceSpec,
 ]
 
-// WasmPluginStore 读写 WasmPlugin 声明式资源。
-type WasmPluginStore = resourceStore[
-	resource.WasmPlugin,
-	*resource.WasmPlugin,
-	*resource.WasmPluginList,
-	resource.WasmPluginSpec,
-]
-
 // NewPluginSourceStore 创建 PluginSource Store。
 func NewPluginSourceStore(client clientset.Interface) *PluginSourceStore {
 	return &PluginSourceStore{
@@ -42,6 +34,14 @@ func NewPluginSourceStore(client clientset.Interface) *PluginSourceStore {
 		},
 	}
 }
+
+// WasmPluginStore 读写 WasmPlugin 声明式资源。
+type WasmPluginStore = resourceStore[
+	resource.WasmPlugin,
+	*resource.WasmPlugin,
+	*resource.WasmPluginList,
+	resource.WasmPluginSpec,
+]
 
 // NewWasmPluginStore 创建 WasmPlugin Store。
 func NewWasmPluginStore(client clientset.Interface) *WasmPluginStore {

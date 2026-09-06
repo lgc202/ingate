@@ -31,7 +31,7 @@ func (s *streamState) handleUpstreamHeaders(
 	s.request = request
 
 	// attributes 来自 Controller 生成的 xDS 元数据，表示本次负载均衡真正选中的线路
-	selected, err := selectedModelServiceFromAttributes(
+	selected, err := modelServiceFromAttributes(
 		attributes,
 		headerValue(headers, aiprotocol.UpstreamModelHeader),
 	)

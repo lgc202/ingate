@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
-	"github.com/lgc202/ingate/internal/adminapi/biz/wasmplugin"
+	sourcebiz "github.com/lgc202/ingate/internal/adminapi/biz/plugin/source"
+	wasmbiz "github.com/lgc202/ingate/internal/adminapi/biz/plugin/wasm"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/httpurl"
@@ -33,19 +33,19 @@ type sourceDefinition struct {
 
 type sourceState struct {
 	definition  sourceDefinition
-	items       []wasmplugin.CatalogItem
+	items       []wasmbiz.CatalogItem
 	specs       map[string]resource.WasmPluginSpec
 	etag        string
 	available   bool
 	invalidated bool
-	observation pluginsource.Observation
+	observation sourcebiz.Observation
 }
 
 // Catalog 为并发请求提供按来源隔离的不可变目录视图。
 // 每个来源先完整下载和校验，再原子替换自己的视图；单个来源失败不影响其他来源。
 type Catalog struct {
 	official        sourceDefinition
-	store           pluginsource.Store
+	store           sourcebiz.Store
 	refreshInterval time.Duration
 	client          *http.Client
 	logger          *slog.Logger
@@ -64,14 +64,14 @@ type Catalog struct {
 // NewCatalog 创建多来源插件目录缓存。
 func NewCatalog(
 	config *conf.Data,
-	store pluginsource.Store,
+	store sourcebiz.Store,
 	logger *slog.Logger,
 ) *Catalog {
 	settings := config.GetPluginCatalog()
 	officialURL := settings.GetOfficialSourceUrl()
 	return &Catalog{
 		official: sourceDefinition{
-			id:          pluginsource.OfficialSourceID,
+			id:          sourcebiz.OfficialSourceID,
 			displayName: officialSourceName,
 			catalogURL:  officialURL,
 			enabled:     officialURL != "",
@@ -84,13 +84,13 @@ func NewCatalog(
 				if len(previous) >= maxCatalogRedirects {
 					return fmt.Errorf(
 						"%w: plugin catalog redirect limit exceeded",
-						pluginsource.ErrSyncFailed,
+						sourcebiz.ErrSyncFailed,
 					)
 				}
 				if !httpurl.IsValid(request.URL.String()) {
 					return fmt.Errorf(
 						"%w: plugin catalog redirected to an invalid URL",
-						pluginsource.ErrSyncFailed,
+						sourcebiz.ErrSyncFailed,
 					)
 				}
 				return nil
@@ -103,9 +103,9 @@ func NewCatalog(
 }
 
 // Items 返回全部已启用来源的目录项。
-func (c *Catalog) Items() []wasmplugin.CatalogItem {
+func (c *Catalog) Items() []wasmbiz.CatalogItem {
 	c.stateMu.RLock()
-	items := make([]wasmplugin.CatalogItem, 0)
+	items := make([]wasmbiz.CatalogItem, 0)
 	for _, state := range c.states {
 		if state.available {
 			items = append(items, state.items...)
@@ -113,7 +113,7 @@ func (c *Catalog) Items() []wasmplugin.CatalogItem {
 	}
 	c.stateMu.RUnlock()
 
-	slices.SortFunc(items, func(left, right wasmplugin.CatalogItem) int {
+	slices.SortFunc(items, func(left, right wasmbiz.CatalogItem) int {
 		return cmp.Or(
 			cmp.Compare(left.SourceName, right.SourceName),
 			cmp.Compare(left.Name, right.Name),
@@ -144,11 +144,11 @@ func (c *Catalog) Lookup(
 }
 
 // OfficialSource 返回进程配置中的官方插件源。
-func (c *Catalog) OfficialSource() pluginsource.Source {
+func (c *Catalog) OfficialSource() sourcebiz.Source {
 	if c.official.catalogURL == "" {
-		return pluginsource.Source{}
+		return sourcebiz.Source{}
 	}
-	return pluginsource.Source{
+	return sourcebiz.Source{
 		ID:          c.official.id,
 		DisplayName: c.official.displayName,
 		URL:         c.official.catalogURL,
@@ -159,12 +159,12 @@ func (c *Catalog) OfficialSource() pluginsource.Source {
 }
 
 // Observation 返回一个来源最近一次同步的进程内观测。
-func (c *Catalog) Observation(sourceID string) pluginsource.Observation {
+func (c *Catalog) Observation(sourceID string) sourcebiz.Observation {
 	c.stateMu.RLock()
 	defer c.stateMu.RUnlock()
 	state, exists := c.states[sourceID]
 	if !exists {
-		return pluginsource.Observation{State: pluginsource.SyncStateNotSynced}
+		return sourcebiz.Observation{State: sourcebiz.SyncStateNotSynced}
 	}
 	return state.observation
 }
@@ -176,9 +176,9 @@ func (c *Catalog) InvalidateSource(source *resource.PluginSource) {
 	applySourceDefinition(&state, definition)
 	state.available = false
 	if definition.enabled {
-		state.observation = pluginsource.Observation{State: pluginsource.SyncStateNotSynced}
+		state.observation = sourcebiz.Observation{State: sourcebiz.SyncStateNotSynced}
 	} else {
-		state.observation = pluginsource.Observation{State: pluginsource.SyncStateDisabled}
+		state.observation = sourcebiz.Observation{State: sourcebiz.SyncStateDisabled}
 	}
 	c.storeSourceState(state)
 }
@@ -194,13 +194,13 @@ func (c *Catalog) SyncSource(ctx context.Context, sourceID string) error {
 
 // ForgetSource 立即停用已删除来源，并留下阻止旧同步结果提交的版本标记。
 func (c *Catalog) ForgetSource(source *resource.PluginSource) {
-	if source.Name == pluginsource.OfficialSourceID {
+	if source.Name == sourcebiz.OfficialSourceID {
 		return
 	}
 	c.storeSourceState(sourceState{
 		definition:  definitionFromResource(source),
 		invalidated: true,
-		observation: pluginsource.Observation{State: pluginsource.SyncStateNotSynced},
+		observation: sourcebiz.Observation{State: sourcebiz.SyncStateNotSynced},
 	})
 }
 

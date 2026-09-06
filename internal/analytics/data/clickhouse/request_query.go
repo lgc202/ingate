@@ -13,8 +13,8 @@ import (
 
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/requestrecord"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 // requestSummaryColumns 只读取列表展示所需列，避免翻页时扫描完整详情。
@@ -222,7 +222,7 @@ func scanRequestSummary(rows driver.Rows) (request.Summary, error) {
 	); err != nil {
 		return request.Summary{}, fmt.Errorf("scan request summary: %w", err)
 	}
-	duration, err := durationFromNanoseconds(durationNS)
+	duration, err := optionalDurationFromNanos(durationNS)
 	if err != nil {
 		return request.Summary{}, fmt.Errorf("restore request summary duration: %w", err)
 	}
@@ -319,11 +319,11 @@ func scanRequestRecord(rows driver.Rows) (*request.Record, error) {
 	); err != nil {
 		return nil, fmt.Errorf("scan request record: %w", err)
 	}
-	duration, err := durationFromNanoseconds(durationNS)
+	duration, err := optionalDurationFromNanos(durationNS)
 	if err != nil {
 		return nil, fmt.Errorf("restore request duration: %w", err)
 	}
-	timeToFirstByte, err := durationFromNanoseconds(timeToFirstByteNS)
+	timeToFirstByte, err := optionalDurationFromNanos(timeToFirstByteNS)
 	if err != nil {
 		return nil, fmt.Errorf("restore request time to first byte: %w", err)
 	}
@@ -336,18 +336,18 @@ func scanRequestRecord(rows driver.Rows) (*request.Record, error) {
 	return &record, nil
 }
 
-func durationFromNanoseconds(nanoseconds *uint64) (*time.Duration, error) {
+func optionalDurationFromNanos(nanoseconds *uint64) (*time.Duration, error) {
 	if nanoseconds == nil {
 		return nil, nil
 	}
-	duration, err := requiredDurationFromNanoseconds(*nanoseconds)
+	duration, err := durationFromNanos(*nanoseconds)
 	if err != nil {
 		return nil, err
 	}
 	return &duration, nil
 }
 
-func requiredDurationFromNanoseconds(nanoseconds uint64) (time.Duration, error) {
+func durationFromNanos(nanoseconds uint64) (time.Duration, error) {
 	if nanoseconds > math.MaxInt64 {
 		return 0, errors.New("duration exceeds the supported range")
 	}
@@ -361,7 +361,7 @@ func validateRequestSummary(summary request.Summary) error {
 	if summary.StatusCode > 0 && summary.StatusCode < 100 {
 		return fmt.Errorf("stored request summary %q has an invalid status code", summary.ID)
 	}
-	if !validStoredResourceReferences(
+	if !validResourceRefs(
 		summary.GatewayID,
 		summary.RouteID,
 		summary.UpstreamID,
@@ -384,7 +384,7 @@ func validateRequestRecord(record *request.Record) error {
 		*record.TimeToFirstByte > *record.Duration {
 		return fmt.Errorf("stored request record %q has an invalid time to first byte", record.ID)
 	}
-	if !validStoredResourceReferences(
+	if !validResourceRefs(
 		record.GatewayID,
 		record.RouteID,
 		record.UpstreamID,
@@ -396,12 +396,12 @@ func validateRequestRecord(record *request.Record) error {
 	return nil
 }
 
-func validStoredResourceReferences(gatewayID, routeID, upstreamID, callerID, accessKeyID string) bool {
+func validResourceRefs(gatewayID, routeID, upstreamID, callerID, accessKeyID string) bool {
 	if (gatewayID == "") != (routeID == "") || (callerID == "") != (accessKeyID == "") {
 		return false
 	}
 	for _, resourceID := range []string{gatewayID, routeID, upstreamID, callerID, accessKeyID} {
-		if resourceID != "" && !resourceconfig.IsCanonicalID(resourceID) {
+		if resourceID != "" && !apivalidation.IsCanonicalID(resourceID) {
 			return false
 		}
 	}

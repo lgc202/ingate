@@ -11,7 +11,7 @@ import (
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
 	trafficbiz "github.com/lgc202/ingate/internal/analytics/biz/traffic"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 const (
@@ -73,7 +73,7 @@ func buildResourceTrafficQuery(
 	}
 	seen := make(map[string]bool, len(resourceIDs))
 	for _, resourceID := range resourceIDs {
-		if !resourceconfig.IsCanonicalID(resourceID) || seen[resourceID] {
+		if !apivalidation.IsCanonicalID(resourceID) || seen[resourceID] {
 			return trafficbiz.ResourceTrafficQuery{}, invalidArgument(
 				"resource_ids contains an invalid or duplicate value",
 			)
@@ -99,7 +99,7 @@ func buildFilter(filter *analyticsv1.TrafficFilter) (trafficbiz.Filter, error) {
 		filter.GetRouteId(),
 		filter.GetUpstreamId(),
 	} {
-		if resourceID != "" && !resourceconfig.IsCanonicalID(resourceID) {
+		if resourceID != "" && !apivalidation.IsCanonicalID(resourceID) {
 			return trafficbiz.Filter{}, invalidArgument("filter contains an invalid resource ID")
 		}
 	}

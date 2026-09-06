@@ -26,9 +26,9 @@ import (
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
 	"github.com/lgc202/ingate/internal/controller/conf"
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/httpurl"
 	"github.com/lgc202/ingate/internal/pkg/version"
-	"github.com/lgc202/ingate/internal/pkg/wasmconfig"
 )
 
 const (
@@ -81,10 +81,10 @@ func NewStore(config *conf.Data_Wasm) (*Store, error) {
 // 确保新模块发布时不会破坏 Active 配置；
 // 首版插件数量有限，不在这一边界额外引入并发下载调度。
 func (s *Store) Resolve(ctx context.Context, plugin *gatewayv1.WasmPlugin) (compiler.WasmModule, error) {
-	if !wasmconfig.IsValidArtifactURL(plugin.Spec.URL) {
+	if !apivalidation.IsValidArtifactURL(plugin.Spec.URL) {
 		return compiler.WasmModule{}, errors.New("resolve Wasm module: invalid artifact URL")
 	}
-	if !wasmconfig.IsValidSHA256Digest(plugin.Spec.SHA256) {
+	if !apivalidation.IsValidSHA256Digest(plugin.Spec.SHA256) {
 		return compiler.WasmModule{}, errors.New("resolve Wasm module: invalid SHA256 digest")
 	}
 	switch plugin.Spec.PullPolicy {

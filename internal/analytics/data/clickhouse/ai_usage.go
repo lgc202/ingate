@@ -9,8 +9,7 @@ import (
 
 	"github.com/lgc202/ingate/internal/analytics/biz/aiusage"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 // aiUsageAggregates 合并 SummingMergeTree 中跨分钟或跨数据 Part 的加法指标。
@@ -285,9 +284,9 @@ func validateAIUsageMetrics(metrics aiusage.Metrics) error {
 func validAIUsageDimensionValue(dimension aiusage.Dimension, value string) bool {
 	switch dimension {
 	case aiusage.DimensionCaller, aiusage.DimensionRoute, aiusage.DimensionUpstream:
-		return resourceconfig.IsCanonicalID(value)
+		return apivalidation.IsCanonicalID(value)
 	case aiusage.DimensionClientModel, aiusage.DimensionUpstreamModel:
-		return routeconfig.IsValidModelName(value)
+		return apivalidation.IsValidModelName(value)
 	default:
 		return false
 	}

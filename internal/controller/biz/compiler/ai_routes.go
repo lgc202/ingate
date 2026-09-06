@@ -13,8 +13,7 @@ import (
 
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 const aiModelNotFoundBody = `{"error":{` +
@@ -37,7 +36,7 @@ func (c *compilation) buildAIRouteEntries(
 		)
 		return nil
 	}
-	if len(route.Spec.AI.Models) == 0 || len(route.Spec.AI.Models) > routeconfig.MaxAIModels {
+	if len(route.Spec.AI.Models) == 0 || len(route.Spec.AI.Models) > apivalidation.MaxAIModels {
 		c.addRouteError(
 			route.Name,
 			ReasonInvalidSpec,
@@ -83,7 +82,7 @@ func (c *compilation) buildAIRouteEntries(
 	seenModelNames := make(map[string]bool, len(models))
 	valid := true
 	for _, model := range models {
-		if !routeconfig.IsValidModelName(model.Name) || seenModelNames[model.Name] {
+		if !apivalidation.IsValidModelName(model.Name) || seenModelNames[model.Name] {
 			c.addRouteError(
 				route.Name,
 				ReasonInvalidSpec,
@@ -211,7 +210,7 @@ func (c *compilation) buildAIModelClusters(
 		)
 		return nil, false
 	}
-	if len(model.Targets) > routeconfig.MaxAIModelTargets {
+	if len(model.Targets) > apivalidation.MaxAIModelTargets {
 		c.addRouteError(
 			route.Name,
 			ReasonInvalidSpec,
@@ -241,10 +240,10 @@ func (c *compilation) buildAIModelClusters(
 		var reason Reason
 		var message string
 		switch {
-		case !resourceconfig.IsCanonicalID(target.UpstreamRef) || duplicateUpstream ||
-			!routeconfig.IsValidModelName(target.Model) ||
-			target.Weight < routeconfig.MinTargetWeight ||
-			target.Weight > routeconfig.MaxTargetWeight:
+		case !apivalidation.IsCanonicalID(target.UpstreamRef) || duplicateUpstream ||
+			!apivalidation.IsValidModelName(target.Model) ||
+			target.Weight < apivalidation.MinTargetWeight ||
+			target.Weight > apivalidation.MaxTargetWeight:
 			reason = ReasonInvalidSpec
 			message = fmt.Sprintf(
 				"AI route %q client model %q has invalid model target %q",

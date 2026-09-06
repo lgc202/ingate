@@ -44,37 +44,45 @@ func (c *Client) AnalyzeTraffic(
 	if err := validateTrafficMetricsResponse(result.GetSummary()); err != nil {
 		return agenttool.TrafficAnalysis{}, fmt.Errorf("validate traffic summary: %w", err)
 	}
-
-	breakdown := result.GetBreakdown()
-	if len(breakdown) > int(query.Limit) {
-		return agenttool.TrafficAnalysis{}, errors.New(
-			"get traffic analysis from Admin API: response exceeds the requested limit",
-		)
+	items, err := c.trafficBreakdown(ctx, query, result.GetBreakdown())
+	if err != nil {
+		return agenttool.TrafficAnalysis{}, err
 	}
+
+	return agenttool.TrafficAnalysis{
+		Summary: trafficMetrics(result.GetSummary()),
+		GroupBy: query.GroupBy,
+		OrderBy: query.OrderBy,
+		Items:   items,
+	}, nil
+}
+
+func (c *Client) trafficBreakdown(
+	ctx context.Context,
+	query agenttool.TrafficQuery,
+	breakdown []*adminv1.TrafficBreakdownItem,
+) ([]agenttool.ResourceTrafficMetrics, error) {
+	if len(breakdown) > int(query.Limit) {
+		return nil, errors.New("get traffic analysis from Admin API: response exceeds the requested limit")
+	}
+
 	items := make([]agenttool.ResourceTrafficMetrics, len(breakdown))
 	seen := make(map[string]bool, len(breakdown))
 	group, lookupCtx := errgroup.WithContext(ctx)
 	group.SetLimit(resourceLookupConcurrency)
 	for index, item := range breakdown {
 		if item == nil || !validResourceID(item.GetResourceId()) {
-			return agenttool.TrafficAnalysis{}, errors.New(
-				"get traffic analysis from Admin API: invalid breakdown item",
-			)
+			return nil, errors.New("get traffic analysis from Admin API: invalid breakdown item")
 		}
 		resourceID := item.GetResourceId()
 		if seen[resourceID] {
-			return agenttool.TrafficAnalysis{}, errors.New(
-				"get traffic analysis from Admin API: duplicate breakdown item",
-			)
+			return nil, errors.New("get traffic analysis from Admin API: duplicate breakdown item")
 		}
 		seen[resourceID] = true
 		if err := validateTrafficMetricsResponse(item.GetMetrics()); err != nil {
-			return agenttool.TrafficAnalysis{}, fmt.Errorf(
-				"validate traffic breakdown for %s: %w",
-				resourceID,
-				err,
-			)
+			return nil, fmt.Errorf("validate traffic breakdown for %s: %w", resourceID, err)
 		}
+
 		group.Go(func() error {
 			name, err := c.resourceName(lookupCtx, query.GroupBy, resourceID)
 			if err != nil {
@@ -91,15 +99,9 @@ func (c *Client) AnalyzeTraffic(
 	// 排名已经限制返回数量，各资源名称之间没有依赖。并行精确查询既保持排名顺序，
 	// 也避免按条目数线性叠加 Admin API 往返时间。
 	if err := group.Wait(); err != nil {
-		return agenttool.TrafficAnalysis{}, err
+		return nil, err
 	}
-
-	return agenttool.TrafficAnalysis{
-		Summary: trafficMetrics(result.GetSummary()),
-		GroupBy: query.GroupBy,
-		OrderBy: query.OrderBy,
-		Items:   items,
-	}, nil
+	return items, nil
 }
 
 // 资源范围由工具业务协议表达，只有此处知道对应的 Admin API 字段。

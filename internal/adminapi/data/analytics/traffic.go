@@ -10,7 +10,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
-	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
+	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/analytics/traffic"
 )
 
 // TrafficRepository 通过 Analytics gRPC 查询流量聚合结果。

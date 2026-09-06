@@ -25,7 +25,7 @@ type listResourcesInput struct {
 type QuerySource interface {
 	GatewayReader
 	RouteReader
-	RouteConfigurationReader
+	RouteConfigReader
 	ServiceReader
 	TrafficReader
 	FailureReader
@@ -48,7 +48,7 @@ func NewTools(source QuerySource) ([]einotool.BaseTool, error) {
 	if err != nil {
 		return nil, err
 	}
-	routeConfiguration, err := newRouteConfigurationTool(source)
+	routeConfig, err := newRouteConfigTool(source)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func NewTools(source QuerySource) ([]einotool.BaseTool, error) {
 		gateways,
 		routes,
 		services,
-		routeConfiguration,
+		routeConfig,
 		traffic,
 		failures,
 		requestRecord,

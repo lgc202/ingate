@@ -10,7 +10,7 @@ import (
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
-	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
+	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/analytics/requestrecord"
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
 	"github.com/lgc202/ingate/internal/pkg/requestrecord"

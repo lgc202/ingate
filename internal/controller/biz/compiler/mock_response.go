@@ -10,8 +10,8 @@ import (
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/httpheader"
-	"github.com/lgc202/ingate/internal/pkg/mockresponseconfig"
 )
 
 type compiledMockResponsePolicy struct {
@@ -117,18 +117,18 @@ func (c *compilation) mockResponseConfiguration(policy *gatewayv1.MockResponsePo
 }
 
 func buildMockResponseConfig(spec gatewayv1.MockResponsePolicySpec) (mockResponseConfig, error) {
-	if !mockresponseconfig.IsValidStatusCode(spec.StatusCode) {
+	if !apivalidation.IsValidStatusCode(spec.StatusCode) {
 		return mockResponseConfig{}, fmt.Errorf("unsupported status code %d", spec.StatusCode)
 	}
-	contentType, valid := mockresponseconfig.NormalizeContentType(spec.ContentType)
+	contentType, valid := apivalidation.NormalizeContentType(spec.ContentType)
 	if !valid {
 		return mockResponseConfig{}, errors.New("invalid content type")
 	}
-	if len(spec.Body) > mockresponseconfig.MaxBodyBytes {
-		return mockResponseConfig{}, fmt.Errorf("body exceeds %d bytes", mockresponseconfig.MaxBodyBytes)
+	if len(spec.Body) > apivalidation.MaxBodyBytes {
+		return mockResponseConfig{}, fmt.Errorf("body exceeds %d bytes", apivalidation.MaxBodyBytes)
 	}
-	if len(spec.Headers) > mockresponseconfig.MaxHeaders {
-		return mockResponseConfig{}, fmt.Errorf("header count exceeds %d", mockresponseconfig.MaxHeaders)
+	if len(spec.Headers) > apivalidation.MaxHeaders {
+		return mockResponseConfig{}, fmt.Errorf("header count exceeds %d", apivalidation.MaxHeaders)
 	}
 
 	headers := make([]mockResponseHeader, len(spec.Headers)+1)
@@ -139,7 +139,7 @@ func buildMockResponseConfig(spec gatewayv1.MockResponsePolicySpec) (mockRespons
 		if !httpheader.IsValidName(name) {
 			return mockResponseConfig{}, fmt.Errorf("header %d has invalid name %q", i+1, name)
 		}
-		if mockresponseconfig.IsReservedHeaderName(name) {
+		if apivalidation.IsReservedHeaderName(name) {
 			return mockResponseConfig{}, fmt.Errorf("header %q is reserved", name)
 		}
 		if seen[name] {

@@ -9,6 +9,7 @@ import {
   Panel,
   ResourceFilterField,
   ResourceListFilters,
+  ResourceSelect,
   ResourceStatePanel,
   Toast,
 } from '@/components/ui';
@@ -301,10 +302,6 @@ function ResponseDistribution({ metrics, filters }: { metrics: TrafficMetrics; f
       <div className="traffic-distribution-list">{segments.map((segment) => <Link key={segment.key} to={requestResultURL(filters, segment.outcome)}><span><i className={`is-${segment.key}`} />{segment.label}</span><strong>{formatTrafficPercent(segment.value, total)}</strong><small>{formatTrafficCount(segment.value)}</small><ArrowRight /></Link>)}</div>
     </div>
   );
-}
-
-function ResourceSelect({ value, placeholder, options, onChange }: { value?: string; placeholder: string; options?: Array<{ id: string; name: string }>; onChange: (value?: string) => void }) {
-  return <select className="select" value={value ?? ''} onChange={(event) => onChange(event.target.value || undefined)}><option value="">{placeholder}</option>{options?.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select>;
 }
 
 interface ResourceNames {

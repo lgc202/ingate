@@ -61,13 +61,15 @@ type Controller struct {
 	delivery     *delivery.Delivery
 	statusWriter StatusWriter
 	wasmModules  WasmModuleStore
-	queue        workqueue.TypedRateLimitingInterface[queueKey]
-	logger       *slog.Logger
-	done         chan struct{}
-	running      atomic.Bool
-	lifecycleMu  sync.Mutex
-	cancel       context.CancelFunc
-	stopping     bool
+
+	queue  workqueue.TypedRateLimitingInterface[queueKey]
+	logger *slog.Logger
+
+	done        chan struct{}
+	running     atomic.Bool
+	lifecycleMu sync.Mutex
+	cancel      context.CancelFunc
+	stopping    bool
 }
 
 // NewController 创建使用固定全局 key 收敛整个配置域的控制循环。

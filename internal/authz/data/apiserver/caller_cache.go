@@ -17,12 +17,11 @@ import (
 	"github.com/lgc202/ingate/internal/authz/conf"
 	"github.com/lgc202/ingate/internal/pkg/accesskey"
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/apiserverclient"
-	"github.com/lgc202/ingate/internal/pkg/callerconfig"
 	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 	informers "github.com/lgc202/ingate/internal/pkg/generated/informers/externalversions"
 	gatewaylisters "github.com/lgc202/ingate/internal/pkg/generated/listers/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
@@ -33,14 +32,16 @@ type credentialIndex struct {
 // CredentialCache 监听 Caller 资源并维护访问密钥 ID 到授权信息的只读索引。
 // 每次资源变化都会完整构造新索引后原子替换，流量线程不会读到半更新状态。
 type CredentialCache struct {
-	factory         informers.SharedInformerFactory
-	lister          gatewaylisters.CallerLister
-	logger          *slog.Logger
+	factory informers.SharedInformerFactory
+	lister  gatewaylisters.CallerLister
+	logger  *slog.Logger
+
 	credentials     atomic.Pointer[credentialIndex]
 	duplicateKeyIDs atomic.Int64
-	ready           atomic.Bool
-	running         atomic.Bool
-	done            chan struct{}
+
+	ready   atomic.Bool
+	running atomic.Bool
+	done    chan struct{}
 
 	lifecycleMu sync.Mutex
 	cancel      context.CancelFunc
@@ -199,15 +200,15 @@ func (c *CredentialCache) rebuild() {
 }
 
 func validCredentialConfiguration(caller *gatewayv1.Caller) bool {
-	if !resourceconfig.IsCanonicalID(caller.Name) ||
-		len(caller.Spec.RouteRefs) > callerconfig.MaxRouteRefs ||
-		len(caller.Spec.AccessKeys) > callerconfig.MaxAccessKeys {
+	if !apivalidation.IsCanonicalID(caller.Name) ||
+		len(caller.Spec.RouteRefs) > apivalidation.MaxRouteRefs ||
+		len(caller.Spec.AccessKeys) > apivalidation.MaxAccessKeys {
 		return false
 	}
 
 	routeIDs := make(map[string]bool, len(caller.Spec.RouteRefs))
 	for _, routeID := range caller.Spec.RouteRefs {
-		if !resourceconfig.IsCanonicalID(routeID) || routeIDs[routeID] {
+		if !apivalidation.IsCanonicalID(routeID) || routeIDs[routeID] {
 			return false
 		}
 		routeIDs[routeID] = true
@@ -215,7 +216,7 @@ func validCredentialConfiguration(caller *gatewayv1.Caller) bool {
 
 	keyIDs := make(map[string]bool, len(caller.Spec.AccessKeys))
 	for _, key := range caller.Spec.AccessKeys {
-		if !resourceconfig.IsCanonicalID(key.ID) || keyIDs[key.ID] ||
+		if !apivalidation.IsCanonicalID(key.ID) || keyIDs[key.ID] ||
 			!accesskey.IsValidDigest(key.SecretDigest) || key.CreatedAt.IsZero() ||
 			(key.ExpiresAt != nil && !key.ExpiresAt.After(key.CreatedAt.Time)) {
 			return false

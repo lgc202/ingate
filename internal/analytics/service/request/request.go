@@ -17,8 +17,8 @@ import (
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
 	requestbiz "github.com/lgc202/ingate/internal/analytics/biz/request"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/requestrecord"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 const (
@@ -28,24 +28,24 @@ const (
 )
 
 type pageTokenValue struct {
-	StartedAtNanoseconds *int64 `json:"started_at_ns"`
-	ID                   string `json:"id"`
-	FilterFingerprint    string `json:"filter"`
+	StartedAtUnixNano *int64 `json:"started_at_ns"`
+	ID                string `json:"id"`
+	FilterFingerprint string `json:"filter"`
 }
 
 type pageTokenFilter struct {
-	StartTimeNanoseconds int64   `json:"start_time_ns"`
-	EndTimeNanoseconds   int64   `json:"end_time_ns"`
-	GatewayID            string  `json:"gateway_id"`
-	RouteID              string  `json:"route_id"`
-	UpstreamID           string  `json:"upstream_id"`
-	RequestID            string  `json:"request_id"`
-	Method               string  `json:"method"`
-	Host                 string  `json:"host"`
-	PathPrefix           string  `json:"path_prefix"`
-	StatusClass          uint8   `json:"status_class"`
-	StatusCode           *uint16 `json:"status_code"`
-	CallerID             string  `json:"caller_id"`
+	StartTimeUnixNano int64   `json:"start_time_ns"`
+	EndTimeUnixNano   int64   `json:"end_time_ns"`
+	GatewayID         string  `json:"gateway_id"`
+	RouteID           string  `json:"route_id"`
+	UpstreamID        string  `json:"upstream_id"`
+	RequestID         string  `json:"request_id"`
+	Method            string  `json:"method"`
+	Host              string  `json:"host"`
+	PathPrefix        string  `json:"path_prefix"`
+	StatusClass       uint8   `json:"status_class"`
+	StatusCode        *uint16 `json:"status_code"`
+	CallerID          string  `json:"caller_id"`
 }
 
 func buildListOptions(request *analyticsv1.ListRequestsRequest) (requestbiz.ListOptions, error) {
@@ -97,7 +97,7 @@ func buildFilter(filter *analyticsv1.RequestFilter) (requestbiz.Filter, error) {
 		filter.GetUpstreamId(),
 		filter.GetCallerId(),
 	} {
-		if resourceID != "" && !resourceconfig.IsCanonicalID(resourceID) {
+		if resourceID != "" && !apivalidation.IsCanonicalID(resourceID) {
 			return requestbiz.Filter{}, invalidArgument("filter contains an invalid resource ID")
 		}
 	}
@@ -145,11 +145,11 @@ func formatPageToken(cursor *requestbiz.Cursor, filter requestbiz.Filter) (strin
 	if err != nil {
 		return "", err
 	}
-	startedAtNanoseconds := cursor.StartedAt.UnixNano()
+	startedAtUnixNano := cursor.StartedAt.UnixNano()
 	payload, err := json.Marshal(pageTokenValue{
-		StartedAtNanoseconds: &startedAtNanoseconds,
-		ID:                   cursor.ID,
-		FilterFingerprint:    fingerprint,
+		StartedAtUnixNano: &startedAtUnixNano,
+		ID:                cursor.ID,
+		FilterFingerprint: fingerprint,
 	})
 	if err != nil {
 		return "", fmt.Errorf("marshal page token: %w", err)
@@ -177,7 +177,7 @@ func parsePageToken(value string, filter requestbiz.Filter) (*requestbiz.Cursor,
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return nil, errors.New("page token contains trailing data")
 	}
-	if token.StartedAtNanoseconds == nil || !requestrecord.IsValidID(token.ID) {
+	if token.StartedAtUnixNano == nil || !requestrecord.IsValidID(token.ID) {
 		return nil, errors.New("page token contains invalid values")
 	}
 	fingerprint, err := filterFingerprint(filter)
@@ -187,7 +187,7 @@ func parsePageToken(value string, filter requestbiz.Filter) (*requestbiz.Cursor,
 	if token.FilterFingerprint != fingerprint {
 		return nil, errors.New("page token does not match the current filter")
 	}
-	startedAt := time.Unix(0, *token.StartedAtNanoseconds).UTC()
+	startedAt := time.Unix(0, *token.StartedAtUnixNano).UTC()
 	if startedAt.Before(filter.StartTime) || !startedAt.Before(filter.EndTime) {
 		return nil, errors.New("page token is outside the current time range")
 	}
@@ -196,18 +196,18 @@ func parsePageToken(value string, filter requestbiz.Filter) (*requestbiz.Cursor,
 
 func filterFingerprint(filter requestbiz.Filter) (string, error) {
 	encoded, err := json.Marshal(pageTokenFilter{
-		StartTimeNanoseconds: filter.StartTime.UnixNano(),
-		EndTimeNanoseconds:   filter.EndTime.UnixNano(),
-		GatewayID:            filter.GatewayID,
-		RouteID:              filter.RouteID,
-		UpstreamID:           filter.UpstreamID,
-		RequestID:            filter.RequestID,
-		Method:               filter.Method,
-		Host:                 filter.Host,
-		PathPrefix:           filter.PathPrefix,
-		StatusClass:          uint8(filter.StatusClass),
-		StatusCode:           filter.StatusCode,
-		CallerID:             filter.CallerID,
+		StartTimeUnixNano: filter.StartTime.UnixNano(),
+		EndTimeUnixNano:   filter.EndTime.UnixNano(),
+		GatewayID:         filter.GatewayID,
+		RouteID:           filter.RouteID,
+		UpstreamID:        filter.UpstreamID,
+		RequestID:         filter.RequestID,
+		Method:            filter.Method,
+		Host:              filter.Host,
+		PathPrefix:        filter.PathPrefix,
+		StatusClass:       uint8(filter.StatusClass),
+		StatusCode:        filter.StatusCode,
+		CallerID:          filter.CallerID,
 	})
 	if err != nil {
 		return "", fmt.Errorf("marshal page token filter: %w", err)

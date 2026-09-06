@@ -5,15 +5,15 @@ import (
 
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	"github.com/lgc202/ingate/internal/pkg/httpheader"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 func validateAIHeaders(spec resource.RouteSpec, path *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	headers := spec.Match.Headers
-	if len(headers) > routeconfig.MaxHeaderMatches {
-		headers = headers[:routeconfig.MaxHeaderMatches]
+	if len(headers) > apivalidation.MaxHeaderMatches {
+		headers = headers[:apivalidation.MaxHeaderMatches]
 	}
 	for i, header := range headers {
 		if aiprotocol.IsInternalHeader(header.Name) {
@@ -40,8 +40,8 @@ func validateAIHeaderModifier(
 
 	var errs field.ErrorList
 	setHeaders := modifier.Set
-	if len(setHeaders) > routeconfig.MaxHeaderModifierActions {
-		setHeaders = setHeaders[:routeconfig.MaxHeaderModifierActions]
+	if len(setHeaders) > apivalidation.MaxHeaderModifierActions {
+		setHeaders = setHeaders[:apivalidation.MaxHeaderModifierActions]
 	}
 	for i, header := range setHeaders {
 		if aiprotocol.IsInternalHeader(header.Name) {
@@ -52,8 +52,8 @@ func validateAIHeaderModifier(
 		}
 	}
 	addHeaders := modifier.Add
-	if len(addHeaders) > routeconfig.MaxHeaderModifierActions {
-		addHeaders = addHeaders[:routeconfig.MaxHeaderModifierActions]
+	if len(addHeaders) > apivalidation.MaxHeaderModifierActions {
+		addHeaders = addHeaders[:apivalidation.MaxHeaderModifierActions]
 	}
 	for i, header := range addHeaders {
 		if aiprotocol.IsInternalHeader(header.Name) {
@@ -64,8 +64,8 @@ func validateAIHeaderModifier(
 		}
 	}
 	removedHeaders := modifier.Remove
-	if len(removedHeaders) > routeconfig.MaxHeaderModifierActions {
-		removedHeaders = removedHeaders[:routeconfig.MaxHeaderModifierActions]
+	if len(removedHeaders) > apivalidation.MaxHeaderModifierActions {
+		removedHeaders = removedHeaders[:apivalidation.MaxHeaderModifierActions]
 	}
 	for i, name := range removedHeaders {
 		if aiprotocol.IsInternalHeader(name) {
@@ -87,24 +87,24 @@ func validateHeaderModifier(modifier *resource.HeaderModifier, path *field.Path)
 		return field.ErrorList{field.Required(path, "at least one header modifier action is required")}
 	}
 	var errs field.ErrorList
-	if actionCount > routeconfig.MaxHeaderModifierActions {
-		errs = append(errs, field.TooMany(path, actionCount, routeconfig.MaxHeaderModifierActions))
+	if actionCount > apivalidation.MaxHeaderModifierActions {
+		errs = append(errs, field.TooMany(path, actionCount, apivalidation.MaxHeaderModifierActions))
 	}
 
 	setHeaders := modifier.Set
-	if len(setHeaders) > routeconfig.MaxHeaderModifierActions {
-		setHeaders = setHeaders[:routeconfig.MaxHeaderModifierActions]
+	if len(setHeaders) > apivalidation.MaxHeaderModifierActions {
+		setHeaders = setHeaders[:apivalidation.MaxHeaderModifierActions]
 	}
 	addHeaders := modifier.Add
-	if len(addHeaders) > routeconfig.MaxHeaderModifierActions {
-		addHeaders = addHeaders[:routeconfig.MaxHeaderModifierActions]
+	if len(addHeaders) > apivalidation.MaxHeaderModifierActions {
+		addHeaders = addHeaders[:apivalidation.MaxHeaderModifierActions]
 	}
 	removedHeaders := modifier.Remove
-	if len(removedHeaders) > routeconfig.MaxHeaderModifierActions {
-		removedHeaders = removedHeaders[:routeconfig.MaxHeaderModifierActions]
+	if len(removedHeaders) > apivalidation.MaxHeaderModifierActions {
+		removedHeaders = removedHeaders[:apivalidation.MaxHeaderModifierActions]
 	}
 
-	usedNames := make(map[string]bool, routeconfig.MaxHeaderModifierActions)
+	usedNames := make(map[string]bool, apivalidation.MaxHeaderModifierActions)
 	errs = append(errs, validateHeaderValues(setHeaders, path.Child("set"), usedNames)...)
 	errs = append(errs, validateHeaderValues(addHeaders, path.Child("add"), usedNames)...)
 	for i, name := range removedHeaders {

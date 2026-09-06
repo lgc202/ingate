@@ -24,7 +24,7 @@ func (c *compilation) buildPolicyConfigs(
 	// 执行组件不再理解用户资源挂载关系。
 	ipRestrictionPolicies := c.compileIPRestrictionPolicies()
 	rateLimitPolicies := c.compileRateLimitPolicies()
-	headerTransformationPolicies := c.compileHeaderTransformationPolicies()
+	headerPolicies := c.compileHeaderPolicies()
 	mockResponsePolicies := c.compileMockResponsePolicies()
 	filters := make(map[listenerKey]listenerFilterConfig)
 	policyTargetSet := make(map[CompiledPolicyTarget]bool)
@@ -68,9 +68,9 @@ func (c *compilation) buildPolicyConfigs(
 			}
 		}
 
-		transformations, transformationTargets := matchingHeaderTransformationPolicies(headerTransformationPolicies, key)
-		if len(transformations) > 0 {
-			if err := applyHeaderTransformationPolicies(attachment.routes, transformations, &config); err != nil {
+		headers, headerTargets := matchingHeaderPolicies(headerPolicies, key)
+		if len(headers) > 0 {
+			if err := applyHeaderPolicies(attachment.routes, headers, &config); err != nil {
 				c.addRouteError(
 					key.routeID,
 					ReasonCompileFailed,
@@ -81,7 +81,7 @@ func (c *compilation) buildPolicyConfigs(
 					),
 				)
 			} else {
-				for _, target := range transformationTargets {
+				for _, target := range headerTargets {
 					c.recordPolicyTargets(target.source, target.targets, policyTargetSet)
 				}
 			}

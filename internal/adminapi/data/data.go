@@ -4,23 +4,23 @@ package data
 import (
 	"github.com/google/wire"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz/aiusage"
+	"github.com/lgc202/ingate/internal/adminapi/biz/analytics/aiusage"
+	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/analytics/requestrecord"
+	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/analytics/traffic"
 	"github.com/lgc202/ingate/internal/adminapi/biz/caller"
-	"github.com/lgc202/ingate/internal/adminapi/biz/certificate"
-	"github.com/lgc202/ingate/internal/adminapi/biz/gateway"
-	"github.com/lgc202/ingate/internal/adminapi/biz/headertransformation"
-	"github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
-	"github.com/lgc202/ingate/internal/adminapi/biz/mockresponse"
 	"github.com/lgc202/ingate/internal/adminapi/biz/plugin"
-	"github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
+	sourcebiz "github.com/lgc202/ingate/internal/adminapi/biz/plugin/source"
+	wasmbiz "github.com/lgc202/ingate/internal/adminapi/biz/plugin/wasm"
 	"github.com/lgc202/ingate/internal/adminapi/biz/policy"
-	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
-	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
-	"github.com/lgc202/ingate/internal/adminapi/biz/route"
-	servicebiz "github.com/lgc202/ingate/internal/adminapi/biz/service"
-	"github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
-	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
-	"github.com/lgc202/ingate/internal/adminapi/biz/wasmplugin"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy/headertransformation"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy/iprestriction"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy/mockresponse"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy/ratelimit"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy/tokenquota"
+	"github.com/lgc202/ingate/internal/adminapi/biz/routing/certificate"
+	"github.com/lgc202/ingate/internal/adminapi/biz/routing/gateway"
+	"github.com/lgc202/ingate/internal/adminapi/biz/routing/route"
+	servicebiz "github.com/lgc202/ingate/internal/adminapi/biz/routing/service"
 	dataaiextproc "github.com/lgc202/ingate/internal/adminapi/data/aiextproc"
 	dataanalytics "github.com/lgc202/ingate/internal/adminapi/data/analytics"
 	"github.com/lgc202/ingate/internal/adminapi/data/apiserver"
@@ -70,8 +70,8 @@ var apiserverProviderSet = wire.NewSet(
 	wire.Bind(new(caller.TokenQuotaPolicyLister), new(*apiserver.TokenQuotaPolicyStore)),
 	wire.Bind(new(tokenquota.Store), new(*apiserver.TokenQuotaPolicyStore)),
 	wire.Bind(new(tokenquota.CallerReader), new(*apiserver.CallerStore)),
-	wire.Bind(new(wasmplugin.Store), new(*apiserver.WasmPluginStore)),
-	wire.Bind(new(pluginsource.Store), new(*apiserver.PluginSourceStore)),
+	wire.Bind(new(wasmbiz.Store), new(*apiserver.WasmPluginStore)),
+	wire.Bind(new(sourcebiz.Store), new(*apiserver.PluginSourceStore)),
 	wire.Bind(new(caller.RouteReader), new(*apiserver.RouteStore)),
 )
 
@@ -92,8 +92,8 @@ var aiExtProcProviderSet = wire.NewSet(
 
 var pluginCatalogProviderSet = wire.NewSet(
 	plugincatalog.NewCatalog,
-	wire.Bind(new(wasmplugin.Catalog), new(*plugincatalog.Catalog)),
-	wire.Bind(new(pluginsource.Catalog), new(*plugincatalog.Catalog)),
+	wire.Bind(new(wasmbiz.Catalog), new(*plugincatalog.Catalog)),
+	wire.Bind(new(sourcebiz.Catalog), new(*plugincatalog.Catalog)),
 )
 
 // ProviderSet 汇总 Admin API 的数据访问实现。

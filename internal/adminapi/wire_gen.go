@@ -9,45 +9,45 @@ package adminapi
 import (
 	"context"
 	"github.com/go-kratos/kratos/v3"
-	"github.com/lgc202/ingate/internal/adminapi/biz/aiusage"
+	"github.com/lgc202/ingate/internal/adminapi/biz/analytics/aiusage"
+	"github.com/lgc202/ingate/internal/adminapi/biz/analytics/requestrecord"
+	"github.com/lgc202/ingate/internal/adminapi/biz/analytics/traffic"
 	"github.com/lgc202/ingate/internal/adminapi/biz/caller"
-	"github.com/lgc202/ingate/internal/adminapi/biz/certificate"
-	"github.com/lgc202/ingate/internal/adminapi/biz/gateway"
-	"github.com/lgc202/ingate/internal/adminapi/biz/headertransformation"
-	"github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
-	"github.com/lgc202/ingate/internal/adminapi/biz/mockresponse"
 	"github.com/lgc202/ingate/internal/adminapi/biz/plugin"
-	"github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
+	"github.com/lgc202/ingate/internal/adminapi/biz/plugin/source"
+	"github.com/lgc202/ingate/internal/adminapi/biz/plugin/wasm"
 	"github.com/lgc202/ingate/internal/adminapi/biz/policy"
-	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
-	"github.com/lgc202/ingate/internal/adminapi/biz/request"
-	"github.com/lgc202/ingate/internal/adminapi/biz/route"
-	"github.com/lgc202/ingate/internal/adminapi/biz/service"
-	"github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
-	"github.com/lgc202/ingate/internal/adminapi/biz/traffic"
-	"github.com/lgc202/ingate/internal/adminapi/biz/wasmplugin"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy/headertransformation"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy/iprestriction"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy/mockresponse"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy/ratelimit"
+	"github.com/lgc202/ingate/internal/adminapi/biz/policy/tokenquota"
+	"github.com/lgc202/ingate/internal/adminapi/biz/routing/certificate"
+	"github.com/lgc202/ingate/internal/adminapi/biz/routing/gateway"
+	"github.com/lgc202/ingate/internal/adminapi/biz/routing/route"
+	"github.com/lgc202/ingate/internal/adminapi/biz/routing/service"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	"github.com/lgc202/ingate/internal/adminapi/data/aiextproc"
 	"github.com/lgc202/ingate/internal/adminapi/data/analytics"
 	"github.com/lgc202/ingate/internal/adminapi/data/apiserver"
 	"github.com/lgc202/ingate/internal/adminapi/data/plugincatalog"
 	"github.com/lgc202/ingate/internal/adminapi/server"
-	aiusage2 "github.com/lgc202/ingate/internal/adminapi/service/aiusage"
+	aiusage2 "github.com/lgc202/ingate/internal/adminapi/service/analytics/aiusage"
+	requestrecord2 "github.com/lgc202/ingate/internal/adminapi/service/analytics/requestrecord"
+	traffic2 "github.com/lgc202/ingate/internal/adminapi/service/analytics/traffic"
 	caller2 "github.com/lgc202/ingate/internal/adminapi/service/caller"
-	certificate2 "github.com/lgc202/ingate/internal/adminapi/service/certificate"
-	gateway2 "github.com/lgc202/ingate/internal/adminapi/service/gateway"
-	headertransformation2 "github.com/lgc202/ingate/internal/adminapi/service/headertransformation"
 	"github.com/lgc202/ingate/internal/adminapi/service/health"
-	iprestriction2 "github.com/lgc202/ingate/internal/adminapi/service/iprestriction"
-	mockresponse2 "github.com/lgc202/ingate/internal/adminapi/service/mockresponse"
-	pluginsource2 "github.com/lgc202/ingate/internal/adminapi/service/pluginsource"
-	ratelimit2 "github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
-	request2 "github.com/lgc202/ingate/internal/adminapi/service/request"
-	route2 "github.com/lgc202/ingate/internal/adminapi/service/route"
-	"github.com/lgc202/ingate/internal/adminapi/service/servicemanagement"
-	tokenquota2 "github.com/lgc202/ingate/internal/adminapi/service/tokenquota"
-	traffic2 "github.com/lgc202/ingate/internal/adminapi/service/traffic"
-	wasmplugin2 "github.com/lgc202/ingate/internal/adminapi/service/wasmplugin"
+	source2 "github.com/lgc202/ingate/internal/adminapi/service/plugin/source"
+	wasm2 "github.com/lgc202/ingate/internal/adminapi/service/plugin/wasm"
+	headertransformation2 "github.com/lgc202/ingate/internal/adminapi/service/policy/headertransformation"
+	iprestriction2 "github.com/lgc202/ingate/internal/adminapi/service/policy/iprestriction"
+	mockresponse2 "github.com/lgc202/ingate/internal/adminapi/service/policy/mockresponse"
+	ratelimit2 "github.com/lgc202/ingate/internal/adminapi/service/policy/ratelimit"
+	tokenquota2 "github.com/lgc202/ingate/internal/adminapi/service/policy/tokenquota"
+	certificate2 "github.com/lgc202/ingate/internal/adminapi/service/routing/certificate"
+	gateway2 "github.com/lgc202/ingate/internal/adminapi/service/routing/gateway"
+	route2 "github.com/lgc202/ingate/internal/adminapi/service/routing/route"
+	service2 "github.com/lgc202/ingate/internal/adminapi/service/routing/service"
 	"log/slog"
 )
 
@@ -84,7 +84,7 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data *conf
 	routeUsecase := route.NewUsecase(v2, v4, v10, v, usageFinder)
 	routeService := route2.NewService(routeUsecase)
 	serviceUsecase := service.NewUsecase(v10, v2)
-	servicemanagementService := servicemanagement.NewService(serviceUsecase)
+	serviceService := service2.NewService(serviceUsecase)
 	certificateUsecase := certificate.NewUsecase(v5, v4)
 	certificateService := certificate2.NewService(certificateUsecase)
 	ratelimitUsecase := ratelimit.NewUsecase(v6, v4, v2)
@@ -92,8 +92,8 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data *conf
 	iprestrictionUsecase := iprestriction.NewUsecase(v7, v4, v2)
 	iprestrictionService := iprestriction2.NewService(iprestrictionUsecase)
 	requestRepository := analytics.NewRequestRepository(clientConn)
-	requestUsecase := request.NewUsecase(requestRepository)
-	requestService := request2.NewService(requestUsecase)
+	requestrecordUsecase := requestrecord.NewUsecase(requestRepository)
+	requestrecordService := requestrecord2.NewService(requestrecordUsecase)
 	trafficRepository := analytics.NewTrafficRepository(clientConn)
 	trafficUsecase := traffic.NewUsecase(trafficRepository)
 	trafficService := traffic2.NewService(trafficUsecase)
@@ -114,11 +114,11 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data *conf
 	pluginUsageFinder := plugin.NewUsageFinder(v8, v9)
 	v12 := apiserver.NewPluginSourceStore(versionedInterface)
 	catalog := plugincatalog.NewCatalog(data, v12, logger)
-	wasmpluginUsecase := wasmplugin.NewUsecase(v11, pluginUsageFinder, catalog)
-	wasmpluginService := wasmplugin2.NewService(wasmpluginUsecase)
-	pluginsourceUsecase := pluginsource.NewUsecase(v12, catalog)
-	pluginsourceService := pluginsource2.NewService(pluginsourceUsecase)
-	services := server.NewServices(aiusageService, callerService, gatewayService, routeService, servicemanagementService, certificateService, ratelimitService, iprestrictionService, requestService, trafficService, tokenquotaService, healthService, headertransformationService, mockresponseService, wasmpluginService, pluginsourceService)
+	wasmUsecase := wasm.NewUsecase(v11, pluginUsageFinder, catalog)
+	wasmService := wasm2.NewService(wasmUsecase)
+	sourceUsecase := source.NewUsecase(v12, catalog)
+	sourceService := source2.NewService(sourceUsecase)
+	services := server.NewServices(aiusageService, callerService, gatewayService, routeService, serviceService, certificateService, ratelimitService, iprestrictionService, requestrecordService, trafficService, tokenquotaService, healthService, headertransformationService, mockresponseService, wasmService, sourceService)
 	httpServer := server.NewHTTPServer(confServer, logger, services)
 	grpcServer := server.NewGRPCServer(confServer, logger, services)
 	app := newKratosApp(logger, confServer, httpServer, grpcServer, catalog, adminapiServiceInstanceID)

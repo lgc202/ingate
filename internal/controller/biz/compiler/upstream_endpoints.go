@@ -16,7 +16,7 @@ import (
 
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/upstreamconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 func (c *compilation) buildUpstreamEndpoints(
@@ -33,7 +33,7 @@ func (c *compilation) buildUpstreamEndpoints(
 		)
 		return nil, false, false
 	}
-	if endpointCount > upstreamconfig.MaxEndpoints {
+	if endpointCount > apivalidation.MaxEndpoints {
 		c.addResourceError(
 			gatewayv1.KindUpstream,
 			upstream.Name,
@@ -42,7 +42,7 @@ func (c *compilation) buildUpstreamEndpoints(
 				"upstream %q declares %d endpoints; the maximum is %d",
 				upstream.Name,
 				endpointCount,
-				upstreamconfig.MaxEndpoints,
+				apivalidation.MaxEndpoints,
 			),
 		)
 		return nil, false, false
@@ -117,7 +117,7 @@ func (c *compilation) validUpstreamEndpoint(
 	endpoint gatewayv1.Endpoint,
 	endpointKey string,
 ) bool {
-	if !upstreamconfig.IsValidAddress(endpoint.Address) {
+	if !apivalidation.IsValidAddress(endpoint.Address) {
 		c.addResourceError(
 			gatewayv1.KindUpstream,
 			upstream.Name,
@@ -130,7 +130,7 @@ func (c *compilation) validUpstreamEndpoint(
 		)
 		return false
 	}
-	if !upstreamconfig.IsValidEndpointPort(endpoint.Port) {
+	if !apivalidation.IsValidEndpointPort(endpoint.Port) {
 		c.addResourceError(
 			gatewayv1.KindUpstream,
 			upstream.Name,
@@ -144,7 +144,7 @@ func (c *compilation) validUpstreamEndpoint(
 		)
 		return false
 	}
-	if !upstreamconfig.IsValidEndpointWeight(endpoint.Weight) {
+	if !apivalidation.IsValidEndpointWeight(endpoint.Weight) {
 		c.addResourceError(
 			gatewayv1.KindUpstream,
 			upstream.Name,

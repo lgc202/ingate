@@ -12,8 +12,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
-	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
+	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/analytics/requestrecord"
+	"github.com/lgc202/ingate/internal/adminapi/biz/pagination"
 )
 
 // RequestRepository 通过 Analytics gRPC 查询请求明细。
@@ -54,7 +54,7 @@ func (r *RequestRepository) List(ctx context.Context, options requestbiz.ListOpt
 		return requestbiz.Page{}, ctx.Err()
 	}
 	if status.Code(err) == codes.InvalidArgument && options.PageToken != "" {
-		return requestbiz.Page{}, apperror.InvalidCursor(err)
+		return requestbiz.Page{}, pagination.InvalidCursor(err)
 	}
 	if isUnavailable(ctx, err) {
 		return requestbiz.Page{}, requestbiz.Unavailable(err)

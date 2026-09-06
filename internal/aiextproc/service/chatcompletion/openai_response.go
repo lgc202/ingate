@@ -9,7 +9,7 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 // ObserveOpenAIResponse 从完整的 OpenAI 兼容响应中提取运行信息。
@@ -21,7 +21,7 @@ func ObserveOpenAIResponse(body []byte) (ResponseMetadata, bool) {
 
 	var metadata ResponseMetadata
 	model := gjson.GetBytes(body, "model")
-	if model.Type == gjson.String && routeconfig.IsValidModelName(model.String()) {
+	if model.Type == gjson.String && apivalidation.IsValidModelName(model.String()) {
 		metadata.ResponseModel = model.String()
 	}
 	if reason := gjson.GetBytes(body, "choices.0.finish_reason"); reason.Type == gjson.String {
@@ -68,7 +68,7 @@ func ObserveOpenAIResponse(body []byte) (ResponseMetadata, bool) {
 
 // RewriteOpenAIResponseModel 把上游响应中的真实模型名恢复为 Route 对外发布的稳定模型名。
 func RewriteOpenAIResponseModel(body []byte, clientModel string) ([]byte, bool, error) {
-	if !routeconfig.IsValidModelName(clientModel) {
+	if !apivalidation.IsValidModelName(clientModel) {
 		return nil, false, errors.New("client model is invalid")
 	}
 	model := gjson.GetBytes(body, "model")

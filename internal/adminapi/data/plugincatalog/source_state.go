@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz/apperror"
-	"github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
-	"github.com/lgc202/ingate/internal/adminapi/biz/wasmplugin"
+	adminv1 "github.com/lgc202/ingate/api/admin/v1"
+	sourcebiz "github.com/lgc202/ingate/internal/adminapi/biz/plugin/source"
+	wasmbiz "github.com/lgc202/ingate/internal/adminapi/biz/plugin/wasm"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -54,15 +54,15 @@ func (c *Catalog) recordSyncFailure(
 	if !current {
 		return
 	}
-	becameUnavailable := previous.observation.State != pluginsource.SyncStateError
+	becameUnavailable := previous.observation.State != sourcebiz.SyncStateError
 	lastSyncedAt := previous.observation.LastSyncedAt
 	message := "目录同步失败，请检查地址和目录内容"
-	if errors.Is(err, pluginsource.ErrSyncUnavailable) {
+	if errors.Is(err, sourcebiz.ErrSyncUnavailable) {
 		message = "目录暂时不可用，请稍后重试"
 	}
 	applySourceDefinition(&previous, definition)
-	previous.observation = pluginsource.Observation{
-		State:        pluginsource.SyncStateError,
+	previous.observation = sourcebiz.Observation{
+		State:        sourcebiz.SyncStateError,
 		Message:      message,
 		PluginCount:  len(previous.items),
 		LastSyncedAt: lastSyncedAt,
@@ -75,9 +75,9 @@ func (c *Catalog) recordSyncFailure(
 func (c *Catalog) storeDisabledSource(definition sourceDefinition) {
 	c.storeSourceState(sourceState{
 		definition:  definition,
-		items:       make([]wasmplugin.CatalogItem, 0),
+		items:       make([]wasmbiz.CatalogItem, 0),
 		specs:       make(map[string]resource.WasmPluginSpec),
-		observation: pluginsource.Observation{State: pluginsource.SyncStateDisabled},
+		observation: sourcebiz.Observation{State: sourcebiz.SyncStateDisabled},
 	})
 }
 
@@ -110,12 +110,12 @@ func (c *Catalog) isCurrentDefinition(
 	ctx context.Context,
 	definition sourceDefinition,
 ) (bool, error) {
-	if definition.id == pluginsource.OfficialSourceID {
+	if definition.id == sourcebiz.OfficialSourceID {
 		return definition == c.official, nil
 	}
 	source, err := c.store.Get(ctx, definition.id)
 	if err != nil {
-		if errors.Is(err, apperror.ResourceNotFound()) {
+		if adminv1.IsResourceNotFound(err) {
 			return false, nil
 		}
 		return false, err

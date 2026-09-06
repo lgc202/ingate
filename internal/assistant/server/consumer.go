@@ -22,17 +22,19 @@ const executionErrorDelay = 5 * time.Second
 // 一个进程包含固定数量的执行槽，不同会话可以并发执行。部署多个进程时，MySQL 的
 // SKIP LOCKED 负责分配任务，领取者标识和租约阻止失联或过期实例提交结果。
 type ExecutionConsumer struct {
-	executor      *execution.Executor
-	logger        *slog.Logger
+	executor *execution.Executor
+	logger   *slog.Logger
+
 	concurrency   int
 	pollInterval  time.Duration
 	leaseDuration time.Duration
 	instanceID    string
-	done          chan struct{}
-	running       atomic.Bool
-	lifecycleMu   sync.Mutex
-	cancel        context.CancelFunc
-	stopping      bool
+
+	done        chan struct{}
+	running     atomic.Bool
+	lifecycleMu sync.Mutex
+	cancel      context.CancelFunc
+	stopping    bool
 }
 
 // NewExecutionConsumer 创建由 Kratos 管理生命周期的后台执行服务。

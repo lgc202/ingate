@@ -16,7 +16,7 @@ import (
 
 	"github.com/lgc202/ingate/internal/aiextproc/biz/tokenquota"
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
-	"github.com/lgc202/ingate/internal/pkg/tokenquotaconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 // ModelAPIKeySource 提供当前已同步的模型 Service API Key。
@@ -125,7 +125,7 @@ func (p *ExternalProcessor) registerRequest(identity callerIdentity) (string, *r
 func (p *ExternalProcessor) settleQuota(ctx context.Context, request *requestState, tokens uint64) {
 	// Redis 使用有符号整数，Envoy 元数据使用 double。超出共同精确范围的厂商用量
 	// 不能用于结算，也不能先消费 Session 而阻止后续有效的最终用量。
-	if tokens > uint64(tokenquotaconfig.MaxTokensPerPeriod) {
+	if tokens > uint64(apivalidation.MaxTokensPerPeriod) {
 		p.logger.ErrorContext(
 			ctx,
 			"settle token quota",

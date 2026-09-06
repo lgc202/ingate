@@ -8,7 +8,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
-	aiusagebiz "github.com/lgc202/ingate/internal/adminapi/biz/aiusage"
+	aiusagebiz "github.com/lgc202/ingate/internal/adminapi/biz/analytics/aiusage"
 )
 
 func analyticsAIUsageFilter(filter aiusagebiz.Filter) *analyticsv1.AIUsageFilter {

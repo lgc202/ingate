@@ -6,8 +6,8 @@ import (
 	"time"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	certificateutil "github.com/lgc202/ingate/internal/pkg/certificate"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 type compilation struct {
@@ -115,7 +115,7 @@ func (c *compilation) indexResources(resources Resources) {
 			)
 			continue
 		}
-		c.indexHeaderTransformationPolicy(policy)
+		c.indexHeaderPolicy(policy)
 	}
 	for _, policy := range resources.MockResponsePolicies {
 		if policy == nil {
@@ -294,7 +294,7 @@ func (c *compilation) indexWasmPlugin(plugin *gatewayv1.WasmPlugin) {
 	c.wasmPluginsByPackage[plugin.Spec.Package] = plugin
 }
 
-func (c *compilation) indexHeaderTransformationPolicy(policy *gatewayv1.HeaderTransformationPolicy) {
+func (c *compilation) indexHeaderPolicy(policy *gatewayv1.HeaderTransformationPolicy) {
 	id := policy.Name
 	if !c.validateResourceID(gatewayv1.KindHeaderTransformationPolicy, id) {
 		return
@@ -338,7 +338,7 @@ func (c *compilation) validateResourceID(kind gatewayv1.Kind, id string) bool {
 		)
 		return false
 	}
-	if !resourceconfig.IsCanonicalID(id) {
+	if !apivalidation.IsCanonicalID(id) {
 		c.addResourceError(
 			kind,
 			id,

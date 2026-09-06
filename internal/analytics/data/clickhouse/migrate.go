@@ -12,7 +12,6 @@ import (
 	"github.com/pressly/goose/v3"
 
 	"github.com/lgc202/ingate/internal/analytics/conf"
-	"github.com/lgc202/ingate/internal/pkg/clickhouseclient"
 )
 
 const (
@@ -32,7 +31,7 @@ var migrationFiles embed.FS
 // 正常服务进程不执行 DDL，生产环境可以为运行账号移除建表权限。调用方负责在
 // 服务启动前完成迁移，Migrate 返回本次实际应用的版本数量。
 func Migrate(ctx context.Context, config *conf.Data_ClickHouse) (applied int, err error) {
-	db, err := clickhouseclient.OpenDB(clientConfig(config))
+	db, err := openDatabase(clientConfig(config))
 	if err != nil {
 		return 0, err
 	}

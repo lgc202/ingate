@@ -25,6 +25,25 @@ export function SearchField({
   );
 }
 
+export function ResourceSelect({
+  value,
+  placeholder,
+  options,
+  onChange,
+}: {
+  value?: string;
+  placeholder: string;
+  options?: Array<{ id: string; name: string }>;
+  onChange: (value?: string) => void;
+}) {
+  return (
+    <select className="select" value={value ?? ''} onChange={(event) => onChange(event.target.value || undefined)}>
+      <option value="">{placeholder}</option>
+      {options?.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+    </select>
+  );
+}
+
 export function SelectPopover({
   label,
   summary,

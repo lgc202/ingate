@@ -10,8 +10,7 @@ import (
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
 	aiusagebiz "github.com/lgc202/ingate/internal/analytics/biz/aiusage"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 const (
@@ -62,12 +61,12 @@ func buildFilter(filter *analyticsv1.AIUsageFilter) (aiusagebiz.Filter, error) {
 		filter.GetRouteId(),
 		filter.GetUpstreamId(),
 	} {
-		if resourceID != "" && !resourceconfig.IsCanonicalID(resourceID) {
+		if resourceID != "" && !apivalidation.IsCanonicalID(resourceID) {
 			return aiusagebiz.Filter{}, invalidArgument("filter contains an invalid resource ID")
 		}
 	}
 	for _, model := range []string{filter.GetClientModel(), filter.GetUpstreamModel()} {
-		if model != "" && !routeconfig.IsValidModelName(model) {
+		if model != "" && !apivalidation.IsValidModelName(model) {
 			return aiusagebiz.Filter{}, invalidArgument("filter contains an invalid model name")
 		}
 	}

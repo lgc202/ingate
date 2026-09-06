@@ -213,25 +213,30 @@ type Failure struct {
 
 // RequestRecord 是一次请求的排障元数据，不包含请求内容、凭据和内部服务地址。
 type RequestRecord struct {
-	RecordID        string
-	StartedAt       time.Time
-	Duration        time.Duration
-	TimeToFirstByte *time.Duration
-	Method          string
-	Host            string
-	Path            string
+	RecordID  string
+	StartedAt time.Time
+
+	Method string
+	Host   string
+	Path   string
+
 	StatusCode      uint32
 	Outcome         string
+	RejectionReason string
+
+	Duration        time.Duration
+	TimeToFirstByte *time.Duration
 	RequestBytes    uint64
 	ResponseBytes   uint64
-	GatewayID       string
-	RouteID         string
-	ServiceID       string
+
+	GatewayID string
+	RouteID   string
+	ServiceID string
+
 	Protocol        string
-	RejectionReason string
 	ServiceAttempts uint32
-	AIModelCall     *AIModelCall
 	CallerID        string
+	AIModelCall     *AIModelCall
 }
 
 // CallerTokenQuota 汇总一个调用方当前实际执行的 Token 额度。

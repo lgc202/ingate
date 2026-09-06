@@ -14,8 +14,8 @@ import (
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 // strategy 定义 Gateway 资源在 API Server 存储前后的处理规则。
@@ -82,7 +82,7 @@ func canonicalizeGatewaySpec(spec *resource.GatewaySpec) {
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
 	for i := range spec.Listeners {
 		spec.Listeners[i].Name = strings.TrimSpace(spec.Listeners[i].Name)
-		if certificateID, valid := resourceconfig.NormalizeID(spec.Listeners[i].CertificateRef); valid {
+		if certificateID, valid := apivalidation.NormalizeID(spec.Listeners[i].CertificateRef); valid {
 			spec.Listeners[i].CertificateRef = certificateID
 		}
 		hostname, ok := hostnameutil.Normalize(spec.Listeners[i].Hostname)

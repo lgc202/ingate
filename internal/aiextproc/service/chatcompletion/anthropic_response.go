@@ -11,7 +11,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/tidwall/gjson"
 
-	"github.com/lgc202/ingate/internal/pkg/routeconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 type openAIResponse struct {
@@ -54,7 +54,7 @@ func RewriteAnthropicResponse(body []byte, clientModel string) ([]byte, Response
 	if err := json.Unmarshal(body, &source); err != nil {
 		return nil, ResponseMetadata{}, fmt.Errorf("unmarshal anthropic response: %w", err)
 	}
-	if source.ID == "" || !routeconfig.IsValidModelName(source.Model) {
+	if source.ID == "" || !apivalidation.IsValidModelName(source.Model) {
 		return nil, ResponseMetadata{}, errors.New("unmarshal anthropic response: missing message ID or invalid model")
 	}
 	usage := anthropicUsage(source.Usage.InputTokens, source.Usage.OutputTokens,

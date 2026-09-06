@@ -77,7 +77,7 @@ func getCallerTokenQuota(
 	if err != nil {
 		return callerTokenQuotaErrorResult(err)
 	}
-	info := callerTokenQuotaInfoFromQuota(quota)
+	info := newQuotaInfo(quota)
 	summary := fmt.Sprintf("调用方 %s 当前有 %d 个生效额度周期", quota.CallerName, len(quota.Usages))
 	if len(quota.Usages) == 0 {
 		summary = fmt.Sprintf("调用方 %s 当前没有生效的 Token 额度限制", quota.CallerName)
@@ -90,7 +90,7 @@ func getCallerTokenQuota(
 	}, nil
 }
 
-func callerTokenQuotaInfoFromQuota(quota CallerTokenQuota) callerTokenQuotaInfo {
+func newQuotaInfo(quota CallerTokenQuota) callerTokenQuotaInfo {
 	usages := lo.Map(quota.Usages, func(usage TokenQuotaUsage, _ int) tokenQuotaUsageInfo {
 		return tokenQuotaUsageInfo{
 			PolicyID:        usage.PolicyID,

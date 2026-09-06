@@ -10,9 +10,7 @@ import (
 
 	"github.com/lgc202/ingate/internal/aiextproc/biz/tokenquota"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/internal/pkg/policyconfig"
-	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
-	"github.com/lgc202/ingate/internal/pkg/tokenquotaconfig"
+	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
 )
 
 type compiledTokenQuotaPolicy struct {
@@ -28,13 +26,13 @@ func (c *ConfigCache) ActivePolicies(callerID string) ([]tokenquota.Policy, erro
 
 	c.tokenQuotaMu.RLock()
 	indexed := c.policiesByCaller[callerID]
-	if len(indexed) > tokenquotaconfig.MaxPoliciesPerCaller {
+	if len(indexed) > apivalidation.MaxPoliciesPerCaller {
 		c.tokenQuotaMu.RUnlock()
 		return nil, fmt.Errorf(
 			"caller %q matches %d token quota policies; limit is %d",
 			callerID,
 			len(indexed),
-			tokenquotaconfig.MaxPoliciesPerCaller,
+			apivalidation.MaxPoliciesPerCaller,
 		)
 	}
 	policies := lo.MapToSlice(indexed, func(_ string, policy tokenquota.Policy) tokenquota.Policy {
@@ -128,26 +126,26 @@ func (c *ConfigCache) removeTokenQuotaPolicyLocked(policyID string) {
 }
 
 func compileTokenQuotaPolicy(policy *resource.TokenQuotaPolicy) (compiledTokenQuotaPolicy, error) {
-	if !resourceconfig.IsCanonicalID(policy.Name) {
+	if !apivalidation.IsCanonicalID(policy.Name) {
 		return compiledTokenQuotaPolicy{}, errors.New("metadata.name must be a canonical UUID")
 	}
-	if !resourceconfig.IsValidDisplayName(policy.Spec.DisplayName) {
+	if !apivalidation.IsValidDisplayName(policy.Spec.DisplayName) {
 		return compiledTokenQuotaPolicy{}, errors.New("displayName is invalid")
 	}
-	timeZone, location, valid := tokenquotaconfig.LoadLocation(policy.Spec.TimeZone)
+	timeZone, location, valid := apivalidation.LoadLocation(policy.Spec.TimeZone)
 	if !valid || timeZone != policy.Spec.TimeZone {
 		return compiledTokenQuotaPolicy{}, errors.New("timeZone must be a valid IANA time zone")
 	}
-	if len(policy.Spec.TargetRefs) > policyconfig.MaxTargets {
+	if len(policy.Spec.TargetRefs) > apivalidation.MaxTargets {
 		return compiledTokenQuotaPolicy{}, fmt.Errorf(
 			"target count exceeds %d",
-			policyconfig.MaxTargets,
+			apivalidation.MaxTargets,
 		)
 	}
-	if len(policy.Spec.Limits) == 0 || len(policy.Spec.Limits) > tokenquotaconfig.MaxLimits {
+	if len(policy.Spec.Limits) == 0 || len(policy.Spec.Limits) > apivalidation.MaxLimits {
 		return compiledTokenQuotaPolicy{}, fmt.Errorf(
 			"limit count must be between 1 and %d",
-			tokenquotaconfig.MaxLimits,
+			apivalidation.MaxLimits,
 		)
 	}
 
@@ -158,7 +156,7 @@ func compileTokenQuotaPolicy(policy *resource.TokenQuotaPolicy) (compiledTokenQu
 			return compiledTokenQuotaPolicy{}, fmt.Errorf("target %d has unsupported kind %q", i, ref.Kind)
 		}
 		callerID := ref.Name
-		if !resourceconfig.IsCanonicalID(callerID) {
+		if !apivalidation.IsCanonicalID(callerID) {
 			return compiledTokenQuotaPolicy{}, fmt.Errorf("target %d has invalid Caller ID", i)
 		}
 		if seenCallers[callerID] {
@@ -179,7 +177,7 @@ func compileTokenQuotaPolicy(policy *resource.TokenQuotaPolicy) (compiledTokenQu
 		if seenPeriods[period] {
 			return compiledTokenQuotaPolicy{}, fmt.Errorf("limit %d duplicates period %q", i, period)
 		}
-		if !tokenquotaconfig.IsValidTokenLimit(limit.Tokens) {
+		if !apivalidation.IsValidTokenLimit(limit.Tokens) {
 			return compiledTokenQuotaPolicy{}, fmt.Errorf("limit %d has invalid token count", i)
 		}
 		seenPeriods[period] = true

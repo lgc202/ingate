@@ -6,6 +6,7 @@ export {
   ResourceFilterField,
   ResourceListFilters,
   ResourcePagination,
+  ResourceSelect,
   RowActions,
   SearchField,
   SelectPopover,
