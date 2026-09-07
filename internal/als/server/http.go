@@ -12,6 +12,7 @@ import (
 
 	"github.com/lgc202/ingate/internal/als/biz"
 	"github.com/lgc202/ingate/internal/als/conf"
+	"github.com/lgc202/ingate/internal/pkg/telemetry"
 )
 
 // NewHTTPServer 创建健康检查、就绪检查和 Prometheus 指标服务。
@@ -20,6 +21,7 @@ func NewHTTPServer(
 	kafkaConfig *conf.Data_Kafka,
 	queueConfig *conf.Data_DiskQueue,
 	recorder *biz.Recorder,
+	tracing *telemetry.Tracing,
 ) *kratoshttp.Server {
 	httpConfig := serverConfig.GetHttp()
 	server := kratoshttp.NewServer(
@@ -29,7 +31,7 @@ func NewHTTPServer(
 	)
 	server.HandleFunc("/healthz", health)
 	server.HandleFunc("/readyz", ready(kafkaConfig, queueConfig, recorder))
-	server.Handle("/metrics", metricsHandler(recorder, queueConfig.GetMaxBytes()))
+	server.Handle("/metrics", metricsHandler(recorder, tracing, queueConfig.GetMaxBytes()))
 	return server
 }
 
@@ -73,7 +75,11 @@ func ready(
 	}
 }
 
-func metricsHandler(recorder *biz.Recorder, queueCapacity int64) http.Handler {
+func metricsHandler(
+	recorder *biz.Recorder,
+	tracing *telemetry.Tracing,
+	queueCapacity int64,
+) http.Handler {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(
 		collectors.NewGoCollector(),
@@ -138,6 +144,13 @@ func metricsHandler(recorder *biz.Recorder, queueCapacity int64) http.Handler {
 			Name:      "kafka_writable",
 			Help:      "Whether the latest Kafka delivery operation succeeded.",
 		}, func() float64 { return boolMetric(recorder.DeliveryStatus().KafkaWritable) }),
+		prometheus.NewCounterFunc(prometheus.CounterOpts{
+			Namespace:   "ingate",
+			Subsystem:   "telemetry",
+			Name:        "spans_dropped_total",
+			Help:        "Spans dropped before reaching the configured OTLP backend.",
+			ConstLabels: prometheus.Labels{"reason": "queue_full"},
+		}, func() float64 { return float64(tracing.Drops().QueueFull) }),
 	)
 
 	// 使用独立 Registry 只注册 Go、进程和 ALS 可靠性指标，避免依赖库隐式污染指标空间

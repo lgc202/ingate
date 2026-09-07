@@ -7,7 +7,6 @@ package aiextproc
 import (
 	"fmt"
 	"log/slog"
-	"os"
 
 	kratos "github.com/go-kratos/kratos/v3"
 	kratoslog "github.com/go-kratos/kratos/v3/log"
@@ -18,6 +17,7 @@ import (
 	dataapiserver "github.com/lgc202/ingate/internal/aiextproc/data/apiserver"
 	dataredis "github.com/lgc202/ingate/internal/aiextproc/data/redis"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
+	"github.com/lgc202/ingate/internal/pkg/telemetry"
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
@@ -36,12 +36,12 @@ func NewApp(configFile string) (*App, error) {
 	if err := appconfig.Load(configFile, &bootstrap); err != nil {
 		return nil, err
 	}
-	hostname, err := os.Hostname()
+	identity, err := telemetry.NewIdentity(name, "")
 	if err != nil {
-		return nil, fmt.Errorf("read hostname: %w", err)
+		return nil, err
 	}
-	instanceID := serviceInstanceID(hostname)
-	logger := appconfig.NewLogger(bootstrap.GetLogging(), name, string(instanceID))
+	instanceID := serviceInstanceID(identity.InstanceID)
+	logger := telemetry.NewLogger(bootstrap.GetLogging(), identity)
 	kratoslog.SetDefault(logger)
 
 	kratosApp, err := wireApp(

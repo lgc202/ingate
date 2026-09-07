@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/lgc202/ingate/internal/pkg/appconfig"
 	"github.com/lgc202/ingate/internal/pkg/kafkaclient"
+	"github.com/lgc202/ingate/internal/pkg/telemetry"
 )
 
 // Validate 校验 ALS 进程启动所需的配置。
@@ -83,7 +83,53 @@ func (c *Bootstrap) Validate() error {
 	if logging == nil {
 		return errors.New("logging config is required")
 	}
-	return appconfig.ValidateLogging(logging)
+	if err := telemetry.ValidateLogging(logging); err != nil {
+		return err
+	}
+	return validateTelemetry(c.GetTelemetry())
+}
+
+func validateTelemetry(config *Telemetry) error {
+	if config == nil || strings.TrimSpace(config.GetEnvironment()) == "" {
+		return errors.New("telemetry environment must not be empty")
+	}
+	tracing := config.GetTracing()
+	if tracing == nil {
+		return nil
+	}
+	if !tracing.GetEnabled() {
+		return nil
+	}
+	if strings.TrimSpace(tracing.GetEndpoint()) == "" {
+		return errors.New("telemetry tracing endpoint must not be empty")
+	}
+	if ratio := tracing.GetSampleRatio(); ratio < 0 || ratio > 1 {
+		return errors.New("telemetry tracing sample ratio must be between zero and one")
+	}
+	if tracing.GetMaxQueueSize() == 0 {
+		return errors.New("telemetry tracing max queue size must be greater than zero")
+	}
+	if tracing.GetExportBatchSize() == 0 || tracing.GetExportBatchSize() > tracing.GetMaxQueueSize() {
+		return errors.New("telemetry tracing export batch size must be between one and max queue size")
+	}
+	if tracing.GetBatchTimeout() == nil || tracing.GetBatchTimeout().AsDuration() <= 0 {
+		return errors.New("telemetry tracing batch timeout must be greater than zero")
+	}
+	if tracing.GetExportTimeout() == nil || tracing.GetExportTimeout().AsDuration() <= 0 {
+		return errors.New("telemetry tracing export timeout must be greater than zero")
+	}
+	tls := tracing.GetTls()
+	if tracing.GetInsecure() {
+		if tls != nil && (tls.GetCaFile() != "" || tls.GetCertFile() != "" ||
+			tls.GetKeyFile() != "" || tls.GetServerName() != "") {
+			return errors.New("telemetry tracing TLS config requires a secure connection")
+		}
+		return nil
+	}
+	if tls != nil && (tls.GetCertFile() == "") != (tls.GetKeyFile() == "") {
+		return errors.New("telemetry tracing TLS certificate and key must be configured together")
+	}
+	return nil
 }
 
 func validateServerTLS(config *Server_GRPC_TLS) error {

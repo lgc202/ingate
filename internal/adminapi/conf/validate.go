@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lgc202/ingate/internal/pkg/appconfig"
 	"github.com/lgc202/ingate/internal/pkg/controlplaneauth"
 	"github.com/lgc202/ingate/internal/pkg/httpurl"
+	"github.com/lgc202/ingate/internal/pkg/telemetry"
 )
 
 // Validate 校验 Admin API 的进程配置。
@@ -40,7 +40,7 @@ func (c *Bootstrap) Validate() error {
 	if logging == nil {
 		return errors.New("logging config is required")
 	}
-	return appconfig.ValidateLogging(logging)
+	return telemetry.ValidateLogging(logging)
 }
 
 func validateData(data *Data) error {

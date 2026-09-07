@@ -40,3 +40,20 @@ logging:
   format: "json"
   level: "info"
   add_source: false
+
+telemetry:
+  environment: "development"
+  tracing:
+    enabled: false
+    endpoint: "127.0.0.1:4317"
+    insecure: true
+    sample_ratio: 0.1
+    max_queue_size: 2048
+    export_batch_size: 256
+    batch_timeout: "2s"
+    export_timeout: "5s"
+    tls:
+      ca_file: ""
+      cert_file: ""
+      key_file: ""
+      server_name: ""
