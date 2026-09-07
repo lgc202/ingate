@@ -220,11 +220,18 @@ func latestCompatibleRelease(
 }
 
 func compatibleWithIngate(current, minimum string) bool {
-	if minimum == "" || strings.Contains(current, "unknown") {
+	if minimum == "" {
 		return true
 	}
 	current = canonicalVersion(current)
-	return semver.IsValid(current) && semver.Compare(current, minimum) >= 0
+	// 未发布构建使用占位符、Git 提交号或 dirty 后缀，无法可靠判断最低版本。
+	// 此时保留目录能力；正式发布构建仍严格执行语义版本约束。
+	if strings.Contains(current, "unknown") ||
+		strings.HasSuffix(current, "-dirty") ||
+		!semver.IsValid(current) {
+		return true
+	}
+	return semver.Compare(current, minimum) >= 0
 }
 
 func canonicalVersion(value string) string {
