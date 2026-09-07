@@ -13,12 +13,13 @@ import (
 	"github.com/lgc202/ingate/internal/als/data"
 	"github.com/lgc202/ingate/internal/als/server"
 	"github.com/lgc202/ingate/internal/als/service"
+	"github.com/lgc202/ingate/internal/pkg/telemetry"
 	"log/slog"
 )
 
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, data_Kafka *conf.Data_Kafka, data_DiskQueue *conf.Data_DiskQueue, logger *slog.Logger, alsServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
+func wireApp(confServer *conf.Server, data_Kafka *conf.Data_Kafka, data_DiskQueue *conf.Data_DiskQueue, logger *slog.Logger, tracing *telemetry.Tracing, alsServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
 	publisher, cleanup, err := data.NewKafkaPublisher(data_Kafka)
 	if err != nil {
 		return nil, nil, err
@@ -29,9 +30,9 @@ func wireApp(confServer *conf.Server, data_Kafka *conf.Data_Kafka, data_DiskQueu
 		return nil, nil, err
 	}
 	recorder := biz.NewRecorder(publisher, queue, logger)
-	httpServer := server.NewHTTPServer(confServer, data_Kafka, data_DiskQueue, recorder)
+	httpServer := server.NewHTTPServer(confServer, data_Kafka, data_DiskQueue, recorder, tracing)
 	serviceService := service.NewService(recorder, logger)
-	grpcServer, err := server.NewGRPCServer(confServer, serviceService)
+	grpcServer, err := server.NewGRPCServer(confServer, serviceService, tracing)
 	if err != nil {
 		cleanup2()
 		cleanup()

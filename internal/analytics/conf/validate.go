@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lgc202/ingate/internal/pkg/appconfig"
 	"github.com/lgc202/ingate/internal/pkg/kafkaclient"
+	"github.com/lgc202/ingate/internal/pkg/telemetry"
 )
 
 var clickHouseIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -54,7 +54,7 @@ func (c *Bootstrap) Validate() error {
 	if logging == nil {
 		return errors.New("logging config is required")
 	}
-	return appconfig.ValidateLogging(logging)
+	return telemetry.ValidateLogging(logging)
 }
 
 func validateKafka(config *Data_Kafka) error {

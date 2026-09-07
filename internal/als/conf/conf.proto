@@ -14,6 +14,8 @@ message Bootstrap {
   Data data = 2;
   // logging 定义进程日志行为
   Logging logging = 3;
+  // telemetry 定义进程身份和 Trace 导出行为
+  Telemetry telemetry = 4;
 }
 
 // Server 定义 Envoy ALS 与运行检查的监听配置
@@ -114,4 +116,42 @@ message Logging {
   string level = 2;
   // add_source 控制日志是否包含调用位置
   bool add_source = 3;
+}
+
+// Telemetry 定义 ALS 的部署环境和可选 OTLP Trace 出口
+message Telemetry {
+  message Tracing {
+    message TLS {
+      // ca_file 是可选的 Collector CA 证书文件，为空时使用系统根证书
+      string ca_file = 1;
+      // cert_file 是可选的客户端证书文件
+      string cert_file = 2;
+      // key_file 与 cert_file 配对，用于 mTLS
+      string key_file = 3;
+      // server_name 覆盖 TLS 证书校验使用的服务端名称
+      string server_name = 4;
+    }
+    // enabled 控制是否导出 Trace；关闭时不建立 OTLP 连接
+    bool enabled = 1;
+    // endpoint 是 OTLP gRPC Collector 的 host:port 地址
+    string endpoint = 2;
+    // insecure 控制是否使用明文 OTLP gRPC 连接
+    bool insecure = 3;
+    // sample_ratio 是无父 Span 的采样比例，取值范围为 [0, 1]
+    double sample_ratio = 4;
+    // max_queue_size 是等待导出的 Span 数量上限
+    uint32 max_queue_size = 5;
+    // export_batch_size 是单次导出的最大 Span 数量
+    uint32 export_batch_size = 6;
+    // batch_timeout 是未满批次的最长等待时间
+    google.protobuf.Duration batch_timeout = 7;
+    // export_timeout 是单次导出的最长时间
+    google.protobuf.Duration export_timeout = 8;
+    // tls 配置 Collector 身份校验和可选的客户端证书
+    TLS tls = 9;
+  }
+  // environment 是日志和 Trace 使用的部署环境名
+  string environment = 1;
+  // tracing 定义有界、非阻塞的 OTLP Trace 导出
+  Tracing tracing = 2;
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/lgc202/ingate/internal/als/data"
 	"github.com/lgc202/ingate/internal/als/server"
 	"github.com/lgc202/ingate/internal/als/service"
+	"github.com/lgc202/ingate/internal/pkg/telemetry"
 )
 
 func wireApp(
@@ -20,6 +21,7 @@ func wireApp(
 	*conf.Data_Kafka,
 	*conf.Data_DiskQueue,
 	*slog.Logger,
+	*telemetry.Tracing,
 	serviceInstanceID,
 ) (*kratos.App, func(), error) {
 	panic(wire.Build(

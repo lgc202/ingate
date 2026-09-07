@@ -12,8 +12,8 @@ import (
 
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 
-	"github.com/lgc202/ingate/internal/pkg/appconfig"
 	"github.com/lgc202/ingate/internal/pkg/controlplaneauth"
+	"github.com/lgc202/ingate/internal/pkg/telemetry"
 )
 
 const (
@@ -61,7 +61,7 @@ func (c *Bootstrap) Validate() error {
 	if logging == nil {
 		return errors.New("logging config is required")
 	}
-	return appconfig.ValidateLogging(logging)
+	return telemetry.ValidateLogging(logging)
 }
 
 func validateEtcd(config *Data_Etcd) error {

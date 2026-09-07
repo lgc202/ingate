@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lgc202/ingate/internal/pkg/appconfig"
+	"github.com/lgc202/ingate/internal/pkg/telemetry"
 )
 
 const (
@@ -70,7 +70,7 @@ func (c *Bootstrap) Validate() error {
 	if logging == nil {
 		return errors.New("logging config is required")
 	}
-	return appconfig.ValidateLogging(logging)
+	return telemetry.ValidateLogging(logging)
 }
 
 func validateData(config *Data) error {

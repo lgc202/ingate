@@ -30,7 +30,9 @@ type Bootstrap struct {
 	// data 定义 Kafka 主链路与本地磁盘兜底
 	Data *Data `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 	// logging 定义进程日志行为
-	Logging       *Logging `protobuf:"bytes,3,opt,name=logging,proto3" json:"logging,omitempty"`
+	Logging *Logging `protobuf:"bytes,3,opt,name=logging,proto3" json:"logging,omitempty"`
+	// telemetry 定义进程身份和 Trace 导出行为
+	Telemetry     *Telemetry `protobuf:"bytes,4,opt,name=telemetry,proto3" json:"telemetry,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -82,6 +84,13 @@ func (x *Bootstrap) GetData() *Data {
 func (x *Bootstrap) GetLogging() *Logging {
 	if x != nil {
 		return x.Logging
+	}
+	return nil
+}
+
+func (x *Bootstrap) GetTelemetry() *Telemetry {
+	if x != nil {
+		return x.Telemetry
 	}
 	return nil
 }
@@ -269,6 +278,61 @@ func (x *Logging) GetAddSource() bool {
 	return false
 }
 
+// Telemetry 定义 ALS 的部署环境和可选 OTLP Trace 出口
+type Telemetry struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// environment 是日志和 Trace 使用的部署环境名
+	Environment string `protobuf:"bytes,1,opt,name=environment,proto3" json:"environment,omitempty"`
+	// tracing 定义有界、非阻塞的 OTLP Trace 导出
+	Tracing       *Telemetry_Tracing `protobuf:"bytes,2,opt,name=tracing,proto3" json:"tracing,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Telemetry) Reset() {
+	*x = Telemetry{}
+	mi := &file_conf_conf_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Telemetry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Telemetry) ProtoMessage() {}
+
+func (x *Telemetry) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_conf_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Telemetry.ProtoReflect.Descriptor instead.
+func (*Telemetry) Descriptor() ([]byte, []int) {
+	return file_conf_conf_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Telemetry) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *Telemetry) GetTracing() *Telemetry_Tracing {
+	if x != nil {
+		return x.Tracing
+	}
+	return nil
+}
+
 type Server_GRPC struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// addr 是 Envoy 连接的 gRPC 监听地址
@@ -281,7 +345,7 @@ type Server_GRPC struct {
 
 func (x *Server_GRPC) Reset() {
 	*x = Server_GRPC{}
-	mi := &file_conf_conf_proto_msgTypes[4]
+	mi := &file_conf_conf_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -293,7 +357,7 @@ func (x *Server_GRPC) String() string {
 func (*Server_GRPC) ProtoMessage() {}
 
 func (x *Server_GRPC) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[4]
+	mi := &file_conf_conf_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -335,7 +399,7 @@ type Server_HTTP struct {
 
 func (x *Server_HTTP) Reset() {
 	*x = Server_HTTP{}
-	mi := &file_conf_conf_proto_msgTypes[5]
+	mi := &file_conf_conf_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -347,7 +411,7 @@ func (x *Server_HTTP) String() string {
 func (*Server_HTTP) ProtoMessage() {}
 
 func (x *Server_HTTP) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[5]
+	mi := &file_conf_conf_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -393,7 +457,7 @@ type Server_GRPC_TLS struct {
 
 func (x *Server_GRPC_TLS) Reset() {
 	*x = Server_GRPC_TLS{}
-	mi := &file_conf_conf_proto_msgTypes[6]
+	mi := &file_conf_conf_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -405,7 +469,7 @@ func (x *Server_GRPC_TLS) String() string {
 func (*Server_GRPC_TLS) ProtoMessage() {}
 
 func (x *Server_GRPC_TLS) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[6]
+	mi := &file_conf_conf_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -471,7 +535,7 @@ type Data_Kafka struct {
 
 func (x *Data_Kafka) Reset() {
 	*x = Data_Kafka{}
-	mi := &file_conf_conf_proto_msgTypes[7]
+	mi := &file_conf_conf_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -483,7 +547,7 @@ func (x *Data_Kafka) String() string {
 func (*Data_Kafka) ProtoMessage() {}
 
 func (x *Data_Kafka) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[7]
+	mi := &file_conf_conf_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -568,7 +632,7 @@ type Data_DiskQueue struct {
 
 func (x *Data_DiskQueue) Reset() {
 	*x = Data_DiskQueue{}
-	mi := &file_conf_conf_proto_msgTypes[8]
+	mi := &file_conf_conf_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -580,7 +644,7 @@ func (x *Data_DiskQueue) String() string {
 func (*Data_DiskQueue) ProtoMessage() {}
 
 func (x *Data_DiskQueue) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[8]
+	mi := &file_conf_conf_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -652,7 +716,7 @@ type Data_Kafka_SASL struct {
 
 func (x *Data_Kafka_SASL) Reset() {
 	*x = Data_Kafka_SASL{}
-	mi := &file_conf_conf_proto_msgTypes[9]
+	mi := &file_conf_conf_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -664,7 +728,7 @@ func (x *Data_Kafka_SASL) String() string {
 func (*Data_Kafka_SASL) ProtoMessage() {}
 
 func (x *Data_Kafka_SASL) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[9]
+	mi := &file_conf_conf_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -719,7 +783,7 @@ type Data_Kafka_TLS struct {
 
 func (x *Data_Kafka_TLS) Reset() {
 	*x = Data_Kafka_TLS{}
-	mi := &file_conf_conf_proto_msgTypes[10]
+	mi := &file_conf_conf_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -731,7 +795,7 @@ func (x *Data_Kafka_TLS) String() string {
 func (*Data_Kafka_TLS) ProtoMessage() {}
 
 func (x *Data_Kafka_TLS) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[10]
+	mi := &file_conf_conf_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -782,15 +846,205 @@ func (x *Data_Kafka_TLS) GetServerName() string {
 	return ""
 }
 
+type Telemetry_Tracing struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// enabled 控制是否导出 Trace；关闭时不建立 OTLP 连接
+	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	// endpoint 是 OTLP gRPC Collector 的 host:port 地址
+	Endpoint string `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	// insecure 控制是否使用明文 OTLP gRPC 连接
+	Insecure bool `protobuf:"varint,3,opt,name=insecure,proto3" json:"insecure,omitempty"`
+	// sample_ratio 是无父 Span 的采样比例，取值范围为 [0, 1]
+	SampleRatio float64 `protobuf:"fixed64,4,opt,name=sample_ratio,json=sampleRatio,proto3" json:"sample_ratio,omitempty"`
+	// max_queue_size 是等待导出的 Span 数量上限
+	MaxQueueSize uint32 `protobuf:"varint,5,opt,name=max_queue_size,json=maxQueueSize,proto3" json:"max_queue_size,omitempty"`
+	// export_batch_size 是单次导出的最大 Span 数量
+	ExportBatchSize uint32 `protobuf:"varint,6,opt,name=export_batch_size,json=exportBatchSize,proto3" json:"export_batch_size,omitempty"`
+	// batch_timeout 是未满批次的最长等待时间
+	BatchTimeout *durationpb.Duration `protobuf:"bytes,7,opt,name=batch_timeout,json=batchTimeout,proto3" json:"batch_timeout,omitempty"`
+	// export_timeout 是单次导出的最长时间
+	ExportTimeout *durationpb.Duration `protobuf:"bytes,8,opt,name=export_timeout,json=exportTimeout,proto3" json:"export_timeout,omitempty"`
+	// tls 配置 Collector 身份校验和可选的客户端证书
+	Tls           *Telemetry_Tracing_TLS `protobuf:"bytes,9,opt,name=tls,proto3" json:"tls,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Telemetry_Tracing) Reset() {
+	*x = Telemetry_Tracing{}
+	mi := &file_conf_conf_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Telemetry_Tracing) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Telemetry_Tracing) ProtoMessage() {}
+
+func (x *Telemetry_Tracing) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_conf_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Telemetry_Tracing.ProtoReflect.Descriptor instead.
+func (*Telemetry_Tracing) Descriptor() ([]byte, []int) {
+	return file_conf_conf_proto_rawDescGZIP(), []int{4, 0}
+}
+
+func (x *Telemetry_Tracing) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *Telemetry_Tracing) GetEndpoint() string {
+	if x != nil {
+		return x.Endpoint
+	}
+	return ""
+}
+
+func (x *Telemetry_Tracing) GetInsecure() bool {
+	if x != nil {
+		return x.Insecure
+	}
+	return false
+}
+
+func (x *Telemetry_Tracing) GetSampleRatio() float64 {
+	if x != nil {
+		return x.SampleRatio
+	}
+	return 0
+}
+
+func (x *Telemetry_Tracing) GetMaxQueueSize() uint32 {
+	if x != nil {
+		return x.MaxQueueSize
+	}
+	return 0
+}
+
+func (x *Telemetry_Tracing) GetExportBatchSize() uint32 {
+	if x != nil {
+		return x.ExportBatchSize
+	}
+	return 0
+}
+
+func (x *Telemetry_Tracing) GetBatchTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.BatchTimeout
+	}
+	return nil
+}
+
+func (x *Telemetry_Tracing) GetExportTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.ExportTimeout
+	}
+	return nil
+}
+
+func (x *Telemetry_Tracing) GetTls() *Telemetry_Tracing_TLS {
+	if x != nil {
+		return x.Tls
+	}
+	return nil
+}
+
+type Telemetry_Tracing_TLS struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ca_file 是可选的 Collector CA 证书文件，为空时使用系统根证书
+	CaFile string `protobuf:"bytes,1,opt,name=ca_file,json=caFile,proto3" json:"ca_file,omitempty"`
+	// cert_file 是可选的客户端证书文件
+	CertFile string `protobuf:"bytes,2,opt,name=cert_file,json=certFile,proto3" json:"cert_file,omitempty"`
+	// key_file 与 cert_file 配对，用于 mTLS
+	KeyFile string `protobuf:"bytes,3,opt,name=key_file,json=keyFile,proto3" json:"key_file,omitempty"`
+	// server_name 覆盖 TLS 证书校验使用的服务端名称
+	ServerName    string `protobuf:"bytes,4,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Telemetry_Tracing_TLS) Reset() {
+	*x = Telemetry_Tracing_TLS{}
+	mi := &file_conf_conf_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Telemetry_Tracing_TLS) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Telemetry_Tracing_TLS) ProtoMessage() {}
+
+func (x *Telemetry_Tracing_TLS) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_conf_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Telemetry_Tracing_TLS.ProtoReflect.Descriptor instead.
+func (*Telemetry_Tracing_TLS) Descriptor() ([]byte, []int) {
+	return file_conf_conf_proto_rawDescGZIP(), []int{4, 0, 0}
+}
+
+func (x *Telemetry_Tracing_TLS) GetCaFile() string {
+	if x != nil {
+		return x.CaFile
+	}
+	return ""
+}
+
+func (x *Telemetry_Tracing_TLS) GetCertFile() string {
+	if x != nil {
+		return x.CertFile
+	}
+	return ""
+}
+
+func (x *Telemetry_Tracing_TLS) GetKeyFile() string {
+	if x != nil {
+		return x.KeyFile
+	}
+	return ""
+}
+
+func (x *Telemetry_Tracing_TLS) GetServerName() string {
+	if x != nil {
+		return x.ServerName
+	}
+	return ""
+}
+
 var File_conf_conf_proto protoreflect.FileDescriptor
 
 const file_conf_conf_proto_rawDesc = "" +
 	"\n" +
-	"\x0fconf/conf.proto\x12\x0fingate.als.conf\x1a\x1egoogle/protobuf/duration.proto\"\x9b\x01\n" +
+	"\x0fconf/conf.proto\x12\x0fingate.als.conf\x1a\x1egoogle/protobuf/duration.proto\"\xd5\x01\n" +
 	"\tBootstrap\x12/\n" +
 	"\x06server\x18\x01 \x01(\v2\x17.ingate.als.conf.ServerR\x06server\x12)\n" +
 	"\x04data\x18\x02 \x01(\v2\x15.ingate.als.conf.DataR\x04data\x122\n" +
-	"\alogging\x18\x03 \x01(\v2\x18.ingate.als.conf.LoggingR\alogging\"\xd3\x03\n" +
+	"\alogging\x18\x03 \x01(\v2\x18.ingate.als.conf.LoggingR\alogging\x128\n" +
+	"\ttelemetry\x18\x04 \x01(\v2\x1a.ingate.als.conf.TelemetryR\ttelemetry\"\xd3\x03\n" +
 	"\x06Server\x120\n" +
 	"\x04grpc\x18\x01 \x01(\v2\x1c.ingate.als.conf.Server.GRPCR\x04grpc\x120\n" +
 	"\x04http\x18\x02 \x01(\v2\x1c.ingate.als.conf.Server.HTTPR\x04http\x12D\n" +
@@ -840,7 +1094,26 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\x06format\x18\x01 \x01(\tR\x06format\x12\x14\n" +
 	"\x05level\x18\x02 \x01(\tR\x05level\x12\x1d\n" +
 	"\n" +
-	"add_source\x18\x03 \x01(\bR\taddSourceB1Z/github.com/lgc202/ingate/internal/als/conf;confb\x06proto3"
+	"add_source\x18\x03 \x01(\bR\taddSource\"\xf3\x04\n" +
+	"\tTelemetry\x12 \n" +
+	"\venvironment\x18\x01 \x01(\tR\venvironment\x12<\n" +
+	"\atracing\x18\x02 \x01(\v2\".ingate.als.conf.Telemetry.TracingR\atracing\x1a\x85\x04\n" +
+	"\aTracing\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1a\n" +
+	"\bendpoint\x18\x02 \x01(\tR\bendpoint\x12\x1a\n" +
+	"\binsecure\x18\x03 \x01(\bR\binsecure\x12!\n" +
+	"\fsample_ratio\x18\x04 \x01(\x01R\vsampleRatio\x12$\n" +
+	"\x0emax_queue_size\x18\x05 \x01(\rR\fmaxQueueSize\x12*\n" +
+	"\x11export_batch_size\x18\x06 \x01(\rR\x0fexportBatchSize\x12>\n" +
+	"\rbatch_timeout\x18\a \x01(\v2\x19.google.protobuf.DurationR\fbatchTimeout\x12@\n" +
+	"\x0eexport_timeout\x18\b \x01(\v2\x19.google.protobuf.DurationR\rexportTimeout\x128\n" +
+	"\x03tls\x18\t \x01(\v2&.ingate.als.conf.Telemetry.Tracing.TLSR\x03tls\x1aw\n" +
+	"\x03TLS\x12\x17\n" +
+	"\aca_file\x18\x01 \x01(\tR\x06caFile\x12\x1b\n" +
+	"\tcert_file\x18\x02 \x01(\tR\bcertFile\x12\x19\n" +
+	"\bkey_file\x18\x03 \x01(\tR\akeyFile\x12\x1f\n" +
+	"\vserver_name\x18\x04 \x01(\tR\n" +
+	"serverNameB1Z/github.com/lgc202/ingate/internal/als/conf;confb\x06proto3"
 
 var (
 	file_conf_conf_proto_rawDescOnce sync.Once
@@ -854,43 +1127,51 @@ func file_conf_conf_proto_rawDescGZIP() []byte {
 	return file_conf_conf_proto_rawDescData
 }
 
-var file_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_conf_conf_proto_goTypes = []any{
-	(*Bootstrap)(nil),           // 0: ingate.als.conf.Bootstrap
-	(*Server)(nil),              // 1: ingate.als.conf.Server
-	(*Data)(nil),                // 2: ingate.als.conf.Data
-	(*Logging)(nil),             // 3: ingate.als.conf.Logging
-	(*Server_GRPC)(nil),         // 4: ingate.als.conf.Server.GRPC
-	(*Server_HTTP)(nil),         // 5: ingate.als.conf.Server.HTTP
-	(*Server_GRPC_TLS)(nil),     // 6: ingate.als.conf.Server.GRPC.TLS
-	(*Data_Kafka)(nil),          // 7: ingate.als.conf.Data.Kafka
-	(*Data_DiskQueue)(nil),      // 8: ingate.als.conf.Data.DiskQueue
-	(*Data_Kafka_SASL)(nil),     // 9: ingate.als.conf.Data.Kafka.SASL
-	(*Data_Kafka_TLS)(nil),      // 10: ingate.als.conf.Data.Kafka.TLS
-	(*durationpb.Duration)(nil), // 11: google.protobuf.Duration
+	(*Bootstrap)(nil),             // 0: ingate.als.conf.Bootstrap
+	(*Server)(nil),                // 1: ingate.als.conf.Server
+	(*Data)(nil),                  // 2: ingate.als.conf.Data
+	(*Logging)(nil),               // 3: ingate.als.conf.Logging
+	(*Telemetry)(nil),             // 4: ingate.als.conf.Telemetry
+	(*Server_GRPC)(nil),           // 5: ingate.als.conf.Server.GRPC
+	(*Server_HTTP)(nil),           // 6: ingate.als.conf.Server.HTTP
+	(*Server_GRPC_TLS)(nil),       // 7: ingate.als.conf.Server.GRPC.TLS
+	(*Data_Kafka)(nil),            // 8: ingate.als.conf.Data.Kafka
+	(*Data_DiskQueue)(nil),        // 9: ingate.als.conf.Data.DiskQueue
+	(*Data_Kafka_SASL)(nil),       // 10: ingate.als.conf.Data.Kafka.SASL
+	(*Data_Kafka_TLS)(nil),        // 11: ingate.als.conf.Data.Kafka.TLS
+	(*Telemetry_Tracing)(nil),     // 12: ingate.als.conf.Telemetry.Tracing
+	(*Telemetry_Tracing_TLS)(nil), // 13: ingate.als.conf.Telemetry.Tracing.TLS
+	(*durationpb.Duration)(nil),   // 14: google.protobuf.Duration
 }
 var file_conf_conf_proto_depIdxs = []int32{
 	1,  // 0: ingate.als.conf.Bootstrap.server:type_name -> ingate.als.conf.Server
 	2,  // 1: ingate.als.conf.Bootstrap.data:type_name -> ingate.als.conf.Data
 	3,  // 2: ingate.als.conf.Bootstrap.logging:type_name -> ingate.als.conf.Logging
-	4,  // 3: ingate.als.conf.Server.grpc:type_name -> ingate.als.conf.Server.GRPC
-	5,  // 4: ingate.als.conf.Server.http:type_name -> ingate.als.conf.Server.HTTP
-	11, // 5: ingate.als.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
-	7,  // 6: ingate.als.conf.Data.kafka:type_name -> ingate.als.conf.Data.Kafka
-	8,  // 7: ingate.als.conf.Data.disk_queue:type_name -> ingate.als.conf.Data.DiskQueue
-	6,  // 8: ingate.als.conf.Server.GRPC.tls:type_name -> ingate.als.conf.Server.GRPC.TLS
-	11, // 9: ingate.als.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	11, // 10: ingate.als.conf.Data.Kafka.write_timeout:type_name -> google.protobuf.Duration
-	11, // 11: ingate.als.conf.Data.Kafka.dial_timeout:type_name -> google.protobuf.Duration
-	11, // 12: ingate.als.conf.Data.Kafka.readiness_timeout:type_name -> google.protobuf.Duration
-	9,  // 13: ingate.als.conf.Data.Kafka.sasl:type_name -> ingate.als.conf.Data.Kafka.SASL
-	10, // 14: ingate.als.conf.Data.Kafka.tls:type_name -> ingate.als.conf.Data.Kafka.TLS
-	11, // 15: ingate.als.conf.Data.DiskQueue.replay_interval:type_name -> google.protobuf.Duration
-	16, // [16:16] is the sub-list for method output_type
-	16, // [16:16] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	4,  // 3: ingate.als.conf.Bootstrap.telemetry:type_name -> ingate.als.conf.Telemetry
+	5,  // 4: ingate.als.conf.Server.grpc:type_name -> ingate.als.conf.Server.GRPC
+	6,  // 5: ingate.als.conf.Server.http:type_name -> ingate.als.conf.Server.HTTP
+	14, // 6: ingate.als.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	8,  // 7: ingate.als.conf.Data.kafka:type_name -> ingate.als.conf.Data.Kafka
+	9,  // 8: ingate.als.conf.Data.disk_queue:type_name -> ingate.als.conf.Data.DiskQueue
+	12, // 9: ingate.als.conf.Telemetry.tracing:type_name -> ingate.als.conf.Telemetry.Tracing
+	7,  // 10: ingate.als.conf.Server.GRPC.tls:type_name -> ingate.als.conf.Server.GRPC.TLS
+	14, // 11: ingate.als.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	14, // 12: ingate.als.conf.Data.Kafka.write_timeout:type_name -> google.protobuf.Duration
+	14, // 13: ingate.als.conf.Data.Kafka.dial_timeout:type_name -> google.protobuf.Duration
+	14, // 14: ingate.als.conf.Data.Kafka.readiness_timeout:type_name -> google.protobuf.Duration
+	10, // 15: ingate.als.conf.Data.Kafka.sasl:type_name -> ingate.als.conf.Data.Kafka.SASL
+	11, // 16: ingate.als.conf.Data.Kafka.tls:type_name -> ingate.als.conf.Data.Kafka.TLS
+	14, // 17: ingate.als.conf.Data.DiskQueue.replay_interval:type_name -> google.protobuf.Duration
+	14, // 18: ingate.als.conf.Telemetry.Tracing.batch_timeout:type_name -> google.protobuf.Duration
+	14, // 19: ingate.als.conf.Telemetry.Tracing.export_timeout:type_name -> google.protobuf.Duration
+	13, // 20: ingate.als.conf.Telemetry.Tracing.tls:type_name -> ingate.als.conf.Telemetry.Tracing.TLS
+	21, // [21:21] is the sub-list for method output_type
+	21, // [21:21] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_conf_conf_proto_init() }
@@ -904,7 +1185,7 @@ func file_conf_conf_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_conf_conf_proto_rawDesc), len(file_conf_conf_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

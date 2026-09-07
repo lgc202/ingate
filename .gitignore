@@ -12,3 +12,4 @@
 .env
 .DS_Store
 *.log
+.loop-state.json

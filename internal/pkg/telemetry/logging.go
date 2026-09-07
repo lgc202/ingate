@@ -1,4 +1,4 @@
-package appconfig
+package telemetry
 
 import (
 	"errors"
@@ -6,14 +6,11 @@ import (
 	"os"
 	"strings"
 
+	kratosotel "github.com/go-kratos/kratos/contrib/otel/v3/tracing"
 	kratoslog "github.com/go-kratos/kratos/v3/log"
-
-	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
-// LoggerConfig 是各组件生成配置向公共日志装配暴露的最小能力。
-//
-// 接口定义在消费配置的 appconfig 包中，避免公共包依赖任一组件的 conf package。
+// LoggerConfig 是各组件日志配置向公共装配入口暴露的最小能力。
 type LoggerConfig interface {
 	GetFormat() string
 	GetLevel() string
@@ -35,21 +32,25 @@ func ValidateLogging(config LoggerConfig) error {
 	return nil
 }
 
-// NewLogger 创建带有统一服务标识字段的 Kratos slog logger。
-func NewLogger(config LoggerConfig, serviceName, serviceID string) *slog.Logger {
+// NewLogger 创建带有统一进程身份和 Trace 上下文的 Kratos slog logger。
+func NewLogger(config LoggerConfig, identity Identity) *slog.Logger {
 	format := kratoslog.FormatText
 	if strings.EqualFold(config.GetFormat(), "json") {
 		format = kratoslog.FormatJSON
 	}
-	handler := kratoslog.NewHandler(
+	logger := slog.New(kratoslog.NewHandler(
 		kratoslog.WithWriter(os.Stderr),
 		kratoslog.WithFormat(format),
 		kratoslog.WithLevel(kratoslog.ParseLevel(config.GetLevel())),
 		kratoslog.WithAddSource(config.GetAddSource()),
-	)
-	return kratoslog.NewLogger(handler).With(
-		"service.id", serviceID,
-		"service.name", serviceName,
-		"service.version", version.String(),
+		kratoslog.WithExtractor(kratosotel.TraceAttrs),
+	))
+	return logger.With(
+		"service.namespace", identity.Namespace,
+		"service.name", identity.Name,
+		"service.instance.id", identity.InstanceID,
+		"service.version", identity.Version,
+		"deployment.environment.name", identity.Environment,
+		"host.name", identity.Hostname,
 	)
 }

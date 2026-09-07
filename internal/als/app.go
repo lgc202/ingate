@@ -5,9 +5,12 @@
 package als
 
 import (
+	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
-	"os"
+	"time"
 
 	kratos "github.com/go-kratos/kratos/v3"
 	kratoslog "github.com/go-kratos/kratos/v3/log"
@@ -17,6 +20,8 @@ import (
 	"github.com/lgc202/ingate/internal/als/conf"
 	"github.com/lgc202/ingate/internal/als/server"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
+	"github.com/lgc202/ingate/internal/pkg/telemetry"
+	"github.com/lgc202/ingate/internal/pkg/tlsconfig"
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
@@ -26,8 +31,10 @@ type serviceInstanceID string
 
 // App 封装 Kratos 进程和 Wire 创建的外部资源。
 type App struct {
-	kratos  *kratos.App
-	cleanup func()
+	kratos          *kratos.App
+	tracing         *telemetry.Tracing
+	cleanup         func()
+	shutdownTimeout time.Duration
 }
 
 // NewApp 从配置文件创建完整的 ALS 进程。
@@ -37,32 +44,89 @@ func NewApp(configFile string) (*App, error) {
 	if err := appconfig.Load(configFile, &bootstrap); err != nil {
 		return nil, err
 	}
-	hostname, err := os.Hostname()
+	identity, err := telemetry.NewIdentity(name, bootstrap.GetTelemetry().GetEnvironment())
 	if err != nil {
-		return nil, fmt.Errorf("read hostname: %w", err)
+		return nil, err
 	}
-	instanceID := serviceInstanceID(hostname)
-	logger := appconfig.NewLogger(bootstrap.GetLogging(), name, string(instanceID))
+	instanceID := serviceInstanceID(identity.InstanceID)
+	logger := telemetry.NewLogger(bootstrap.GetLogging(), identity)
 	kratoslog.SetDefault(logger)
 
+	traceConfig, err := tracingConfig(bootstrap.GetTelemetry().GetTracing())
+	if err != nil {
+		return nil, err
+	}
+	tracing, err := telemetry.NewTracing(context.Background(), traceConfig, identity)
+	if err != nil {
+		return nil, err
+	}
 	kratosApp, cleanup, err := wireApp(
 		bootstrap.GetServer(),
 		bootstrap.GetData().GetKafka(),
 		bootstrap.GetData().GetDiskQueue(),
 		logger,
+		tracing,
 		instanceID,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create ALS application: %w", err)
+		shutdownErr := shutdownTracing(tracing, bootstrap.GetServer().GetShutdownTimeout().AsDuration())
+		return nil, errors.Join(
+			fmt.Errorf("create ALS application: %w", err),
+			shutdownErr,
+		)
 	}
 	logger.Info("service starting", "config_file", configFile)
-	return &App{kratos: kratosApp, cleanup: cleanup}, nil
+	return &App{
+		kratos:          kratosApp,
+		tracing:         tracing,
+		cleanup:         cleanup,
+		shutdownTimeout: bootstrap.GetServer().GetShutdownTimeout().AsDuration(),
+	}, nil
 }
 
 // Run 启动 ALS 的 HTTP、gRPC 和磁盘队列回放，退出后释放 Kafka 和磁盘队列资源。
 func (a *App) Run() error {
-	defer a.cleanup()
-	return a.kratos.Run()
+	runErr := a.kratos.Run()
+	a.cleanup()
+	return errors.Join(runErr, shutdownTracing(a.tracing, a.shutdownTimeout))
+}
+
+func tracingConfig(config *conf.Telemetry_Tracing) (telemetry.TraceConfig, error) {
+	var clientTLS *tls.Config
+	var err error
+	if config.GetEnabled() && !config.GetInsecure() {
+		tls := config.GetTls()
+		clientTLS, err = tlsconfig.NewClient(tlsconfig.ClientConfig{
+			Enabled:         true,
+			CAFile:          tls.GetCaFile(),
+			CertificateFile: tls.GetCertFile(),
+			PrivateKeyFile:  tls.GetKeyFile(),
+			ServerName:      tls.GetServerName(),
+		})
+		if err != nil {
+			return telemetry.TraceConfig{}, fmt.Errorf("create telemetry tracing TLS config: %w", err)
+		}
+	}
+	return telemetry.TraceConfig{
+		Enabled:       config.GetEnabled(),
+		Endpoint:      config.GetEndpoint(),
+		Insecure:      config.GetInsecure(),
+		TLS:           clientTLS,
+		SampleRatio:   config.GetSampleRatio(),
+		QueueSize:     int(config.GetMaxQueueSize()),
+		BatchSize:     int(config.GetExportBatchSize()),
+		BatchTimeout:  config.GetBatchTimeout().AsDuration(),
+		ExportTimeout: config.GetExportTimeout().AsDuration(),
+	}, nil
+}
+
+func shutdownTracing(tracing *telemetry.Tracing, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := tracing.Shutdown(ctx); err != nil {
+		return fmt.Errorf("shutdown tracing: %w", err)
+	}
+	return nil
 }
 
 func newKratosApp(

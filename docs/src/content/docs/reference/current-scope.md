@@ -41,3 +41,9 @@ Ingate 当前已经形成普通 API 与 AI 模型调用的最小完整链路。�
 ## 数据平面
 
 Envoy 是唯一数据平面，直接使用固定版本官方镜像。Ingate 不维护 Envoy 私有分支，也不为 Kong、Nginx 等数据平面预设适配接口。
+
+## 可观测性边界
+
+系统可观测性服务于开发和运维，使用结构化日志、Prometheus 指标与 OpenTelemetry Trace 诊断组件状态和调用链。进程日志和 Trace 使用统一的服务名、启动实例 ID、版本、部署环境与主机名；Trace 导出故障不得阻塞网关请求记录链路。
+
+产品分析服务于网关用户，数据来自 Envoy 请求记录，经 ALS、Kafka 和 Analytics 写入 ClickHouse 后展示在 Console。它承载流量趋势、资源排行和 AI Token 用量，不使用系统日志或 Trace 作为业务事实来源。
