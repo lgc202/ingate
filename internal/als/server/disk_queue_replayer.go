@@ -12,6 +12,7 @@ import (
 
 	"github.com/lgc202/ingate/internal/als/biz"
 	"github.com/lgc202/ingate/internal/als/conf"
+	alsmetrics "github.com/lgc202/ingate/internal/als/metrics"
 )
 
 // replayBackoff 记录连续回放失败后的下一档基础等待时间。
@@ -27,6 +28,7 @@ type replayBackoff struct {
 // 生命周期状态允许 Kratos 的 Start 和 Stop 并发到达而不遗留后台任务。
 type DiskQueueReplayer struct {
 	recorder    *biz.Recorder
+	events      *alsmetrics.EventCollector
 	logger      *slog.Logger
 	batchSize   int
 	backoff     replayBackoff
@@ -42,11 +44,13 @@ type DiskQueueReplayer struct {
 func NewDiskQueueReplayer(
 	config *conf.Data_DiskQueue,
 	recorder *biz.Recorder,
+	events *alsmetrics.EventCollector,
 	logger *slog.Logger,
 ) *DiskQueueReplayer {
 	minBackoff := config.GetReplayMinBackoff().AsDuration()
 	return &DiskQueueReplayer{
 		recorder:  recorder,
+		events:    events,
 		logger:    logger,
 		batchSize: int(config.GetReplayBatchSize()),
 		backoff: replayBackoff{
@@ -138,6 +142,7 @@ func (r *DiskQueueReplayer) replay(ctx context.Context) (time.Duration, bool) {
 		result, err := r.recorder.ReplayBatch(ctx, r.batchSize)
 		switch result {
 		case biz.ReplayCommitted:
+			r.events.SetReplayBackoff(0)
 			r.backoff.reset()
 			r.retryLogged = false
 			if ctx.Err() != nil {
@@ -145,10 +150,12 @@ func (r *DiskQueueReplayer) replay(ctx context.Context) (time.Duration, bool) {
 			}
 			continue
 		case biz.ReplayIdle:
+			r.events.SetReplayBackoff(0)
 			r.backoff.reset()
 			r.retryLogged = false
 			return r.backoff.min, false
 		case biz.ReplayPaused:
+			r.events.SetReplayBackoff(0)
 			// 永久错误只会到达一次，不能被先前的临时失败日志抑制。
 			if ctx.Err() == nil {
 				r.logger.ErrorContext(ctx, "disk queue replay paused", "err", err)
@@ -156,6 +163,7 @@ func (r *DiskQueueReplayer) replay(ctx context.Context) (time.Duration, bool) {
 			return 0, true
 		case biz.ReplayRetry:
 			delay := r.backoff.nextDelay()
+			r.events.SetReplayBackoff(delay)
 			if ctx.Err() == nil && !r.retryLogged {
 				r.logger.WarnContext(ctx, "disk queue replay failed",
 					"retry_after", delay,
@@ -165,6 +173,7 @@ func (r *DiskQueueReplayer) replay(ctx context.Context) (time.Duration, bool) {
 			r.retryLogged = true
 			return delay, false
 		default:
+			r.events.SetReplayBackoff(0)
 			r.logger.ErrorContext(ctx, "disk queue replay returned invalid result", "result", result)
 			return 0, true
 		}

@@ -14,11 +14,11 @@ import (
 
 const minInSyncReplicasConfig = "min.insync.replicas"
 
-// InspectTopic 读取目标 Topic 的最小副本数和 min.insync.replicas。
+// ReadTopology 读取目标 Topic 的最小副本数和 min.insync.replicas。
 //
 // 请求显式关闭自动创建；Topic 不存在是可判定的拓扑事实，
 // 网络、权限和协议错误则返回 error，由调用方决定是否保留旧状态。
-func (c *Client) InspectTopic(ctx context.Context) (biz.TopicTopology, error) {
+func (c *Client) ReadTopology(ctx context.Context) (biz.TopicTopology, error) {
 	request := kmsg.NewPtrMetadataRequest()
 	request.Topics = []kmsg.MetadataRequestTopic{{Topic: new(c.topic)}}
 	request.AllowAutoTopicCreation = false
@@ -47,7 +47,7 @@ func (c *Client) InspectTopic(ctx context.Context) (biz.TopicTopology, error) {
 	if err != nil {
 		return biz.TopicTopology{}, err
 	}
-	minInSyncReplicas, err := c.inspectMinInSyncReplicas(ctx)
+	minInSyncReplicas, err := c.readMinInSyncReplicas(ctx)
 	if err != nil {
 		return biz.TopicTopology{}, err
 	}
@@ -59,7 +59,7 @@ func (c *Client) InspectTopic(ctx context.Context) (biz.TopicTopology, error) {
 	}, nil
 }
 
-func (c *Client) inspectMinInSyncReplicas(ctx context.Context) (int, error) {
+func (c *Client) readMinInSyncReplicas(ctx context.Context) (int, error) {
 	request := kmsg.NewPtrDescribeConfigsRequest()
 	request.Resources = []kmsg.DescribeConfigsRequestResource{{
 		ResourceType: kmsg.ConfigResourceTypeTopic,

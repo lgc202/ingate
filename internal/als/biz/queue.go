@@ -3,6 +3,7 @@ package biz
 import (
 	"context"
 	"errors"
+	"time"
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 )
@@ -36,10 +37,14 @@ type QueueStatus struct {
 	State QueueState
 	// Writable 表示 WAL 当前能够在容量契约内追加新记录。
 	Writable bool
+	// PendingEntries 是尚未投递到 Kafka 的 WAL 条目数。
+	PendingEntries int64
 	// PendingRecords 是尚未投递到 Kafka 的记录数。
 	PendingRecords int64
 	// PendingBytes 是尚未投递记录的 protobuf 逻辑字节数。
 	PendingBytes int64
+	// OldestEnqueuedAt 是最早未确认条目的入队时间；队列为空时为零值。
+	OldestEnqueuedAt time.Time
 	// DiskBytes 是 WAL 目录中分段、临时文件、锁和元数据的物理字节数。
 	DiskBytes int64
 	// CapacityBytes 是 WAL 目录允许占用的物理字节上限。
@@ -56,7 +61,7 @@ type QueuedBatch struct {
 	Records []*alsv1.RequestRecord
 	// LastSequence 是本批记录成功写入 Kafka 后可以确认到的队列位置。
 	LastSequence uint64
-	// Bytes 是本批 protobuf 记录占用的磁盘队列数据字节数。
+	// Bytes 是本批 RequestRecord protobuf 的逻辑字节数。
 	Bytes int64
 }
 

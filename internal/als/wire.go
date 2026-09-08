@@ -11,6 +11,7 @@ import (
 	"github.com/lgc202/ingate/internal/als/biz"
 	"github.com/lgc202/ingate/internal/als/conf"
 	"github.com/lgc202/ingate/internal/als/data"
+	alsmetrics "github.com/lgc202/ingate/internal/als/metrics"
 	"github.com/lgc202/ingate/internal/als/server"
 	"github.com/lgc202/ingate/internal/als/service"
 	"github.com/lgc202/ingate/internal/pkg/telemetry"
@@ -25,6 +26,7 @@ func wireApp(
 ) (*kratos.App, func(), error) {
 	panic(wire.Build(
 		wire.FieldsOf(new(*conf.Data), "Kafka", "DiskQueue", "ReliabilityMode"),
+		alsmetrics.NewEventCollector,
 		data.ProviderSet,
 		biz.ProviderSet,
 		service.ProviderSet,

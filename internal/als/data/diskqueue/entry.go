@@ -18,6 +18,12 @@ const currentFormatVersion uint32 = 1
 
 var castagnoliTable = crc32.MakeTable(crc32.Castagnoli)
 
+type decodedEntry struct {
+	records    []*alsv1.RequestRecord
+	bytes      int64
+	enqueuedAt time.Time
+}
+
 // encodeEntry 将一个已校验的请求批次封装为带版本和 CRC32C 的持久条目。
 func encodeEntry(
 	ctx context.Context,
@@ -60,24 +66,32 @@ func encodeEntry(
 }
 
 // decodeEntry 在解析 RequestRecord 前验证持久格式版本、结构和 CRC32C。
-func decodeEntry(value []byte) ([]*alsv1.RequestRecord, int64, error) {
+func decodeEntry(value []byte) (decodedEntry, error) {
 	entry := new(QueueEntry)
 	if err := proto.Unmarshal(value, entry); err != nil {
-		return nil, 0, fmt.Errorf("unmarshal queue entry: %w", err)
+		return decodedEntry{}, fmt.Errorf("unmarshal queue entry: %w", err)
 	}
 	if err := validateEntry(entry); err != nil {
-		return nil, 0, err
+		return decodedEntry{}, err
 	}
 
 	checksum, err := entryChecksum(entry)
 	if err != nil {
-		return nil, 0, err
+		return decodedEntry{}, err
 	}
 	if checksum != entry.GetCrc32C() {
-		return nil, 0, fmt.Errorf("queue entry checksum = %08x, want %08x", checksum, entry.GetCrc32C())
+		return decodedEntry{}, fmt.Errorf("queue entry checksum = %08x, want %08x", checksum, entry.GetCrc32C())
 	}
 
-	return decodeRecords(entry.GetRecords())
+	records, bytes, err := decodeRecords(entry.GetRecords())
+	if err != nil {
+		return decodedEntry{}, err
+	}
+	return decodedEntry{
+		records:    records,
+		bytes:      bytes,
+		enqueuedAt: time.Unix(0, entry.GetEnqueuedAtUnixNano()).UTC(),
+	}, nil
 }
 
 func validateEntry(entry *QueueEntry) error {

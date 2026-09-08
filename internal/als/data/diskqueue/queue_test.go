@@ -21,7 +21,7 @@ const testSegmentBytes = 1 << 20
 
 const lockProbePathEnv = "INGATE_ALS_TEST_LOCK_PATH"
 
-type fixedProbe struct {
+type storageProbeStub struct {
 	usage storageUsage
 	err   error
 }
@@ -41,6 +41,9 @@ func TestQueuePersistsUncommittedRecords(t *testing.T) {
 	}
 	if gotRecords, gotBytes := queue.Pending(); gotRecords != 3 || gotBytes != wantBytes {
 		t.Fatalf("Queue.Pending() = (%d, %d), want (3, %d)", gotRecords, gotBytes, wantBytes)
+	}
+	if status := queue.Status(); status.PendingEntries != 2 || status.OldestEnqueuedAt.IsZero() {
+		t.Fatalf("Queue.Status() = %+v, want two entries with an enqueue time", status)
 	}
 	if last, err := queue.log.LastIndex(); err != nil || last != 2 {
 		t.Fatalf("wal.Log.LastIndex() = (%d, %v), want (2, nil)", last, err)
@@ -67,6 +70,9 @@ func TestQueuePersistsUncommittedRecords(t *testing.T) {
 	if gotRecords, gotBytes := queue.Pending(); gotRecords != 1 || gotBytes != int64(proto.Size(records[2])) {
 		t.Fatalf("Queue.Pending() after reopen = (%d, %d), want (1, %d)", gotRecords, gotBytes, proto.Size(records[2]))
 	}
+	if status := queue.Status(); status.PendingEntries != 1 || status.OldestEnqueuedAt.IsZero() {
+		t.Fatalf("Queue.Status() after reopen = %+v, want one entry with an enqueue time", status)
+	}
 	batch, err = queue.Read(t.Context(), 10)
 	if err != nil {
 		t.Fatalf("Queue.Read() after reopen error = %v, want nil", err)
@@ -74,6 +80,9 @@ func TestQueuePersistsUncommittedRecords(t *testing.T) {
 	assertRecordIDs(t, batch.Records, "record-3")
 	if err := queue.Commit(t.Context(), batch); err != nil {
 		t.Fatalf("Queue.Commit() final batch error = %v, want nil", err)
+	}
+	if status := queue.Status(); status.PendingEntries != 0 || !status.OldestEnqueuedAt.IsZero() {
+		t.Errorf("Queue.Status() after final commit = %+v, want an empty queue", status)
 	}
 	if _, err := queue.Read(t.Context(), 1); !errors.Is(err, biz.ErrQueueEmpty) {
 		t.Fatalf("Queue.Read() after final commit error = %v, want %v", err, biz.ErrQueueEmpty)
@@ -84,13 +93,13 @@ func TestQueuePersistsUncommittedRecords(t *testing.T) {
 func TestQueueEnforcesCapacityAtomically(t *testing.T) {
 	path := t.TempDir()
 	record := &alsv1.RequestRecord{Id: "record-1"}
-	probe := &fixedProbe{usage: storageUsage{
+	probe := &storageProbeStub{usage: storageUsage{
 		diskBytes: testSegmentBytes,
 		freeBytes: testSegmentBytes * 4,
 	}}
-	queue, err := openQueueWithProbe(queueConfig(path, testSegmentBytes*3), probe.inspect)
+	queue, err := openQueueWithProbe(queueConfig(path, testSegmentBytes*3), probe.measure)
 	if err != nil {
-		t.Fatalf("newQueue() error = %v, want nil", err)
+		t.Fatalf("openQueueWithProbe() error = %v, want nil", err)
 	}
 	t.Cleanup(func() {
 		if err := queue.Close(); err != nil {
@@ -118,13 +127,13 @@ func TestQueueEnforcesCapacityAtomically(t *testing.T) {
 // TestQueueRejectsBatchLargerThanSegment 验证单批不会突破截断恢复空间的确定上界。
 func TestQueueRejectsBatchLargerThanSegment(t *testing.T) {
 	path := t.TempDir()
-	probe := &fixedProbe{usage: storageUsage{
+	probe := &storageProbeStub{usage: storageUsage{
 		freeBytes:  testSegmentBytes * 8,
 		blockBytes: 4 << 10,
 	}}
-	queue, err := openQueueWithProbe(queueConfig(path, testSegmentBytes*4), probe.inspect)
+	queue, err := openQueueWithProbe(queueConfig(path, testSegmentBytes*4), probe.measure)
 	if err != nil {
-		t.Fatalf("newQueue() error = %v, want nil", err)
+		t.Fatalf("openQueueWithProbe() error = %v, want nil", err)
 	}
 	t.Cleanup(func() {
 		if err := queue.Close(); err != nil {
@@ -170,12 +179,12 @@ func TestQueuePreservesFilesystemReserve(t *testing.T) {
 	minFreeBytes := int64(testSegmentBytes)
 	config := queueConfig(path, testSegmentBytes*3)
 	config.MinFreeBytes = &minFreeBytes
-	probe := &fixedProbe{usage: storageUsage{
+	probe := &storageProbeStub{usage: storageUsage{
 		freeBytes: minFreeBytes + 3*testSegmentBytes,
 	}}
-	queue, err := openQueueWithProbe(config, probe.inspect)
+	queue, err := openQueueWithProbe(config, probe.measure)
 	if err != nil {
-		t.Fatalf("newQueue() error = %v, want nil", err)
+		t.Fatalf("openQueueWithProbe() error = %v, want nil", err)
 	}
 	t.Cleanup(func() {
 		if err := queue.Close(); err != nil {
@@ -368,7 +377,7 @@ func TestQueueRestrictsStoragePermissions(t *testing.T) {
 	}
 }
 
-func (p *fixedProbe) inspect(string) (storageUsage, error) {
+func (p *storageProbeStub) measure(string) (storageUsage, error) {
 	return p.usage, p.err
 }
 

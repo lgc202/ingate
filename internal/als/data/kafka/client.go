@@ -5,21 +5,23 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/lgc202/ingate/internal/als/conf"
+	alsmetrics "github.com/lgc202/ingate/internal/als/metrics"
 	"github.com/lgc202/ingate/internal/pkg/kafkaclient"
 	"github.com/lgc202/ingate/internal/pkg/tlsconfig"
 )
 
 // Client 共享 Kafka 连接，同时提供记录发布和 Topic 检查能力。
 type Client struct {
-	kafka *kgo.Client
-	topic string
+	kafka  *kgo.Client
+	topic  string
+	events *alsmetrics.EventCollector
 }
 
 // NewClient 创建使用幂等 Producer 和 all ISR 确认的 Kafka 客户端。
 //
 // franz-go 默认启用幂等 Producer。这里不覆盖其重试和并发默认值，
 // 避免破坏 Producer ID 与序列号所保证的批内幂等性。
-func NewClient(config *conf.Data_Kafka) (*Client, error) {
+func NewClient(config *conf.Data_Kafka, events *alsmetrics.EventCollector) (*Client, error) {
 	client, err := kafkaclient.New(kafkaclient.Config{
 		Brokers:     config.GetBrokers(),
 		DialTimeout: config.GetDialTimeout().AsDuration(),
@@ -46,8 +48,9 @@ func NewClient(config *conf.Data_Kafka) (*Client, error) {
 	}
 
 	return &Client{
-		kafka: client,
-		topic: config.GetTopic(),
+		kafka:  client,
+		topic:  config.GetTopic(),
+		events: events,
 	}, nil
 }
 

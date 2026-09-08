@@ -13,8 +13,15 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/telemetry"
 )
 
+const (
+	reasonTopicNoncompliant = "topic_noncompliant"
+	reasonReplayPaused      = "replay_paused"
+	reasonWALUnavailable    = "wal_unavailable"
+)
+
 type readinessResponse struct {
 	Status            string `json:"status"`
+	Reason            string `json:"reason,omitempty"`
 	WriteTarget       string `json:"write_target"`
 	TopicContract     string `json:"topic_contract,omitempty"`
 	ReplicationFactor int    `json:"replication_factor,omitempty"`
@@ -29,6 +36,7 @@ type readinessResponse struct {
 func NewHTTPServer(
 	serverConfig *conf.Server,
 	recorder *biz.Recorder,
+	events *alsmetrics.EventCollector,
 	tracing *telemetry.Tracing,
 ) *kratoshttp.Server {
 	httpConfig := serverConfig.GetHttp()
@@ -37,10 +45,12 @@ func NewHTTPServer(
 		kratoshttp.Address(httpConfig.GetAddr()),
 		kratoshttp.Timeout(httpConfig.GetTimeout().AsDuration()),
 	)
+	server.HandleFunc("/livez", health)
 	server.HandleFunc("/healthz", health)
 	server.HandleFunc("/readyz", ready(recorder))
 	server.Handle("/metrics", prometheus.NewHandler(
-		alsmetrics.NewCollector(recorder),
+		alsmetrics.NewStatusCollector(recorder),
+		events,
 		telemetry.NewTraceCollector(tracing),
 	))
 	return server
@@ -66,6 +76,7 @@ func ready(recorder *biz.Recorder) http.HandlerFunc {
 
 		if status.Topic.Checked && !status.Topic.Compliant {
 			body.Status = "unavailable"
+			body.Reason = reasonTopicNoncompliant
 			body.WriteTarget = "none"
 			body.TopicContract = "noncompliant"
 			body.ReplicationFactor = status.Topic.ReplicationFactor
@@ -73,8 +84,16 @@ func ready(recorder *biz.Recorder) http.HandlerFunc {
 			writeJSON(response, http.StatusServiceUnavailable, body)
 			return
 		}
+		if status.ReplayPaused {
+			body.Status = "unavailable"
+			body.Reason = reasonReplayPaused
+			body.WriteTarget = "none"
+			writeJSON(response, http.StatusServiceUnavailable, body)
+			return
+		}
 		if !status.Queue.Writable {
 			body.Status = "unavailable"
+			body.Reason = reasonWALUnavailable
 			body.WriteTarget = "none"
 			writeJSON(response, http.StatusServiceUnavailable, body)
 			return

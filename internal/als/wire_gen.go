@@ -11,6 +11,7 @@ import (
 	"github.com/lgc202/ingate/internal/als/biz"
 	"github.com/lgc202/ingate/internal/als/conf"
 	"github.com/lgc202/ingate/internal/als/data"
+	"github.com/lgc202/ingate/internal/als/metrics"
 	"github.com/lgc202/ingate/internal/als/server"
 	"github.com/lgc202/ingate/internal/als/service"
 	"github.com/lgc202/ingate/internal/pkg/telemetry"
@@ -21,7 +22,8 @@ import (
 
 func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, tracing *telemetry.Tracing, alsServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
 	data_Kafka := confData.Kafka
-	client, cleanup, err := data.NewKafkaClient(data_Kafka)
+	eventCollector := metrics.NewEventCollector()
+	client, cleanup, err := data.NewKafkaClient(data_Kafka, eventCollector)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -34,15 +36,15 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, 
 		return nil, nil, err
 	}
 	recorder := biz.NewRecorder(client, topicContract, queue, logger)
-	httpServer := server.NewHTTPServer(confServer, recorder, tracing)
-	serviceService := service.NewService(recorder, logger)
+	httpServer := server.NewHTTPServer(confServer, recorder, eventCollector, tracing)
+	serviceService := service.NewService(recorder, eventCollector, logger)
 	grpcServer, err := server.NewGRPCServer(confServer, serviceService, tracing)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	diskQueueReplayer := server.NewDiskQueueReplayer(data_DiskQueue, recorder, logger)
+	diskQueueReplayer := server.NewDiskQueueReplayer(data_DiskQueue, recorder, eventCollector, logger)
 	topicMonitor := server.NewTopicMonitor(data_Kafka, client, topicContract, logger)
 	app := newKratosApp(logger, confServer, httpServer, grpcServer, diskQueueReplayer, topicMonitor, alsServiceInstanceID)
 	return app, func() {

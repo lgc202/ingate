@@ -4,11 +4,13 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	accesslogdata "github.com/envoyproxy/go-control-plane/envoy/data/accesslog/v3"
 	accesslogservice "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v3"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -19,6 +21,7 @@ import (
 	"github.com/lgc202/ingate/internal/als/biz"
 	"github.com/lgc202/ingate/internal/als/conf"
 	"github.com/lgc202/ingate/internal/als/data/diskqueue"
+	alsmetrics "github.com/lgc202/ingate/internal/als/metrics"
 	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
@@ -82,13 +85,71 @@ func TestStreamAccessLogsClosesWhenWALIsFull(t *testing.T) {
 		message: validAccessLogMessage(),
 	}
 
-	err = NewService(recorder, logger).StreamAccessLogs(stream)
+	err = NewService(recorder, alsmetrics.NewEventCollector(), logger).StreamAccessLogs(stream)
 	if code := status.Code(err); code != codes.Unavailable {
 		t.Fatalf("Service.StreamAccessLogs(full WAL) code = %s, want %s", code, codes.Unavailable)
 	}
 	if records, bytes := queue.Pending(); records != 0 || bytes != 0 {
 		t.Errorf("Queue.Pending() after rejected stream = (%d, %d), want (0, 0)", records, bytes)
 	}
+}
+
+// TestStreamAccessLogsCountsRecordsBeforeIdentityValidation 验证身份错误不会漏掉协议入口计数。
+func TestStreamAccessLogsCountsRecordsBeforeIdentityValidation(t *testing.T) {
+	message := validAccessLogMessage()
+	message.Identifier = nil
+	events := alsmetrics.NewEventCollector()
+	stream := &accessLogStream{ctx: t.Context(), message: message}
+	service := NewService(
+		newServiceRecorder(t),
+		events,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	if code := status.Code(service.StreamAccessLogs(stream)); code != codes.InvalidArgument {
+		t.Fatalf("Service.StreamAccessLogs(invalid identity) code = %s, want %s", code, codes.InvalidArgument)
+	}
+
+	err := testutil.CollectAndCompare(
+		events,
+		strings.NewReader(`# HELP ingate_als_records_received_total Request records received at the ALS protocol boundary.
+# TYPE ingate_als_records_received_total counter
+ingate_als_records_received_total 1
+`),
+		"ingate_als_records_received_total",
+	)
+	if err != nil {
+		t.Fatalf("CollectAndCompare() error = %v, want nil", err)
+	}
+}
+
+func newServiceRecorder(t *testing.T) *biz.Recorder {
+	t.Helper()
+
+	capacityBytes := int64(4 << 10)
+	queue, err := diskqueue.NewQueue(&conf.Data_DiskQueue{
+		Path:          t.TempDir(),
+		SegmentBytes:  1 << 10,
+		CapacityBytes: &capacityBytes,
+		Sync:          true,
+	})
+	if err != nil {
+		t.Fatalf("diskqueue.NewQueue() error = %v, want nil", err)
+	}
+	t.Cleanup(func() {
+		if err := queue.Close(); err != nil {
+			t.Errorf("Queue.Close() error = %v, want nil", err)
+		}
+	})
+
+	topic := biz.NewTopicContract(biz.ReliabilityDevelopment)
+	topic.Update(biz.TopicTopology{Exists: true, ReplicationFactor: 1, MinInSyncReplicas: 1})
+	return biz.NewRecorder(
+		acceptingPublisher{},
+		topic,
+		queue,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
 }
 
 func validAccessLogMessage() *accesslogservice.StreamAccessLogsMessage {

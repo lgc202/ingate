@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,13 +14,18 @@ import (
 	"github.com/lgc202/ingate/internal/als/biz"
 )
 
-type readyPublisher struct{}
+type readyPublisher struct {
+	result biz.PublishResult
+}
 
 type readyQueue struct {
 	status biz.QueueStatus
 }
 
-func (readyPublisher) Publish(_ context.Context, records []*alsv1.RequestRecord) biz.PublishResult {
+func (p readyPublisher) Publish(_ context.Context, records []*alsv1.RequestRecord) biz.PublishResult {
+	if p.result.Err != nil {
+		return p.result
+	}
 	return biz.PublishResult{Confirmed: len(records)}
 }
 
@@ -43,6 +49,16 @@ func (q readyQueue) Status() biz.QueueStatus {
 	return q.status
 }
 
+// TestHealthReportsProcessLiveness 验证存活端点无需任何 Kafka 或 WAL 依赖即可响应。
+func TestHealthReportsProcessLiveness(t *testing.T) {
+	response := httptest.NewRecorder()
+	health(response, httptest.NewRequest(http.MethodGet, "/livez", nil))
+
+	if response.Code != http.StatusOK {
+		t.Errorf("GET /livez status = %d, want %d", response.Code, http.StatusOK)
+	}
+}
+
 // TestReadyUsesCachedTopicStatus 验证就绪检查只根据缓存状态和 WAL 能力作出判断。
 func TestReadyUsesCachedTopicStatus(t *testing.T) {
 	tests := []struct {
@@ -50,6 +66,7 @@ func TestReadyUsesCachedTopicStatus(t *testing.T) {
 		topology      *biz.TopicTopology
 		queue         biz.QueueStatus
 		statusCode    int
+		reason        string
 		writeTarget   string
 		queueState    string
 		queueWritable bool
@@ -76,6 +93,7 @@ func TestReadyUsesCachedTopicStatus(t *testing.T) {
 			topology:      &biz.TopicTopology{},
 			queue:         writableQueue(biz.QueueHealthy),
 			statusCode:    http.StatusServiceUnavailable,
+			reason:        reasonTopicNoncompliant,
 			writeTarget:   "none",
 			queueState:    "healthy",
 			queueWritable: true,
@@ -85,6 +103,7 @@ func TestReadyUsesCachedTopicStatus(t *testing.T) {
 			topology:    &biz.TopicTopology{Exists: true, ReplicationFactor: 1, MinInSyncReplicas: 1},
 			queue:       biz.QueueStatus{State: biz.QueueBlocked},
 			statusCode:  http.StatusServiceUnavailable,
+			reason:      reasonWALUnavailable,
 			writeTarget: "none",
 			queueState:  "blocked",
 		},
@@ -107,6 +126,7 @@ func TestReadyUsesCachedTopicStatus(t *testing.T) {
 			}
 
 			var body struct {
+				Reason        string `json:"reason"`
 				WriteTarget   string `json:"write_target"`
 				QueueState    string `json:"queue_state"`
 				QueueWritable bool   `json:"queue_writable"`
@@ -117,6 +137,9 @@ func TestReadyUsesCachedTopicStatus(t *testing.T) {
 			if body.WriteTarget != test.writeTarget {
 				t.Errorf("GET /readyz with %s write_target = %q, want %q", test.name, body.WriteTarget, test.writeTarget)
 			}
+			if body.Reason != test.reason {
+				t.Errorf("GET /readyz with %s reason = %q, want %q", test.name, body.Reason, test.reason)
+			}
 			if body.QueueState != test.queueState {
 				t.Errorf("GET /readyz with %s queue_state = %q, want %q", test.name, body.QueueState, test.queueState)
 			}
@@ -124,6 +147,41 @@ func TestReadyUsesCachedTopicStatus(t *testing.T) {
 				t.Errorf("GET /readyz with %s queue_writable = %t, want %t", test.name, body.QueueWritable, test.queueWritable)
 			}
 		})
+	}
+}
+
+// TestReadyReportsPausedReplay 验证永久发布错误使用稳定原因码摘除实例。
+func TestReadyReportsPausedReplay(t *testing.T) {
+	queue := &replayerQueue{records: []*alsv1.RequestRecord{{Id: "record-1"}}}
+	topic := biz.NewTopicContract(biz.ReliabilityDevelopment)
+	topic.Update(biz.TopicTopology{Exists: true, ReplicationFactor: 1, MinInSyncReplicas: 1})
+	recorder := biz.NewRecorder(
+		readyPublisher{result: biz.PublishResult{
+			Failed: 1,
+			Class:  biz.PublishPermanent,
+			Err:    errors.New("record is invalid"),
+		}},
+		topic,
+		queue,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+
+	if result, err := recorder.ReplayBatch(t.Context(), 1); result != biz.ReplayPaused || err == nil {
+		t.Fatalf("Recorder.ReplayBatch() = (%v, %v), want (%v, non-nil)", result, err, biz.ReplayPaused)
+	}
+
+	response := httptest.NewRecorder()
+	ready(recorder)(response, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("GET /readyz status = %d, want %d", response.Code, http.StatusServiceUnavailable)
+	}
+
+	var body readinessResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode /readyz response: %v", err)
+	}
+	if body.Reason != reasonReplayPaused {
+		t.Errorf("GET /readyz reason = %q, want %q", body.Reason, reasonReplayPaused)
 	}
 }
 

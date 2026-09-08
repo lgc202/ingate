@@ -42,9 +42,9 @@ type TopicStatus struct {
 	MinInSyncReplicas int
 }
 
-// TopicInspector 读取请求记录 Topic 的当前拓扑。
-type TopicInspector interface {
-	InspectTopic(context.Context) (TopicTopology, error)
+// TopicReader 读取请求记录 Topic 的当前拓扑。
+type TopicReader interface {
+	ReadTopology(context.Context) (TopicTopology, error)
 }
 
 // TopicContract 保存可靠性规则及最近一次可确定的检查结果。
