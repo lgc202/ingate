@@ -65,7 +65,7 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 
 	value, batchBytes, err := encodeEntry(ctx, records, time.Now())
 	if err != nil {
-		return fmt.Errorf("%w: %v", biz.ErrQueueInvalidBatch, err)
+		return fmt.Errorf("%w: encode entry: %w", biz.ErrQueueInvalidBatch, err)
 	}
 
 	last, err := q.log.LastIndex()
