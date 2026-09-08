@@ -3,13 +3,16 @@ package conf
 
 import (
 	"errors"
+	"math"
 	"strings"
 
 	"github.com/lgc202/ingate/internal/pkg/kafkaclient"
 	"github.com/lgc202/ingate/internal/pkg/telemetry"
 )
 
-// Validate 校验 ALS 进程启动所需的配置。
+const developmentQueueCapacityBytes int64 = 1 << 30
+
+// Validate 补全开发模式默认值并校验 ALS 进程启动所需的配置。
 func (c *Bootstrap) Validate() error {
 	if err := validateServer(c.GetServer()); err != nil {
 		return err
@@ -100,8 +103,28 @@ func validateDiskQueue(config *Data_DiskQueue, mode Data_ReliabilityMode) error 
 	if config.GetSegmentBytes() <= 0 {
 		return errors.New("disk queue segment size must be greater than zero")
 	}
-	if config.GetMaxBytes() <= config.GetSegmentBytes() {
-		return errors.New("disk queue max bytes must be greater than segment size")
+	if config.GetSegmentBytes() > math.MaxInt64/2 {
+		return errors.New("disk queue segment size exceeds the supported range")
+	}
+	recoveryBytes := config.GetSegmentBytes() * 2
+	if mode == Data_DEVELOPMENT && config.CapacityBytes == nil {
+		capacity := developmentQueueCapacityBytes
+		config.CapacityBytes = &capacity
+	}
+	if mode == Data_PRODUCTION && config.CapacityBytes == nil {
+		return errors.New("production reliability mode requires disk queue capacity")
+	}
+	if config.GetCapacityBytes() <= recoveryBytes {
+		return errors.New("disk queue capacity must exceed worst-case segment recovery space")
+	}
+	if config.GetMinFreeBytes() < 0 {
+		return errors.New("disk queue minimum free bytes must not be negative")
+	}
+	if config.GetMinFreeBytes() > math.MaxInt64-recoveryBytes {
+		return errors.New("disk queue minimum free bytes cannot reserve segment recovery space")
+	}
+	if mode == Data_PRODUCTION && (config.MinFreeBytes == nil || config.GetMinFreeBytes() == 0) {
+		return errors.New("production reliability mode requires positive disk queue minimum free bytes")
 	}
 	if config.GetReplayBatchSize() == 0 {
 		return errors.New("disk queue replay batch size must be greater than zero")

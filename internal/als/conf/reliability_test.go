@@ -69,7 +69,57 @@ func TestValidateDiskQueueReplayBackoff(t *testing.T) {
 	}
 }
 
+// TestValidateDiskQueueCapacity 验证开发默认值和生产显式容量契约。
+func TestValidateDiskQueueCapacity(t *testing.T) {
+	t.Run("development default", func(t *testing.T) {
+		config := validDataConfig()
+		config.ReliabilityMode = Data_DEVELOPMENT
+		config.DiskQueue.CapacityBytes = nil
+
+		if err := validateData(config); err != nil {
+			t.Fatalf("validateData(development defaults) error = %v, want nil", err)
+		}
+		if got := config.DiskQueue.GetCapacityBytes(); got != developmentQueueCapacityBytes {
+			t.Errorf("disk queue capacity = %d, want %d", got, developmentQueueCapacityBytes)
+		}
+	})
+
+	t.Run("production requires capacity", func(t *testing.T) {
+		config := validDataConfig()
+		config.ReliabilityMode = Data_PRODUCTION
+		config.DiskQueue.Sync = true
+		config.DiskQueue.CapacityBytes = nil
+
+		if err := validateData(config); err == nil {
+			t.Fatal("validateData(production without capacity) error = nil, want non-nil")
+		}
+	})
+
+	t.Run("production requires minimum free bytes", func(t *testing.T) {
+		config := validDataConfig()
+		config.ReliabilityMode = Data_PRODUCTION
+		config.DiskQueue.Sync = true
+		config.DiskQueue.MinFreeBytes = nil
+
+		if err := validateData(config); err == nil {
+			t.Fatal("validateData(production without minimum free bytes) error = nil, want non-nil")
+		}
+	})
+
+	t.Run("capacity reserves worst-case segment copy", func(t *testing.T) {
+		config := validDataConfig()
+		capacity := config.DiskQueue.GetSegmentBytes() * 2
+		config.DiskQueue.CapacityBytes = &capacity
+
+		if err := validateData(config); err == nil {
+			t.Fatal("validateData(capacity without recovery segment) error = nil, want non-nil")
+		}
+	})
+}
+
 func validDataConfig() *Data {
+	capacityBytes := int64(4096)
+	minFreeBytes := int64(1024)
 	return &Data{
 		Kafka: &Data_Kafka{
 			Brokers:           []string{"kafka:9092"},
@@ -84,7 +134,8 @@ func validDataConfig() *Data {
 			ReplayBatchSize:  10,
 			ReplayMinBackoff: durationpb.New(time.Second),
 			ReplayMaxBackoff: durationpb.New(30 * time.Second),
-			MaxBytes:         2048,
+			CapacityBytes:    &capacityBytes,
+			MinFreeBytes:     &minFreeBytes,
 		},
 	}
 }

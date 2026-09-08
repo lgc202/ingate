@@ -70,6 +70,16 @@ func (q *replayerQueue) Pending() (int64, int64) {
 	return int64(len(q.records)), 0
 }
 
+func (q *replayerQueue) Status() biz.QueueStatus {
+	records, bytes := q.Pending()
+	return biz.QueueStatus{
+		State:          biz.QueueHealthy,
+		Writable:       true,
+		PendingRecords: records,
+		PendingBytes:   bytes,
+	}
+}
+
 // TestDiskQueueReplayerRetriesThenDrains 验证短暂失败退避后会连续排空队列并恢复直写。
 func TestDiskQueueReplayerRetriesThenDrains(t *testing.T) {
 	queue := &replayerQueue{records: []*alsv1.RequestRecord{{Id: "record-1"}}}

@@ -130,18 +130,16 @@ func (s *recorderState) resumePublishing(topicCompliant bool, queueEmpty func() 
 
 func (s *recorderState) status(
 	topic TopicStatus,
-	pendingRecords int64,
-	pendingBytes int64,
+	queue QueueStatus,
 ) RecorderStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	queue.Writable = queue.Writable && s.queueOK
 
 	return RecorderStatus{
-		Topic:          topic,
-		KafkaWritable:  topic.Compliant && s.kafkaOK,
-		QueueWritable:  s.queueOK,
-		Spooling:       !topic.Compliant || s.spooling,
-		PendingRecords: pendingRecords,
-		PendingBytes:   pendingBytes,
+		Topic:         topic,
+		Queue:         queue,
+		KafkaWritable: topic.Compliant && s.kafkaOK,
+		Spooling:      !topic.Compliant || s.spooling,
 	}
 }

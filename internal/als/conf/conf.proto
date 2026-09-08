@@ -108,12 +108,14 @@ message Data {
     reserved "replay_interval";
     // sync 控制每批追加成功前是否执行 fsync；开启后进程崩溃不会丢已确认记录
     bool sync = 5;
-    // max_bytes 限制未投递 protobuf 记录的逻辑总字节数，不代表磁盘文件物理占用上限
-    int64 max_bytes = 6;
+    // capacity_bytes 是 WAL 目录及最坏分段复制空间允许占用的物理字节上限；开发模式未配置时默认为 1 GiB
+    optional int64 capacity_bytes = 6;
     // replay_min_backoff 是 Kafka 临时失败后的最短回放等待时间
     google.protobuf.Duration replay_min_backoff = 7;
     // replay_max_backoff 是连续失败时回放退避的上限
     google.protobuf.Duration replay_max_backoff = 8;
+    // min_free_bytes 是为同一文件系统其他工作负载保留的安全剩余空间
+    optional int64 min_free_bytes = 9;
   }
   // kafka 是请求记录的主投递链路
   Kafka kafka = 1;

@@ -683,14 +683,16 @@ type Data_DiskQueue struct {
 	ReplayBatchSize uint32 `protobuf:"varint,3,opt,name=replay_batch_size,json=replayBatchSize,proto3" json:"replay_batch_size,omitempty"`
 	// sync 控制每批追加成功前是否执行 fsync；开启后进程崩溃不会丢已确认记录
 	Sync bool `protobuf:"varint,5,opt,name=sync,proto3" json:"sync,omitempty"`
-	// max_bytes 限制未投递 protobuf 记录的逻辑总字节数，不代表磁盘文件物理占用上限
-	MaxBytes int64 `protobuf:"varint,6,opt,name=max_bytes,json=maxBytes,proto3" json:"max_bytes,omitempty"`
+	// capacity_bytes 是 WAL 目录及最坏分段复制空间允许占用的物理字节上限；开发模式未配置时默认为 1 GiB
+	CapacityBytes *int64 `protobuf:"varint,6,opt,name=capacity_bytes,json=capacityBytes,proto3,oneof" json:"capacity_bytes,omitempty"`
 	// replay_min_backoff 是 Kafka 临时失败后的最短回放等待时间
 	ReplayMinBackoff *durationpb.Duration `protobuf:"bytes,7,opt,name=replay_min_backoff,json=replayMinBackoff,proto3" json:"replay_min_backoff,omitempty"`
 	// replay_max_backoff 是连续失败时回放退避的上限
 	ReplayMaxBackoff *durationpb.Duration `protobuf:"bytes,8,opt,name=replay_max_backoff,json=replayMaxBackoff,proto3" json:"replay_max_backoff,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// min_free_bytes 是为同一文件系统其他工作负载保留的安全剩余空间
+	MinFreeBytes  *int64 `protobuf:"varint,9,opt,name=min_free_bytes,json=minFreeBytes,proto3,oneof" json:"min_free_bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Data_DiskQueue) Reset() {
@@ -751,9 +753,9 @@ func (x *Data_DiskQueue) GetSync() bool {
 	return false
 }
 
-func (x *Data_DiskQueue) GetMaxBytes() int64 {
-	if x != nil {
-		return x.MaxBytes
+func (x *Data_DiskQueue) GetCapacityBytes() int64 {
+	if x != nil && x.CapacityBytes != nil {
+		return *x.CapacityBytes
 	}
 	return 0
 }
@@ -770,6 +772,13 @@ func (x *Data_DiskQueue) GetReplayMaxBackoff() *durationpb.Duration {
 		return x.ReplayMaxBackoff
 	}
 	return nil
+}
+
+func (x *Data_DiskQueue) GetMinFreeBytes() int64 {
+	if x != nil && x.MinFreeBytes != nil {
+		return *x.MinFreeBytes
+	}
+	return 0
 }
 
 type Data_Kafka_SASL struct {
@@ -1129,7 +1138,8 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\x0eclient_ca_file\x18\x04 \x01(\tR\fclientCaFile\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xcc\t\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xac\n" +
+	"\n" +
 	"\x04Data\x121\n" +
 	"\x05kafka\x18\x01 \x01(\v2\x1b.ingate.als.conf.Data.KafkaR\x05kafka\x12>\n" +
 	"\n" +
@@ -1153,15 +1163,18 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\tcert_file\x18\x03 \x01(\tR\bcertFile\x12\x19\n" +
 	"\bkey_file\x18\x04 \x01(\tR\akeyFile\x12\x1f\n" +
 	"\vserver_name\x18\x05 \x01(\tR\n" +
-	"serverName\x1a\xca\x02\n" +
+	"serverName\x1a\xaa\x03\n" +
 	"\tDiskQueue\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12#\n" +
 	"\rsegment_bytes\x18\x02 \x01(\x03R\fsegmentBytes\x12*\n" +
 	"\x11replay_batch_size\x18\x03 \x01(\rR\x0freplayBatchSize\x12\x12\n" +
-	"\x04sync\x18\x05 \x01(\bR\x04sync\x12\x1b\n" +
-	"\tmax_bytes\x18\x06 \x01(\x03R\bmaxBytes\x12G\n" +
+	"\x04sync\x18\x05 \x01(\bR\x04sync\x12*\n" +
+	"\x0ecapacity_bytes\x18\x06 \x01(\x03H\x00R\rcapacityBytes\x88\x01\x01\x12G\n" +
 	"\x12replay_min_backoff\x18\a \x01(\v2\x19.google.protobuf.DurationR\x10replayMinBackoff\x12G\n" +
-	"\x12replay_max_backoff\x18\b \x01(\v2\x19.google.protobuf.DurationR\x10replayMaxBackoffJ\x04\b\x04\x10\x05R\x0freplay_interval\"T\n" +
+	"\x12replay_max_backoff\x18\b \x01(\v2\x19.google.protobuf.DurationR\x10replayMaxBackoff\x12)\n" +
+	"\x0emin_free_bytes\x18\t \x01(\x03H\x01R\fminFreeBytes\x88\x01\x01B\x11\n" +
+	"\x0f_capacity_bytesB\x11\n" +
+	"\x0f_min_free_bytesJ\x04\b\x04\x10\x05R\x0freplay_interval\"T\n" +
 	"\x0fReliabilityMode\x12 \n" +
 	"\x1cRELIABILITY_MODE_UNSPECIFIED\x10\x00\x12\x0f\n" +
 	"\vDEVELOPMENT\x10\x01\x12\x0e\n" +
@@ -1260,6 +1273,7 @@ func file_conf_conf_proto_init() {
 	if File_conf_conf_proto != nil {
 		return
 	}
+	file_conf_conf_proto_msgTypes[9].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
