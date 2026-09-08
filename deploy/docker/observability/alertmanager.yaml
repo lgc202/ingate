@@ -1,0 +1,6 @@
+route:
+  # #50 将在该默认接收器上增加可执行的 ALS 告警和恢复说明。
+  receiver: default
+
+receivers:
+  - name: default

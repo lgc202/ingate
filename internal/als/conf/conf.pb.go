@@ -927,9 +927,7 @@ func (x *Data_Kafka_TLS) GetServerName() string {
 
 type Telemetry_Tracing struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// enabled 控制是否导出 Trace；关闭时不建立 OTLP 连接
-	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	// endpoint 是 OTLP gRPC Collector 的 host:port 地址
+	// endpoint 是 OTLP gRPC Collector 的 host:port 地址；为空时不创建 Trace 出口
 	Endpoint string `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
 	// insecure 控制是否使用明文 OTLP gRPC 连接
 	Insecure bool `protobuf:"varint,3,opt,name=insecure,proto3" json:"insecure,omitempty"`
@@ -977,13 +975,6 @@ func (x *Telemetry_Tracing) ProtoReflect() protoreflect.Message {
 // Deprecated: Use Telemetry_Tracing.ProtoReflect.Descriptor instead.
 func (*Telemetry_Tracing) Descriptor() ([]byte, []int) {
 	return file_conf_conf_proto_rawDescGZIP(), []int{4, 0}
-}
-
-func (x *Telemetry_Tracing) GetEnabled() bool {
-	if x != nil {
-		return x.Enabled
-	}
-	return false
 }
 
 func (x *Telemetry_Tracing) GetEndpoint() string {
@@ -1184,12 +1175,11 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\x06format\x18\x01 \x01(\tR\x06format\x12\x14\n" +
 	"\x05level\x18\x02 \x01(\tR\x05level\x12\x1d\n" +
 	"\n" +
-	"add_source\x18\x03 \x01(\bR\taddSource\"\xf3\x04\n" +
+	"add_source\x18\x03 \x01(\bR\taddSource\"\xdf\x04\n" +
 	"\tTelemetry\x12 \n" +
 	"\venvironment\x18\x01 \x01(\tR\venvironment\x12<\n" +
-	"\atracing\x18\x02 \x01(\v2\".ingate.als.conf.Telemetry.TracingR\atracing\x1a\x85\x04\n" +
-	"\aTracing\x12\x18\n" +
-	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1a\n" +
+	"\atracing\x18\x02 \x01(\v2\".ingate.als.conf.Telemetry.TracingR\atracing\x1a\xf1\x03\n" +
+	"\aTracing\x12\x1a\n" +
 	"\bendpoint\x18\x02 \x01(\tR\bendpoint\x12\x1a\n" +
 	"\binsecure\x18\x03 \x01(\bR\binsecure\x12!\n" +
 	"\fsample_ratio\x18\x04 \x01(\x01R\vsampleRatio\x12$\n" +
@@ -1203,7 +1193,7 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\tcert_file\x18\x02 \x01(\tR\bcertFile\x12\x19\n" +
 	"\bkey_file\x18\x03 \x01(\tR\akeyFile\x12\x1f\n" +
 	"\vserver_name\x18\x04 \x01(\tR\n" +
-	"serverNameB1Z/github.com/lgc202/ingate/internal/als/conf;confb\x06proto3"
+	"serverNameJ\x04\b\x01\x10\x02B1Z/github.com/lgc202/ingate/internal/als/conf;confb\x06proto3"
 
 var (
 	file_conf_conf_proto_rawDescOnce sync.Once

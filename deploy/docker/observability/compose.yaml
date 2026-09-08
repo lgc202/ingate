@@ -1,0 +1,91 @@
+services:
+  als:
+    environment:
+      INGATE_ALS_TRACING_ENDPOINT: "${INGATE_ALS_TRACING_ENDPOINT:-otel-collector:4317}"
+    # Docker 守护进程负责转发 stdout；异步、有界缓冲保证 Collector 停止时不阻塞 ALS。
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "127.0.0.1:${INGATE_OBSERVABILITY_FLUENT_PORT:-24224}"
+        fluentd-async: "true"
+        fluentd-async-reconnect-interval: 1s
+        # 该选项按事件计数；限制为 1024，避免 Collector 长时间故障时占用过多 Docker 内存。
+        fluentd-buffer-limit: "1024"
+        mode: non-blocking
+        max-buffer-size: 4m
+        tag: ingate.als
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.160.0
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    ports:
+      # Fluentd logging driver 运行在 Docker 守护进程中，只能通过宿主机端口连接 Collector。
+      - "127.0.0.1:${INGATE_OBSERVABILITY_FLUENT_PORT:-24224}:8006"
+      # 该端口也允许宿主机上的其他进程复用同一个 OTLP Collector。
+      - "127.0.0.1:${INGATE_OTLP_GRPC_PORT:-4317}:4317"
+    volumes:
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/observability/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro"
+
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    restart: unless-stopped
+    ports:
+      - "${INGATE_OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:${INGATE_PROMETHEUS_PORT:-9090}:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro"
+      - prometheus-data:/prometheus
+
+  loki:
+    image: grafana/loki:3.7.7
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/observability/loki.yaml:/etc/loki/config.yaml:ro"
+      # 官方镜像预先把 /loki 交给非 root 用户，Named Volume 无需额外 init 容器修正权限。
+      - loki-data:/loki
+
+  tempo:
+    # Tempo 2.10 仍支持无额外 Kafka 依赖的单进程本地存储，适合可选开发栈。
+    image: grafana/tempo:2.10.7
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/config.yaml"]
+    volumes:
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/observability/tempo.yaml:/etc/tempo/config.yaml:ro"
+      - tempo-data:/var/tempo
+
+  grafana:
+    image: grafana/grafana:13.2.1
+    restart: unless-stopped
+    ports:
+      - "${INGATE_OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:${INGATE_GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_DEFAULT_THEME: light
+    volumes:
+      # 只挂载实际提供的文件，保留镜像内其他 provisioning 目录。
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/observability/grafana/provisioning/datasources/datasources.yaml:/etc/grafana/provisioning/datasources/ingate.yaml:ro"
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yaml
+      - --storage.path=/alertmanager
+      - --data.retention=168h
+    ports:
+      - "${INGATE_OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:${INGATE_ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/observability/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro"
+      - alertmanager-data:/alertmanager
+
+volumes:
+  alertmanager-data:
+  loki-data:
+  prometheus-data:
+  tempo-data:

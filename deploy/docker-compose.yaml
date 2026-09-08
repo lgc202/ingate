@@ -120,6 +120,9 @@ services:
     depends_on:
       kafka-init:
         condition: service_completed_successfully
+    environment:
+      # Endpoint 为空时不创建 Trace 出口；Overlay 或外部 Collector 可以显式提供地址。
+      INGATE_ALS_TRACING_ENDPOINT: "${INGATE_ALS_TRACING_ENDPOINT:-}"
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-als.yaml:/opt/ingate/als/configs/config.yaml:ro"
       - als-data:/data/ingate/als

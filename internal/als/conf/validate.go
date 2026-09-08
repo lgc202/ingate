@@ -151,11 +151,8 @@ func validateTelemetry(config *Telemetry) error {
 	if tracing == nil {
 		return nil
 	}
-	if !tracing.GetEnabled() {
-		return nil
-	}
 	if strings.TrimSpace(tracing.GetEndpoint()) == "" {
-		return errors.New("telemetry tracing endpoint must not be empty")
+		return nil
 	}
 	if ratio := tracing.GetSampleRatio(); ratio < 0 || ratio > 1 {
 		return errors.New("telemetry tracing sample ratio must be between zero and one")

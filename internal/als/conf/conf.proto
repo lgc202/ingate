@@ -148,9 +148,9 @@ message Telemetry {
       // server_name 覆盖 TLS 证书校验使用的服务端名称
       string server_name = 4;
     }
-    // enabled 控制是否导出 Trace；关闭时不建立 OTLP 连接
-    bool enabled = 1;
-    // endpoint 是 OTLP gRPC Collector 的 host:port 地址
+    // 字段 1 曾用于独立开关；现在由 endpoint 是否为空直接表达，避免两个配置相互矛盾
+    reserved 1;
+    // endpoint 是 OTLP gRPC Collector 的 host:port 地址；为空时不创建 Trace 出口
     string endpoint = 2;
     // insecure 控制是否使用明文 OTLP gRPC 连接
     bool insecure = 3;

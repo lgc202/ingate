@@ -1,0 +1,77 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+  # Docker 的 Fluentd logging driver 使用 Fluent Forward 协议发送 ALS JSON 日志。
+  fluent_forward:
+    endpoint: 0.0.0.0:8006
+
+processors:
+  # Collector 过载时优先拒绝遥测数据，不能让观测链路耗尽主机内存。
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  resource/als:
+    attributes:
+      # Loki 只索引稳定、低基数的服务字段；请求 ID 等字段保留在日志正文中查询。
+      - key: service.namespace
+        value: ingate
+        action: upsert
+      - key: service.name
+        value: ingate-als
+        action: upsert
+  batch:
+    send_batch_size: 512
+    timeout: 2s
+
+exporters:
+  otlp_grpc/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+    # 有界发送队列吸收短暂故障，持续故障则由 Collector 指标明确暴露丢弃风险。
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 2048
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 5m
+  otlp_http/loki:
+    endpoint: http://loki:3100/otlp
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 2048
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 5m
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_grpc/tempo]
+    logs:
+      receivers: [fluent_forward]
+      processors: [memory_limiter, resource/als, batch]
+      exporters: [otlp_http/loki]
+  telemetry:
+    logs:
+      encoding: json
+    metrics:
+      level: detailed
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888

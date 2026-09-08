@@ -17,6 +17,18 @@
 
 Gateway 端口只有在 Console 中创建并成功发布对应 Gateway 后才会承载业务流量。
 
+## 可选观测栈
+
+安装包附带可选观测配置。需要查看 ALS 的系统指标、JSON 日志和 Trace 时，将 `.env` 中的开关改为：
+
+```dotenv
+INGATE_OBSERVABILITY_ENABLED=true
+```
+
+随后执行 `./bin/start.sh`。启用状态保存在 `.env`，因此日常启停、备份、升级和卸载都会继续使用同一 Overlay。Grafana 默认地址为 <http://127.0.0.1:3000>。观测服务使用独立的 `INGATE_OBSERVABILITY_BIND_ADDRESS`，不会随 Gateway 的监听地址向外暴露。Prometheus、Loki、Tempo 和 Alertmanager 使用独立 Volume 保存本地观测数据；停止这些组件不会中断 ALS 向 Kafka 或本地队列投递请求记录。
+
+观测栈不是核心运行依赖。不再需要时，先执行 `./bin/stop.sh`，将开关改回 `false`，再执行 `./bin/start.sh`；观测数据 Volume 会继续保留。
+
 ## 配置
 
 `.env` 保存镜像版本、监听地址、对外端口和进程使用的密钥。`docker/configs` 保存各个 Ingate 组件的 YAML 配置。修改后执行 `./bin/start.sh` 重建对应容器。

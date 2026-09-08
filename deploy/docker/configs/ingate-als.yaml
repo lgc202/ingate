@@ -7,7 +7,8 @@ server:
       key_file: ""
       client_ca_file: ""
   http:
-    addr: "127.0.0.1:18092"
+    # 指标端口只在 Compose 内部网络可达，不映射到宿主机。
+    addr: "0.0.0.0:18092"
     timeout: "5s"
   shutdown_timeout: "30s"
 
@@ -47,10 +48,9 @@ logging:
 telemetry:
   environment: "development"
   tracing:
-    enabled: false
-    endpoint: "otel-collector:4317"
+    endpoint: "${ALS_TRACING_ENDPOINT:}"
     insecure: true
-    sample_ratio: 0.1
+    sample_ratio: 1.0
     max_queue_size: 2048
     export_batch_size: 256
     batch_timeout: "2s"
