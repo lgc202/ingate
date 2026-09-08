@@ -6,11 +6,10 @@ import (
 
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
 	"github.com/lgc202/ingate/internal/aiextproc/service"
+	prometheushttp "github.com/lgc202/ingate/internal/pkg/prometheus"
 )
 
 // Readiness 提供运维接口所需的组件就绪状态。
@@ -43,10 +42,7 @@ func NewHTTPServer(
 }
 
 func metricsHandler(readiness Readiness, processor *service.ExternalProcessor) http.Handler {
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(
-		collectors.NewGoCollector(),
-		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	return prometheushttp.NewHandler(
 		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 			Namespace: "ingate",
 			Subsystem: "ai_extproc",
@@ -72,7 +68,6 @@ func metricsHandler(readiness Readiness, processor *service.ExternalProcessor) h
 			Help:      "Downstream AI requests currently waiting for upstream stream correlation.",
 		}, func() float64 { return float64(processor.Counters().ActiveCorrelations) }),
 	)
-	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{EnableOpenMetrics: true})
 }
 
 func boolMetric(value bool) float64 {

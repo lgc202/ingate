@@ -8,10 +8,9 @@ import (
 
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/lgc202/ingate/internal/analytics/conf"
+	prometheushttp "github.com/lgc202/ingate/internal/pkg/prometheus"
 )
 
 // StorePinger 定义 Analytics 就绪检查所需的请求存储连通性。
@@ -71,10 +70,7 @@ func ready(timeout time.Duration, kafka pinger, clickHouse pinger) http.HandlerF
 
 // metricsHandler 使用进程独立 Registry 暴露 Go 指标和请求记录处理计数。
 func metricsHandler(counters func() requestCounters) http.Handler {
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(
-		collectors.NewGoCollector(),
-		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	return prometheushttp.NewHandler(
 		prometheus.NewCounterFunc(prometheus.CounterOpts{
 			Namespace: "ingate",
 			Subsystem: "analytics",
@@ -100,9 +96,6 @@ func metricsHandler(counters func() requestCounters) http.Handler {
 			Help:      "Duplicate request record messages discarded within a Kafka poll batch.",
 		}, func() float64 { return float64(counters().duplicate) }),
 	)
-
-	// 使用独立 Registry，避免依赖库隐式注册与业务无关的全局指标
-	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{EnableOpenMetrics: true})
 }
 
 func writeJSON(response http.ResponseWriter, statusCode int, value any) {

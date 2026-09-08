@@ -6,11 +6,10 @@ import (
 
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/lgc202/ingate/internal/controller/biz/delivery"
 	"github.com/lgc202/ingate/internal/controller/conf"
+	prometheushttp "github.com/lgc202/ingate/internal/pkg/prometheus"
 )
 
 // NewHTTPServer 创建 Controller 的健康检查与就绪检查接口。
@@ -31,10 +30,7 @@ func NewHTTPServer(
 }
 
 func metricsHandler(configDelivery *delivery.Delivery) http.Handler {
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(
-		collectors.NewGoCollector(),
-		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	return prometheushttp.NewHandler(
 		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 			Namespace: "ingate",
 			Subsystem: "controller",
@@ -60,7 +56,6 @@ func metricsHandler(configDelivery *delivery.Delivery) http.Handler {
 			Help:      "Whether the latest recorded Envoy configuration delivery result is a failure.",
 		}, func() float64 { return boolMetric(configDelivery.Status().LastFailure != nil) }),
 	)
-	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{EnableOpenMetrics: true})
 }
 
 func boolMetric(value bool) float64 {
