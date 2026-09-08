@@ -17,6 +17,7 @@ import (
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
+	"github.com/lgc202/ingate/internal/als/biz"
 	"github.com/lgc202/ingate/internal/als/conf"
 	"github.com/lgc202/ingate/internal/als/server"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
@@ -44,10 +45,12 @@ func NewApp(configFile string) (*App, error) {
 	if err := appconfig.Load(configFile, &bootstrap); err != nil {
 		return nil, err
 	}
+
 	identity, err := telemetry.NewIdentity(name, bootstrap.GetTelemetry().GetEnvironment())
 	if err != nil {
 		return nil, err
 	}
+
 	instanceID := serviceInstanceID(identity.InstanceID)
 	logger := telemetry.NewLogger(bootstrap.GetLogging(), identity)
 	kratoslog.SetDefault(logger)
@@ -56,14 +59,15 @@ func NewApp(configFile string) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	tracing, err := telemetry.NewTracing(context.Background(), traceConfig, identity)
 	if err != nil {
 		return nil, err
 	}
+
 	kratosApp, cleanup, err := wireApp(
 		bootstrap.GetServer(),
-		bootstrap.GetData().GetKafka(),
-		bootstrap.GetData().GetDiskQueue(),
+		bootstrap.GetData(),
 		logger,
 		tracing,
 		instanceID,
@@ -75,7 +79,7 @@ func NewApp(configFile string) (*App, error) {
 			shutdownErr,
 		)
 	}
-	logger.Info("service starting", "config_file", configFile)
+
 	return &App{
 		kratos:          kratosApp,
 		tracing:         tracing,
@@ -95,18 +99,19 @@ func tracingConfig(config *conf.Telemetry_Tracing) (telemetry.TraceConfig, error
 	var clientTLS *tls.Config
 	var err error
 	if config.GetEnabled() && !config.GetInsecure() {
-		tls := config.GetTls()
+		tlsSettings := config.GetTls()
 		clientTLS, err = tlsconfig.NewClient(tlsconfig.ClientConfig{
 			Enabled:         true,
-			CAFile:          tls.GetCaFile(),
-			CertificateFile: tls.GetCertFile(),
-			PrivateKeyFile:  tls.GetKeyFile(),
-			ServerName:      tls.GetServerName(),
+			CAFile:          tlsSettings.GetCaFile(),
+			CertificateFile: tlsSettings.GetCertFile(),
+			PrivateKeyFile:  tlsSettings.GetKeyFile(),
+			ServerName:      tlsSettings.GetServerName(),
 		})
 		if err != nil {
 			return telemetry.TraceConfig{}, fmt.Errorf("create telemetry tracing TLS config: %w", err)
 		}
 	}
+
 	return telemetry.TraceConfig{
 		Enabled:       config.GetEnabled(),
 		Endpoint:      config.GetEndpoint(),
@@ -135,15 +140,26 @@ func newKratosApp(
 	httpServer *kratoshttp.Server,
 	grpcServer *kratosgrpc.Server,
 	replayer *server.DiskQueueReplayer,
+	topicMonitor *server.TopicMonitor,
 	instanceID serviceInstanceID,
 ) *kratos.App {
-	// DiskQueueReplayer 实现 Kratos Server 接口，因此和 HTTP、gRPC 使用同一套生命周期
+	// 后台任务实现 Kratos Server 接口，因此和 HTTP、gRPC 使用同一套生命周期。
 	return kratos.New(
 		kratos.ID(string(instanceID)),
 		kratos.Name(name),
 		kratos.Version(version.String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
-		kratos.Server(httpServer, grpcServer, replayer),
+		kratos.BeforeStart(topicMonitor.BeforeStart),
+		kratos.Server(httpServer, grpcServer, replayer, topicMonitor),
 	)
+}
+
+func newTopicContract(mode conf.Data_ReliabilityMode) *biz.TopicContract {
+	reliability := biz.ReliabilityDevelopment
+	if mode == conf.Data_PRODUCTION {
+		reliability = biz.ReliabilityProduction
+	}
+
+	return biz.NewTopicContract(reliability)
 }

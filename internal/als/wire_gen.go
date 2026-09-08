@@ -19,18 +19,22 @@ import (
 
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, data_Kafka *conf.Data_Kafka, data_DiskQueue *conf.Data_DiskQueue, logger *slog.Logger, tracing *telemetry.Tracing, alsServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
-	publisher, cleanup, err := data.NewKafkaPublisher(data_Kafka)
+func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, tracing *telemetry.Tracing, alsServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
+	data_DiskQueue := confData.DiskQueue
+	data_Kafka := confData.Kafka
+	client, cleanup, err := data.NewKafkaClient(data_Kafka)
 	if err != nil {
 		return nil, nil, err
 	}
+	data_ReliabilityMode := confData.ReliabilityMode
+	topicContract := newTopicContract(data_ReliabilityMode)
 	queue, cleanup2, err := data.NewDiskQueue(data_DiskQueue, logger)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
-	recorder := biz.NewRecorder(publisher, queue, logger)
-	httpServer := server.NewHTTPServer(confServer, data_Kafka, data_DiskQueue, recorder, tracing)
+	recorder := biz.NewRecorder(client, topicContract, queue, logger)
+	httpServer := server.NewHTTPServer(confServer, data_DiskQueue, recorder, tracing)
 	serviceService := service.NewService(recorder, logger)
 	grpcServer, err := server.NewGRPCServer(confServer, serviceService, tracing)
 	if err != nil {
@@ -39,7 +43,8 @@ func wireApp(confServer *conf.Server, data_Kafka *conf.Data_Kafka, data_DiskQueu
 		return nil, nil, err
 	}
 	diskQueueReplayer := server.NewDiskQueueReplayer(data_DiskQueue, recorder, logger)
-	app := newKratosApp(logger, confServer, httpServer, grpcServer, diskQueueReplayer, alsServiceInstanceID)
+	topicMonitor := server.NewTopicMonitor(data_Kafka, client, topicContract, logger)
+	app := newKratosApp(logger, confServer, httpServer, grpcServer, diskQueueReplayer, topicMonitor, alsServiceInstanceID)
 	return app, func() {
 		cleanup2()
 		cleanup()

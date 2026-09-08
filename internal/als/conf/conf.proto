@@ -52,6 +52,15 @@ message Server {
 
 // Data 定义请求记录的消息与本地队列依赖
 message Data {
+  enum ReliabilityMode {
+    // RELIABILITY_MODE_UNSPECIFIED 表示未选择可靠性模式
+    RELIABILITY_MODE_UNSPECIFIED = 0;
+    // DEVELOPMENT 允许单 Broker 本地环境使用副本数 1、min.insync.replicas 1
+    DEVELOPMENT = 1;
+    // PRODUCTION 要求副本数至少为 3、min.insync.replicas 至少为 2
+    PRODUCTION = 2;
+  }
+
   message Kafka {
     message SASL {
       // mechanism 支持 PLAIN、SCRAM-SHA-256 和 SCRAM-SHA-512，空值表示不启用 SASL
@@ -81,8 +90,8 @@ message Data {
     google.protobuf.Duration write_timeout = 3;
     // dial_timeout 是单次 Kafka broker 建连超时
     google.protobuf.Duration dial_timeout = 4;
-    // readiness_timeout 是就绪检查探测 Kafka 的最长时间
-    google.protobuf.Duration readiness_timeout = 5;
+    // topic_check_timeout 是单次 Topic 契约检查的最长时间
+    google.protobuf.Duration topic_check_timeout = 5;
     // sasl 配置 Kafka 身份认证
     SASL sasl = 6;
     // tls 配置 Kafka 传输加密和双向认证
@@ -106,6 +115,8 @@ message Data {
   Kafka kafka = 1;
   // disk_queue 是 Kafka 不可用时的本地可靠缓冲
   DiskQueue disk_queue = 2;
+  // reliability_mode 决定 Kafka Topic 和 WAL 必须满足的可靠性约束
+  ReliabilityMode reliability_mode = 3;
 }
 
 // Logging 定义结构化日志格式与级别

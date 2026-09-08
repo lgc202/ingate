@@ -17,15 +17,18 @@ import (
 	"github.com/lgc202/ingate/internal/als/conf"
 )
 
-// ErrFull 表示本地队列已达到配置的逻辑容量上限。
-var ErrFull = errors.New("disk queue is full")
+var errFull = errors.New("disk queue is full")
 
+// pendingUsage 是发布给健康检查和指标读取的不可变队列用量。
+// 每次写入或确认都创建新值，避免读取方观察到只更新了一半的计数。
 type pendingUsage struct {
 	records int64
 	bytes   int64
 }
 
 // Queue 保存 Kafka 暂时不可用期间尚未投递的请求记录。
+// Write、Read 和 Commit 由同一把锁串行化以保持严格的队首顺序，
+// Pending 则从原子快照读取，避免健康检查和指标采集阻塞 WAL 操作。
 type Queue struct {
 	log      *wal.Log
 	maxBytes int64
@@ -71,6 +74,7 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 	if len(records) == 0 {
 		return nil
 	}
+
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -82,12 +86,13 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 	if uint64(len(records)) >= math.MaxUint64-last {
 		return errors.New("disk queue sequence is exhausted")
 	}
+
 	usage := q.pending.Load()
-	usedBytes := usage.bytes
-	if usedBytes > q.maxBytes {
-		return ErrFull
+	if usage.bytes > q.maxBytes {
+		return errFull
 	}
-	availableBytes := q.maxBytes - usedBytes
+	availableBytes := q.maxBytes - usage.bytes
+
 	batch := new(wal.Batch)
 	var batchBytes int64
 	for i, record := range records {
@@ -103,11 +108,12 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 		}
 		recordBytes := int64(len(value))
 		if recordBytes > availableBytes-batchBytes {
-			return ErrFull
+			return errFull
 		}
 		batchBytes += recordBytes
 		batch.Write(last+uint64(i)+1, value)
 	}
+
 	if err := q.log.WriteBatch(batch); err != nil {
 		return fmt.Errorf("append disk queue: %w", err)
 	}
@@ -115,6 +121,7 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 		records: usage.records + int64(len(records)),
 		bytes:   usage.bytes + batchBytes,
 	})
+
 	return nil
 }
 
@@ -130,6 +137,7 @@ func (q *Queue) Read(ctx context.Context, limit int) (biz.QueuedBatch, error) {
 	if limit <= 0 {
 		return biz.QueuedBatch{}, errors.New("disk queue read limit must be greater than zero")
 	}
+
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -164,16 +172,20 @@ func (q *Queue) Read(ctx context.Context, limit int) (biz.QueuedBatch, error) {
 			break
 		}
 	}
+
 	return biz.QueuedBatch{Records: records, LastSequence: end, Bytes: bytes}, nil
 }
 
 // Commit 删除已经成功写入 Kafka 的连续队首记录。
+// 截断 WAL 前重新核对序号、记录数和字节数，避免错误批次确认其他尚未投递的数据。
 func (q *Queue) Commit(ctx context.Context, batch biz.QueuedBatch) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+
 	q.mu.Lock()
 	defer q.mu.Unlock()
+
 	first, err := q.log.FirstIndex()
 	if err != nil {
 		return fmt.Errorf("read first queue index: %w", err)
@@ -185,20 +197,30 @@ func (q *Queue) Commit(ctx context.Context, batch biz.QueuedBatch) error {
 	if batch.LastSequence < first || batch.LastSequence > last {
 		return fmt.Errorf("commit disk queue sequence %d outside [%d, %d]", batch.LastSequence, first, last)
 	}
+
 	committedRecords := int64(batch.LastSequence - first + 1)
 	usage := q.pending.Load()
 	if committedRecords > usage.records ||
-		int64(len(batch.Records)) != committedRecords ||
-		batch.Bytes <= 0 || batch.Bytes > usage.bytes {
+		int64(len(batch.Records)) != committedRecords {
+		return errors.New("commit disk queue batch metadata is inconsistent")
+	}
+
+	var committedBytes int64
+	for _, record := range batch.Records {
+		committedBytes += int64(proto.Size(record))
+	}
+	if batch.Bytes <= 0 || batch.Bytes != committedBytes || batch.Bytes > usage.bytes {
 		return errors.New("commit disk queue batch metadata is inconsistent")
 	}
 	if err := q.log.TruncateFront(batch.LastSequence + 1); err != nil {
 		return fmt.Errorf("truncate disk queue: %w", err)
 	}
+
 	q.pending.Store(&pendingUsage{
 		records: usage.records - committedRecords,
 		bytes:   usage.bytes - batch.Bytes,
 	})
+
 	return nil
 }
 
@@ -225,6 +247,7 @@ func scanPendingUsage(queueLog *wal.Log) (pendingUsage, error) {
 	if err != nil {
 		return pendingUsage{}, fmt.Errorf("read last queue index: %w", err)
 	}
+
 	var usage pendingUsage
 	for index := first; index <= last; index++ {
 		value, err := queueLog.Read(index)
@@ -246,5 +269,6 @@ func scanPendingUsage(queueLog *wal.Log) (pendingUsage, error) {
 			break
 		}
 	}
+
 	return usage, nil
 }

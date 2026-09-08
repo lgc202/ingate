@@ -36,6 +36,15 @@ Envoy ALS → Ingate ALS → Kafka → Analytics → ClickHouse
 
 因此请求成功后，列表出现记录可能有短暂延迟。Kafka 或 ClickHouse 故障不影响同步转发，但会增加延迟；ALS 会在 Kafka 不可用时先写本地 WAL，恢复后重放。
 
+## ALS 可靠性模式
+
+ALS 不会自动创建 Kafka Topic。部署前应创建请求记录 Topic，并根据环境选择可靠性模式：
+
+- `DEVELOPMENT` 接受副本数 1、`min.insync.replicas` 1，适合本地单 Broker。
+- `PRODUCTION` 要求每个分区至少 3 个副本、`min.insync.replicas` 至少为 2，并要求 WAL 开启 `sync`。
+
+两种模式都使用幂等 Producer 和 `acks=all`。ALS 启动时检查 Topic，之后每分钟刷新一次缓存；生产模式发现 Topic 明确不满足契约时停止直写，并让 `/readyz` 返回 503。Kafka 暂时不可达但 WAL 仍可写时，ALS 保持就绪并进入降级采集，避免可观测链路故障影响业务流量。
+
 ## 保留时间
 
 请求明细默认保留 30 天，由 Analytics 的 ClickHouse retention 配置控制。长期趋势使用独立聚合表，不依赖无限期保存明细。

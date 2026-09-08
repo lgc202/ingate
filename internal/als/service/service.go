@@ -33,6 +33,8 @@ func NewService(recorder *biz.Recorder, logger *slog.Logger) *Service {
 }
 
 // StreamAccessLogs 持续接收 Envoy 批量发送的 HTTP access log。
+// ALS 协议没有逐批确认；仅当 Kafka 和磁盘队列都无法接收记录时终止流，
+// 让 Envoy 通过重连重试，而单条无效记录只计入丢弃指标并保留同批有效记录。
 func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_StreamAccessLogsServer) error {
 	var nodeID string
 	for {
@@ -43,10 +45,12 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 		if err != nil {
 			return err
 		}
+
 		nodeID, err = accessLogNodeID(nodeID, message)
 		if err != nil {
 			return err
 		}
+
 		if tcpLogs := message.GetTcpLogs(); tcpLogs != nil {
 			// Ingate 当前只代理 HTTP 流量，忽略意外的 TCP 记录比主动断开整条 ALS 流更安全。
 			s.recorder.Discard(len(tcpLogs.GetLogEntry()))
@@ -56,6 +60,7 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 		if len(entries) == 0 {
 			continue
 		}
+
 		records, discardedCount, firstParseErr := parseRequestRecords(nodeID, entries)
 		if discardedCount > 0 {
 			s.recorder.Discard(discardedCount)
@@ -70,14 +75,8 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 		if len(records) == 0 {
 			continue
 		}
+
 		if err := s.recorder.Write(stream.Context(), records); err != nil {
-			s.logger.ErrorContext(
-				stream.Context(),
-				"request record batch rejected",
-				"err", err,
-				"records", len(records),
-				"envoy_node_id", nodeID,
-			)
 			return status.Error(codes.Unavailable, "request record storage is unavailable")
 		}
 	}

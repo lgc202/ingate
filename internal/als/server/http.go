@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 
@@ -18,7 +17,6 @@ import (
 // NewHTTPServer 创建健康检查、就绪检查和 Prometheus 指标服务。
 func NewHTTPServer(
 	serverConfig *conf.Server,
-	kafkaConfig *conf.Data_Kafka,
 	queueConfig *conf.Data_DiskQueue,
 	recorder *biz.Recorder,
 	tracing *telemetry.Tracing,
@@ -30,7 +28,7 @@ func NewHTTPServer(
 		kratoshttp.Timeout(httpConfig.GetTimeout().AsDuration()),
 	)
 	server.HandleFunc("/healthz", health)
-	server.HandleFunc("/readyz", ready(kafkaConfig, queueConfig, recorder))
+	server.HandleFunc("/readyz", ready(queueConfig, recorder))
 	server.Handle("/metrics", metricsHandler(recorder, tracing, queueConfig.GetMaxBytes()))
 	return server
 }
@@ -39,38 +37,48 @@ func health(response http.ResponseWriter, _ *http.Request) {
 	writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// ready 在 Kafka 可直写或磁盘队列可承接记录时报告就绪。
+// 已确认的弱拓扑属于部署错误并返回不可用；Kafka 暂时不可达时则允许 WAL 维持服务。
 func ready(
-	kafkaConfig *conf.Data_Kafka,
 	queueConfig *conf.Data_DiskQueue,
 	recorder *biz.Recorder,
 ) http.HandlerFunc {
-	return func(response http.ResponseWriter, request *http.Request) {
-		ctx, cancel := context.WithTimeout(request.Context(), kafkaConfig.GetReadinessTimeout().AsDuration())
-		defer cancel()
-		deliveryStatus := recorder.DeliveryStatus()
-		kafkaErr := recorder.CheckKafka(ctx)
-		queueFull := deliveryStatus.PendingBytes >= queueConfig.GetMaxBytes()
-		canQueue := deliveryStatus.QueueWritable && !queueFull
-		canWriteKafka := kafkaErr == nil && !deliveryStatus.Spooling
-		if !canWriteKafka && !canQueue {
+	return func(response http.ResponseWriter, _ *http.Request) {
+		status := recorder.Status()
+		if status.Topic.Checked && !status.Topic.Compliant {
 			writeJSON(response, http.StatusServiceUnavailable, map[string]any{
-				"status":          "unavailable",
-				"delivery":        "none",
-				"pending_records": deliveryStatus.PendingRecords,
-				"pending_bytes":   deliveryStatus.PendingBytes,
+				"status":              "unavailable",
+				"write_target":        "none",
+				"topic_contract":      "noncompliant",
+				"replication_factor":  status.Topic.ReplicationFactor,
+				"min_insync_replicas": status.Topic.MinInSyncReplicas,
+				"pending_records":     status.PendingRecords,
+				"pending_bytes":       status.PendingBytes,
 			})
 			return
 		}
-		delivery := "kafka"
+		queueFull := status.PendingBytes >= queueConfig.GetMaxBytes()
+		canQueue := status.QueueWritable && !queueFull
+		canWriteKafka := status.Topic.Compliant && !status.Spooling
+		if !canWriteKafka && !canQueue {
+			writeJSON(response, http.StatusServiceUnavailable, map[string]any{
+				"status":          "unavailable",
+				"write_target":    "none",
+				"pending_records": status.PendingRecords,
+				"pending_bytes":   status.PendingBytes,
+			})
+			return
+		}
+		target := "kafka"
 		if !canWriteKafka {
 			// Kafka 短暂故障不应立即摘除 ALS；只要磁盘队列仍可写，组件就能继续无损接收记录
-			delivery = "disk_queue"
+			target = "disk_queue"
 		}
 		writeJSON(response, http.StatusOK, map[string]any{
 			"status":          "ready",
-			"delivery":        delivery,
-			"pending_records": deliveryStatus.PendingRecords,
-			"pending_bytes":   deliveryStatus.PendingBytes,
+			"write_target":    target,
+			"pending_records": status.PendingRecords,
+			"pending_bytes":   status.PendingBytes,
 		})
 	}
 }
@@ -89,43 +97,43 @@ func metricsHandler(
 			Subsystem: "als",
 			Name:      "records_accepted_total",
 			Help:      "Request records accepted by Kafka or the disk queue.",
-		}, func() float64 { return float64(recorder.DeliveryCounters().Accepted) }),
+		}, func() float64 { return float64(recorder.Counters().Accepted) }),
 		prometheus.NewCounterFunc(prometheus.CounterOpts{
 			Namespace: "ingate",
 			Subsystem: "als",
 			Name:      "records_queued_total",
 			Help:      "Request records written to the disk queue.",
-		}, func() float64 { return float64(recorder.DeliveryCounters().Queued) }),
+		}, func() float64 { return float64(recorder.Counters().Queued) }),
 		prometheus.NewCounterFunc(prometheus.CounterOpts{
 			Namespace: "ingate",
 			Subsystem: "als",
 			Name:      "records_replayed_total",
 			Help:      "Queued request records replayed to Kafka.",
-		}, func() float64 { return float64(recorder.DeliveryCounters().Replayed) }),
+		}, func() float64 { return float64(recorder.Counters().Replayed) }),
 		prometheus.NewCounterFunc(prometheus.CounterOpts{
 			Namespace: "ingate",
 			Subsystem: "als",
 			Name:      "records_rejected_total",
 			Help:      "Request records rejected because Kafka and the disk queue were unavailable.",
-		}, func() float64 { return float64(recorder.DeliveryCounters().Rejected) }),
+		}, func() float64 { return float64(recorder.Counters().Rejected) }),
 		prometheus.NewCounterFunc(prometheus.CounterOpts{
 			Namespace: "ingate",
 			Subsystem: "als",
 			Name:      "records_discarded_total",
 			Help:      "Malformed or unsupported access log records discarded at the protocol boundary.",
-		}, func() float64 { return float64(recorder.DeliveryCounters().Discarded) }),
+		}, func() float64 { return float64(recorder.Counters().Discarded) }),
 		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 			Namespace: "ingate",
 			Subsystem: "als",
 			Name:      "disk_queue_records",
 			Help:      "Request records currently waiting in the disk queue.",
-		}, func() float64 { return float64(recorder.DeliveryStatus().PendingRecords) }),
+		}, func() float64 { return float64(recorder.Status().PendingRecords) }),
 		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 			Namespace: "ingate",
 			Subsystem: "als",
 			Name:      "disk_queue_bytes",
 			Help:      "Protobuf payload bytes currently waiting in the disk queue.",
-		}, func() float64 { return float64(recorder.DeliveryStatus().PendingBytes) }),
+		}, func() float64 { return float64(recorder.Status().PendingBytes) }),
 		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 			Namespace: "ingate",
 			Subsystem: "als",
@@ -137,13 +145,13 @@ func metricsHandler(
 			Subsystem: "als",
 			Name:      "spooling",
 			Help:      "Whether new request records are currently being written to the disk queue.",
-		}, func() float64 { return boolMetric(recorder.DeliveryStatus().Spooling) }),
+		}, func() float64 { return boolMetric(recorder.Status().Spooling) }),
 		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 			Namespace: "ingate",
 			Subsystem: "als",
 			Name:      "kafka_writable",
-			Help:      "Whether the latest Kafka delivery operation succeeded.",
-		}, func() float64 { return boolMetric(recorder.DeliveryStatus().KafkaWritable) }),
+			Help:      "Whether the latest Kafka write operation succeeded.",
+		}, func() float64 { return boolMetric(recorder.Status().KafkaWritable) }),
 		prometheus.NewCounterFunc(prometheus.CounterOpts{
 			Namespace:   "ingate",
 			Subsystem:   "telemetry",
