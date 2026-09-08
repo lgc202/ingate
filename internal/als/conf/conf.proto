@@ -104,12 +104,16 @@ message Data {
     int64 segment_bytes = 2;
     // replay_batch_size 是每次重投 Kafka 的最大记录数
     uint32 replay_batch_size = 3;
-    // replay_interval 是 Kafka 故障后再次尝试回放的间隔
-    google.protobuf.Duration replay_interval = 4;
+    reserved 4;
+    reserved "replay_interval";
     // sync 控制每批追加成功前是否执行 fsync；开启后进程崩溃不会丢已确认记录
     bool sync = 5;
     // max_bytes 限制未投递 protobuf 记录的逻辑总字节数，不代表磁盘文件物理占用上限
     int64 max_bytes = 6;
+    // replay_min_backoff 是 Kafka 临时失败后的最短回放等待时间
+    google.protobuf.Duration replay_min_backoff = 7;
+    // replay_max_backoff 是连续失败时回放退避的上限
+    google.protobuf.Duration replay_max_backoff = 8;
   }
   // kafka 是请求记录的主投递链路
   Kafka kafka = 1;

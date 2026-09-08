@@ -27,6 +27,6 @@ type RecordQueue interface {
 	Read(context.Context, int) (QueuedBatch, error)
 	// Commit 只确认已经完整写入 Kafka 的批次。
 	Commit(context.Context, QueuedBatch) error
-	// Pending 返回尚未确认的记录数和 protobuf 字节数。
+	// Pending 从内存快照返回尚未确认的记录数和 protobuf 字节数，不执行磁盘 I/O。
 	Pending() (int64, int64)
 }

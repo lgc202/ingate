@@ -106,8 +106,12 @@ func validateDiskQueue(config *Data_DiskQueue, mode Data_ReliabilityMode) error 
 	if config.GetReplayBatchSize() == 0 {
 		return errors.New("disk queue replay batch size must be greater than zero")
 	}
-	if config.GetReplayInterval() == nil || config.GetReplayInterval().AsDuration() <= 0 {
-		return errors.New("disk queue replay interval must be greater than zero")
+	if config.GetReplayMinBackoff() == nil || config.GetReplayMinBackoff().AsDuration() <= 0 {
+		return errors.New("disk queue replay minimum backoff must be greater than zero")
+	}
+	if config.GetReplayMaxBackoff() == nil ||
+		config.GetReplayMaxBackoff().AsDuration() < config.GetReplayMinBackoff().AsDuration() {
+		return errors.New("disk queue replay maximum backoff must not be less than the minimum")
 	}
 	if mode == Data_PRODUCTION && !config.GetSync() {
 		return errors.New("production reliability mode requires disk queue sync")

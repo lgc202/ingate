@@ -2,25 +2,59 @@ package biz
 
 import "testing"
 
-// TestRecorderStateWaitsForQueuedWrites 验证已准入的队列写入完成前不会恢复 Kafka 直写。
-func TestRecorderStateWaitsForQueuedWrites(t *testing.T) {
+// TestRecorderStateWaitsForInFlightWrites 验证所有故障屏障前后的在途写入完成后才能恢复直写。
+func TestRecorderStateWaitsForInFlightWrites(t *testing.T) {
 	state := newRecorderState(false)
-	if !state.reserveQueueWrite(false) {
-		t.Fatal("recorderState.reserveQueueWrite() = false, want true")
+	if target := state.reserveWrite(true); target != kafkaTarget {
+		t.Fatalf("recorderState.reserveWrite() = %v, want Kafka", target)
+	}
+	if !state.finishKafkaWrite(false) {
+		t.Fatal("recorderState.finishKafkaWrite(first failure) = false, want true")
+	}
+	if target := state.reserveWrite(true); target != queueTarget {
+		t.Fatalf("recorderState.reserveWrite() after failure = %v, want queue", target)
 	}
 
 	if state.resumePublishing(true, func() bool { return true }) {
-		t.Fatal("recorderState.resumePublishing() = true with a queue write in flight, want false")
+		t.Fatal("recorderState.resumePublishing() = true with queue writes in flight, want false")
 	}
 
-	state.completeQueueWrite(true)
+	state.finishQueueWrite(true)
+	state.finishQueueWrite(true)
 	if !state.resumePublishing(true, func() bool { return true }) {
 		t.Fatal("recorderState.resumePublishing() = false after queue drain, want true")
 	}
 }
 
-// TestRecorderStateRequiresEmptyQueue 验证 Topic 合规且队列排空后才能恢复 Kafka 直写。
-func TestRecorderStateRequiresEmptyQueue(t *testing.T) {
+// TestRecorderStateCompletesPreBarrierWrites 验证故障屏障前已准入的 Kafka 写入按各自结果完成。
+func TestRecorderStateCompletesPreBarrierWrites(t *testing.T) {
+	state := newRecorderState(false)
+	for i := range 2 {
+		if target := state.reserveWrite(true); target != kafkaTarget {
+			t.Fatalf("recorderState.reserveWrite() call %d = %v, want Kafka", i+1, target)
+		}
+	}
+
+	if !state.finishKafkaWrite(false) {
+		t.Fatal("recorderState.finishKafkaWrite(first failure) = false, want true")
+	}
+	if state.finishKafkaWrite(false) {
+		t.Fatal("recorderState.finishKafkaWrite(second failure) = true, want false")
+	}
+	if target := state.reserveWrite(true); target != queueTarget {
+		t.Fatalf("recorderState.reserveWrite() beyond barrier = %v, want queue", target)
+	}
+
+	state.finishQueueWrite(true)
+	state.finishQueueWrite(true)
+	state.finishQueueWrite(true)
+	if !state.resumePublishing(true, func() bool { return true }) {
+		t.Fatal("recorderState.resumePublishing() = false after all pre-barrier writes completed")
+	}
+}
+
+// TestRecorderStateRequiresRecoveryConditions 验证 Topic、空队列和永久错误共同约束恢复直写。
+func TestRecorderStateRequiresRecoveryConditions(t *testing.T) {
 	state := newRecorderState(true)
 	if state.resumePublishing(true, func() bool { return false }) {
 		t.Fatal("recorderState.resumePublishing() = true with pending records, want false")
@@ -28,8 +62,10 @@ func TestRecorderStateRequiresEmptyQueue(t *testing.T) {
 	if state.resumePublishing(false, func() bool { return true }) {
 		t.Fatal("recorderState.resumePublishing() = true with a noncompliant topic, want false")
 	}
-	if !state.resumePublishing(true, func() bool { return true }) {
-		t.Fatal("recorderState.resumePublishing() = false with an empty queue and compliant topic, want true")
+
+	state.replayFailed(true)
+	if state.resumePublishing(true, func() bool { return true }) {
+		t.Fatal("recorderState.resumePublishing() = true after permanent replay failure, want false")
 	}
 }
 
@@ -49,16 +85,17 @@ func TestRecorderStateSerializesRecovery(t *testing.T) {
 	}()
 	<-checkingQueue
 
-	queued := make(chan bool, 1)
+	target := make(chan writeTarget, 1)
 	go func() {
-		queued <- state.reserveQueueWrite(true)
+		target <- state.reserveWrite(true)
 	}()
 
 	close(continueRecovery)
 	if !<-recovered {
 		t.Fatal("recorderState.resumePublishing() = false, want true")
 	}
-	if <-queued {
-		t.Fatal("recorderState.reserveQueueWrite() = true after recovery, want false")
+	if got := <-target; got != kafkaTarget {
+		t.Fatalf("recorderState.reserveWrite() after recovery = %v, want Kafka", got)
 	}
+	state.finishKafkaWrite(true)
 }

@@ -681,14 +681,16 @@ type Data_DiskQueue struct {
 	SegmentBytes int64 `protobuf:"varint,2,opt,name=segment_bytes,json=segmentBytes,proto3" json:"segment_bytes,omitempty"`
 	// replay_batch_size 是每次重投 Kafka 的最大记录数
 	ReplayBatchSize uint32 `protobuf:"varint,3,opt,name=replay_batch_size,json=replayBatchSize,proto3" json:"replay_batch_size,omitempty"`
-	// replay_interval 是 Kafka 故障后再次尝试回放的间隔
-	ReplayInterval *durationpb.Duration `protobuf:"bytes,4,opt,name=replay_interval,json=replayInterval,proto3" json:"replay_interval,omitempty"`
 	// sync 控制每批追加成功前是否执行 fsync；开启后进程崩溃不会丢已确认记录
 	Sync bool `protobuf:"varint,5,opt,name=sync,proto3" json:"sync,omitempty"`
 	// max_bytes 限制未投递 protobuf 记录的逻辑总字节数，不代表磁盘文件物理占用上限
-	MaxBytes      int64 `protobuf:"varint,6,opt,name=max_bytes,json=maxBytes,proto3" json:"max_bytes,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	MaxBytes int64 `protobuf:"varint,6,opt,name=max_bytes,json=maxBytes,proto3" json:"max_bytes,omitempty"`
+	// replay_min_backoff 是 Kafka 临时失败后的最短回放等待时间
+	ReplayMinBackoff *durationpb.Duration `protobuf:"bytes,7,opt,name=replay_min_backoff,json=replayMinBackoff,proto3" json:"replay_min_backoff,omitempty"`
+	// replay_max_backoff 是连续失败时回放退避的上限
+	ReplayMaxBackoff *durationpb.Duration `protobuf:"bytes,8,opt,name=replay_max_backoff,json=replayMaxBackoff,proto3" json:"replay_max_backoff,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Data_DiskQueue) Reset() {
@@ -742,13 +744,6 @@ func (x *Data_DiskQueue) GetReplayBatchSize() uint32 {
 	return 0
 }
 
-func (x *Data_DiskQueue) GetReplayInterval() *durationpb.Duration {
-	if x != nil {
-		return x.ReplayInterval
-	}
-	return nil
-}
-
 func (x *Data_DiskQueue) GetSync() bool {
 	if x != nil {
 		return x.Sync
@@ -761,6 +756,20 @@ func (x *Data_DiskQueue) GetMaxBytes() int64 {
 		return x.MaxBytes
 	}
 	return 0
+}
+
+func (x *Data_DiskQueue) GetReplayMinBackoff() *durationpb.Duration {
+	if x != nil {
+		return x.ReplayMinBackoff
+	}
+	return nil
+}
+
+func (x *Data_DiskQueue) GetReplayMaxBackoff() *durationpb.Duration {
+	if x != nil {
+		return x.ReplayMaxBackoff
+	}
+	return nil
 }
 
 type Data_Kafka_SASL struct {
@@ -1120,7 +1129,7 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\x0eclient_ca_file\x18\x04 \x01(\tR\fclientCaFile\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xe7\b\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xcc\t\n" +
 	"\x04Data\x121\n" +
 	"\x05kafka\x18\x01 \x01(\v2\x1b.ingate.als.conf.Data.KafkaR\x05kafka\x12>\n" +
 	"\n" +
@@ -1144,14 +1153,15 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\tcert_file\x18\x03 \x01(\tR\bcertFile\x12\x19\n" +
 	"\bkey_file\x18\x04 \x01(\tR\akeyFile\x12\x1f\n" +
 	"\vserver_name\x18\x05 \x01(\tR\n" +
-	"serverName\x1a\xe5\x01\n" +
+	"serverName\x1a\xca\x02\n" +
 	"\tDiskQueue\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12#\n" +
 	"\rsegment_bytes\x18\x02 \x01(\x03R\fsegmentBytes\x12*\n" +
-	"\x11replay_batch_size\x18\x03 \x01(\rR\x0freplayBatchSize\x12B\n" +
-	"\x0freplay_interval\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\x0ereplayInterval\x12\x12\n" +
+	"\x11replay_batch_size\x18\x03 \x01(\rR\x0freplayBatchSize\x12\x12\n" +
 	"\x04sync\x18\x05 \x01(\bR\x04sync\x12\x1b\n" +
-	"\tmax_bytes\x18\x06 \x01(\x03R\bmaxBytes\"T\n" +
+	"\tmax_bytes\x18\x06 \x01(\x03R\bmaxBytes\x12G\n" +
+	"\x12replay_min_backoff\x18\a \x01(\v2\x19.google.protobuf.DurationR\x10replayMinBackoff\x12G\n" +
+	"\x12replay_max_backoff\x18\b \x01(\v2\x19.google.protobuf.DurationR\x10replayMaxBackoffJ\x04\b\x04\x10\x05R\x0freplay_interval\"T\n" +
 	"\x0fReliabilityMode\x12 \n" +
 	"\x1cRELIABILITY_MODE_UNSPECIFIED\x10\x00\x12\x0f\n" +
 	"\vDEVELOPMENT\x10\x01\x12\x0e\n" +
@@ -1233,15 +1243,16 @@ var file_conf_conf_proto_depIdxs = []int32{
 	15, // 15: ingate.als.conf.Data.Kafka.topic_check_timeout:type_name -> google.protobuf.Duration
 	11, // 16: ingate.als.conf.Data.Kafka.sasl:type_name -> ingate.als.conf.Data.Kafka.SASL
 	12, // 17: ingate.als.conf.Data.Kafka.tls:type_name -> ingate.als.conf.Data.Kafka.TLS
-	15, // 18: ingate.als.conf.Data.DiskQueue.replay_interval:type_name -> google.protobuf.Duration
-	15, // 19: ingate.als.conf.Telemetry.Tracing.batch_timeout:type_name -> google.protobuf.Duration
-	15, // 20: ingate.als.conf.Telemetry.Tracing.export_timeout:type_name -> google.protobuf.Duration
-	14, // 21: ingate.als.conf.Telemetry.Tracing.tls:type_name -> ingate.als.conf.Telemetry.Tracing.TLS
-	22, // [22:22] is the sub-list for method output_type
-	22, // [22:22] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	15, // 18: ingate.als.conf.Data.DiskQueue.replay_min_backoff:type_name -> google.protobuf.Duration
+	15, // 19: ingate.als.conf.Data.DiskQueue.replay_max_backoff:type_name -> google.protobuf.Duration
+	15, // 20: ingate.als.conf.Telemetry.Tracing.batch_timeout:type_name -> google.protobuf.Duration
+	15, // 21: ingate.als.conf.Telemetry.Tracing.export_timeout:type_name -> google.protobuf.Duration
+	14, // 22: ingate.als.conf.Telemetry.Tracing.tls:type_name -> ingate.als.conf.Telemetry.Tracing.TLS
+	23, // [23:23] is the sub-list for method output_type
+	23, // [23:23] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_conf_conf_proto_init() }
