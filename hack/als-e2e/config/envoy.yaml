@@ -1,0 +1,80 @@
+node:
+  # ALS 将节点 ID 纳入稳定记录 ID；演练必须提供真实 Envoy 身份，避免请求只经过代理而未被采集。
+  id: als-e2e
+
+static_resources:
+  listeners:
+    - name: ingress
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8080
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress
+                route_config:
+                  name: local
+                  virtual_hosts:
+                    - name: local
+                      domains: ["*"]
+                      routes:
+                        # 名称沿用 Controller 的生产格式，Cluster 名称则是规范的 Service ID；
+                        # 否则 ALS 会按真实协议规则丢弃记录，演练无法覆盖 WAL 已满后的写入失败。
+                        - name: ingate-route/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002
+                          match: {prefix: "/"}
+                          route: {cluster: 00000000-0000-4000-8000-000000000003}
+                access_log:
+                  - name: envoy.access_loggers.http_grpc
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.grpc.v3.HttpGrpcAccessLogConfig
+                      common_config:
+                        log_name: ingate
+                        grpc_service:
+                          envoy_grpc:
+                            cluster_name: als
+                        transport_api_version: V3
+                        buffer_flush_interval: 0.1s
+                        buffer_size_bytes: 1024
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+  clusters:
+    - name: 00000000-0000-4000-8000-000000000003
+      connect_timeout: 1s
+      type: STRICT_DNS
+      load_assignment:
+        cluster_name: 00000000-0000-4000-8000-000000000003
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: probe
+                      port_value: 8081
+    - name: als
+      connect_timeout: 1s
+      type: STRICT_DNS
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
+      load_assignment:
+        cluster_name: als
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: als
+                      port_value: 18091
+
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901

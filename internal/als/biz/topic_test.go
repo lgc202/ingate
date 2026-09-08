@@ -30,6 +30,15 @@ func TestTopicContract(t *testing.T) {
 			},
 		},
 		{
+			name: "minimum ISR exceeds replicas",
+			mode: ReliabilityDevelopment,
+			topology: TopicTopology{
+				Exists:            true,
+				ReplicationFactor: 1,
+				MinInSyncReplicas: 2,
+			},
+		},
+		{
 			name: "replicated topic in production",
 			mode: ReliabilityProduction,
 			topology: TopicTopology{

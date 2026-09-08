@@ -1,0 +1,44 @@
+server:
+  grpc:
+    addr: "0.0.0.0:18091"
+    tls:
+      enabled: false
+  http:
+    addr: "0.0.0.0:18092"
+    timeout: "5s"
+  shutdown_timeout: "10s"
+
+data:
+  reliability_mode: "DEVELOPMENT"
+  kafka:
+    brokers: ["kafka:9092"]
+    topic: "ingate.request-records"
+    write_timeout: "2s"
+    dial_timeout: "1s"
+    topic_check_timeout: "1s"
+  disk_queue:
+    path: "${ALS_QUEUE_PATH:/work/data/queue}"
+    # 小容量只用于快速触发演练；生产容量仍由正式部署配置决定。
+    segment_bytes: 65536
+    capacity_bytes: 1048576
+    min_free_bytes: 0
+    replay_batch_size: 100
+    replay_min_backoff: "0.1s"
+    replay_max_backoff: "1s"
+    sync: true
+
+logging:
+  format: "json"
+  level: "info"
+  add_source: false
+
+telemetry:
+  environment: "als-e2e"
+  tracing:
+    endpoint: "otel-collector:4317"
+    insecure: true
+    sample_ratio: 1.0
+    max_queue_size: 512
+    export_batch_size: 32
+    batch_timeout: "0.1s"
+    export_timeout: "2s"

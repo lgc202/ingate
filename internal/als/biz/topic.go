@@ -83,6 +83,11 @@ func (c *TopicContract) Status() TopicStatus {
 }
 
 func (c *TopicContract) compliant(topology TopicTopology) bool {
+	// min.insync.replicas 高于副本数时，任何 acks=all 写入都不可能成功；
+	// 即使开发模式允许单副本，也不能把这种自相矛盾的拓扑视为可写。
+	if topology.MinInSyncReplicas > topology.ReplicationFactor {
+		return false
+	}
 	if c.mode == ReliabilityProduction {
 		return topology.ReplicationFactor >= productionReplicationFactor &&
 			topology.MinInSyncReplicas >= productionMinISR
