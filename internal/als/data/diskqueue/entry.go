@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/propagation"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
@@ -19,9 +20,10 @@ const currentFormatVersion uint32 = 1
 var castagnoliTable = crc32.MakeTable(crc32.Castagnoli)
 
 type decodedEntry struct {
-	records    []*alsv1.RequestRecord
-	bytes      int64
-	enqueuedAt time.Time
+	records     []*alsv1.RequestRecord
+	bytes       int64
+	enqueuedAt  time.Time
+	spanContext oteltrace.SpanContext
 }
 
 // encodeEntry 将一个已校验的请求批次封装为带版本和 CRC32C 的持久条目。
@@ -88,10 +90,20 @@ func decodeEntry(value []byte) (decodedEntry, error) {
 		return decodedEntry{}, err
 	}
 	return decodedEntry{
-		records:    records,
-		bytes:      bytes,
-		enqueuedAt: time.Unix(0, entry.GetEnqueuedAtUnixNano()).UTC(),
+		records:     records,
+		bytes:       bytes,
+		enqueuedAt:  time.Unix(0, entry.GetEnqueuedAtUnixNano()).UTC(),
+		spanContext: extractSpanContext(entry),
 	}, nil
+}
+
+func extractSpanContext(entry *QueueEntry) oteltrace.SpanContext {
+	carrier := propagation.MapCarrier{
+		"traceparent": entry.GetTraceparent(),
+		"tracestate":  entry.GetTracestate(),
+	}
+	ctx := propagation.TraceContext{}.Extract(context.Background(), carrier)
+	return oteltrace.SpanContextFromContext(ctx)
 }
 
 func validateEntry(entry *QueueEntry) error {

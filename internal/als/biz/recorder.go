@@ -152,8 +152,27 @@ func (r *Recorder) ReplayBatch(ctx context.Context, limit int) (ReplayResult, er
 
 	r.state.queueSucceeded()
 	r.committed.Add(uint64(len(batch.Records)))
+	// 最后一批应在当前回放 Trace 内完成状态恢复，便于恢复日志与故障链路关联。
+	r.finishReplay(ctx)
 
 	return ReplayCommitted, nil
+}
+
+// PrepareReplay 在创建回放 Trace 前确认 Kafka 合规且队列已有积压。
+// 队列为空时同步完成直写恢复；并发追加会通过在途计数阻止错误恢复，并留待下一轮回放。
+func (r *Recorder) PrepareReplay(ctx context.Context) bool {
+	if !r.topic.Status().Compliant {
+		r.state.pausePublishing()
+		return false
+	}
+	pending, _ := r.queue.Pending()
+	if pending > 0 {
+		return true
+	}
+
+	r.state.queueSucceeded()
+	r.finishReplay(ctx)
+	return false
 }
 
 // Status 返回无需访问外部系统即可读取的 Recorder 状态。

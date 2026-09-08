@@ -23,28 +23,29 @@ import (
 func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, tracing *telemetry.Tracing, alsServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
 	data_Kafka := confData.Kafka
 	eventCollector := metrics.NewEventCollector()
-	client, cleanup, err := data.NewKafkaClient(data_Kafka, eventCollector)
+	tracer := newTracer(tracing)
+	client, cleanup, err := data.NewKafkaClient(data_Kafka, eventCollector, tracer)
 	if err != nil {
 		return nil, nil, err
 	}
 	data_ReliabilityMode := confData.ReliabilityMode
 	topicContract := newTopicContract(data_ReliabilityMode)
 	data_DiskQueue := confData.DiskQueue
-	queue, cleanup2, err := data.NewDiskQueue(data_DiskQueue, logger)
+	queue, cleanup2, err := data.NewDiskQueue(data_DiskQueue, logger, tracer)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
 	recorder := biz.NewRecorder(client, topicContract, queue, logger)
 	httpServer := server.NewHTTPServer(confServer, recorder, eventCollector, tracing)
-	serviceService := service.NewService(recorder, eventCollector, logger)
+	serviceService := service.NewService(recorder, eventCollector, logger, tracer)
 	grpcServer, err := server.NewGRPCServer(confServer, serviceService, tracing)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	diskQueueReplayer := server.NewDiskQueueReplayer(data_DiskQueue, recorder, eventCollector, logger)
+	diskQueueReplayer := server.NewDiskQueueReplayer(data_DiskQueue, recorder, eventCollector, logger, tracer)
 	topicMonitor := server.NewTopicMonitor(data_Kafka, client, topicContract, logger)
 	app := newKratosApp(logger, confServer, httpServer, grpcServer, diskQueueReplayer, topicMonitor, alsServiceInstanceID)
 	return app, func() {

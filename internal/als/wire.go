@@ -32,6 +32,7 @@ func wireApp(
 		service.ProviderSet,
 		server.ProviderSet,
 		newTopicContract,
+		newTracer,
 		newKratosApp,
 	))
 }
