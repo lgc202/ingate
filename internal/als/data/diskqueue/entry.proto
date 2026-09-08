@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package ingate.als.diskqueue;
+
+option go_package = "github.com/lgc202/ingate/internal/als/data/diskqueue;diskqueue";
+
+// QueueEntry 是一个 Envoy 批次在 WAL 中的持久化格式
+message QueueEntry {
+  // format_version 用于拒绝当前实现无法安全解释的持久数据
+  uint32 format_version = 1;
+  // enqueued_at_unix_nano 是批次完成持久化编码时的 Unix 纳秒时间
+  int64 enqueued_at_unix_nano = 2;
+  // records 保留已经校验的 RequestRecord protobuf 及其稳定 ID
+  repeated bytes records = 3;
+  // traceparent 保存接收批次时的 W3C Trace Context
+  string traceparent = 4;
+  // tracestate 保存与 traceparent 配套的可选 W3C Trace State
+  string tracestate = 5;
+  // crc32c 校验除自身之外的确定性 protobuf 编码
+  fixed32 crc32c = 6;
+}

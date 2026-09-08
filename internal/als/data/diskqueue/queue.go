@@ -1,4 +1,4 @@
-// Package diskqueue 使用 tidwall/wal 实现请求记录的本地磁盘队列。
+// Package diskqueue 使用 tidwall/wal 保存版本化、可校验的请求记录批次。
 package diskqueue
 
 import (
@@ -8,9 +8,9 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/tidwall/wal"
-	"google.golang.org/protobuf/proto"
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	"github.com/lgc202/ingate/internal/als/biz"
@@ -31,39 +31,52 @@ type pendingUsage struct {
 // Pending 则从原子快照读取，避免健康检查和指标采集阻塞 WAL 操作。
 type Queue struct {
 	log      *wal.Log
+	lock     *directoryLock
 	maxBytes int64
 	mu       sync.Mutex
 	pending  atomic.Pointer[pendingUsage]
 }
 
-// NewQueue 打开本地磁盘队列，允许已确认记录全部清空。
+// NewQueue 排他打开本地磁盘队列，允许已确认记录全部清空。
 //
 // 启动时扫描未确认记录恢复计数；队列损坏会直接阻止服务启动，
 // 避免悄悄跳过尚未投递的数据。
 func NewQueue(config *conf.Data_DiskQueue) (*Queue, error) {
+	lock, err := lockDirectory(config.GetPath())
+	if err != nil {
+		return nil, err
+	}
+	if err := restrictExistingFiles(config.GetPath()); err != nil {
+		return nil, errors.Join(err, lock.Close())
+	}
+
+	// tidwall/wal 在 NoSync=false 时只有追加和文件同步都成功才从 Write 返回。
 	queueLog, err := wal.Open(config.GetPath(), &wal.Options{
 		NoSync:           !config.GetSync(),
 		SegmentSize:      int(config.GetSegmentBytes()),
 		LogFormat:        wal.Binary,
 		SegmentCacheSize: 2,
 		AllowEmpty:       true,
+		DirPerms:         directoryMode,
+		FilePerms:        fileMode,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("open disk queue: %w", err)
+		return nil, errors.Join(fmt.Errorf("open disk queue: %w", err), lock.Close())
 	}
 	usage, err := scanPendingUsage(queueLog)
 	if err != nil {
-		if closeErr := queueLog.Close(); closeErr != nil {
-			return nil, errors.Join(err, fmt.Errorf("close disk queue after scan failed: %w", closeErr))
-		}
-		return nil, err
+		return nil, errors.Join(err, queueLog.Close(), lock.Close())
 	}
-	queue := &Queue{log: queueLog, maxBytes: config.GetMaxBytes()}
+	queue := &Queue{
+		log:      queueLog,
+		lock:     lock,
+		maxBytes: config.GetMaxBytes(),
+	}
 	queue.pending.Store(&usage)
 	return queue, nil
 }
 
-// Write 以连续序号把一批请求记录原子追加到磁盘。
+// Write 将一个请求记录批次编码为单个 WAL 条目并原子追加到磁盘。
 //
 // max_bytes 约束的是尚未确认记录的 protobuf 字节数，
 // 队列索引和预分配空间不计入该逻辑配额。
@@ -72,18 +85,23 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 		return err
 	}
 	if len(records) == 0 {
-		return nil
+		return errors.New("disk queue batch must contain at least one request record")
 	}
 
 	q.mu.Lock()
 	defer q.mu.Unlock()
+
+	value, batchBytes, err := encodeEntry(ctx, records, time.Now())
+	if err != nil {
+		return err
+	}
 
 	last, err := q.log.LastIndex()
 	if err != nil {
 		return fmt.Errorf("read last queue index: %w", err)
 	}
 	// 最大序列号留作 TruncateFront 清空队列时的右边界，避免确认位置加一溢出。
-	if uint64(len(records)) >= math.MaxUint64-last {
+	if last == math.MaxUint64 {
 		return errors.New("disk queue sequence is exhausted")
 	}
 
@@ -92,29 +110,11 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 		return errFull
 	}
 	availableBytes := q.maxBytes - usage.bytes
-
-	batch := new(wal.Batch)
-	var batchBytes int64
-	for i, record := range records {
-		if record == nil {
-			return errors.New("disk queue cannot store a nil request record")
-		}
-		value, err := proto.Marshal(record)
-		if err != nil {
-			return fmt.Errorf("marshal request record: %w", err)
-		}
-		if len(value) == 0 {
-			return errors.New("disk queue cannot store an empty request record")
-		}
-		recordBytes := int64(len(value))
-		if recordBytes > availableBytes-batchBytes {
-			return errFull
-		}
-		batchBytes += recordBytes
-		batch.Write(last+uint64(i)+1, value)
+	if batchBytes > availableBytes {
+		return errFull
 	}
 
-	if err := q.log.WriteBatch(batch); err != nil {
+	if err := q.log.Write(last+1, value); err != nil {
 		return fmt.Errorf("append disk queue: %w", err)
 	}
 	q.pending.Store(&pendingUsage{
@@ -126,6 +126,7 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 }
 
 // Read 从队首读取最多 limit 条记录，只有 Commit 后记录才会移除。
+// 单个 WAL 条目超过 limit 时仍会完整返回，批次不会因回放限制而被拆开或永久阻塞。
 //
 // Read 和 Commit 分离使 Kafka 写入失败时记录仍留在磁盘队列；
 // Kafka 已成功而 Commit 失败时可能重复投递，
@@ -153,27 +154,35 @@ func (q *Queue) Read(ctx context.Context, limit int) (biz.QueuedBatch, error) {
 		return biz.QueuedBatch{}, biz.ErrQueueEmpty
 	}
 
-	count := min(uint64(limit), last-first+1)
-	end := first + count - 1
-	records := make([]*alsv1.RequestRecord, 0, end-first+1)
+	records := make([]*alsv1.RequestRecord, 0, limit)
+	lastSequence := first
 	var bytes int64
 	for sequence := first; ; sequence++ {
 		value, err := q.log.Read(sequence)
 		if err != nil {
 			return biz.QueuedBatch{}, fmt.Errorf("read disk queue sequence %d: %w", sequence, err)
 		}
-		record := new(alsv1.RequestRecord)
-		if err := proto.Unmarshal(value, record); err != nil {
-			return biz.QueuedBatch{}, fmt.Errorf("unmarshal disk queue sequence %d: %w", sequence, err)
+		entryRecords, entryBytes, err := decodeEntry(value)
+		if err != nil {
+			return biz.QueuedBatch{}, fmt.Errorf("decode disk queue sequence %d: %w", sequence, err)
 		}
-		bytes += int64(len(value))
-		records = append(records, record)
-		if sequence == end {
+		if len(records) > 0 && len(records)+len(entryRecords) > limit {
+			break
+		}
+
+		records = append(records, entryRecords...)
+		bytes += entryBytes
+		lastSequence = sequence
+		if len(records) >= limit || sequence == last {
 			break
 		}
 	}
 
-	return biz.QueuedBatch{Records: records, LastSequence: end, Bytes: bytes}, nil
+	return biz.QueuedBatch{
+		Records:      records,
+		LastSequence: lastSequence,
+		Bytes:        bytes,
+	}, nil
 }
 
 // Commit 删除已经成功写入 Kafka 的连续队首记录。
@@ -197,19 +206,20 @@ func (q *Queue) Commit(ctx context.Context, batch biz.QueuedBatch) error {
 	if batch.LastSequence < first || batch.LastSequence > last {
 		return fmt.Errorf("commit disk queue sequence %d outside [%d, %d]", batch.LastSequence, first, last)
 	}
+	if batch.LastSequence == math.MaxUint64 {
+		return errors.New("disk queue sequence is exhausted")
+	}
 
-	committedRecords := int64(batch.LastSequence - first + 1)
-	usage := q.pending.Load()
-	if committedRecords > usage.records ||
-		int64(len(batch.Records)) != committedRecords {
+	committed, err := measureEntries(q.log, first, batch.LastSequence)
+	if err != nil {
+		return err
+	}
+	if committed.records != int64(len(batch.Records)) || committed.bytes != batch.Bytes {
 		return errors.New("commit disk queue batch metadata is inconsistent")
 	}
 
-	var committedBytes int64
-	for _, record := range batch.Records {
-		committedBytes += int64(proto.Size(record))
-	}
-	if batch.Bytes <= 0 || batch.Bytes != committedBytes || batch.Bytes > usage.bytes {
+	usage := q.pending.Load()
+	if committed.records == 0 || committed.records > usage.records || committed.bytes > usage.bytes {
 		return errors.New("commit disk queue batch metadata is inconsistent")
 	}
 	if err := q.log.TruncateFront(batch.LastSequence + 1); err != nil {
@@ -217,8 +227,8 @@ func (q *Queue) Commit(ctx context.Context, batch biz.QueuedBatch) error {
 	}
 
 	q.pending.Store(&pendingUsage{
-		records: usage.records - committedRecords,
-		bytes:   usage.bytes - batch.Bytes,
+		records: usage.records - committed.records,
+		bytes:   usage.bytes - committed.bytes,
 	})
 
 	return nil
@@ -230,9 +240,9 @@ func (q *Queue) Pending() (int64, int64) {
 	return usage.records, usage.bytes
 }
 
-// Close 将磁盘队列缓冲同步并关闭文件。
+// Close 将磁盘队列缓冲同步并关闭文件，同时释放目录排他锁。
 func (q *Queue) Close() error {
-	if err := q.log.Close(); err != nil {
+	if err := errors.Join(q.log.Close(), q.lock.Close()); err != nil {
 		return fmt.Errorf("close disk queue: %w", err)
 	}
 	return nil
@@ -247,25 +257,26 @@ func scanPendingUsage(queueLog *wal.Log) (pendingUsage, error) {
 	if err != nil {
 		return pendingUsage{}, fmt.Errorf("read last queue index: %w", err)
 	}
+	return measureEntries(queueLog, first, last)
+}
 
+func measureEntries(queueLog *wal.Log, first, last uint64) (pendingUsage, error) {
 	var usage pendingUsage
-	for index := first; index <= last; index++ {
-		value, err := queueLog.Read(index)
+	for sequence := first; sequence <= last; sequence++ {
+		value, err := queueLog.Read(sequence)
 		if err != nil {
-			return pendingUsage{}, fmt.Errorf("read disk queue sequence %d: %w", index, err)
+			return pendingUsage{}, fmt.Errorf("read disk queue sequence %d: %w", sequence, err)
 		}
-		if len(value) == 0 {
-			return pendingUsage{}, fmt.Errorf("disk queue sequence %d is empty", index)
+		records, bytes, err := decodeEntry(value)
+		if err != nil {
+			return pendingUsage{}, fmt.Errorf("decode disk queue sequence %d: %w", sequence, err)
 		}
-		if err := proto.Unmarshal(value, new(alsv1.RequestRecord)); err != nil {
-			return pendingUsage{}, fmt.Errorf("unmarshal disk queue sequence %d: %w", index, err)
-		}
-		if usage.records == math.MaxInt64 || int64(len(value)) > math.MaxInt64-usage.bytes {
+		if int64(len(records)) > math.MaxInt64-usage.records || bytes > math.MaxInt64-usage.bytes {
 			return pendingUsage{}, errors.New("disk queue usage exceeds the supported range")
 		}
-		usage.records++
-		usage.bytes += int64(len(value))
-		if index == last {
+		usage.records += int64(len(records))
+		usage.bytes += bytes
+		if sequence == last {
 			break
 		}
 	}
