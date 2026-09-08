@@ -35,6 +35,7 @@ func parseRequestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) 
 	if common == nil || request == nil || response == nil || common.GetStartTime() == nil {
 		return nil, errors.New("HTTP access log entry is incomplete")
 	}
+
 	logType := common.GetAccessLogType()
 	if logType != accesslogdata.AccessLogType_NotSet && logType != accesslogdata.AccessLogType_DownstreamEnd {
 		// 周期日志描述尚未完成的请求，若与结束日志同时入库会重复计量请求量和 Token。
@@ -56,6 +57,7 @@ func parseRequestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) 
 	if err != nil {
 		return nil, fmt.Errorf("HTTP access log response size: %w", err)
 	}
+
 	aiMetadata := metadataFields(common.GetMetadata(), aiprotocol.MetadataNamespace)
 	authzMetadata := metadataFields(common.GetMetadata(), extauthz.MetadataNamespace)
 	host := cmp.Or(aiMetadata[aiprotocol.ClientHostField].GetStringValue(), request.GetAuthority())
@@ -89,6 +91,7 @@ func parseRequestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) 
 		record.GetRequestId(),
 		record.GetStartedAt().AsTime(),
 	)
+
 	duration, err := normalizedDuration(common.GetDuration())
 	if err != nil {
 		return nil, fmt.Errorf("HTTP access log duration: %w", err)
@@ -102,12 +105,14 @@ func parseRequestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) 
 		return nil, errors.New("HTTP access log time to first byte exceeds request duration")
 	}
 	record.TimeToFirstByte = timeToFirstByte
+
 	if err := requestrecord.Validate(record); err != nil {
 		return nil, fmt.Errorf("HTTP access log entry: %w", err)
 	}
 	if proto.Size(record) > requestrecord.MaxEncodedBytes {
 		return nil, errors.New("HTTP access log entry exceeds the request record size limit")
 	}
+
 	return record, nil
 }
 
@@ -184,7 +189,7 @@ func httpProtocol(version accesslogdata.HTTPAccessLogEntry_HTTPVersion) string {
 func resourceIDs(routeName string) (string, string, error) {
 	// Controller 生成的 Route 名称格式为 ingate-route/<gateway-id>/<route-id>[/<method>][/<variant>]。
 	parts := strings.Split(routeName, "/")
-	if len(parts) == 0 || parts[0] != envoyRouteNamePrefix {
+	if parts[0] != envoyRouteNamePrefix {
 		return "", "", nil
 	}
 	if len(parts) < 3 ||

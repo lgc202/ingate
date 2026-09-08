@@ -1,75 +1,34 @@
-// Package kafka 通过 franz-go 将请求记录发布到 Kafka。
 package kafka
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 
+	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/protobuf/proto"
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
-	"github.com/lgc202/ingate/internal/als/conf"
-	"github.com/lgc202/ingate/internal/pkg/kafkaclient"
+	"github.com/lgc202/ingate/internal/als/biz"
 	"github.com/lgc202/ingate/internal/pkg/requestrecord"
-	"github.com/lgc202/ingate/internal/pkg/tlsconfig"
 )
-
-// Publisher 将 protobuf 请求记录发布到 Kafka。
-type Publisher struct {
-	client *kgo.Client
-}
-
-// NewPublisher 创建具备幂等生产语义的 Kafka 发布端。
-//
-// franz-go 默认启用幂等 producer；AllISRAcks 使成功返回代表当前 ISR 已确认，
-// ALS 才能据此安全删除磁盘队列中对应的积压记录。
-func NewPublisher(config *conf.Data_Kafka) (*Publisher, error) {
-	client, err := kafkaclient.New(kafkaclient.Config{
-		Brokers:     config.GetBrokers(),
-		DialTimeout: config.GetDialTimeout().AsDuration(),
-		SASL: kafkaclient.SASL{
-			Mechanism: config.GetSasl().GetMechanism(),
-			Username:  config.GetSasl().GetUsername(),
-			Password:  config.GetSasl().GetPassword(),
-		},
-		TLS: tlsconfig.ClientConfig{
-			Enabled:         config.GetTls().GetEnabled(),
-			CAFile:          config.GetTls().GetCaFile(),
-			CertificateFile: config.GetTls().GetCertFile(),
-			PrivateKeyFile:  config.GetTls().GetKeyFile(),
-			ServerName:      config.GetTls().GetServerName(),
-		},
-	},
-		kgo.DefaultProduceTopic(config.GetTopic()),
-		kgo.RequiredAcks(kgo.AllISRAcks()),
-		kgo.ProducerBatchCompression(kgo.ZstdCompression()),
-		kgo.RecordDeliveryTimeout(config.GetWriteTimeout().AsDuration()),
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &Publisher{client: client}, nil
-}
-
-// Ping 验证至少一个 Kafka broker 当前可以完成连接和鉴权。
-func (p *Publisher) Ping(ctx context.Context) error {
-	if err := p.client.Ping(ctx); err != nil {
-		return fmt.Errorf("ping Kafka: %w", err)
-	}
-	return nil
-}
 
 // Publish 同步等待整批记录得到 Kafka 的最终投递结果。
 //
 // 一批消息可能部分成功后返回错误，调用方会把整批写入磁盘队列，
 // 因此消费者仍需按 RequestRecord.id 去重。
-func (p *Publisher) Publish(ctx context.Context, records []*alsv1.RequestRecord) error {
+func (c *Client) Publish(ctx context.Context, records []*alsv1.RequestRecord) biz.PublishResult {
 	messages := make([]*kgo.Record, 0, len(records))
 	for _, record := range records {
 		value, err := proto.Marshal(record)
 		if err != nil {
-			return fmt.Errorf("marshal request record: %w", err)
+			return biz.PublishResult{
+				Failed: len(records),
+				Class:  biz.PublishPermanent,
+				Err:    fmt.Errorf("marshal request record: %w", err),
+			}
 		}
 		messages = append(messages, &kgo.Record{
 			Key:   []byte(record.GetId()),
@@ -80,13 +39,49 @@ func (p *Publisher) Publish(ctx context.Context, records []*alsv1.RequestRecord)
 			},
 		})
 	}
-	if err := p.client.ProduceSync(ctx, messages...).FirstErr(); err != nil {
-		return fmt.Errorf("produce request records: %w", err)
+
+	var result biz.PublishResult
+	for _, produced := range c.kafka.ProduceSync(ctx, messages...) {
+		if produced.Err == nil {
+			result.Confirmed++
+			continue
+		}
+
+		result.Failed++
+		class := classifyPublishError(produced.Err)
+		if class > result.Class {
+			result.Class = class
+			result.Err = fmt.Errorf("produce request records: %w", produced.Err)
+		}
 	}
-	return nil
+
+	return result
 }
 
-// Close 等待客户端结束内部工作并释放连接。
-func (p *Publisher) Close() {
-	p.client.Close()
+// classifyPublishError 先判断记录是否可能已进入 Kafka，再使用 Kafka 的可重试属性。
+// 结果不确定的错误即使可重试，也必须优先归类，因为重试可能产生重复记录。
+func classifyPublishError(err error) biz.PublishClass {
+	switch {
+	case mayHavePublished(err):
+		return biz.PublishUncertain
+	case errors.Is(err, kgo.ErrMaxBuffered),
+		kerr.IsRetriable(err):
+		return biz.PublishTemporary
+	default:
+		return biz.PublishPermanent
+	}
+}
+
+func mayHavePublished(err error) bool {
+	if _, ok := errors.AsType[net.Error](err); ok {
+		return true
+	}
+
+	return errors.Is(err, kgo.ErrRecordTimeout) ||
+		errors.Is(err, kgo.ErrRecordRetries) ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, kerr.RequestTimedOut) ||
+		errors.Is(err, kerr.NetworkException) ||
+		errors.Is(err, kerr.NotEnoughReplicasAfterAppend)
 }

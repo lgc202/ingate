@@ -14,19 +14,21 @@ import (
 
 // ProviderSet 绑定 ALS 业务层的主写入和磁盘队列边界。
 var ProviderSet = wire.NewSet(
-	NewKafkaPublisher,
+	NewKafkaClient,
 	NewDiskQueue,
-	wire.Bind(new(biz.RecordPublisher), new(*kafka.Publisher)),
+	wire.Bind(new(biz.RecordPublisher), new(*kafka.Client)),
+	wire.Bind(new(biz.TopicInspector), new(*kafka.Client)),
 	wire.Bind(new(biz.RecordQueue), new(*diskqueue.Queue)),
 )
 
-// NewKafkaPublisher 创建 Kafka 发布端，并把连接释放交给 Wire cleanup。
-func NewKafkaPublisher(config *conf.Data_Kafka) (*kafka.Publisher, func(), error) {
-	publisher, err := kafka.NewPublisher(config)
+// NewKafkaClient 创建 Kafka 客户端，并把连接释放交给 Wire cleanup。
+func NewKafkaClient(config *conf.Data_Kafka) (*kafka.Client, func(), error) {
+	client, err := kafka.NewClient(config)
 	if err != nil {
 		return nil, nil, err
 	}
-	return publisher, publisher.Close, nil
+
+	return client, client.Close, nil
 }
 
 // NewDiskQueue 打开本地磁盘队列，并把关闭错误统一记录到服务日志。

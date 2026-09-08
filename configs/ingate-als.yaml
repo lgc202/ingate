@@ -12,12 +12,13 @@ server:
   shutdown_timeout: "30s"
 
 data:
+  reliability_mode: "DEVELOPMENT"
   kafka:
     brokers: ["127.0.0.1:9092"]
     topic: "ingate.request-records"
     write_timeout: "5s"
     dial_timeout: "5s"
-    readiness_timeout: "2s"
+    topic_check_timeout: "2s"
     sasl:
       mechanism: ""
       username: ""

@@ -14,6 +14,8 @@ import (
 )
 
 // DiskQueueReplayer 周期性把 Kafka 故障期间写入磁盘队列的请求记录重新投递到 Kafka。
+// Kafka 恢复后由单个循环按队首顺序持续排空积压，避免并发回放打乱确认位置。
+// 生命周期状态允许 Kratos 的 Start 和 Stop 并发到达而不遗留后台任务。
 type DiskQueueReplayer struct {
 	recorder     *biz.Recorder
 	logger       *slog.Logger
@@ -49,6 +51,7 @@ func (r *DiskQueueReplayer) Start(ctx context.Context) error {
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	r.lifecycleMu.Lock()
 	r.cancel = cancel
 	stopping := r.stopping
@@ -62,6 +65,7 @@ func (r *DiskQueueReplayer) Start(ctx context.Context) error {
 		return nil
 	}
 	r.replay(runCtx)
+
 	timer := time.NewTimer(r.interval)
 	defer timer.Stop()
 	for {
@@ -82,11 +86,13 @@ func (r *DiskQueueReplayer) Stop(ctx context.Context) error {
 	r.stopping = true
 	cancel := r.cancel
 	r.lifecycleMu.Unlock()
+
 	if cancel == nil {
 		return nil
 	}
 	// Kafka 写入会继承该取消信号，关闭时无需等待完整的写入超时。
 	cancel()
+
 	select {
 	case <-r.done:
 		return nil

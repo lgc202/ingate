@@ -22,6 +22,58 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type Data_ReliabilityMode int32
+
+const (
+	// RELIABILITY_MODE_UNSPECIFIED 表示未选择可靠性模式
+	Data_RELIABILITY_MODE_UNSPECIFIED Data_ReliabilityMode = 0
+	// DEVELOPMENT 允许单 Broker 本地环境使用副本数 1、min.insync.replicas 1
+	Data_DEVELOPMENT Data_ReliabilityMode = 1
+	// PRODUCTION 要求副本数至少为 3、min.insync.replicas 至少为 2
+	Data_PRODUCTION Data_ReliabilityMode = 2
+)
+
+// Enum value maps for Data_ReliabilityMode.
+var (
+	Data_ReliabilityMode_name = map[int32]string{
+		0: "RELIABILITY_MODE_UNSPECIFIED",
+		1: "DEVELOPMENT",
+		2: "PRODUCTION",
+	}
+	Data_ReliabilityMode_value = map[string]int32{
+		"RELIABILITY_MODE_UNSPECIFIED": 0,
+		"DEVELOPMENT":                  1,
+		"PRODUCTION":                   2,
+	}
+)
+
+func (x Data_ReliabilityMode) Enum() *Data_ReliabilityMode {
+	p := new(Data_ReliabilityMode)
+	*p = x
+	return p
+}
+
+func (x Data_ReliabilityMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Data_ReliabilityMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_conf_conf_proto_enumTypes[0].Descriptor()
+}
+
+func (Data_ReliabilityMode) Type() protoreflect.EnumType {
+	return &file_conf_conf_proto_enumTypes[0]
+}
+
+func (x Data_ReliabilityMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Data_ReliabilityMode.Descriptor instead.
+func (Data_ReliabilityMode) EnumDescriptor() ([]byte, []int) {
+	return file_conf_conf_proto_rawDescGZIP(), []int{2, 0}
+}
+
 // Bootstrap 定义 ingate-als 的完整进程配置
 type Bootstrap struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -165,9 +217,11 @@ type Data struct {
 	// kafka 是请求记录的主投递链路
 	Kafka *Data_Kafka `protobuf:"bytes,1,opt,name=kafka,proto3" json:"kafka,omitempty"`
 	// disk_queue 是 Kafka 不可用时的本地可靠缓冲
-	DiskQueue     *Data_DiskQueue `protobuf:"bytes,2,opt,name=disk_queue,json=diskQueue,proto3" json:"disk_queue,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	DiskQueue *Data_DiskQueue `protobuf:"bytes,2,opt,name=disk_queue,json=diskQueue,proto3" json:"disk_queue,omitempty"`
+	// reliability_mode 决定 Kafka Topic 和 WAL 必须满足的可靠性约束
+	ReliabilityMode Data_ReliabilityMode `protobuf:"varint,3,opt,name=reliability_mode,json=reliabilityMode,proto3,enum=ingate.als.conf.Data_ReliabilityMode" json:"reliability_mode,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Data) Reset() {
@@ -212,6 +266,13 @@ func (x *Data) GetDiskQueue() *Data_DiskQueue {
 		return x.DiskQueue
 	}
 	return nil
+}
+
+func (x *Data) GetReliabilityMode() Data_ReliabilityMode {
+	if x != nil {
+		return x.ReliabilityMode
+	}
+	return Data_RELIABILITY_MODE_UNSPECIFIED
 }
 
 // Logging 定义结构化日志格式与级别
@@ -523,8 +584,8 @@ type Data_Kafka struct {
 	WriteTimeout *durationpb.Duration `protobuf:"bytes,3,opt,name=write_timeout,json=writeTimeout,proto3" json:"write_timeout,omitempty"`
 	// dial_timeout 是单次 Kafka broker 建连超时
 	DialTimeout *durationpb.Duration `protobuf:"bytes,4,opt,name=dial_timeout,json=dialTimeout,proto3" json:"dial_timeout,omitempty"`
-	// readiness_timeout 是就绪检查探测 Kafka 的最长时间
-	ReadinessTimeout *durationpb.Duration `protobuf:"bytes,5,opt,name=readiness_timeout,json=readinessTimeout,proto3" json:"readiness_timeout,omitempty"`
+	// topic_check_timeout 是单次 Topic 契约检查的最长时间
+	TopicCheckTimeout *durationpb.Duration `protobuf:"bytes,5,opt,name=topic_check_timeout,json=topicCheckTimeout,proto3" json:"topic_check_timeout,omitempty"`
 	// sasl 配置 Kafka 身份认证
 	Sasl *Data_Kafka_SASL `protobuf:"bytes,6,opt,name=sasl,proto3" json:"sasl,omitempty"`
 	// tls 配置 Kafka 传输加密和双向认证
@@ -591,9 +652,9 @@ func (x *Data_Kafka) GetDialTimeout() *durationpb.Duration {
 	return nil
 }
 
-func (x *Data_Kafka) GetReadinessTimeout() *durationpb.Duration {
+func (x *Data_Kafka) GetTopicCheckTimeout() *durationpb.Duration {
 	if x != nil {
-		return x.ReadinessTimeout
+		return x.TopicCheckTimeout
 	}
 	return nil
 }
@@ -1059,17 +1120,18 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\x0eclient_ca_file\x18\x04 \x01(\tR\fclientCaFile\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xbc\a\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xe7\b\n" +
 	"\x04Data\x121\n" +
 	"\x05kafka\x18\x01 \x01(\v2\x1b.ingate.als.conf.Data.KafkaR\x05kafka\x12>\n" +
 	"\n" +
-	"disk_queue\x18\x02 \x01(\v2\x1f.ingate.als.conf.Data.DiskQueueR\tdiskQueue\x1a\xd8\x04\n" +
+	"disk_queue\x18\x02 \x01(\v2\x1f.ingate.als.conf.Data.DiskQueueR\tdiskQueue\x12P\n" +
+	"\x10reliability_mode\x18\x03 \x01(\x0e2%.ingate.als.conf.Data.ReliabilityModeR\x0freliabilityMode\x1a\xdb\x04\n" +
 	"\x05Kafka\x12\x18\n" +
 	"\abrokers\x18\x01 \x03(\tR\abrokers\x12\x14\n" +
 	"\x05topic\x18\x02 \x01(\tR\x05topic\x12>\n" +
 	"\rwrite_timeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\fwriteTimeout\x12<\n" +
-	"\fdial_timeout\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\vdialTimeout\x12F\n" +
-	"\x11readiness_timeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\x10readinessTimeout\x124\n" +
+	"\fdial_timeout\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\vdialTimeout\x12I\n" +
+	"\x13topic_check_timeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\x11topicCheckTimeout\x124\n" +
 	"\x04sasl\x18\x06 \x01(\v2 .ingate.als.conf.Data.Kafka.SASLR\x04sasl\x121\n" +
 	"\x03tls\x18\a \x01(\v2\x1f.ingate.als.conf.Data.Kafka.TLSR\x03tls\x1a\\\n" +
 	"\x04SASL\x12\x1c\n" +
@@ -1089,7 +1151,12 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\x11replay_batch_size\x18\x03 \x01(\rR\x0freplayBatchSize\x12B\n" +
 	"\x0freplay_interval\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\x0ereplayInterval\x12\x12\n" +
 	"\x04sync\x18\x05 \x01(\bR\x04sync\x12\x1b\n" +
-	"\tmax_bytes\x18\x06 \x01(\x03R\bmaxBytes\"V\n" +
+	"\tmax_bytes\x18\x06 \x01(\x03R\bmaxBytes\"T\n" +
+	"\x0fReliabilityMode\x12 \n" +
+	"\x1cRELIABILITY_MODE_UNSPECIFIED\x10\x00\x12\x0f\n" +
+	"\vDEVELOPMENT\x10\x01\x12\x0e\n" +
+	"\n" +
+	"PRODUCTION\x10\x02\"V\n" +
 	"\aLogging\x12\x16\n" +
 	"\x06format\x18\x01 \x01(\tR\x06format\x12\x14\n" +
 	"\x05level\x18\x02 \x01(\tR\x05level\x12\x1d\n" +
@@ -1127,51 +1194,54 @@ func file_conf_conf_proto_rawDescGZIP() []byte {
 	return file_conf_conf_proto_rawDescData
 }
 
+var file_conf_conf_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_conf_conf_proto_goTypes = []any{
-	(*Bootstrap)(nil),             // 0: ingate.als.conf.Bootstrap
-	(*Server)(nil),                // 1: ingate.als.conf.Server
-	(*Data)(nil),                  // 2: ingate.als.conf.Data
-	(*Logging)(nil),               // 3: ingate.als.conf.Logging
-	(*Telemetry)(nil),             // 4: ingate.als.conf.Telemetry
-	(*Server_GRPC)(nil),           // 5: ingate.als.conf.Server.GRPC
-	(*Server_HTTP)(nil),           // 6: ingate.als.conf.Server.HTTP
-	(*Server_GRPC_TLS)(nil),       // 7: ingate.als.conf.Server.GRPC.TLS
-	(*Data_Kafka)(nil),            // 8: ingate.als.conf.Data.Kafka
-	(*Data_DiskQueue)(nil),        // 9: ingate.als.conf.Data.DiskQueue
-	(*Data_Kafka_SASL)(nil),       // 10: ingate.als.conf.Data.Kafka.SASL
-	(*Data_Kafka_TLS)(nil),        // 11: ingate.als.conf.Data.Kafka.TLS
-	(*Telemetry_Tracing)(nil),     // 12: ingate.als.conf.Telemetry.Tracing
-	(*Telemetry_Tracing_TLS)(nil), // 13: ingate.als.conf.Telemetry.Tracing.TLS
-	(*durationpb.Duration)(nil),   // 14: google.protobuf.Duration
+	(Data_ReliabilityMode)(0),     // 0: ingate.als.conf.Data.ReliabilityMode
+	(*Bootstrap)(nil),             // 1: ingate.als.conf.Bootstrap
+	(*Server)(nil),                // 2: ingate.als.conf.Server
+	(*Data)(nil),                  // 3: ingate.als.conf.Data
+	(*Logging)(nil),               // 4: ingate.als.conf.Logging
+	(*Telemetry)(nil),             // 5: ingate.als.conf.Telemetry
+	(*Server_GRPC)(nil),           // 6: ingate.als.conf.Server.GRPC
+	(*Server_HTTP)(nil),           // 7: ingate.als.conf.Server.HTTP
+	(*Server_GRPC_TLS)(nil),       // 8: ingate.als.conf.Server.GRPC.TLS
+	(*Data_Kafka)(nil),            // 9: ingate.als.conf.Data.Kafka
+	(*Data_DiskQueue)(nil),        // 10: ingate.als.conf.Data.DiskQueue
+	(*Data_Kafka_SASL)(nil),       // 11: ingate.als.conf.Data.Kafka.SASL
+	(*Data_Kafka_TLS)(nil),        // 12: ingate.als.conf.Data.Kafka.TLS
+	(*Telemetry_Tracing)(nil),     // 13: ingate.als.conf.Telemetry.Tracing
+	(*Telemetry_Tracing_TLS)(nil), // 14: ingate.als.conf.Telemetry.Tracing.TLS
+	(*durationpb.Duration)(nil),   // 15: google.protobuf.Duration
 }
 var file_conf_conf_proto_depIdxs = []int32{
-	1,  // 0: ingate.als.conf.Bootstrap.server:type_name -> ingate.als.conf.Server
-	2,  // 1: ingate.als.conf.Bootstrap.data:type_name -> ingate.als.conf.Data
-	3,  // 2: ingate.als.conf.Bootstrap.logging:type_name -> ingate.als.conf.Logging
-	4,  // 3: ingate.als.conf.Bootstrap.telemetry:type_name -> ingate.als.conf.Telemetry
-	5,  // 4: ingate.als.conf.Server.grpc:type_name -> ingate.als.conf.Server.GRPC
-	6,  // 5: ingate.als.conf.Server.http:type_name -> ingate.als.conf.Server.HTTP
-	14, // 6: ingate.als.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
-	8,  // 7: ingate.als.conf.Data.kafka:type_name -> ingate.als.conf.Data.Kafka
-	9,  // 8: ingate.als.conf.Data.disk_queue:type_name -> ingate.als.conf.Data.DiskQueue
-	12, // 9: ingate.als.conf.Telemetry.tracing:type_name -> ingate.als.conf.Telemetry.Tracing
-	7,  // 10: ingate.als.conf.Server.GRPC.tls:type_name -> ingate.als.conf.Server.GRPC.TLS
-	14, // 11: ingate.als.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	14, // 12: ingate.als.conf.Data.Kafka.write_timeout:type_name -> google.protobuf.Duration
-	14, // 13: ingate.als.conf.Data.Kafka.dial_timeout:type_name -> google.protobuf.Duration
-	14, // 14: ingate.als.conf.Data.Kafka.readiness_timeout:type_name -> google.protobuf.Duration
-	10, // 15: ingate.als.conf.Data.Kafka.sasl:type_name -> ingate.als.conf.Data.Kafka.SASL
-	11, // 16: ingate.als.conf.Data.Kafka.tls:type_name -> ingate.als.conf.Data.Kafka.TLS
-	14, // 17: ingate.als.conf.Data.DiskQueue.replay_interval:type_name -> google.protobuf.Duration
-	14, // 18: ingate.als.conf.Telemetry.Tracing.batch_timeout:type_name -> google.protobuf.Duration
-	14, // 19: ingate.als.conf.Telemetry.Tracing.export_timeout:type_name -> google.protobuf.Duration
-	13, // 20: ingate.als.conf.Telemetry.Tracing.tls:type_name -> ingate.als.conf.Telemetry.Tracing.TLS
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	2,  // 0: ingate.als.conf.Bootstrap.server:type_name -> ingate.als.conf.Server
+	3,  // 1: ingate.als.conf.Bootstrap.data:type_name -> ingate.als.conf.Data
+	4,  // 2: ingate.als.conf.Bootstrap.logging:type_name -> ingate.als.conf.Logging
+	5,  // 3: ingate.als.conf.Bootstrap.telemetry:type_name -> ingate.als.conf.Telemetry
+	6,  // 4: ingate.als.conf.Server.grpc:type_name -> ingate.als.conf.Server.GRPC
+	7,  // 5: ingate.als.conf.Server.http:type_name -> ingate.als.conf.Server.HTTP
+	15, // 6: ingate.als.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	9,  // 7: ingate.als.conf.Data.kafka:type_name -> ingate.als.conf.Data.Kafka
+	10, // 8: ingate.als.conf.Data.disk_queue:type_name -> ingate.als.conf.Data.DiskQueue
+	0,  // 9: ingate.als.conf.Data.reliability_mode:type_name -> ingate.als.conf.Data.ReliabilityMode
+	13, // 10: ingate.als.conf.Telemetry.tracing:type_name -> ingate.als.conf.Telemetry.Tracing
+	8,  // 11: ingate.als.conf.Server.GRPC.tls:type_name -> ingate.als.conf.Server.GRPC.TLS
+	15, // 12: ingate.als.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	15, // 13: ingate.als.conf.Data.Kafka.write_timeout:type_name -> google.protobuf.Duration
+	15, // 14: ingate.als.conf.Data.Kafka.dial_timeout:type_name -> google.protobuf.Duration
+	15, // 15: ingate.als.conf.Data.Kafka.topic_check_timeout:type_name -> google.protobuf.Duration
+	11, // 16: ingate.als.conf.Data.Kafka.sasl:type_name -> ingate.als.conf.Data.Kafka.SASL
+	12, // 17: ingate.als.conf.Data.Kafka.tls:type_name -> ingate.als.conf.Data.Kafka.TLS
+	15, // 18: ingate.als.conf.Data.DiskQueue.replay_interval:type_name -> google.protobuf.Duration
+	15, // 19: ingate.als.conf.Telemetry.Tracing.batch_timeout:type_name -> google.protobuf.Duration
+	15, // 20: ingate.als.conf.Telemetry.Tracing.export_timeout:type_name -> google.protobuf.Duration
+	14, // 21: ingate.als.conf.Telemetry.Tracing.tls:type_name -> ingate.als.conf.Telemetry.Tracing.TLS
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_conf_conf_proto_init() }
@@ -1184,13 +1254,14 @@ func file_conf_conf_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_conf_conf_proto_rawDesc), len(file_conf_conf_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_conf_conf_proto_goTypes,
 		DependencyIndexes: file_conf_conf_proto_depIdxs,
+		EnumInfos:         file_conf_conf_proto_enumTypes,
 		MessageInfos:      file_conf_conf_proto_msgTypes,
 	}.Build()
 	File_conf_conf_proto = out.File
