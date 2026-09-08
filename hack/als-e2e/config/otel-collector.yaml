@@ -1,0 +1,60 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+  file_log/als:
+    # Compose 日志跟随器保留 ALS 的原始 JSON 行；Collector 只负责转发，不重复解析字段。
+    include: [/work/logs/als.log]
+    start_at: beginning
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 128
+    spike_limit_mib: 32
+  resource/als:
+    attributes:
+      - key: service.namespace
+        value: ingate
+        action: upsert
+      - key: service.name
+        value: ingate-als
+        action: upsert
+  batch:
+    send_batch_size: 32
+    timeout: 100ms
+
+exporters:
+  otlp_grpc/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  otlp_http/loki:
+    endpoint: http://loki:3100/otlp
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_grpc/tempo]
+    logs:
+      receivers: [file_log/als]
+      processors: [memory_limiter, resource/als, batch]
+      exporters: [otlp_http/loki]
+  telemetry:
+    logs:
+      encoding: json
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
