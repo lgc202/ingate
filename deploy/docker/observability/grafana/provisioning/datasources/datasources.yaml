@@ -14,9 +14,27 @@ datasources:
     access: proxy
     url: http://loki:3100
     editable: false
+    jsonData:
+      derivedFields:
+        - name: TraceID
+          matcherRegex: '"trace_id":"([0-9a-f]{32})"'
+          datasourceUid: tempo
+          # Grafana provisioning 将单个 $ 解释为环境变量，双写后才会保留 Explore 模板。
+          url: '$${__value.raw}'
+          urlDisplayLabel: View trace
   - name: Tempo
     uid: tempo
     type: tempo
     access: proxy
     url: http://tempo:3200
     editable: false
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: -2m
+        spanEndTimeShift: 2m
+        filterByTraceID: true
+        filterBySpanID: false
+        tags:
+          - key: service.name
+            value: service_name
