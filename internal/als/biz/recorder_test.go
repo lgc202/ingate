@@ -27,6 +27,7 @@ type replayQueue struct {
 	batch     QueuedBatch
 	commitErr error
 	committed bool
+	blocked   bool
 }
 
 type publishCall struct {
@@ -80,6 +81,18 @@ func (q *stubQueue) Pending() (int64, int64) {
 	return int64(q.written), 0
 }
 
+func (q *stubQueue) Status() QueueStatus {
+	records, bytes := q.Pending()
+	if errors.Is(q.writeErr, ErrQueueFull) {
+		return QueueStatus{
+			State:          QueueBlocked,
+			PendingRecords: records,
+			PendingBytes:   bytes,
+		}
+	}
+	return writableQueueStatus(records, bytes)
+}
+
 func (q *replayQueue) Write(context.Context, []*alsv1.RequestRecord) error {
 	return nil
 }
@@ -107,6 +120,18 @@ func (q *replayQueue) Pending() (int64, int64) {
 		return 0, 0
 	}
 	return int64(len(q.batch.Records)), q.batch.Bytes
+}
+
+func (q *replayQueue) Status() QueueStatus {
+	records, bytes := q.Pending()
+	if q.blocked {
+		return QueueStatus{
+			State:          QueueBlocked,
+			PendingRecords: records,
+			PendingBytes:   bytes,
+		}
+	}
+	return writableQueueStatus(records, bytes)
 }
 
 func (q *concurrentQueue) Write(_ context.Context, records []*alsv1.RequestRecord) error {
@@ -147,6 +172,11 @@ func (q *concurrentQueue) Pending() (int64, int64) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	return int64(len(q.records)), int64(len(q.records) * 10)
+}
+
+func (q *concurrentQueue) Status() QueueStatus {
+	records, bytes := q.Pending()
+	return writableQueueStatus(records, bytes)
 }
 
 // TestRecorderWritesNoncompliantTopicToQueue 验证弱 Topic 不会收到新的直写请求。
@@ -238,7 +268,7 @@ func TestRecorderEstablishesFailureBarrier(t *testing.T) {
 	}
 
 	status := recorder.Status()
-	if !status.Spooling || status.PendingRecords != 2 {
+	if !status.Spooling || status.Queue.PendingRecords != 2 {
 		t.Errorf("Recorder.Status() = %+v, want spooling with two queued records", status)
 	}
 
@@ -284,8 +314,45 @@ func TestRecorderRejectsWhenKafkaAndQueueFail(t *testing.T) {
 	if got := recorder.Counters(); got.Accepted != 0 || got.Rejected != 1 {
 		t.Errorf("Recorder.Counters() = %+v, want accepted 0 and rejected 1", got)
 	}
-	if got := recorder.Status(); got.KafkaWritable || got.QueueWritable || !got.Spooling {
+	if got := recorder.Status(); got.KafkaWritable || got.Queue.Writable || !got.Spooling {
 		t.Errorf("Recorder.Status() = %+v, want unavailable Kafka and queue with spooling enabled", got)
+	}
+}
+
+// TestRecorderCapacityStatusRecovers 验证容量拒绝不会锁存为 I/O 故障，释放空间后状态可自行恢复。
+func TestRecorderCapacityStatusRecovers(t *testing.T) {
+	queue := &stubQueue{writeErr: ErrQueueFull}
+	topic := NewTopicContract(ReliabilityDevelopment)
+	recorder := NewRecorder(&stubPublisher{}, topic, queue, discardLogger())
+
+	if err := recorder.Write(t.Context(), []*alsv1.RequestRecord{{Id: "record-1"}}); !errors.Is(err, ErrQueueFull) {
+		t.Fatalf("Recorder.Write(full queue) error = %v, want %v", err, ErrQueueFull)
+	}
+	if status := recorder.Status(); status.Queue.Writable {
+		t.Errorf("Recorder.Status() after capacity rejection = %+v, want queue unavailable", status)
+	}
+
+	queue.writeErr = nil
+	if status := recorder.Status(); !status.Queue.Writable {
+		t.Errorf("Recorder.Status() after capacity recovery = %+v, want queue available", status)
+	}
+}
+
+// TestRecorderInvalidBatchPreservesQueueHealth 验证单批约束错误不会被记成 WAL I/O 故障。
+func TestRecorderInvalidBatchPreservesQueueHealth(t *testing.T) {
+	queue := &stubQueue{writeErr: ErrQueueInvalidBatch}
+	recorder := NewRecorder(
+		&stubPublisher{},
+		NewTopicContract(ReliabilityDevelopment),
+		queue,
+		discardLogger(),
+	)
+
+	if err := recorder.Write(t.Context(), []*alsv1.RequestRecord{{Id: "record-1"}}); !errors.Is(err, ErrQueueInvalidBatch) {
+		t.Fatalf("Recorder.Write(invalid batch) error = %v, want %v", err, ErrQueueInvalidBatch)
+	}
+	if status := recorder.Status(); !status.Queue.Writable {
+		t.Errorf("Recorder.Status() after invalid batch = %+v, want queue available", status)
 	}
 }
 
@@ -314,7 +381,7 @@ func TestRecorderReplaysThenResumesKafka(t *testing.T) {
 	if err != nil || result != ReplayIdle {
 		t.Fatalf("Recorder.ReplayBatch(empty queue) = (%v, %v), want (%v, nil)", result, err, ReplayIdle)
 	}
-	if got := recorder.Status(); got.Spooling || !got.KafkaWritable || !got.QueueWritable {
+	if got := recorder.Status(); got.Spooling || !got.KafkaWritable || !got.Queue.Writable {
 		t.Errorf("Recorder.Status() = %+v, want Kafka publishing restored", got)
 	}
 }
@@ -383,6 +450,21 @@ func TestRecorderRetriesAfterQueueCommitFailure(t *testing.T) {
 	}
 	if queue.committed {
 		t.Fatal("queue entry was removed after commit failures")
+	}
+}
+
+// TestRecorderReplaysBlockedQueue 验证容量阻塞只拒绝新追加，不妨碍回放释放旧积压。
+func TestRecorderReplaysBlockedQueue(t *testing.T) {
+	queue := replayQueueWithRecords("record-1")
+	queue.blocked = true
+	recorder := newTestRecorder(&stubPublisher{result: PublishResult{Confirmed: 1}}, queue)
+
+	result, err := recorder.ReplayBatch(t.Context(), 10)
+	if err != nil || result != ReplayCommitted {
+		t.Fatalf("Recorder.ReplayBatch(blocked queue) = (%v, %v), want (%v, nil)", result, err, ReplayCommitted)
+	}
+	if !queue.committed {
+		t.Fatal("RecordQueue.Commit() was not called while queue capacity was blocked")
 	}
 }
 
@@ -471,6 +553,15 @@ func newTestRecorder(publisher RecordPublisher, queue RecordQueue) *Recorder {
 	topic := NewTopicContract(ReliabilityDevelopment)
 	topic.Update(TopicTopology{Exists: true, ReplicationFactor: 1, MinInSyncReplicas: 1})
 	return NewRecorder(publisher, topic, queue, discardLogger())
+}
+
+func writableQueueStatus(records, bytes int64) QueueStatus {
+	return QueueStatus{
+		State:          QueueHealthy,
+		Writable:       true,
+		PendingRecords: records,
+		PendingBytes:   bytes,
+	}
 }
 
 func discardLogger() *slog.Logger {

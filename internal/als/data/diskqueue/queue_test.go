@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/tidwall/wal"
@@ -20,12 +21,17 @@ const testSegmentBytes = 1 << 20
 
 const lockProbePathEnv = "INGATE_ALS_TEST_LOCK_PATH"
 
+type fixedProbe struct {
+	usage storageUsage
+	err   error
+}
+
 // TestQueuePersistsUncommittedRecords 验证读取不删除记录，只有确认后才推进持久化队首。
 func TestQueuePersistsUncommittedRecords(t *testing.T) {
 	path := t.TempDir()
 	records := []*alsv1.RequestRecord{{Id: "record-1"}, {Id: "record-2"}, {Id: "record-3"}}
 	wantBytes := encodedSize(records)
-	queue, closeQueue := openQueue(t, path, testSegmentBytes*2)
+	queue, closeQueue := openQueue(t, path, testSegmentBytes*4)
 
 	if err := queue.Write(t.Context(), records[:2]); err != nil {
 		t.Fatalf("Queue.Write(first batch) error = %v, want nil", err)
@@ -57,7 +63,7 @@ func TestQueuePersistsUncommittedRecords(t *testing.T) {
 	}
 	closeQueue()
 
-	queue, _ = openQueue(t, path, testSegmentBytes*2)
+	queue, _ = openQueue(t, path, testSegmentBytes*4)
 	if gotRecords, gotBytes := queue.Pending(); gotRecords != 1 || gotBytes != int64(proto.Size(records[2])) {
 		t.Fatalf("Queue.Pending() after reopen = (%d, %d), want (1, %d)", gotRecords, gotBytes, proto.Size(records[2]))
 	}
@@ -74,29 +80,132 @@ func TestQueuePersistsUncommittedRecords(t *testing.T) {
 	}
 }
 
-// TestQueueEnforcesCapacityAtomically 验证超出容量的批次不会留下部分记录。
+// TestQueueEnforcesCapacityAtomically 验证物理容量拒绝不会留下部分记录。
 func TestQueueEnforcesCapacityAtomically(t *testing.T) {
+	path := t.TempDir()
 	record := &alsv1.RequestRecord{Id: "record-1"}
-	queue, _ := openQueue(t, t.TempDir(), int64(proto.Size(record)))
+	probe := &fixedProbe{usage: storageUsage{
+		diskBytes: testSegmentBytes,
+		freeBytes: testSegmentBytes * 4,
+	}}
+	queue, err := openQueueWithProbe(queueConfig(path, testSegmentBytes*3), probe.inspect)
+	if err != nil {
+		t.Fatalf("newQueue() error = %v, want nil", err)
+	}
+	t.Cleanup(func() {
+		if err := queue.Close(); err != nil {
+			t.Errorf("Queue.Close() error = %v, want nil", err)
+		}
+	})
 
-	if err := queue.Write(t.Context(), []*alsv1.RequestRecord{record, record}); !errors.Is(err, errFull) {
-		t.Fatalf("Queue.Write(oversized batch) error = %v, want %v", err, errFull)
+	if err := queue.Write(t.Context(), []*alsv1.RequestRecord{record}); !errors.Is(err, biz.ErrQueueFull) {
+		t.Fatalf("Queue.Write(oversized batch) error = %v, want %v", err, biz.ErrQueueFull)
 	}
 	if records, bytes := queue.Pending(); records != 0 || bytes != 0 {
 		t.Fatalf("Queue.Pending() after rejected batch = (%d, %d), want (0, 0)", records, bytes)
 	}
 
+	probe.usage.diskBytes = 0
 	if err := queue.Write(t.Context(), []*alsv1.RequestRecord{record}); err != nil {
 		t.Fatalf("Queue.Write(capacity boundary) error = %v, want nil", err)
 	}
-	if err := queue.Write(t.Context(), []*alsv1.RequestRecord{record}); !errors.Is(err, errFull) {
-		t.Fatalf("Queue.Write(full queue) error = %v, want %v", err, errFull)
+	probe.usage.diskBytes = testSegmentBytes
+	if err := queue.Write(t.Context(), []*alsv1.RequestRecord{record}); !errors.Is(err, biz.ErrQueueFull) {
+		t.Fatalf("Queue.Write(full queue) error = %v, want %v", err, biz.ErrQueueFull)
 	}
+}
+
+// TestQueueRejectsBatchLargerThanSegment 验证单批不会突破截断恢复空间的确定上界。
+func TestQueueRejectsBatchLargerThanSegment(t *testing.T) {
+	path := t.TempDir()
+	probe := &fixedProbe{usage: storageUsage{
+		freeBytes:  testSegmentBytes * 8,
+		blockBytes: 4 << 10,
+	}}
+	queue, err := openQueueWithProbe(queueConfig(path, testSegmentBytes*4), probe.inspect)
+	if err != nil {
+		t.Fatalf("newQueue() error = %v, want nil", err)
+	}
+	t.Cleanup(func() {
+		if err := queue.Close(); err != nil {
+			t.Errorf("Queue.Close() error = %v, want nil", err)
+		}
+	})
+
+	records := make([]*alsv1.RequestRecord, 18)
+	for index := range records {
+		records[index] = &alsv1.RequestRecord{Id: strings.Repeat("x", 60<<10)}
+	}
+	if err := queue.Write(t.Context(), records); !errors.Is(err, biz.ErrQueueInvalidBatch) {
+		t.Fatalf("Queue.Write(batch larger than segment) error = %v, want %v", err, biz.ErrQueueInvalidBatch)
+	}
+	if pending, _ := queue.Pending(); pending != 0 {
+		t.Errorf("Queue.Pending() after oversized batch = %d records, want 0", pending)
+	}
+}
+
+// TestQueueAllowsEntrySmallerThanSegment 验证文件系统分配块不会被误当作 WAL 条目大小。
+func TestQueueAllowsEntrySmallerThanSegment(t *testing.T) {
+	const segmentBytes = 1 << 10
+	config := queueConfig(t.TempDir(), 1<<20)
+	config.SegmentBytes = segmentBytes
+	queue, err := NewQueue(config)
+	if err != nil {
+		t.Fatalf("NewQueue() error = %v, want nil", err)
+	}
+	t.Cleanup(func() {
+		if err := queue.Close(); err != nil {
+			t.Errorf("Queue.Close() error = %v, want nil", err)
+		}
+	})
+
+	if err := queue.Write(t.Context(), []*alsv1.RequestRecord{{Id: "record-1"}}); err != nil {
+		t.Fatalf("Queue.Write(small entry) error = %v, want nil", err)
+	}
+}
+
+// TestQueuePreservesFilesystemReserve 验证文件系统安全余量不足时不会追加或删除旧条目。
+func TestQueuePreservesFilesystemReserve(t *testing.T) {
+	path := t.TempDir()
+	minFreeBytes := int64(testSegmentBytes)
+	config := queueConfig(path, testSegmentBytes*3)
+	config.MinFreeBytes = &minFreeBytes
+	probe := &fixedProbe{usage: storageUsage{
+		freeBytes: minFreeBytes + 3*testSegmentBytes,
+	}}
+	queue, err := openQueueWithProbe(config, probe.inspect)
+	if err != nil {
+		t.Fatalf("newQueue() error = %v, want nil", err)
+	}
+	t.Cleanup(func() {
+		if err := queue.Close(); err != nil {
+			t.Errorf("Queue.Close() error = %v, want nil", err)
+		}
+	})
+
+	if err := queue.Write(t.Context(), []*alsv1.RequestRecord{{Id: "record-1"}}); err != nil {
+		t.Fatalf("Queue.Write(initial batch) error = %v, want nil", err)
+	}
+	probe.usage.freeBytes = minFreeBytes + testSegmentBytes
+	if err := queue.Write(t.Context(), []*alsv1.RequestRecord{{Id: "record-2"}}); !errors.Is(err, biz.ErrQueueFull) {
+		t.Fatalf("Queue.Write(insufficient free space) error = %v, want %v", err, biz.ErrQueueFull)
+	}
+	if records, _ := queue.Pending(); records != 1 {
+		t.Errorf("Queue.Pending() after rejected write = %d records, want 1", records)
+	}
+	if status := queue.Status(); status.State != biz.QueueBlocked || status.Writable {
+		t.Errorf("Queue.Status() = %+v, want blocked", status)
+	}
+	batch, err := queue.Read(t.Context(), 1)
+	if err != nil {
+		t.Fatalf("Queue.Read() after rejected write error = %v, want nil", err)
+	}
+	assertRecordIDs(t, batch.Records, "record-1")
 }
 
 // TestQueueRejectsEmptyBatch 验证空批次不会占用 WAL 序号或被视为可靠接收。
 func TestQueueRejectsEmptyBatch(t *testing.T) {
-	queue, _ := openQueue(t, t.TempDir(), testSegmentBytes*2)
+	queue, _ := openQueue(t, t.TempDir(), testSegmentBytes*4)
 
 	if err := queue.Write(t.Context(), nil); err == nil {
 		t.Fatal("Queue.Write(empty batch) error = nil, want non-nil")
@@ -109,7 +218,7 @@ func TestQueueRejectsEmptyBatch(t *testing.T) {
 // TestQueueRejectsInvalidCommit 验证错误的确认元数据不会推进队首或破坏待处理计数。
 func TestQueueRejectsInvalidCommit(t *testing.T) {
 	record := &alsv1.RequestRecord{Id: "record-1"}
-	queue, _ := openQueue(t, t.TempDir(), testSegmentBytes*2)
+	queue, _ := openQueue(t, t.TempDir(), testSegmentBytes*4)
 	if err := queue.Write(t.Context(), []*alsv1.RequestRecord{record}); err != nil {
 		t.Fatalf("Queue.Write() error = %v, want nil", err)
 	}
@@ -145,7 +254,7 @@ func TestQueueRejectsCorruptRecordsOnOpen(t *testing.T) {
 		t.Fatalf("wal.Log.Close() error = %v, want nil", err)
 	}
 
-	queue, err := NewQueue(queueConfig(path, testSegmentBytes*2))
+	queue, err := NewQueue(queueConfig(path, testSegmentBytes*4))
 	if err == nil {
 		_ = queue.Close()
 		t.Fatal("NewQueue(corrupt record) error = nil, want non-nil")
@@ -174,7 +283,7 @@ func TestQueueRejectsLegacyRecords(t *testing.T) {
 		t.Fatalf("wal.Log.Close() error = %v, want nil", err)
 	}
 
-	queue, err := NewQueue(queueConfig(path, testSegmentBytes*2))
+	queue, err := NewQueue(queueConfig(path, testSegmentBytes*4))
 	if err == nil {
 		_ = queue.Close()
 		t.Fatal("NewQueue(legacy record) error = nil, want non-nil")
@@ -184,7 +293,7 @@ func TestQueueRejectsLegacyRecords(t *testing.T) {
 // TestQueueOwnsDirectoryExclusively 验证同一 WAL 目录不能被两个 Queue 同时打开。
 func TestQueueOwnsDirectoryExclusively(t *testing.T) {
 	path := t.TempDir()
-	_, closeFirst := openQueue(t, path, testSegmentBytes*2)
+	_, closeFirst := openQueue(t, path, testSegmentBytes*4)
 
 	command := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestQueueDirectoryLockProbe$")
 	command.Env = append(os.Environ(), lockProbePathEnv+"="+path)
@@ -193,7 +302,7 @@ func TestQueueOwnsDirectoryExclusively(t *testing.T) {
 	}
 
 	closeFirst()
-	second, err := NewQueue(queueConfig(path, testSegmentBytes*2))
+	second, err := NewQueue(queueConfig(path, testSegmentBytes*4))
 	if err != nil {
 		t.Fatalf("NewQueue(released directory) error = %v, want nil", err)
 	}
@@ -209,7 +318,7 @@ func TestQueueDirectoryLockProbe(t *testing.T) {
 		t.Skip("lock probe runs only as a subprocess")
 	}
 
-	queue, err := NewQueue(queueConfig(path, testSegmentBytes*2))
+	queue, err := NewQueue(queueConfig(path, testSegmentBytes*4))
 	if err == nil {
 		_ = queue.Close()
 		t.Fatal("NewQueue(directory owned by another process) error = nil, want non-nil")
@@ -230,7 +339,7 @@ func TestQueueRestrictsStoragePermissions(t *testing.T) {
 		t.Fatalf("os.WriteFile() error = %v, want nil", err)
 	}
 
-	queue, _ := openQueue(t, path, testSegmentBytes*2)
+	queue, _ := openQueue(t, path, testSegmentBytes*4)
 	if err := queue.Write(t.Context(), []*alsv1.RequestRecord{{Id: "record-1"}}); err != nil {
 		t.Fatalf("Queue.Write() error = %v, want nil", err)
 	}
@@ -259,10 +368,14 @@ func TestQueueRestrictsStoragePermissions(t *testing.T) {
 	}
 }
 
-func openQueue(t *testing.T, path string, maxBytes int64) (*Queue, func()) {
+func (p *fixedProbe) inspect(string) (storageUsage, error) {
+	return p.usage, p.err
+}
+
+func openQueue(t *testing.T, path string, capacityBytes int64) (*Queue, func()) {
 	t.Helper()
 
-	queue, err := NewQueue(queueConfig(path, maxBytes))
+	queue, err := NewQueue(queueConfig(path, capacityBytes))
 	if err != nil {
 		t.Fatalf("NewQueue() error = %v, want nil", err)
 	}
@@ -280,12 +393,12 @@ func openQueue(t *testing.T, path string, maxBytes int64) (*Queue, func()) {
 	return queue, closeQueue
 }
 
-func queueConfig(path string, maxBytes int64) *conf.Data_DiskQueue {
+func queueConfig(path string, capacityBytes int64) *conf.Data_DiskQueue {
 	return &conf.Data_DiskQueue{
-		Path:         path,
-		SegmentBytes: testSegmentBytes,
-		Sync:         true,
-		MaxBytes:     maxBytes,
+		Path:          path,
+		SegmentBytes:  testSegmentBytes,
+		Sync:          true,
+		CapacityBytes: &capacityBytes,
 	}
 }
 

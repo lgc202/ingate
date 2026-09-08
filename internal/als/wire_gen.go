@@ -20,7 +20,6 @@ import (
 // Injectors from wire.go:
 
 func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, tracing *telemetry.Tracing, alsServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
-	data_DiskQueue := confData.DiskQueue
 	data_Kafka := confData.Kafka
 	client, cleanup, err := data.NewKafkaClient(data_Kafka)
 	if err != nil {
@@ -28,13 +27,14 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, 
 	}
 	data_ReliabilityMode := confData.ReliabilityMode
 	topicContract := newTopicContract(data_ReliabilityMode)
+	data_DiskQueue := confData.DiskQueue
 	queue, cleanup2, err := data.NewDiskQueue(data_DiskQueue, logger)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
 	recorder := biz.NewRecorder(client, topicContract, queue, logger)
-	httpServer := server.NewHTTPServer(confServer, data_DiskQueue, recorder, tracing)
+	httpServer := server.NewHTTPServer(confServer, recorder, tracing)
 	serviceService := service.NewService(recorder, logger)
 	grpcServer, err := server.NewGRPCServer(confServer, serviceService, tracing)
 	if err != nil {

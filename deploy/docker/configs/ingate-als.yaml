@@ -32,7 +32,8 @@ data:
   disk_queue:
     path: "/data/ingate/als/queue"
     segment_bytes: 20971520
-    max_bytes: 1073741824
+    capacity_bytes: 1073741824
+    min_free_bytes: 1073741824
     replay_batch_size: 500
     replay_min_backoff: "0.5s"
     replay_max_backoff: "30s"

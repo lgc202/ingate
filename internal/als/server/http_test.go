@@ -11,12 +11,13 @@ import (
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	"github.com/lgc202/ingate/internal/als/biz"
-	"github.com/lgc202/ingate/internal/als/conf"
 )
 
 type readyPublisher struct{}
 
-type readyQueue struct{}
+type readyQueue struct {
+	status biz.QueueStatus
+}
 
 func (readyPublisher) Publish(_ context.Context, records []*alsv1.RequestRecord) biz.PublishResult {
 	return biz.PublishResult{Confirmed: len(records)}
@@ -34,34 +35,58 @@ func (readyQueue) Commit(context.Context, biz.QueuedBatch) error {
 	return nil
 }
 
-func (readyQueue) Pending() (int64, int64) {
-	return 0, 0
+func (q readyQueue) Pending() (int64, int64) {
+	return q.status.PendingRecords, q.status.PendingBytes
+}
+
+func (q readyQueue) Status() biz.QueueStatus {
+	return q.status
 }
 
 // TestReadyUsesCachedTopicStatus 验证就绪检查只根据缓存状态和 WAL 能力作出判断。
 func TestReadyUsesCachedTopicStatus(t *testing.T) {
 	tests := []struct {
-		name        string
-		topology    *biz.TopicTopology
-		statusCode  int
-		writeTarget string
+		name          string
+		topology      *biz.TopicTopology
+		queue         biz.QueueStatus
+		statusCode    int
+		writeTarget   string
+		queueState    string
+		queueWritable bool
 	}{
 		{
-			name:        "compliant topic",
+			name:          "compliant topic",
+			topology:      &biz.TopicTopology{Exists: true, ReplicationFactor: 1, MinInSyncReplicas: 1},
+			queue:         writableQueue(biz.QueueHealthy),
+			statusCode:    http.StatusOK,
+			writeTarget:   "kafka",
+			queueState:    "healthy",
+			queueWritable: true,
+		},
+		{
+			name:          "topic check unavailable",
+			queue:         writableQueue(biz.QueueWarning),
+			statusCode:    http.StatusOK,
+			writeTarget:   "disk_queue",
+			queueState:    "warning",
+			queueWritable: true,
+		},
+		{
+			name:          "noncompliant topic",
+			topology:      &biz.TopicTopology{},
+			queue:         writableQueue(biz.QueueHealthy),
+			statusCode:    http.StatusServiceUnavailable,
+			writeTarget:   "none",
+			queueState:    "healthy",
+			queueWritable: true,
+		},
+		{
+			name:        "blocked queue",
 			topology:    &biz.TopicTopology{Exists: true, ReplicationFactor: 1, MinInSyncReplicas: 1},
-			statusCode:  http.StatusOK,
-			writeTarget: "kafka",
-		},
-		{
-			name:        "topic check unavailable",
-			statusCode:  http.StatusOK,
-			writeTarget: "disk_queue",
-		},
-		{
-			name:        "noncompliant topic",
-			topology:    &biz.TopicTopology{},
+			queue:       biz.QueueStatus{State: biz.QueueBlocked},
 			statusCode:  http.StatusServiceUnavailable,
 			writeTarget: "none",
+			queueState:  "blocked",
 		},
 	}
 
@@ -73,8 +98,8 @@ func TestReadyUsesCachedTopicStatus(t *testing.T) {
 				topic.Update(*test.topology)
 			}
 
-			recorder := biz.NewRecorder(readyPublisher{}, topic, readyQueue{}, logger)
-			handler := ready(&conf.Data_DiskQueue{MaxBytes: 1024}, recorder)
+			recorder := biz.NewRecorder(readyPublisher{}, topic, readyQueue{status: test.queue}, logger)
+			handler := ready(recorder)
 			response := httptest.NewRecorder()
 			handler(response, httptest.NewRequest(http.MethodGet, "/readyz", nil))
 			if response.Code != test.statusCode {
@@ -82,7 +107,9 @@ func TestReadyUsesCachedTopicStatus(t *testing.T) {
 			}
 
 			var body struct {
-				WriteTarget string `json:"write_target"`
+				WriteTarget   string `json:"write_target"`
+				QueueState    string `json:"queue_state"`
+				QueueWritable bool   `json:"queue_writable"`
 			}
 			if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 				t.Fatalf("decode /readyz response: %v", err)
@@ -90,6 +117,16 @@ func TestReadyUsesCachedTopicStatus(t *testing.T) {
 			if body.WriteTarget != test.writeTarget {
 				t.Errorf("GET /readyz with %s write_target = %q, want %q", test.name, body.WriteTarget, test.writeTarget)
 			}
+			if body.QueueState != test.queueState {
+				t.Errorf("GET /readyz with %s queue_state = %q, want %q", test.name, body.QueueState, test.queueState)
+			}
+			if body.QueueWritable != test.queueWritable {
+				t.Errorf("GET /readyz with %s queue_writable = %t, want %t", test.name, body.QueueWritable, test.queueWritable)
+			}
 		})
 	}
+}
+
+func writableQueue(state biz.QueueState) biz.QueueStatus {
+	return biz.QueueStatus{State: state, Writable: true}
 }

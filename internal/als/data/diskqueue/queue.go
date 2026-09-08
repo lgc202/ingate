@@ -3,6 +3,7 @@ package diskqueue
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -17,8 +18,6 @@ import (
 	"github.com/lgc202/ingate/internal/als/conf"
 )
 
-var errFull = errors.New("disk queue is full")
-
 // pendingUsage 是发布给健康检查和指标读取的不可变队列用量。
 // 每次写入或确认都创建新值，避免读取方观察到只更新了一半的计数。
 type pendingUsage struct {
@@ -28,13 +27,17 @@ type pendingUsage struct {
 
 // Queue 保存 Kafka 暂时不可用期间尚未投递的请求记录。
 // Write、Read 和 Commit 由同一把锁串行化以保持严格的队首顺序，
-// Pending 则从原子快照读取，避免健康检查和指标采集阻塞 WAL 操作。
+// Pending 从原子快照读取，供 Recorder 的并发状态迁移使用；
+// Status 扫描真实磁盘占用，供就绪检查和指标采集使用。
 type Queue struct {
-	log      *wal.Log
-	lock     *directoryLock
-	maxBytes int64
-	mu       sync.Mutex
-	pending  atomic.Pointer[pendingUsage]
+	log     *wal.Log
+	lock    *directoryLock
+	path    string
+	policy  capacityPolicy
+	probe   storageProbe
+	storage storageUsage
+	mu      sync.Mutex
+	pending atomic.Pointer[pendingUsage]
 }
 
 // NewQueue 排他打开本地磁盘队列，允许已确认记录全部清空。
@@ -42,50 +45,19 @@ type Queue struct {
 // 启动时扫描未确认记录恢复计数；队列损坏会直接阻止服务启动，
 // 避免悄悄跳过尚未投递的数据。
 func NewQueue(config *conf.Data_DiskQueue) (*Queue, error) {
-	lock, err := lockDirectory(config.GetPath())
-	if err != nil {
-		return nil, err
-	}
-	if err := restrictExistingFiles(config.GetPath()); err != nil {
-		return nil, errors.Join(err, lock.Close())
-	}
-
-	// tidwall/wal 在 NoSync=false 时只有追加和文件同步都成功才从 Write 返回。
-	queueLog, err := wal.Open(config.GetPath(), &wal.Options{
-		NoSync:           !config.GetSync(),
-		SegmentSize:      int(config.GetSegmentBytes()),
-		LogFormat:        wal.Binary,
-		SegmentCacheSize: 2,
-		AllowEmpty:       true,
-		DirPerms:         directoryMode,
-		FilePerms:        fileMode,
-	})
-	if err != nil {
-		return nil, errors.Join(fmt.Errorf("open disk queue: %w", err), lock.Close())
-	}
-	usage, err := scanPendingUsage(queueLog)
-	if err != nil {
-		return nil, errors.Join(err, queueLog.Close(), lock.Close())
-	}
-	queue := &Queue{
-		log:      queueLog,
-		lock:     lock,
-		maxBytes: config.GetMaxBytes(),
-	}
-	queue.pending.Store(&usage)
-	return queue, nil
+	return openQueueWithProbe(config, inspectStorage)
 }
 
 // Write 将一个请求记录批次编码为单个 WAL 条目并原子追加到磁盘。
 //
-// max_bytes 约束的是尚未确认记录的 protobuf 字节数，
-// 队列索引和预分配空间不计入该逻辑配额。
+// 追加前同时检查 WAL 目录的物理占用和文件系统剩余空间；
+// 拒绝不会改动既有条目，也不会把记录转存到内存。
 func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if len(records) == 0 {
-		return errors.New("disk queue batch must contain at least one request record")
+		return fmt.Errorf("%w: batch must contain at least one request record", biz.ErrQueueInvalidBatch)
 	}
 
 	q.mu.Lock()
@@ -93,7 +65,7 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 
 	value, batchBytes, err := encodeEntry(ctx, records, time.Now())
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: encode entry: %w", biz.ErrQueueInvalidBatch, err)
 	}
 
 	last, err := q.log.LastIndex()
@@ -105,22 +77,32 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 		return errors.New("disk queue sequence is exhausted")
 	}
 
-	usage := q.pending.Load()
-	if usage.bytes > q.maxBytes {
-		return errFull
+	pending := q.pending.Load()
+	storage, err := q.probe(q.path)
+	if err != nil {
+		return err
 	}
-	availableBytes := q.maxBytes - usage.bytes
-	if batchBytes > availableBytes {
-		return errFull
+	q.storage = storage
+	encodedGrowth := int64(len(value)) + binary.MaxVarintLen64
+	if encodedGrowth > q.policy.segmentBytes {
+		return fmt.Errorf("%w: encoded entry exceeds the configured segment size", biz.ErrQueueInvalidBatch)
+	}
+	growth, ok := allocationSize(encodedGrowth, storage.blockBytes)
+	if !ok {
+		return biz.ErrQueueFull
+	}
+	if !q.policy.admits(storage, growth) {
+		return biz.ErrQueueFull
 	}
 
 	if err := q.log.Write(last+1, value); err != nil {
 		return fmt.Errorf("append disk queue: %w", err)
 	}
-	q.pending.Store(&pendingUsage{
-		records: usage.records + int64(len(records)),
-		bytes:   usage.bytes + batchBytes,
-	})
+	nextPending := pendingUsage{
+		records: pending.records + int64(len(records)),
+		bytes:   pending.bytes + batchBytes,
+	}
+	q.pending.Store(&nextPending)
 
 	return nil
 }
@@ -218,18 +200,19 @@ func (q *Queue) Commit(ctx context.Context, batch biz.QueuedBatch) error {
 		return errors.New("commit disk queue batch metadata is inconsistent")
 	}
 
-	usage := q.pending.Load()
-	if committed.records == 0 || committed.records > usage.records || committed.bytes > usage.bytes {
+	pending := q.pending.Load()
+	if committed.records == 0 || committed.records > pending.records || committed.bytes > pending.bytes {
 		return errors.New("commit disk queue batch metadata is inconsistent")
 	}
 	if err := q.log.TruncateFront(batch.LastSequence + 1); err != nil {
 		return fmt.Errorf("truncate disk queue: %w", err)
 	}
 
-	q.pending.Store(&pendingUsage{
-		records: usage.records - committed.records,
-		bytes:   usage.bytes - committed.bytes,
-	})
+	nextPending := pendingUsage{
+		records: pending.records - committed.records,
+		bytes:   pending.bytes - committed.bytes,
+	}
+	q.pending.Store(&nextPending)
 
 	return nil
 }
@@ -240,12 +223,80 @@ func (q *Queue) Pending() (int64, int64) {
 	return usage.records, usage.bytes
 }
 
+// Status 返回包含实时物理占用和文件系统剩余空间的 WAL 状态。
+func (q *Queue) Status() biz.QueueStatus {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	pending := *q.pending.Load()
+	storage, err := q.probe(q.path)
+	if err != nil {
+		status := q.policy.status(pending, q.storage)
+		status.State = biz.QueueBlocked
+		status.Writable = false
+		return status
+	}
+	q.storage = storage
+	return q.policy.status(pending, storage)
+}
+
 // Close 将磁盘队列缓冲同步并关闭文件，同时释放目录排他锁。
 func (q *Queue) Close() error {
 	if err := errors.Join(q.log.Close(), q.lock.Close()); err != nil {
 		return fmt.Errorf("close disk queue: %w", err)
 	}
 	return nil
+}
+
+func openQueueWithProbe(config *conf.Data_DiskQueue, probe storageProbe) (*Queue, error) {
+	path, err := prepareDirectory(config.GetPath())
+	if err != nil {
+		return nil, err
+	}
+	lock, err := lockDirectory(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := restrictExistingFiles(path); err != nil {
+		return nil, errors.Join(err, lock.Close())
+	}
+
+	// tidwall/wal 在 NoSync=false 时只有追加和文件同步都成功才从 Write 返回。
+	queueLog, err := wal.Open(path, &wal.Options{
+		NoSync:           !config.GetSync(),
+		SegmentSize:      int(config.GetSegmentBytes()),
+		LogFormat:        wal.Binary,
+		SegmentCacheSize: 2,
+		AllowEmpty:       true,
+		DirPerms:         directoryMode,
+		FilePerms:        fileMode,
+	})
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("open disk queue: %w", err), lock.Close())
+	}
+	usage, err := scanPendingUsage(queueLog)
+	if err != nil {
+		return nil, errors.Join(err, queueLog.Close(), lock.Close())
+	}
+	policy := capacityPolicy{
+		capacityBytes: config.GetCapacityBytes(),
+		minFreeBytes:  config.GetMinFreeBytes(),
+		segmentBytes:  config.GetSegmentBytes(),
+	}
+	storage, err := probe(path)
+	if err != nil {
+		return nil, errors.Join(err, queueLog.Close(), lock.Close())
+	}
+	queue := &Queue{
+		log:     queueLog,
+		lock:    lock,
+		path:    path,
+		policy:  policy,
+		probe:   probe,
+		storage: storage,
+	}
+	queue.pending.Store(&usage)
+	return queue, nil
 }
 
 func scanPendingUsage(queueLog *wal.Log) (pendingUsage, error) {

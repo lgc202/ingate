@@ -22,14 +22,21 @@ func (l *directoryLock) Close() error {
 	return errors.Join(unlock(l.file), l.file.Close())
 }
 
-func lockDirectory(path string) (*directoryLock, error) {
+func prepareDirectory(path string) (string, error) {
 	if err := os.MkdirAll(path, directoryMode); err != nil {
-		return nil, fmt.Errorf("create disk queue directory: %w", err)
+		return "", fmt.Errorf("create disk queue directory: %w", err)
 	}
 	if err := os.Chmod(path, directoryMode); err != nil {
-		return nil, fmt.Errorf("restrict disk queue directory permissions: %w", err)
+		return "", fmt.Errorf("restrict disk queue directory permissions: %w", err)
 	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", fmt.Errorf("resolve disk queue directory: %w", err)
+	}
+	return resolved, nil
+}
 
+func lockDirectory(path string) (*directoryLock, error) {
 	file, err := os.OpenFile(
 		filepath.Join(path, lockFilename),
 		os.O_CREATE|os.O_RDWR,

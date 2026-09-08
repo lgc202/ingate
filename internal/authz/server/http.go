@@ -6,11 +6,10 @@ import (
 
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/lgc202/ingate/internal/authz/conf"
 	"github.com/lgc202/ingate/internal/authz/service"
+	prometheushttp "github.com/lgc202/ingate/internal/pkg/prometheus"
 )
 
 // Readiness 提供运维接口所需的组件就绪状态。
@@ -45,10 +44,7 @@ func NewHTTPServer(
 }
 
 func metricsHandler(readiness Readiness, authorization *service.AuthorizationService) http.Handler {
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(
-		collectors.NewGoCollector(),
-		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	return prometheushttp.NewHandler(
 		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 			Namespace: "ingate",
 			Subsystem: "authz",
@@ -86,7 +82,6 @@ func metricsHandler(readiness Readiness, authorization *service.AuthorizationSer
 			Help:      "Authorization checks that failed before an allow or deny decision could be made.",
 		}, func() float64 { return float64(authorization.Counters().Failed) }),
 	)
-	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{EnableOpenMetrics: true})
 }
 
 func boolMetric(value bool) float64 {

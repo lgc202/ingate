@@ -14,16 +14,12 @@ import (
 type RecorderStatus struct {
 	// Topic 是最近一次可确定的 Kafka Topic 契约状态。
 	Topic TopicStatus
+	// Queue 是 WAL 积压与物理容量状态。
+	Queue QueueStatus
 	// KafkaWritable 表示 Topic 合规且最近一次 Kafka 写入成功。
 	KafkaWritable bool
-	// QueueWritable 反映最近一次磁盘队列读写或确认结果。
-	QueueWritable bool
 	// Spooling 表示新记录当前直接进入磁盘队列，避免 Kafka 故障期间每批都等待网络超时。
 	Spooling bool
-	// PendingRecords 是等待投递到 Kafka 的本地记录数。
-	PendingRecords int64
-	// PendingBytes 是等待投递记录的 protobuf 逻辑字节数。
-	PendingBytes int64
 }
 
 // RecorderCounters 是 Recorder 启动后累计的请求记录处理计数。
@@ -149,8 +145,7 @@ func (r *Recorder) ReplayBatch(ctx context.Context, limit int) (ReplayResult, er
 
 // Status 返回无需访问外部系统即可读取的 Recorder 状态。
 func (r *Recorder) Status() RecorderStatus {
-	records, bytes := r.queue.Pending()
-	return r.state.status(r.topic.Status(), records, bytes)
+	return r.state.status(r.topic.Status(), r.queue.Status())
 }
 
 // Counters 返回无需加锁读取的累计处理计数。
@@ -205,7 +200,9 @@ func (r *Recorder) writeKafka(ctx context.Context, records []*alsv1.RequestRecor
 func (r *Recorder) writeQueue(ctx context.Context, records []*alsv1.RequestRecord) error {
 	// 流取消不应丢弃已经完整接收的记录，但仍保留 Trace 和日志所需的上下文值。
 	err := r.queue.Write(context.WithoutCancel(ctx), records)
-	changed := r.state.finishQueueWrite(err == nil)
+	// 容量拒绝由 Queue.Status 实时反映，不应像 I/O 故障一样锁存；空间释放后就绪状态必须自行恢复。
+	operational := err == nil || errors.Is(err, ErrQueueFull) || errors.Is(err, ErrQueueInvalidBatch)
+	changed := r.state.finishQueueWrite(operational)
 
 	if err != nil {
 		r.rejected.Add(uint64(len(records)))
