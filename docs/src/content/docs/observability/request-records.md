@@ -57,6 +57,16 @@ WAL 容量按目录中文件的实际磁盘块统计，包括分段、截断临�
 
 物理占用达到 80% 时进入 `warning`，达到 90% 时进入 `critical`；目录容量或文件系统余量无法容纳下一次可靠追加时进入 `blocked`。这些状态由 `/readyz` 和 Prometheus 指标暴露。`blocked` 不会删除旧记录或转为内存缓存，当前 ALS 流会以 `Unavailable` 结束；回放任务仍可读取并确认旧记录，释放空间后恢复接收。Envoy 的 gRPC access logger 与业务转发异步，因此 ALS 拒绝记录不会改变已经完成的代理响应。
 
+ALS 启动时通过 WAL 库的公开 API 打开队列，并逐条校验 Ingate 自有 QueueEntry 的格式版本和 CRC32C。底层 WAL 无法打开或 QueueEntry 校验失败时，组件拒绝启动，不会跳过或自动删除无法确认的数据。人工处理前必须停止使用该目录的 ALS，并先把整个 WAL 目录备份到外部存储；不要直接修改分段内容或尝试局部截断。
+
+## ALS 运维指标
+
+`/metrics` 使用独立 Prometheus Registry，同时暴露 Go Runtime、进程和 ALS 指标。记录计数按实际阶段递增：`records_received_total`、`records_valid_total`、`records_kafka_accepted_total`、`records_spooled_total`、`records_replayed_total`、`records_committed_total`、`records_discarded_total` 和 `records_rejected_total`。Kafka 已接收但 WAL 确认失败时可能发生重放，因此 Kafka accepted 和 replayed 允许包含重复记录，committed 只表示已经从 WAL 删除的记录。
+
+积压状态包括 WAL 条目数、记录数、逻辑字节、物理字节、容量利用率、最老条目年龄、文件系统剩余空间和当前回放退避。协议和发布指标包括活跃 ALS 流、批次规模、批次处理耗时、Kafka 发布耗时、有限分类的发布失败以及 ISR 不足错误。所有标签都来自固定枚举，不包含资源 ID、请求 ID、Broker、路径或错误文本。
+
+`/livez` 和 `/healthz` 只报告进程存活，不访问 Kafka 或磁盘。`/readyz` 在 Kafka 暂时不可用但 WAL 可写时仍返回 200；不可用响应只返回稳定原因码：`topic_noncompliant`、`replay_paused` 或 `wal_unavailable`，不会返回 Broker、WAL 路径或内部错误。
+
 ## 保留时间
 
 请求明细默认保留 30 天，由 Analytics 的 ClickHouse retention 配置控制。长期趋势使用独立聚合表，不依赖无限期保存明细。

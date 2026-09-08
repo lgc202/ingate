@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -20,15 +21,18 @@ import (
 // 一批消息可能部分成功后返回错误，调用方会把整批写入磁盘队列，
 // 因此消费者仍需按 RequestRecord.id 去重。
 func (c *Client) Publish(ctx context.Context, records []*alsv1.RequestRecord) biz.PublishResult {
+	startedAt := time.Now()
 	messages := make([]*kgo.Record, 0, len(records))
 	for _, record := range records {
 		value, err := proto.Marshal(record)
 		if err != nil {
-			return biz.PublishResult{
+			result := biz.PublishResult{
 				Failed: len(records),
 				Class:  biz.PublishPermanent,
 				Err:    fmt.Errorf("marshal request record: %w", err),
 			}
+			c.events.ObserveKafkaPublish(time.Since(startedAt), result.Class)
+			return result
 		}
 		messages = append(messages, &kgo.Record{
 			Key:   []byte(record.GetId()),
@@ -41,6 +45,7 @@ func (c *Client) Publish(ctx context.Context, records []*alsv1.RequestRecord) bi
 	}
 
 	var result biz.PublishResult
+	var isrFailures int
 	for _, produced := range c.kafka.ProduceSync(ctx, messages...) {
 		if produced.Err == nil {
 			result.Confirmed++
@@ -48,6 +53,9 @@ func (c *Client) Publish(ctx context.Context, records []*alsv1.RequestRecord) bi
 		}
 
 		result.Failed++
+		if isISRFailure(produced.Err) {
+			isrFailures++
+		}
 		class := classifyPublishError(produced.Err)
 		if class > result.Class {
 			result.Class = class
@@ -55,6 +63,8 @@ func (c *Client) Publish(ctx context.Context, records []*alsv1.RequestRecord) bi
 		}
 	}
 
+	c.events.ObserveKafkaPublish(time.Since(startedAt), result.Class)
+	c.events.AddKafkaISRFailures(isrFailures)
 	return result
 }
 
@@ -83,5 +93,10 @@ func mayHavePublished(err error) bool {
 		errors.Is(err, context.DeadlineExceeded) ||
 		errors.Is(err, kerr.RequestTimedOut) ||
 		errors.Is(err, kerr.NetworkException) ||
+		errors.Is(err, kerr.NotEnoughReplicasAfterAppend)
+}
+
+func isISRFailure(err error) bool {
+	return errors.Is(err, kerr.NotEnoughReplicas) ||
 		errors.Is(err, kerr.NotEnoughReplicasAfterAppend)
 }

@@ -59,13 +59,16 @@ func TestQueueEntryRoundTrip(t *testing.T) {
 		t.Errorf("QueueEntry.tracestate = %q, want %q", entry.GetTracestate(), traceState.String())
 	}
 
-	decoded, gotBytes, err := decodeEntry(value)
+	decoded, err := decodeEntry(value)
 	if err != nil {
 		t.Fatalf("decodeEntry() error = %v, want nil", err)
 	}
-	assertRecordIDs(t, decoded, "record-1", "record-2")
-	if gotBytes != payloadBytes || gotBytes != encodedSize(records) {
-		t.Errorf("decodeEntry() payload bytes = %d, want %d", gotBytes, payloadBytes)
+	assertRecordIDs(t, decoded.records, "record-1", "record-2")
+	if decoded.bytes != payloadBytes || decoded.bytes != encodedSize(records) {
+		t.Errorf("decodeEntry() payload bytes = %d, want %d", decoded.bytes, payloadBytes)
+	}
+	if !decoded.enqueuedAt.Equal(enqueuedAt) {
+		t.Errorf("decodeEntry() enqueue time = %v, want %v", decoded.enqueuedAt, enqueuedAt)
 	}
 }
 
@@ -89,7 +92,7 @@ func TestQueueEntryDetectsRecordPayloadBitChanges(t *testing.T) {
 		for bit := range 8 {
 			corrupt := bytes.Clone(value)
 			corrupt[offset+i] ^= byte(1 << bit)
-			if _, _, err := decodeEntry(corrupt); err == nil {
+			if _, err := decodeEntry(corrupt); err == nil {
 				t.Fatalf("decodeEntry(payload byte %d bit %d changed) error = nil, want non-nil", i, bit)
 			}
 		}
@@ -105,7 +108,7 @@ func TestQueueEntryRejectsUnknownVersion(t *testing.T) {
 	}
 	value := marshalTestEntry(t, entry)
 
-	if _, _, err := decodeEntry(value); err == nil {
+	if _, err := decodeEntry(value); err == nil {
 		t.Fatal("decodeEntry(unknown version) error = nil, want non-nil")
 	}
 }

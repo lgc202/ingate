@@ -223,6 +223,13 @@ func TestRecorderQueuesWholePartiallyPublishedBatch(t *testing.T) {
 	if queue.written != len(records) {
 		t.Errorf("RecordQueue.Write() records = %d, want %d", queue.written, len(records))
 	}
+	if got := recorder.Counters(); got != (RecorderCounters{
+		Valid:         2,
+		KafkaAccepted: 1,
+		Spooled:       2,
+	}) {
+		t.Errorf("Recorder.Counters() = %+v, want partial Kafka acceptance and a fully spooled batch", got)
+	}
 }
 
 // TestRecorderEstablishesFailureBarrier 验证故障后的新批次不再访问 Kafka。
@@ -311,8 +318,8 @@ func TestRecorderRejectsWhenKafkaAndQueueFail(t *testing.T) {
 	if !errors.Is(err, kafkaErr) || !errors.Is(err, queueErr) {
 		t.Fatalf("Recorder.Write() error = %v, want Kafka and disk queue errors", err)
 	}
-	if got := recorder.Counters(); got.Accepted != 0 || got.Rejected != 1 {
-		t.Errorf("Recorder.Counters() = %+v, want accepted 0 and rejected 1", got)
+	if got := recorder.Counters(); got.Valid != 1 || got.Rejected != 1 {
+		t.Errorf("Recorder.Counters() = %+v, want one valid and rejected record", got)
 	}
 	if got := recorder.Status(); got.KafkaWritable || got.Queue.Writable || !got.Spooling {
 		t.Errorf("Recorder.Status() = %+v, want unavailable Kafka and queue with spooling enabled", got)
@@ -356,6 +363,18 @@ func TestRecorderInvalidBatchPreservesQueueHealth(t *testing.T) {
 	}
 }
 
+// TestRecorderCountsDiscardedRecords 验证协议边界丢弃记录的累计计数。
+func TestRecorderCountsDiscardedRecords(t *testing.T) {
+	recorder := newTestRecorder(&stubPublisher{}, &stubQueue{})
+
+	recorder.Discard(2)
+	recorder.Discard(0)
+
+	if got := recorder.Counters(); got.Discarded != 2 || got.Valid != 0 {
+		t.Errorf("Recorder.Counters() = %+v, want two discarded records", got)
+	}
+}
+
 // TestRecorderReplaysThenResumesKafka 验证积压批次确认后才恢复 Kafka 直写。
 func TestRecorderReplaysThenResumesKafka(t *testing.T) {
 	records := []*alsv1.RequestRecord{{Id: "record-1"}, {Id: "record-2"}}
@@ -375,6 +394,9 @@ func TestRecorderReplaysThenResumesKafka(t *testing.T) {
 	}
 	if !queue.committed {
 		t.Fatal("RecordQueue.Commit() was not called after Kafka confirmation")
+	}
+	if got := recorder.Counters(); got.KafkaAccepted != 2 || got.Replayed != 2 || got.Committed != 2 {
+		t.Errorf("Recorder.Counters() = %+v, want two accepted, replayed, and committed records", got)
 	}
 
 	result, err = recorder.ReplayBatch(t.Context(), len(records))
@@ -404,6 +426,9 @@ func TestRecorderKeepsPartiallyPublishedReplay(t *testing.T) {
 	}
 	if queue.committed {
 		t.Fatal("RecordQueue.Commit() was called after a partial Kafka result")
+	}
+	if got := recorder.Counters(); got.KafkaAccepted != 1 || got.Replayed != 1 || got.Committed != 0 {
+		t.Errorf("Recorder.Counters() = %+v, want one accepted replay without a commit", got)
 	}
 }
 
@@ -450,6 +475,9 @@ func TestRecorderRetriesAfterQueueCommitFailure(t *testing.T) {
 	}
 	if queue.committed {
 		t.Fatal("queue entry was removed after commit failures")
+	}
+	if got := recorder.Counters(); got.KafkaAccepted != 2 || got.Replayed != 2 || got.Committed != 0 {
+		t.Errorf("Recorder.Counters() = %+v, want duplicate replay attempts without a commit", got)
 	}
 }
 

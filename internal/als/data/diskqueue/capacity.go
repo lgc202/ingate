@@ -57,14 +57,16 @@ func (p capacityPolicy) admits(usage storageUsage, growth int64) bool {
 func (p capacityPolicy) status(pending pendingUsage, usage storageUsage) biz.QueueStatus {
 	state := p.capacityState(usage)
 	return biz.QueueStatus{
-		State:          state,
-		Writable:       state != biz.QueueBlocked,
-		PendingRecords: pending.records,
-		PendingBytes:   pending.bytes,
-		DiskBytes:      usage.diskBytes,
-		CapacityBytes:  p.capacityBytes,
-		FreeBytes:      usage.freeBytes,
-		MinFreeBytes:   p.minFreeBytes,
+		State:            state,
+		Writable:         state != biz.QueueBlocked,
+		PendingEntries:   pending.entries,
+		PendingRecords:   pending.records,
+		PendingBytes:     pending.bytes,
+		OldestEnqueuedAt: pending.oldestAt,
+		DiskBytes:        usage.diskBytes,
+		CapacityBytes:    p.capacityBytes,
+		FreeBytes:        usage.freeBytes,
+		MinFreeBytes:     p.minFreeBytes,
 	}
 }
 

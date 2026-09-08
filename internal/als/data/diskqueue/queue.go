@@ -21,8 +21,10 @@ import (
 // pendingUsage 是发布给健康检查和指标读取的不可变队列用量。
 // 每次写入或确认都创建新值，避免读取方观察到只更新了一半的计数。
 type pendingUsage struct {
-	records int64
-	bytes   int64
+	entries  int64
+	records  int64
+	bytes    int64
+	oldestAt time.Time
 }
 
 // Queue 保存 Kafka 暂时不可用期间尚未投递的请求记录。
@@ -45,7 +47,7 @@ type Queue struct {
 // 启动时扫描未确认记录恢复计数；队列损坏会直接阻止服务启动，
 // 避免悄悄跳过尚未投递的数据。
 func NewQueue(config *conf.Data_DiskQueue) (*Queue, error) {
-	return openQueueWithProbe(config, inspectStorage)
+	return openQueueWithProbe(config, measureStorage)
 }
 
 // Write 将一个请求记录批次编码为单个 WAL 条目并原子追加到磁盘。
@@ -63,7 +65,8 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	value, batchBytes, err := encodeEntry(ctx, records, time.Now())
+	enqueuedAt := time.Now().UTC()
+	value, batchBytes, err := encodeEntry(ctx, records, enqueuedAt)
 	if err != nil {
 		return fmt.Errorf("%w: encode entry: %w", biz.ErrQueueInvalidBatch, err)
 	}
@@ -99,8 +102,13 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 		return fmt.Errorf("append disk queue: %w", err)
 	}
 	nextPending := pendingUsage{
-		records: pending.records + int64(len(records)),
-		bytes:   pending.bytes + batchBytes,
+		entries:  pending.entries + 1,
+		records:  pending.records + int64(len(records)),
+		bytes:    pending.bytes + batchBytes,
+		oldestAt: pending.oldestAt,
+	}
+	if pending.entries == 0 {
+		nextPending.oldestAt = enqueuedAt
 	}
 	q.pending.Store(&nextPending)
 
@@ -144,16 +152,16 @@ func (q *Queue) Read(ctx context.Context, limit int) (biz.QueuedBatch, error) {
 		if err != nil {
 			return biz.QueuedBatch{}, fmt.Errorf("read disk queue sequence %d: %w", sequence, err)
 		}
-		entryRecords, entryBytes, err := decodeEntry(value)
+		entry, err := decodeEntry(value)
 		if err != nil {
 			return biz.QueuedBatch{}, fmt.Errorf("decode disk queue sequence %d: %w", sequence, err)
 		}
-		if len(records) > 0 && len(records)+len(entryRecords) > limit {
+		if len(records) > 0 && len(records)+len(entry.records) > limit {
 			break
 		}
 
-		records = append(records, entryRecords...)
-		bytes += entryBytes
+		records = append(records, entry.records...)
+		bytes += entry.bytes
 		lastSequence = sequence
 		if len(records) >= limit || sequence == last {
 			break
@@ -168,7 +176,7 @@ func (q *Queue) Read(ctx context.Context, limit int) (biz.QueuedBatch, error) {
 }
 
 // Commit 删除已经成功写入 Kafka 的连续队首记录。
-// 截断 WAL 前重新核对序号、记录数和字节数，避免错误批次确认其他尚未投递的数据。
+// batch 必须来自当前 Queue 的上一次 Read，回放器不得并发推进确认位置。
 func (q *Queue) Commit(ctx context.Context, batch biz.QueuedBatch) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -191,26 +199,34 @@ func (q *Queue) Commit(ctx context.Context, batch biz.QueuedBatch) error {
 	if batch.LastSequence == math.MaxUint64 {
 		return errors.New("disk queue sequence is exhausted")
 	}
-
-	committed, err := measureEntries(q.log, first, batch.LastSequence)
-	if err != nil {
-		return err
-	}
-	if committed.records != int64(len(batch.Records)) || committed.bytes != batch.Bytes {
+	sequences := batch.LastSequence - first + 1
+	if sequences > math.MaxInt64 || len(batch.Records) == 0 || batch.Bytes <= 0 {
 		return errors.New("commit disk queue batch metadata is inconsistent")
 	}
+	entries := int64(sequences)
 
 	pending := q.pending.Load()
-	if committed.records == 0 || committed.records > pending.records || committed.bytes > pending.bytes {
+	if entries > pending.entries || int64(len(batch.Records)) > pending.records || batch.Bytes > pending.bytes {
 		return errors.New("commit disk queue batch metadata is inconsistent")
+	}
+	nextPending := pendingUsage{
+		entries: pending.entries - entries,
+		records: pending.records - int64(len(batch.Records)),
+		bytes:   pending.bytes - batch.Bytes,
+	}
+	if nextPending.entries > 0 {
+		value, err := q.log.Read(batch.LastSequence + 1)
+		if err != nil {
+			return fmt.Errorf("read next disk queue sequence %d: %w", batch.LastSequence+1, err)
+		}
+		entry, err := decodeEntry(value)
+		if err != nil {
+			return fmt.Errorf("decode next disk queue sequence %d: %w", batch.LastSequence+1, err)
+		}
+		nextPending.oldestAt = entry.enqueuedAt
 	}
 	if err := q.log.TruncateFront(batch.LastSequence + 1); err != nil {
 		return fmt.Errorf("truncate disk queue: %w", err)
-	}
-
-	nextPending := pendingUsage{
-		records: pending.records - committed.records,
-		bytes:   pending.bytes - committed.bytes,
 	}
 	q.pending.Store(&nextPending)
 
@@ -318,15 +334,21 @@ func measureEntries(queueLog *wal.Log, first, last uint64) (pendingUsage, error)
 		if err != nil {
 			return pendingUsage{}, fmt.Errorf("read disk queue sequence %d: %w", sequence, err)
 		}
-		records, bytes, err := decodeEntry(value)
+		entry, err := decodeEntry(value)
 		if err != nil {
 			return pendingUsage{}, fmt.Errorf("decode disk queue sequence %d: %w", sequence, err)
 		}
-		if int64(len(records)) > math.MaxInt64-usage.records || bytes > math.MaxInt64-usage.bytes {
+		if usage.entries == math.MaxInt64 ||
+			int64(len(entry.records)) > math.MaxInt64-usage.records ||
+			entry.bytes > math.MaxInt64-usage.bytes {
 			return pendingUsage{}, errors.New("disk queue usage exceeds the supported range")
 		}
-		usage.records += int64(len(records))
-		usage.bytes += bytes
+		if usage.entries == 0 {
+			usage.oldestAt = entry.enqueuedAt
+		}
+		usage.entries++
+		usage.records += int64(len(entry.records))
+		usage.bytes += entry.bytes
 		if sequence == last {
 			break
 		}

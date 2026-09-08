@@ -10,6 +10,7 @@ import (
 	"github.com/lgc202/ingate/internal/als/conf"
 	"github.com/lgc202/ingate/internal/als/data/diskqueue"
 	"github.com/lgc202/ingate/internal/als/data/kafka"
+	alsmetrics "github.com/lgc202/ingate/internal/als/metrics"
 )
 
 // ProviderSet 绑定 ALS 业务层的主写入和磁盘队列边界。
@@ -17,13 +18,16 @@ var ProviderSet = wire.NewSet(
 	NewKafkaClient,
 	NewDiskQueue,
 	wire.Bind(new(biz.RecordPublisher), new(*kafka.Client)),
-	wire.Bind(new(biz.TopicInspector), new(*kafka.Client)),
+	wire.Bind(new(biz.TopicReader), new(*kafka.Client)),
 	wire.Bind(new(biz.RecordQueue), new(*diskqueue.Queue)),
 )
 
 // NewKafkaClient 创建 Kafka 客户端，并把连接释放交给 Wire cleanup。
-func NewKafkaClient(config *conf.Data_Kafka) (*kafka.Client, func(), error) {
-	client, err := kafka.NewClient(config)
+func NewKafkaClient(
+	config *conf.Data_Kafka,
+	events *alsmetrics.EventCollector,
+) (*kafka.Client, func(), error) {
+	client, err := kafka.NewClient(config, events)
 	if err != nil {
 		return nil, nil, err
 	}

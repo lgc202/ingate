@@ -20,16 +20,22 @@ type RecorderStatus struct {
 	KafkaWritable bool
 	// Spooling 表示新记录当前直接进入磁盘队列，避免 Kafka 故障期间每批都等待网络超时。
 	Spooling bool
+	// ReplayPaused 表示队首记录遇到永久错误，本进程不再自动重试。
+	ReplayPaused bool
 }
 
 // RecorderCounters 是 Recorder 启动后累计的请求记录处理计数。
 type RecorderCounters struct {
-	// Accepted 是已经被 Kafka 或磁盘队列可靠接收的记录总数。
-	Accepted uint64
-	// Queued 是因 Kafka 不可用而进入磁盘队列的记录总数。
-	Queued uint64
-	// Replayed 是从磁盘队列成功重新投递并确认的记录总数。
+	// Valid 是通过协议校验并进入可靠投递流程的记录总数。
+	Valid uint64
+	// KafkaAccepted 是 Kafka 已确认接收的记录总数，包括 WAL 重放和可能重复的发布。
+	KafkaAccepted uint64
+	// Spooled 是成功追加到 WAL 的记录总数。
+	Spooled uint64
+	// Replayed 是从 WAL 成功发布到 Kafka 的记录总数，包括本地确认失败后的重复发布。
 	Replayed uint64
+	// Committed 是成功发布后从 WAL 确认删除的记录总数。
+	Committed uint64
 	// Rejected 是 Kafka 与磁盘队列都无法接收时拒绝的记录总数。
 	Rejected uint64
 	// Discarded 是协议边界丢弃的不完整记录和非 HTTP 记录总数。
@@ -62,11 +68,13 @@ type Recorder struct {
 	logger    *slog.Logger
 	state     *recorderState
 
-	accepted  atomic.Uint64
-	queued    atomic.Uint64
-	replayed  atomic.Uint64
-	rejected  atomic.Uint64
-	discarded atomic.Uint64
+	valid         atomic.Uint64
+	kafkaAccepted atomic.Uint64
+	spooled       atomic.Uint64
+	replayed      atomic.Uint64
+	committed     atomic.Uint64
+	rejected      atomic.Uint64
+	discarded     atomic.Uint64
 }
 
 // NewRecorder 创建请求记录写入用例。
@@ -94,6 +102,7 @@ func (r *Recorder) Write(ctx context.Context, records []*alsv1.RequestRecord) er
 	if len(records) == 0 {
 		return nil
 	}
+	r.valid.Add(uint64(len(records)))
 
 	if r.state.reserveWrite(r.topic.Status().Compliant) == queueTarget {
 		return r.writeQueue(ctx, records)
@@ -123,6 +132,8 @@ func (r *Recorder) ReplayBatch(ctx context.Context, limit int) (ReplayResult, er
 
 	result := r.publisher.Publish(ctx, batch.Records)
 	if result.Err != nil {
+		r.kafkaAccepted.Add(uint64(result.Confirmed))
+		r.replayed.Add(uint64(result.Confirmed))
 		permanent := result.Class == PublishPermanent
 		r.state.replayFailed(permanent)
 		if permanent {
@@ -131,6 +142,8 @@ func (r *Recorder) ReplayBatch(ctx context.Context, limit int) (ReplayResult, er
 		return ReplayRetry, fmt.Errorf("write queued records: %w", result.Err)
 	}
 
+	r.kafkaAccepted.Add(uint64(len(batch.Records)))
+	r.replayed.Add(uint64(len(batch.Records)))
 	r.state.replaySucceeded()
 	if err := r.queue.Commit(ctx, batch); err != nil {
 		r.state.queueFailed()
@@ -138,7 +151,7 @@ func (r *Recorder) ReplayBatch(ctx context.Context, limit int) (ReplayResult, er
 	}
 
 	r.state.queueSucceeded()
-	r.replayed.Add(uint64(len(batch.Records)))
+	r.committed.Add(uint64(len(batch.Records)))
 
 	return ReplayCommitted, nil
 }
@@ -151,11 +164,13 @@ func (r *Recorder) Status() RecorderStatus {
 // Counters 返回无需加锁读取的累计处理计数。
 func (r *Recorder) Counters() RecorderCounters {
 	return RecorderCounters{
-		Accepted:  r.accepted.Load(),
-		Queued:    r.queued.Load(),
-		Replayed:  r.replayed.Load(),
-		Rejected:  r.rejected.Load(),
-		Discarded: r.discarded.Load(),
+		Valid:         r.valid.Load(),
+		KafkaAccepted: r.kafkaAccepted.Load(),
+		Spooled:       r.spooled.Load(),
+		Replayed:      r.replayed.Load(),
+		Committed:     r.committed.Load(),
+		Rejected:      r.rejected.Load(),
+		Discarded:     r.discarded.Load(),
 	}
 }
 
@@ -176,9 +191,10 @@ func (r *Recorder) writeKafka(ctx context.Context, records []*alsv1.RequestRecor
 	result := r.publisher.Publish(ctx, records)
 	if result.Err == nil {
 		r.state.finishKafkaWrite(true)
-		r.accepted.Add(uint64(len(records)))
+		r.kafkaAccepted.Add(uint64(len(records)))
 		return nil
 	}
+	r.kafkaAccepted.Add(uint64(result.Confirmed))
 
 	if r.state.finishKafkaWrite(false) {
 		r.logger.WarnContext(ctx, "Kafka write failed; request records switched to disk queue",
@@ -216,8 +232,7 @@ func (r *Recorder) writeQueue(ctx context.Context, records []*alsv1.RequestRecor
 		r.logger.InfoContext(ctx, "disk queue recovered")
 	}
 
-	r.accepted.Add(uint64(len(records)))
-	r.queued.Add(uint64(len(records)))
+	r.spooled.Add(uint64(len(records)))
 
 	return nil
 }

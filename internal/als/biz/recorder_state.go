@@ -141,5 +141,6 @@ func (s *recorderState) status(
 		Queue:         queue,
 		KafkaWritable: topic.Compliant && s.kafkaOK,
 		Spooling:      !topic.Compliant || s.spooling,
+		ReplayPaused:  s.replayPaused,
 	}
 }

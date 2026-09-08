@@ -2,9 +2,11 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log/slog"
+	"time"
 
 	accesslogdata "github.com/envoyproxy/go-control-plane/envoy/data/accesslog/v3"
 	accesslogservice "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v3"
@@ -14,6 +16,7 @@ import (
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	"github.com/lgc202/ingate/internal/als/biz"
+	alsmetrics "github.com/lgc202/ingate/internal/als/metrics"
 	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
@@ -24,18 +27,26 @@ var ProviderSet = wire.NewSet(NewService)
 type Service struct {
 	accesslogservice.UnimplementedAccessLogServiceServer
 	recorder *biz.Recorder
+	events   *alsmetrics.EventCollector
 	logger   *slog.Logger
 }
 
 // NewService 创建 ALS gRPC 服务。
-func NewService(recorder *biz.Recorder, logger *slog.Logger) *Service {
-	return &Service{recorder: recorder, logger: logger}
+func NewService(
+	recorder *biz.Recorder,
+	events *alsmetrics.EventCollector,
+	logger *slog.Logger,
+) *Service {
+	return &Service{recorder: recorder, events: events, logger: logger}
 }
 
 // StreamAccessLogs 持续接收 Envoy 批量发送的 HTTP access log。
 // ALS 协议没有逐批确认；仅当 Kafka 和磁盘队列都无法接收记录时终止流，
 // 让 Envoy 通过重连重试，而单条无效记录只计入丢弃指标并保留同批有效记录。
 func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_StreamAccessLogsServer) error {
+	s.events.StreamStarted()
+	defer s.events.StreamFinished()
+
 	var nodeID string
 	for {
 		message, err := stream.Recv()
@@ -46,40 +57,59 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 			return err
 		}
 
-		nodeID, err = accessLogNodeID(nodeID, message)
+		startedAt := time.Now()
+		recordCount := len(message.GetHttpLogs().GetLogEntry())
+		if tcpLogs := message.GetTcpLogs(); tcpLogs != nil {
+			recordCount = len(tcpLogs.GetLogEntry())
+		}
+
+		nodeID, err = s.acceptBatch(stream.Context(), nodeID, message)
+		s.events.ObserveBatch(recordCount, time.Since(startedAt))
 		if err != nil {
 			return err
 		}
-
-		if tcpLogs := message.GetTcpLogs(); tcpLogs != nil {
-			// Ingate 当前只代理 HTTP 流量，忽略意外的 TCP 记录比主动断开整条 ALS 流更安全。
-			s.recorder.Discard(len(tcpLogs.GetLogEntry()))
-			continue
-		}
-		entries := message.GetHttpLogs().GetLogEntry()
-		if len(entries) == 0 {
-			continue
-		}
-
-		records, discardedCount, firstParseErr := parseRequestRecords(nodeID, entries)
-		if discardedCount > 0 {
-			s.recorder.Discard(discardedCount)
-			s.logger.WarnContext(
-				stream.Context(),
-				"invalid HTTP access log entries discarded",
-				"err", firstParseErr,
-				"count", discardedCount,
-				"envoy_node_id", nodeID,
-			)
-		}
-		if len(records) == 0 {
-			continue
-		}
-
-		if err := s.recorder.Write(stream.Context(), records); err != nil {
-			return status.Error(codes.Unavailable, "request record storage is unavailable")
-		}
 	}
+}
+
+func (s *Service) acceptBatch(
+	ctx context.Context,
+	nodeID string,
+	message *accesslogservice.StreamAccessLogsMessage,
+) (string, error) {
+	nodeID, err := accessLogNodeID(nodeID, message)
+	if err != nil {
+		return "", err
+	}
+
+	if tcpLogs := message.GetTcpLogs(); tcpLogs != nil {
+		// Ingate 当前只代理 HTTP 流量，忽略意外的 TCP 记录比主动断开整条 ALS 流更安全。
+		s.recorder.Discard(len(tcpLogs.GetLogEntry()))
+		return nodeID, nil
+	}
+	entries := message.GetHttpLogs().GetLogEntry()
+	if len(entries) == 0 {
+		return nodeID, nil
+	}
+
+	records, discardedCount, firstParseErr := parseRequestRecords(nodeID, entries)
+	if discardedCount > 0 {
+		s.recorder.Discard(discardedCount)
+		s.logger.WarnContext(
+			ctx,
+			"invalid HTTP access log entries discarded",
+			"err", firstParseErr,
+			"count", discardedCount,
+			"envoy_node_id", nodeID,
+		)
+	}
+	if len(records) == 0 {
+		return nodeID, nil
+	}
+
+	if err := s.recorder.Write(ctx, records); err != nil {
+		return "", status.Error(codes.Unavailable, "request record storage is unavailable")
+	}
+	return nodeID, nil
 }
 
 func accessLogNodeID(

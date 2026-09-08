@@ -35,7 +35,8 @@ cd <安装目录>
 | --- | --- |
 | Console、Admin API | `/healthz` |
 | Assistant | `/healthz`、`/readyz` |
-| Controller、Authz、AI ExtProc、ALS、Analytics | `/healthz`、`/readyz`、`/metrics` |
+| Controller、Authz、AI ExtProc、Analytics | `/healthz`、`/readyz`、`/metrics` |
+| ALS | `/livez`、`/healthz`、`/readyz`、`/metrics` |
 | API Server | `/healthz`、`/livez`、`/readyz`；内部指标端点需要认证 |
 
 Compose 对 Controller、Authz 等具有依赖就绪语义的组件使用 `/readyz` 判断健康状态，对 Console 和 Admin API 使用 `/healthz`。健康检查请求属于高频基础探测，不会按普通业务请求输出 INFO 访问日志。

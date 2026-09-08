@@ -14,24 +14,24 @@ import (
 	"github.com/lgc202/ingate/internal/als/conf"
 )
 
-type stubTopicInspector struct {
+type stubTopicReader struct {
 	topology biz.TopicTopology
 	err      error
 }
 
-func (i *stubTopicInspector) InspectTopic(context.Context) (biz.TopicTopology, error) {
-	return i.topology, i.err
+func (r *stubTopicReader) ReadTopology(context.Context) (biz.TopicTopology, error) {
+	return r.topology, r.err
 }
 
 // TestTopicMonitorChecksBeforeStart 验证 HTTP 和 gRPC 服务启动前已缓存 Topic 契约状态。
 func TestTopicMonitorChecksBeforeStart(t *testing.T) {
-	inspector := &stubTopicInspector{topology: biz.TopicTopology{
+	reader := &stubTopicReader{topology: biz.TopicTopology{
 		Exists:            true,
 		ReplicationFactor: 3,
 		MinInSyncReplicas: 2,
 	}}
 	contract := biz.NewTopicContract(biz.ReliabilityProduction)
-	monitor := NewTopicMonitor(topicMonitorConfig(), inspector, contract, discardServerLogger())
+	monitor := NewTopicMonitor(topicMonitorConfig(), reader, contract, discardServerLogger())
 
 	if err := monitor.BeforeStart(t.Context()); err != nil {
 		t.Fatalf("TopicMonitor.BeforeStart() error = %v, want nil", err)
@@ -49,8 +49,8 @@ func TestTopicMonitorPreservesLastStatus(t *testing.T) {
 		ReplicationFactor: 1,
 		MinInSyncReplicas: 1,
 	})
-	inspector := &stubTopicInspector{err: errors.New("topic inspection unavailable")}
-	monitor := NewTopicMonitor(topicMonitorConfig(), inspector, contract, discardServerLogger())
+	reader := &stubTopicReader{err: errors.New("topic read unavailable")}
+	monitor := NewTopicMonitor(topicMonitorConfig(), reader, contract, discardServerLogger())
 
 	if err := monitor.BeforeStart(t.Context()); err != nil {
 		t.Fatalf("TopicMonitor.BeforeStart() error = %v, want nil", err)

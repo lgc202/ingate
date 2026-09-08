@@ -16,6 +16,7 @@ import (
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	"github.com/lgc202/ingate/internal/als/biz"
 	"github.com/lgc202/ingate/internal/als/conf"
+	alsmetrics "github.com/lgc202/ingate/internal/als/metrics"
 )
 
 type replayPublisher struct {
@@ -93,7 +94,12 @@ func TestDiskQueueReplayerRetriesThenDrains(t *testing.T) {
 		return result
 	}}
 	recorder := newReplayerRecorder(publisher, queue)
-	replayer := NewDiskQueueReplayer(replayerConfig(), recorder, discardServerLogger())
+	replayer := NewDiskQueueReplayer(
+		replayerConfig(),
+		recorder,
+		alsmetrics.NewEventCollector(),
+		discardServerLogger(),
+	)
 
 	delay, paused := replayer.replay(t.Context())
 	if paused || delay < 10*time.Millisecond || delay > 15*time.Millisecond {
@@ -129,6 +135,7 @@ func TestDiskQueueReplayerReportsPermanentFailureAfterRetry(t *testing.T) {
 	replayer := NewDiskQueueReplayer(
 		replayerConfig(),
 		newReplayerRecorder(publisher, queue),
+		alsmetrics.NewEventCollector(),
 		logger,
 	)
 
@@ -163,6 +170,7 @@ func TestDiskQueueReplayerStopsAfterPermanentFailure(t *testing.T) {
 	replayer := NewDiskQueueReplayer(
 		replayerConfig(),
 		newReplayerRecorder(publisher, queue),
+		alsmetrics.NewEventCollector(),
 		discardServerLogger(),
 	)
 	done := startReplayer(t, replayer)
@@ -192,6 +200,7 @@ func TestDiskQueueReplayerCancelsInFlightPublish(t *testing.T) {
 	replayer := NewDiskQueueReplayer(
 		replayerConfig(),
 		newReplayerRecorder(publisher, queue),
+		alsmetrics.NewEventCollector(),
 		discardServerLogger(),
 	)
 	done := startReplayer(t, replayer)

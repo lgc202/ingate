@@ -68,12 +68,12 @@ func TestCapacityPolicyAdmission(t *testing.T) {
 	}
 }
 
-// TestInspectStorageIncludesEveryFile 验证容量统计不会遗漏临时文件、锁和存储元数据。
-func TestInspectStorageIncludesEveryFile(t *testing.T) {
+// TestMeasureStorageIncludesEveryFile 验证容量统计不会遗漏临时文件、锁和存储元数据。
+func TestMeasureStorageIncludesEveryFile(t *testing.T) {
 	path := t.TempDir()
-	before, err := inspectStorage(path)
+	before, err := measureStorage(path)
 	if err != nil {
-		t.Fatalf("inspectStorage(empty directory) error = %v, want nil", err)
+		t.Fatalf("measureStorage(empty directory) error = %v, want nil", err)
 	}
 
 	data := bytes.Repeat([]byte{0x7f}, 8<<10)
@@ -82,17 +82,17 @@ func TestInspectStorageIncludesEveryFile(t *testing.T) {
 			t.Fatalf("os.WriteFile(%q) error = %v, want nil", name, err)
 		}
 	}
-	after, err := inspectStorage(path)
+	after, err := measureStorage(path)
 	if err != nil {
-		t.Fatalf("inspectStorage(populated directory) error = %v, want nil", err)
+		t.Fatalf("measureStorage(populated directory) error = %v, want nil", err)
 	}
 	if after.diskBytes <= before.diskBytes {
 		t.Errorf("physical usage after adding WAL files = %d, want greater than %d", after.diskBytes, before.diskBytes)
 	}
 }
 
-// TestInspectStorageFollowsQueueSymlink 验证容量探测和 WAL 使用同一个真实目录。
-func TestInspectStorageFollowsQueueSymlink(t *testing.T) {
+// TestMeasureStorageFollowsQueueSymlink 验证容量统计和 WAL 使用同一个真实目录。
+func TestMeasureStorageFollowsQueueSymlink(t *testing.T) {
 	realPath := t.TempDir()
 	queuePath := filepath.Join(t.TempDir(), "queue")
 	if err := os.Symlink(realPath, queuePath); err != nil {
@@ -106,11 +106,11 @@ func TestInspectStorageFollowsQueueSymlink(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepareDirectory(symlink) error = %v, want nil", err)
 	}
-	usage, err := inspectStorage(resolved)
+	usage, err := measureStorage(resolved)
 	if err != nil {
-		t.Fatalf("inspectStorage(resolved path) error = %v, want nil", err)
+		t.Fatalf("measureStorage(resolved path) error = %v, want nil", err)
 	}
 	if usage.diskBytes == 0 {
-		t.Error("inspectStorage(resolved path) disk bytes = 0, want segment usage")
+		t.Error("measureStorage(resolved path) disk bytes = 0, want segment usage")
 	}
 }

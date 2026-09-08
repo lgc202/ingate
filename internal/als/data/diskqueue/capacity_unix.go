@@ -14,7 +14,7 @@ import (
 
 const diskBlockBytes int64 = 512
 
-func inspectStorage(path string) (storageUsage, error) {
+func measureStorage(path string) (storageUsage, error) {
 	var filesystem unix.Statfs_t
 	if err := unix.Statfs(path, &filesystem); err != nil {
 		return storageUsage{}, fmt.Errorf("measure disk queue free space: %w", err)

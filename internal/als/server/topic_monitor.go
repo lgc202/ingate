@@ -19,10 +19,10 @@ const topicRefreshInterval = time.Minute
 // Kafka 暂时不可达时保留最近一次有效结果，由 Recorder 根据缓存决定直写 Kafka 还是写入磁盘队列。
 // 生命周期状态允许 Kratos 的 Start 和 Stop 并发到达而不遗留后台任务。
 type TopicMonitor struct {
-	inspector biz.TopicInspector
-	contract  *biz.TopicContract
-	logger    *slog.Logger
-	timeout   time.Duration
+	reader   biz.TopicReader
+	contract *biz.TopicContract
+	logger   *slog.Logger
+	timeout  time.Duration
 
 	done        chan struct{}
 	running     atomic.Bool
@@ -37,16 +37,16 @@ type TopicMonitor struct {
 // NewTopicMonitor 创建 Kafka Topic 契约监测任务。
 func NewTopicMonitor(
 	config *conf.Data_Kafka,
-	inspector biz.TopicInspector,
+	reader biz.TopicReader,
 	contract *biz.TopicContract,
 	logger *slog.Logger,
 ) *TopicMonitor {
 	return &TopicMonitor{
-		inspector: inspector,
-		contract:  contract,
-		logger:    logger,
-		timeout:   config.GetTopicCheckTimeout().AsDuration(),
-		done:      make(chan struct{}),
+		reader:   reader,
+		contract: contract,
+		logger:   logger,
+		timeout:  config.GetTopicCheckTimeout().AsDuration(),
+		done:     make(chan struct{}),
 	}
 }
 
@@ -110,7 +110,7 @@ func (m *TopicMonitor) refresh(ctx context.Context) {
 	checkCtx, cancel := context.WithTimeout(ctx, m.timeout)
 	defer cancel()
 
-	topology, err := m.inspector.InspectTopic(checkCtx)
+	topology, err := m.reader.ReadTopology(checkCtx)
 	if err != nil {
 		if ctx.Err() == nil && !m.checkFailed {
 			m.logger.WarnContext(ctx, "Kafka topic check failed", "err", err)
