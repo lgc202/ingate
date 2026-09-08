@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,20 +14,28 @@ import (
 	"github.com/lgc202/ingate/internal/als/conf"
 )
 
+// replayBackoff 记录连续回放失败后的下一档基础等待时间。
+// 随机抖动只向上增加并受 max 限制，保证实际等待始终位于配置边界内。
+type replayBackoff struct {
+	min  time.Duration
+	max  time.Duration
+	next time.Duration
+}
+
 // DiskQueueReplayer 周期性把 Kafka 故障期间写入磁盘队列的请求记录重新投递到 Kafka。
 // Kafka 恢复后由单个循环按队首顺序持续排空积压，避免并发回放打乱确认位置。
 // 生命周期状态允许 Kratos 的 Start 和 Stop 并发到达而不遗留后台任务。
 type DiskQueueReplayer struct {
-	recorder     *biz.Recorder
-	logger       *slog.Logger
-	interval     time.Duration
-	batchSize    int
-	done         chan struct{}
-	running      atomic.Bool
-	lifecycleMu  sync.Mutex
-	cancel       context.CancelFunc
-	stopping     bool
-	replayFailed bool
+	recorder    *biz.Recorder
+	logger      *slog.Logger
+	batchSize   int
+	backoff     replayBackoff
+	done        chan struct{}
+	running     atomic.Bool
+	lifecycleMu sync.Mutex
+	cancel      context.CancelFunc
+	stopping    bool
+	retryLogged bool
 }
 
 // NewDiskQueueReplayer 创建磁盘队列回放任务。
@@ -35,12 +44,17 @@ func NewDiskQueueReplayer(
 	recorder *biz.Recorder,
 	logger *slog.Logger,
 ) *DiskQueueReplayer {
+	minBackoff := config.GetReplayMinBackoff().AsDuration()
 	return &DiskQueueReplayer{
 		recorder:  recorder,
 		logger:    logger,
-		interval:  config.GetReplayInterval().AsDuration(),
 		batchSize: int(config.GetReplayBatchSize()),
-		done:      make(chan struct{}),
+		backoff: replayBackoff{
+			min:  minBackoff,
+			max:  config.GetReplayMaxBackoff().AsDuration(),
+			next: minBackoff,
+		},
+		done: make(chan struct{}),
 	}
 }
 
@@ -61,21 +75,19 @@ func (r *DiskQueueReplayer) Start(ctx context.Context) error {
 	}
 
 	defer close(r.done)
-	if runCtx.Err() != nil {
-		return nil
-	}
-	r.replay(runCtx)
-
-	timer := time.NewTimer(r.interval)
+	timer := time.NewTimer(0)
 	defer timer.Stop()
 	for {
 		select {
 		case <-runCtx.Done():
 			return nil
 		case <-timer.C:
-			r.replay(runCtx)
-			// 从本轮结束后重新计时，避免一次 Kafka 超时后立即消费积压的旧 tick 并连续重试。
-			timer.Reset(r.interval)
+			delay, paused := r.replay(runCtx)
+			if paused {
+				<-runCtx.Done()
+				return nil
+			}
+			timer.Reset(delay)
 		}
 	}
 }
@@ -101,24 +113,60 @@ func (r *DiskQueueReplayer) Stop(ctx context.Context) error {
 	}
 }
 
-func (r *DiskQueueReplayer) replay(ctx context.Context) {
+func (b *replayBackoff) reset() {
+	b.next = b.min
+}
+
+func (b *replayBackoff) nextDelay() time.Duration {
+	base := b.next
+	if b.next >= b.max/2 {
+		b.next = b.max
+	} else {
+		b.next *= 2
+	}
+
+	jitterLimit := min(base/2, b.max-base)
+	if jitterLimit <= 0 {
+		return base
+	}
+	return base + time.Duration(rand.Int64N(int64(jitterLimit)+1))
+}
+
+// replay 连续提交可用批次，遇到空队列或失败时返回下一次调度决定。
+func (r *DiskQueueReplayer) replay(ctx context.Context) (time.Duration, bool) {
 	for {
-		replayed, err := r.recorder.ReplayBatch(ctx, r.batchSize)
-		if err != nil {
-			if ctx.Err() == nil && !r.replayFailed {
-				// 故障状态没有变化时不按一秒重试周期重复打印相同告警。
-				r.logger.WarnContext(ctx, "disk queue replay failed", "err", err)
+		result, err := r.recorder.ReplayBatch(ctx, r.batchSize)
+		switch result {
+		case biz.ReplayCommitted:
+			r.backoff.reset()
+			r.retryLogged = false
+			if ctx.Err() != nil {
+				return r.backoff.min, false
 			}
-			r.replayFailed = true
-			return
-		}
-		r.replayFailed = false
-		if !replayed {
-			return
-		}
-		// Kafka 恢复后连续排空磁盘队列，同时让优雅退出可以在批次之间及时停止。
-		if ctx.Err() != nil {
-			return
+			continue
+		case biz.ReplayIdle:
+			r.backoff.reset()
+			r.retryLogged = false
+			return r.backoff.min, false
+		case biz.ReplayPaused:
+			// 永久错误只会到达一次，不能被先前的临时失败日志抑制。
+			if ctx.Err() == nil {
+				r.logger.ErrorContext(ctx, "disk queue replay paused", "err", err)
+			}
+			return 0, true
+		case biz.ReplayRetry:
+			delay := r.backoff.nextDelay()
+			if ctx.Err() == nil && !r.retryLogged {
+				r.logger.WarnContext(ctx, "disk queue replay failed",
+					"retry_after", delay,
+					"err", err,
+				)
+			}
+			r.retryLogged = true
+			return delay, false
+		default:
+			r.logger.ErrorContext(ctx, "disk queue replay returned invalid result", "result", result)
+			return 0, true
 		}
 	}
 }

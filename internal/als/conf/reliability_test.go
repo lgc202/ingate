@@ -44,6 +44,31 @@ func TestValidateDataTopicCheckTimeout(t *testing.T) {
 	}
 }
 
+// TestValidateDiskQueueReplayBackoff 验证回放退避必须是有效且有序的时间边界。
+func TestValidateDiskQueueReplayBackoff(t *testing.T) {
+	tests := []struct {
+		name string
+		min  *durationpb.Duration
+		max  *durationpb.Duration
+	}{
+		{name: "missing minimum", max: durationpb.New(time.Second)},
+		{name: "zero minimum", min: durationpb.New(0), max: durationpb.New(time.Second)},
+		{name: "missing maximum", min: durationpb.New(time.Second)},
+		{name: "maximum below minimum", min: durationpb.New(2 * time.Second), max: durationpb.New(time.Second)},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := validDataConfig()
+			config.DiskQueue.ReplayMinBackoff = test.min
+			config.DiskQueue.ReplayMaxBackoff = test.max
+			if err := validateData(config); err == nil {
+				t.Error("validateData(config with invalid replay backoff) error = nil, want non-nil")
+			}
+		})
+	}
+}
+
 func validDataConfig() *Data {
 	return &Data{
 		Kafka: &Data_Kafka{
@@ -54,11 +79,12 @@ func validDataConfig() *Data {
 			TopicCheckTimeout: durationpb.New(5 * time.Second),
 		},
 		DiskQueue: &Data_DiskQueue{
-			Path:            "/tmp/ingate-als-test",
-			SegmentBytes:    1024,
-			ReplayBatchSize: 10,
-			ReplayInterval:  durationpb.New(time.Second),
-			MaxBytes:        2048,
+			Path:             "/tmp/ingate-als-test",
+			SegmentBytes:     1024,
+			ReplayBatchSize:  10,
+			ReplayMinBackoff: durationpb.New(time.Second),
+			ReplayMaxBackoff: durationpb.New(30 * time.Second),
+			MaxBytes:         2048,
 		},
 	}
 }

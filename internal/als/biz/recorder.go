@@ -40,6 +40,20 @@ type RecorderCounters struct {
 	Discarded uint64
 }
 
+// ReplayResult 表示一次队首回放完成后 Replayer 应观察到的稳定结果。
+type ReplayResult uint8
+
+const (
+	// ReplayIdle 表示当前没有可提交的队首条目。
+	ReplayIdle ReplayResult = iota + 1
+	// ReplayCommitted 表示一个连续队首批次已经发布并提交。
+	ReplayCommitted
+	// ReplayRetry 表示条目保持未确认，稍后可以重试。
+	ReplayRetry
+	// ReplayPaused 表示永久错误暂停该队首条目的自动重试。
+	ReplayPaused
+)
+
 // Recorder 负责 Kafka 优先、磁盘队列兜底以及积压记录回放。
 //
 // 该链路采用至少一次投递：只有 Kafka 确认成功后才删除磁盘队列记录；
@@ -85,47 +99,52 @@ func (r *Recorder) Write(ctx context.Context, records []*alsv1.RequestRecord) er
 		return nil
 	}
 
-	if r.state.reserveQueueWrite(r.topic.Status().Compliant) {
+	if r.state.reserveWrite(r.topic.Status().Compliant) == queueTarget {
 		return r.writeQueue(ctx, records)
 	}
 
 	return r.writeKafka(ctx, records)
 }
 
-// ReplayBatch 将一批磁盘队列记录重新写入 Kafka，返回是否实际回放了一批记录。
-func (r *Recorder) ReplayBatch(ctx context.Context, limit int) (bool, error) {
+// ReplayBatch 尝试发布并提交一个连续队首批次。
+// 回放位置只能由单个调用方串行推进。
+func (r *Recorder) ReplayBatch(ctx context.Context, limit int) (ReplayResult, error) {
 	if !r.topic.Status().Compliant {
 		r.state.pausePublishing()
-		return false, nil
+		return ReplayIdle, nil
 	}
 
 	batch, err := r.queue.Read(ctx, limit)
 	if errors.Is(err, ErrQueueEmpty) {
 		r.state.queueSucceeded()
 		r.finishReplay(ctx)
-		return false, nil
+		return ReplayIdle, nil
 	}
 	if err != nil {
 		r.state.queueFailed()
-		return false, fmt.Errorf("read disk queue: %w", err)
+		return ReplayRetry, fmt.Errorf("read disk queue: %w", err)
 	}
 
 	result := r.publisher.Publish(ctx, batch.Records)
 	if result.Err != nil {
-		r.state.replayFailed()
-		return false, fmt.Errorf("write queued records: %w", result.Err)
+		permanent := result.Class == PublishPermanent
+		r.state.replayFailed(permanent)
+		if permanent {
+			return ReplayPaused, fmt.Errorf("write queued records: %w", result.Err)
+		}
+		return ReplayRetry, fmt.Errorf("write queued records: %w", result.Err)
 	}
 
-	r.state.publishSucceeded()
+	r.state.replaySucceeded()
 	if err := r.queue.Commit(ctx, batch); err != nil {
 		r.state.queueFailed()
-		return false, fmt.Errorf("commit disk queue: %w", err)
+		return ReplayRetry, fmt.Errorf("commit disk queue: %w", err)
 	}
 
 	r.state.queueSucceeded()
 	r.replayed.Add(uint64(len(batch.Records)))
 
-	return true, nil
+	return ReplayCommitted, nil
 }
 
 // Status 返回无需访问外部系统即可读取的 Recorder 状态。
@@ -161,12 +180,12 @@ func (r *Recorder) finishReplay(ctx context.Context) {
 func (r *Recorder) writeKafka(ctx context.Context, records []*alsv1.RequestRecord) error {
 	result := r.publisher.Publish(ctx, records)
 	if result.Err == nil {
-		r.state.publishSucceeded()
+		r.state.finishKafkaWrite(true)
 		r.accepted.Add(uint64(len(records)))
 		return nil
 	}
 
-	if r.state.reserveFallbackWrite() {
+	if r.state.finishKafkaWrite(false) {
 		r.logger.WarnContext(ctx, "Kafka write failed; request records switched to disk queue",
 			"confirmed", result.Confirmed,
 			"failed", result.Failed,
@@ -182,11 +201,11 @@ func (r *Recorder) writeKafka(ctx context.Context, records []*alsv1.RequestRecor
 	return nil
 }
 
-// writeQueue 完成 reserveQueueWrite 或 reserveFallbackWrite 登记的磁盘队列写入。
+// writeQueue 完成 reserveWrite 或 finishKafkaWrite 登记的磁盘队列写入。
 func (r *Recorder) writeQueue(ctx context.Context, records []*alsv1.RequestRecord) error {
 	// 流取消不应丢弃已经完整接收的记录，但仍保留 Trace 和日志所需的上下文值。
 	err := r.queue.Write(context.WithoutCancel(ctx), records)
-	changed := r.state.completeQueueWrite(err == nil)
+	changed := r.state.finishQueueWrite(err == nil)
 
 	if err != nil {
 		r.rejected.Add(uint64(len(records)))
