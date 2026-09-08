@@ -4,12 +4,6 @@ set -Eeuo pipefail
 umask 077
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
-COMPOSE=(
-  docker compose
-  --project-directory "$ROOT"
-  --env-file "$ROOT/.env"
-  -f "$ROOT/compose.yaml"
-)
 readonly BACKUP_IMAGE="busybox:1.37.0"
 readonly PERSISTENT_VOLUMES=(
   als-data
@@ -54,6 +48,25 @@ set_env_value() {
   chmod 600 "$temporary"
   mv "$temporary" "$ROOT/.env"
 }
+
+# COMPOSE 是所有安装脚本共享的部署入口。观测栈一旦在 .env 中启用，
+# 日常启停、备份恢复和升级必须继续使用同一组 Compose 文件，避免 ALS 被重建为无遥测配置。
+COMPOSE=(
+  docker compose
+  --project-directory "$ROOT"
+  --env-file "$ROOT/.env"
+  -f "$ROOT/compose.yaml"
+)
+OBSERVABILITY_COMPOSE=(
+  "${COMPOSE[@]}"
+  -f "$ROOT/docker/observability/compose.yaml"
+)
+if [[ -f "$ROOT/.env" && -f "$ROOT/docker/observability/compose.yaml" &&
+  "$(env_value INGATE_OBSERVABILITY_ENABLED)" == "true" ]]; then
+  COMPOSE=("${OBSERVABILITY_COMPOSE[@]}")
+fi
+readonly -a COMPOSE
+readonly -a OBSERVABILITY_COMPOSE
 
 random_hex() {
   od -An -N "$1" -tx1 /dev/urandom | tr -d '[:space:]'

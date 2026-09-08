@@ -76,14 +76,15 @@ if [[ "$REMOVE_IMAGES" == true ]]; then
     case "${image##*/}" in
       ingate-*) images+=("$image") ;;
     esac
-  done < <("${COMPOSE[@]}" config --images | sort -u)
+  done < <("${OBSERVABILITY_COMPOSE[@]}" config --images | sort -u)
 fi
 
 down_args=(down --remove-orphans)
 if [[ "$KEEP_DATA" != true ]]; then
   down_args+=(--volumes)
 fi
-"${COMPOSE[@]}" "${down_args[@]}"
+# 即使观测栈当前关闭，也要让 Compose 识别并按 --keep-data 约定处理其 Volume。
+"${OBSERVABILITY_COMPOSE[@]}" "${down_args[@]}"
 
 if [[ "$REMOVE_IMAGES" == true ]]; then
   for image in "${images[@]}"; do

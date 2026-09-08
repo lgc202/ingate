@@ -15,9 +15,7 @@ import (
 
 // TraceConfig 定义 OTLP Trace 导出及其进程内缓冲边界。
 type TraceConfig struct {
-	// Enabled 控制是否创建 OTLP Exporter。
-	Enabled bool
-	// Endpoint 是 OTLP gRPC Collector 的 host:port 地址。
+	// Endpoint 是 OTLP gRPC Collector 的 host:port 地址；为空时不创建 Trace 出口。
 	Endpoint string
 	// Insecure 控制 OTLP gRPC 是否使用明文连接。
 	Insecure bool
@@ -50,13 +48,13 @@ type Tracing struct {
 }
 
 // NewTracing 创建非阻塞的进程 Trace 出口。
-// 未启用 OTLP 时不会建立网络连接，并返回可直接使用的空实现。
+// Endpoint 为空时不会建立网络连接，并返回可直接使用的空实现。
 func NewTracing(ctx context.Context, config TraceConfig, identity Identity) (*Tracing, error) {
 	propagator := propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
 	)
-	if !config.Enabled {
+	if config.Endpoint == "" {
 		provider := noop.NewTracerProvider()
 		otel.SetTracerProvider(provider)
 		otel.SetTextMapPropagator(propagator)

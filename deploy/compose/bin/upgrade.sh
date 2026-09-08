@@ -57,7 +57,8 @@ if [[ -z "$(env_value INGATE_CLICKHOUSE_PASSWORD)" ]]; then
   set_env_value INGATE_CLICKHOUSE_PASSWORD "ingate-dev"
 fi
 
-if ! "${COMPOSE[@]}" pull || ! "${COMPOSE[@]}" up -d --wait --wait-timeout "${INGATE_WAIT_TIMEOUT:-300}"; then
+if ! "${COMPOSE[@]}" pull ||
+  ! "${COMPOSE[@]}" up -d --force-recreate --wait --wait-timeout "${INGATE_WAIT_TIMEOUT:-300}"; then
   echo "Upgrade failed. Restore the previous version with:" >&2
   echo "  $ROOT/bin/restore.sh $BACKUP_OUTPUT" >&2
   exit 1

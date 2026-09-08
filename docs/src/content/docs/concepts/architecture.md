@@ -100,4 +100,4 @@ Analytics 使用 At Least Once 消费语义。请求事实和模型调用都成�
 
 服务二进制、YAML 配置、健康检查、结构化日志和优雅退出保持部署方式中立。Docker Compose 只是当前正式支持的安装与联调方式。
 
-Compose 中 Controller、Envoy、Authz、AI ExtProc 与 ALS 共享网络命名空间。xDS、鉴权、AI Processing 和访问日志链路由 Envoy 通过 loopback 连接，Authz 与 ALS 也只监听 loopback；AI ExtProc 同时承载 Admin API 的额度查询，因此其端口仍在 Compose 内部网络可达。API Server 自动生成的服务端证书通过只读 Volume 提供给 Admin API、Controller、Authz 和 AI ExtProc 校验。其他部署方式必须提供等价的网络隔离和 API Server 证书信任，或为内部 gRPC 连接配置传输安全。
+Compose 中 Controller、Envoy、Authz、AI ExtProc 与 ALS 共享网络命名空间。xDS、鉴权、AI Processing 和访问日志链路由 Envoy 通过 loopback 连接，Authz 与 ALS 的 gRPC 端口也只监听 loopback；ALS 的健康检查和指标端口仅在 Compose 内部网络可达，供 Prometheus 直接抓取。AI ExtProc 同时承载 Admin API 的额度查询，因此其端口同样在 Compose 内部网络可达。API Server 自动生成的服务端证书通过只读 Volume 提供给 Admin API、Controller、Authz 和 AI ExtProc 校验。其他部署方式必须提供等价的网络隔离和 API Server 证书信任，或为内部 gRPC 连接配置传输安全。

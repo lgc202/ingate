@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	kratos "github.com/go-kratos/kratos/v3"
@@ -99,9 +100,10 @@ func (a *App) Run() error {
 }
 
 func tracingConfig(config *conf.Telemetry_Tracing) (telemetry.TraceConfig, error) {
+	endpoint := strings.TrimSpace(config.GetEndpoint())
 	var clientTLS *tls.Config
 	var err error
-	if config.GetEnabled() && !config.GetInsecure() {
+	if endpoint != "" && !config.GetInsecure() {
 		tlsSettings := config.GetTls()
 		clientTLS, err = tlsconfig.NewClient(tlsconfig.ClientConfig{
 			Enabled:         true,
@@ -116,8 +118,7 @@ func tracingConfig(config *conf.Telemetry_Tracing) (telemetry.TraceConfig, error
 	}
 
 	return telemetry.TraceConfig{
-		Enabled:       config.GetEnabled(),
-		Endpoint:      config.GetEndpoint(),
+		Endpoint:      endpoint,
 		Insecure:      config.GetInsecure(),
 		TLS:           clientTLS,
 		SampleRatio:   config.GetSampleRatio(),
