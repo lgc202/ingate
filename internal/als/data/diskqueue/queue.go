@@ -12,11 +12,17 @@ import (
 	"time"
 
 	"github.com/tidwall/wal"
+	otelcodes "go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	"github.com/lgc202/ingate/internal/als/biz"
 	"github.com/lgc202/ingate/internal/als/conf"
 )
+
+// maxReplayLinks 防止单个回放 Span 的诊断数据随积压批次无限增长。
+// 超出上限只丢弃 Trace Link，不影响任何请求记录的读取和投递。
+const maxReplayLinks = 128
 
 // pendingUsage 是发布给健康检查和指标读取的不可变队列用量。
 // 每次写入或确认都创建新值，避免读取方观察到只更新了一半的计数。
@@ -40,21 +46,32 @@ type Queue struct {
 	storage storageUsage
 	mu      sync.Mutex
 	pending atomic.Pointer[pendingUsage]
+	tracer  oteltrace.Tracer
 }
 
 // NewQueue 排他打开本地磁盘队列，允许已确认记录全部清空。
 //
 // 启动时扫描未确认记录恢复计数；队列损坏会直接阻止服务启动，
 // 避免悄悄跳过尚未投递的数据。
-func NewQueue(config *conf.Data_DiskQueue) (*Queue, error) {
-	return openQueueWithProbe(config, measureStorage)
+func NewQueue(config *conf.Data_DiskQueue, tracer oteltrace.Tracer) (*Queue, error) {
+	return openQueueWithProbe(config, measureStorage, tracer)
 }
 
 // Write 将一个请求记录批次编码为单个 WAL 条目并原子追加到磁盘。
 //
 // 追加前同时检查 WAL 目录的物理占用和文件系统剩余空间；
 // 拒绝不会改动既有条目，也不会把记录转存到内存。
-func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error {
+func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) (err error) {
+	batchCtx := ctx
+	ctx, span := q.tracer.Start(ctx, "als.wal.append")
+	defer func() {
+		if err != nil {
+			// 错误详情留给责任边界的日志，Span 不复制可能包含环境信息的错误文本。
+			span.SetStatus(otelcodes.Error, "append failed")
+		}
+		span.End()
+	}()
+
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -66,7 +83,8 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 	defer q.mu.Unlock()
 
 	enqueuedAt := time.Now().UTC()
-	value, batchBytes, err := encodeEntry(ctx, records, enqueuedAt)
+	// WAL 保存接收批次而非 append 子 Span 的上下文，重放才能链接回原始批次。
+	value, batchBytes, err := encodeEntry(batchCtx, records, enqueuedAt)
 	if err != nil {
 		return fmt.Errorf("%w: encode entry: %w", biz.ErrQueueInvalidBatch, err)
 	}
@@ -146,6 +164,7 @@ func (q *Queue) Read(ctx context.Context, limit int) (biz.QueuedBatch, error) {
 
 	records := make([]*alsv1.RequestRecord, 0, limit)
 	lastSequence := first
+	spanLinkCount := 0
 	var bytes int64
 	for sequence := first; ; sequence++ {
 		value, err := q.log.Read(sequence)
@@ -158,6 +177,10 @@ func (q *Queue) Read(ctx context.Context, limit int) (biz.QueuedBatch, error) {
 		}
 		if len(records) > 0 && len(records)+len(entry.records) > limit {
 			break
+		}
+		if entry.spanContext.IsValid() && spanLinkCount < maxReplayLinks {
+			oteltrace.SpanFromContext(ctx).AddLink(oteltrace.Link{SpanContext: entry.spanContext})
+			spanLinkCount++
 		}
 
 		records = append(records, entry.records...)
@@ -264,7 +287,11 @@ func (q *Queue) Close() error {
 	return nil
 }
 
-func openQueueWithProbe(config *conf.Data_DiskQueue, probe storageProbe) (*Queue, error) {
+func openQueueWithProbe(
+	config *conf.Data_DiskQueue,
+	probe storageProbe,
+	tracer oteltrace.Tracer,
+) (*Queue, error) {
 	path, err := prepareDirectory(config.GetPath())
 	if err != nil {
 		return nil, err
@@ -310,6 +337,7 @@ func openQueueWithProbe(config *conf.Data_DiskQueue, probe storageProbe) (*Queue
 		policy:  policy,
 		probe:   probe,
 		storage: storage,
+		tracer:  tracer,
 	}
 	queue.pending.Store(&usage)
 	return queue, nil

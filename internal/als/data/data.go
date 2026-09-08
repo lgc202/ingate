@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/google/wire"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/lgc202/ingate/internal/als/biz"
 	"github.com/lgc202/ingate/internal/als/conf"
@@ -26,8 +27,9 @@ var ProviderSet = wire.NewSet(
 func NewKafkaClient(
 	config *conf.Data_Kafka,
 	events *alsmetrics.EventCollector,
+	tracer oteltrace.Tracer,
 ) (*kafka.Client, func(), error) {
-	client, err := kafka.NewClient(config, events)
+	client, err := kafka.NewClient(config, events, tracer)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -39,8 +41,9 @@ func NewKafkaClient(
 func NewDiskQueue(
 	config *conf.Data_DiskQueue,
 	logger *slog.Logger,
+	tracer oteltrace.Tracer,
 ) (*diskqueue.Queue, func(), error) {
-	queue, err := diskqueue.NewQueue(config)
+	queue, err := diskqueue.NewQueue(config, tracer)
 	if err != nil {
 		return nil, nil, err
 	}

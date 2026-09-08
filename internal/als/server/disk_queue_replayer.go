@@ -10,6 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	otelcodes "go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"github.com/lgc202/ingate/internal/als/biz"
 	"github.com/lgc202/ingate/internal/als/conf"
 	alsmetrics "github.com/lgc202/ingate/internal/als/metrics"
@@ -30,6 +33,7 @@ type DiskQueueReplayer struct {
 	recorder    *biz.Recorder
 	events      *alsmetrics.EventCollector
 	logger      *slog.Logger
+	tracer      oteltrace.Tracer
 	batchSize   int
 	backoff     replayBackoff
 	done        chan struct{}
@@ -46,12 +50,14 @@ func NewDiskQueueReplayer(
 	recorder *biz.Recorder,
 	events *alsmetrics.EventCollector,
 	logger *slog.Logger,
+	tracer oteltrace.Tracer,
 ) *DiskQueueReplayer {
 	minBackoff := config.GetReplayMinBackoff().AsDuration()
 	return &DiskQueueReplayer{
 		recorder:  recorder,
 		events:    events,
 		logger:    logger,
+		tracer:    tracer,
 		batchSize: int(config.GetReplayBatchSize()),
 		backoff: replayBackoff{
 			min:  minBackoff,
@@ -139,7 +145,24 @@ func (b *replayBackoff) nextDelay() time.Duration {
 // replay 连续提交可用批次，遇到空队列或失败时返回下一次调度决定。
 func (r *DiskQueueReplayer) replay(ctx context.Context) (time.Duration, bool) {
 	for {
-		result, err := r.recorder.ReplayBatch(ctx, r.batchSize)
+		if !r.recorder.PrepareReplay(ctx) {
+			r.events.SetReplayBackoff(0)
+			r.backoff.reset()
+			r.retryLogged = false
+			return r.backoff.min, false
+		}
+
+		replayCtx, span := r.tracer.Start(
+			ctx,
+			"als.wal.replay",
+			// 回放可能发生在原始接收 Trace 结束很久以后，应由 WAL 中保存的上下文建立 Link。
+			oteltrace.WithNewRoot(),
+		)
+		result, err := r.recorder.ReplayBatch(replayCtx, r.batchSize)
+		if err != nil {
+			span.SetStatus(otelcodes.Error, "replay failed")
+		}
+		span.End()
 		switch result {
 		case biz.ReplayCommitted:
 			r.events.SetReplayBackoff(0)
@@ -158,14 +181,14 @@ func (r *DiskQueueReplayer) replay(ctx context.Context) (time.Duration, bool) {
 			r.events.SetReplayBackoff(0)
 			// 永久错误只会到达一次，不能被先前的临时失败日志抑制。
 			if ctx.Err() == nil {
-				r.logger.ErrorContext(ctx, "disk queue replay paused", "err", err)
+				r.logger.ErrorContext(replayCtx, "disk queue replay paused", "err", err)
 			}
 			return 0, true
 		case biz.ReplayRetry:
 			delay := r.backoff.nextDelay()
 			r.events.SetReplayBackoff(delay)
 			if ctx.Err() == nil && !r.retryLogged {
-				r.logger.WarnContext(ctx, "disk queue replay failed",
+				r.logger.WarnContext(replayCtx, "disk queue replay failed",
 					"retry_after", delay,
 					"err", err,
 				)
@@ -174,7 +197,7 @@ func (r *DiskQueueReplayer) replay(ctx context.Context) (time.Duration, bool) {
 			return delay, false
 		default:
 			r.events.SetReplayBackoff(0)
-			r.logger.ErrorContext(ctx, "disk queue replay returned invalid result", "result", result)
+			r.logger.ErrorContext(replayCtx, "disk queue replay returned invalid result", "result", result)
 			return 0, true
 		}
 	}

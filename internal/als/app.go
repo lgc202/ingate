@@ -16,6 +16,7 @@ import (
 	kratoslog "github.com/go-kratos/kratos/v3/log"
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/lgc202/ingate/internal/als/biz"
 	"github.com/lgc202/ingate/internal/als/conf"
@@ -27,6 +28,8 @@ import (
 )
 
 const name = "ingate-als"
+
+const tracerName = "github.com/lgc202/ingate/internal/als"
 
 type serviceInstanceID string
 
@@ -162,4 +165,8 @@ func newTopicContract(mode conf.Data_ReliabilityMode) *biz.TopicContract {
 	}
 
 	return biz.NewTopicContract(reliability)
+}
+
+func newTracer(tracing *telemetry.Tracing) oteltrace.Tracer {
+	return tracing.Provider().Tracer(tracerName)
 }

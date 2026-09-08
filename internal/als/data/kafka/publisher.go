@@ -9,6 +9,10 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
+	otelcodes "go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
@@ -22,26 +26,30 @@ import (
 // 因此消费者仍需按 RequestRecord.id 去重。
 func (c *Client) Publish(ctx context.Context, records []*alsv1.RequestRecord) biz.PublishResult {
 	startedAt := time.Now()
-	messages := make([]*kgo.Record, 0, len(records))
-	for _, record := range records {
-		value, err := proto.Marshal(record)
-		if err != nil {
-			result := biz.PublishResult{
-				Failed: len(records),
-				Class:  biz.PublishPermanent,
-				Err:    fmt.Errorf("marshal request record: %w", err),
-			}
-			c.events.ObserveKafkaPublish(time.Since(startedAt), result.Class)
-			return result
+	ctx, span := c.tracer.Start(
+		ctx,
+		"als.kafka.publish",
+		oteltrace.WithSpanKind(oteltrace.SpanKindProducer),
+		oteltrace.WithAttributes(
+			semconv.MessagingSystemKafka,
+			semconv.MessagingDestinationName(c.topic),
+			semconv.MessagingOperationName("publish"),
+			semconv.MessagingOperationTypeSend,
+			semconv.MessagingBatchMessageCount(len(records)),
+		),
+	)
+	defer span.End()
+
+	messages, err := newRecords(ctx, records)
+	if err != nil {
+		span.SetStatus(otelcodes.Error, "publish failed")
+		result := biz.PublishResult{
+			Failed: len(records),
+			Class:  biz.PublishPermanent,
+			Err:    err,
 		}
-		messages = append(messages, &kgo.Record{
-			Key:   []byte(record.GetId()),
-			Value: value,
-			Headers: []kgo.RecordHeader{
-				{Key: requestrecord.ContentTypeHeader, Value: []byte(requestrecord.ContentType)},
-				{Key: requestrecord.MessageTypeHeader, Value: []byte(requestrecord.MessageType)},
-			},
-		})
+		c.events.ObserveKafkaPublish(time.Since(startedAt), result.Class)
+		return result
 	}
 
 	var result biz.PublishResult
@@ -65,7 +73,42 @@ func (c *Client) Publish(ctx context.Context, records []*alsv1.RequestRecord) bi
 
 	c.events.ObserveKafkaPublish(time.Since(startedAt), result.Class)
 	c.events.AddKafkaISRFailures(isrFailures)
+	if result.Err != nil {
+		// Kafka 错误由 Recorder 统一记录；Span 只保留稳定状态，避免采集地址或凭据。
+		span.SetStatus(otelcodes.Error, "publish failed")
+	}
 	return result
+}
+
+func newRecords(ctx context.Context, records []*alsv1.RequestRecord) ([]*kgo.Record, error) {
+	carrier := propagation.MapCarrier{}
+	propagation.TraceContext{}.Inject(ctx, carrier)
+
+	messages := make([]*kgo.Record, 0, len(records))
+	for _, record := range records {
+		value, err := proto.Marshal(record)
+		if err != nil {
+			return nil, fmt.Errorf("marshal request record: %w", err)
+		}
+
+		headers := []kgo.RecordHeader{
+			{Key: requestrecord.ContentTypeHeader, Value: []byte(requestrecord.ContentType)},
+			{Key: requestrecord.MessageTypeHeader, Value: []byte(requestrecord.MessageType)},
+		}
+		if traceparent := carrier.Get("traceparent"); traceparent != "" {
+			headers = append(headers, kgo.RecordHeader{Key: "traceparent", Value: []byte(traceparent)})
+		}
+		if tracestate := carrier.Get("tracestate"); tracestate != "" {
+			headers = append(headers, kgo.RecordHeader{Key: "tracestate", Value: []byte(tracestate)})
+		}
+
+		messages = append(messages, &kgo.Record{
+			Key:     []byte(record.GetId()),
+			Value:   value,
+			Headers: headers,
+		})
+	}
+	return messages, nil
 }
 
 // classifyPublishError 先判断记录是否可能已进入 Kafka，再使用 Kafka 的可重试属性。

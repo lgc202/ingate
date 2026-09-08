@@ -9,6 +9,10 @@ import (
 	"testing"
 
 	"github.com/tidwall/wal"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"
 
@@ -20,6 +24,8 @@ import (
 const testSegmentBytes = 1 << 20
 
 const lockProbePathEnv = "INGATE_ALS_TEST_LOCK_PATH"
+
+var testTracer = noop.NewTracerProvider().Tracer("test")
 
 type storageProbeStub struct {
 	usage storageUsage
@@ -89,6 +95,55 @@ func TestQueuePersistsUncommittedRecords(t *testing.T) {
 	}
 }
 
+// TestQueueTracesAppendAndLinksReplay 验证 WAL 追加从属于接收批次，异步回放则链接原始批次。
+func TestQueueTracesAppendAndLinksReplay(t *testing.T) {
+	spans := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans))
+	t.Cleanup(func() { _ = provider.Shutdown(t.Context()) })
+	tracer := provider.Tracer("test")
+
+	queue, err := NewQueue(queueConfig(t.TempDir(), testSegmentBytes*4), tracer)
+	if err != nil {
+		t.Fatalf("NewQueue() error = %v, want nil", err)
+	}
+	t.Cleanup(func() {
+		if err := queue.Close(); err != nil {
+			t.Errorf("Queue.Close() error = %v, want nil", err)
+		}
+	})
+
+	receiveCtx, receiveSpan := tracer.Start(t.Context(), "als.receive_batch")
+	if err := queue.Write(receiveCtx, []*alsv1.RequestRecord{{Id: "record-1"}, {Id: "record-2"}}); err != nil {
+		t.Fatalf("Queue.Write() error = %v, want nil", err)
+	}
+	receiveSpan.End()
+
+	replayCtx, replaySpan := tracer.Start(t.Context(), "als.wal.replay", oteltrace.WithNewRoot())
+	if _, err := queue.Read(replayCtx, 10); err != nil {
+		t.Fatalf("Queue.Read() error = %v, want nil", err)
+	}
+	replaySpan.End()
+
+	appendSpan := findSpan(spans.Ended(), "als.wal.append")
+	if appendSpan == nil {
+		t.Fatal("als.wal.append span not found")
+	}
+	if appendSpan.Parent().SpanID() != receiveSpan.SpanContext().SpanID() {
+		t.Errorf("append span parent = %s, want receive span %s", appendSpan.Parent().SpanID(), receiveSpan.SpanContext().SpanID())
+	}
+
+	replay := findSpan(spans.Ended(), "als.wal.replay")
+	if replay == nil {
+		t.Fatal("als.wal.replay span not found")
+	}
+	if replay.Parent().IsValid() {
+		t.Errorf("replay span parent = %v, want a new root", replay.Parent())
+	}
+	if links := replay.Links(); len(links) != 1 || links[0].SpanContext.SpanID() != receiveSpan.SpanContext().SpanID() {
+		t.Errorf("replay span links = %v, want original receive span", links)
+	}
+}
+
 // TestQueueEnforcesCapacityAtomically 验证物理容量拒绝不会留下部分记录。
 func TestQueueEnforcesCapacityAtomically(t *testing.T) {
 	path := t.TempDir()
@@ -97,7 +152,7 @@ func TestQueueEnforcesCapacityAtomically(t *testing.T) {
 		diskBytes: testSegmentBytes,
 		freeBytes: testSegmentBytes * 4,
 	}}
-	queue, err := openQueueWithProbe(queueConfig(path, testSegmentBytes*3), probe.measure)
+	queue, err := openQueueWithProbe(queueConfig(path, testSegmentBytes*3), probe.measure, testTracer)
 	if err != nil {
 		t.Fatalf("openQueueWithProbe() error = %v, want nil", err)
 	}
@@ -131,7 +186,7 @@ func TestQueueRejectsBatchLargerThanSegment(t *testing.T) {
 		freeBytes:  testSegmentBytes * 8,
 		blockBytes: 4 << 10,
 	}}
-	queue, err := openQueueWithProbe(queueConfig(path, testSegmentBytes*4), probe.measure)
+	queue, err := openQueueWithProbe(queueConfig(path, testSegmentBytes*4), probe.measure, testTracer)
 	if err != nil {
 		t.Fatalf("openQueueWithProbe() error = %v, want nil", err)
 	}
@@ -158,7 +213,7 @@ func TestQueueAllowsEntrySmallerThanSegment(t *testing.T) {
 	const segmentBytes = 1 << 10
 	config := queueConfig(t.TempDir(), 1<<20)
 	config.SegmentBytes = segmentBytes
-	queue, err := NewQueue(config)
+	queue, err := NewQueue(config, testTracer)
 	if err != nil {
 		t.Fatalf("NewQueue() error = %v, want nil", err)
 	}
@@ -182,7 +237,7 @@ func TestQueuePreservesFilesystemReserve(t *testing.T) {
 	probe := &storageProbeStub{usage: storageUsage{
 		freeBytes: minFreeBytes + 3*testSegmentBytes,
 	}}
-	queue, err := openQueueWithProbe(config, probe.measure)
+	queue, err := openQueueWithProbe(config, probe.measure, testTracer)
 	if err != nil {
 		t.Fatalf("openQueueWithProbe() error = %v, want nil", err)
 	}
@@ -263,7 +318,7 @@ func TestQueueRejectsCorruptRecordsOnOpen(t *testing.T) {
 		t.Fatalf("wal.Log.Close() error = %v, want nil", err)
 	}
 
-	queue, err := NewQueue(queueConfig(path, testSegmentBytes*4))
+	queue, err := NewQueue(queueConfig(path, testSegmentBytes*4), testTracer)
 	if err == nil {
 		_ = queue.Close()
 		t.Fatal("NewQueue(corrupt record) error = nil, want non-nil")
@@ -292,7 +347,7 @@ func TestQueueRejectsLegacyRecords(t *testing.T) {
 		t.Fatalf("wal.Log.Close() error = %v, want nil", err)
 	}
 
-	queue, err := NewQueue(queueConfig(path, testSegmentBytes*4))
+	queue, err := NewQueue(queueConfig(path, testSegmentBytes*4), testTracer)
 	if err == nil {
 		_ = queue.Close()
 		t.Fatal("NewQueue(legacy record) error = nil, want non-nil")
@@ -311,7 +366,7 @@ func TestQueueOwnsDirectoryExclusively(t *testing.T) {
 	}
 
 	closeFirst()
-	second, err := NewQueue(queueConfig(path, testSegmentBytes*4))
+	second, err := NewQueue(queueConfig(path, testSegmentBytes*4), testTracer)
 	if err != nil {
 		t.Fatalf("NewQueue(released directory) error = %v, want nil", err)
 	}
@@ -327,7 +382,7 @@ func TestQueueDirectoryLockProbe(t *testing.T) {
 		t.Skip("lock probe runs only as a subprocess")
 	}
 
-	queue, err := NewQueue(queueConfig(path, testSegmentBytes*4))
+	queue, err := NewQueue(queueConfig(path, testSegmentBytes*4), testTracer)
 	if err == nil {
 		_ = queue.Close()
 		t.Fatal("NewQueue(directory owned by another process) error = nil, want non-nil")
@@ -384,7 +439,7 @@ func (p *storageProbeStub) measure(string) (storageUsage, error) {
 func openQueue(t *testing.T, path string, capacityBytes int64) (*Queue, func()) {
 	t.Helper()
 
-	queue, err := NewQueue(queueConfig(path, capacityBytes))
+	queue, err := NewQueue(queueConfig(path, capacityBytes), testTracer)
 	if err != nil {
 		t.Fatalf("NewQueue() error = %v, want nil", err)
 	}
@@ -400,6 +455,15 @@ func openQueue(t *testing.T, path string, capacityBytes int64) (*Queue, func()) 
 	}
 	t.Cleanup(closeQueue)
 	return queue, closeQueue
+}
+
+func findSpan(spans []sdktrace.ReadOnlySpan, name string) sdktrace.ReadOnlySpan {
+	for _, span := range spans {
+		if span.Name() == name {
+			return span
+		}
+	}
+	return nil
 }
 
 func queueConfig(path string, capacityBytes int64) *conf.Data_DiskQueue {

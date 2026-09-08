@@ -70,6 +70,13 @@ func TestQueueEntryRoundTrip(t *testing.T) {
 	if !decoded.enqueuedAt.Equal(enqueuedAt) {
 		t.Errorf("decodeEntry() enqueue time = %v, want %v", decoded.enqueuedAt, enqueuedAt)
 	}
+	if decoded.spanContext.TraceID() != spanContext.TraceID() ||
+		decoded.spanContext.SpanID() != spanContext.SpanID() ||
+		decoded.spanContext.TraceFlags() != spanContext.TraceFlags() ||
+		decoded.spanContext.TraceState().String() != spanContext.TraceState().String() ||
+		!decoded.spanContext.IsRemote() {
+		t.Errorf("decodeEntry() span context = %v, want remote %v", decoded.spanContext, spanContext)
+	}
 }
 
 // TestQueueEntryDetectsRecordPayloadBitChanges 验证任一记录 payload 位翻转都会被 CRC32C 拒绝。

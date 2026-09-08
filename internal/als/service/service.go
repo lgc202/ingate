@@ -11,6 +11,8 @@ import (
 	accesslogdata "github.com/envoyproxy/go-control-plane/envoy/data/accesslog/v3"
 	accesslogservice "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v3"
 	"github.com/google/wire"
+	otelcodes "go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -29,6 +31,7 @@ type Service struct {
 	recorder *biz.Recorder
 	events   *alsmetrics.EventCollector
 	logger   *slog.Logger
+	tracer   oteltrace.Tracer
 }
 
 // NewService 创建 ALS gRPC 服务。
@@ -36,8 +39,9 @@ func NewService(
 	recorder *biz.Recorder,
 	events *alsmetrics.EventCollector,
 	logger *slog.Logger,
+	tracer oteltrace.Tracer,
 ) *Service {
-	return &Service{recorder: recorder, events: events, logger: logger}
+	return &Service{recorder: recorder, events: events, logger: logger, tracer: tracer}
 }
 
 // StreamAccessLogs 持续接收 Envoy 批量发送的 HTTP access log。
@@ -58,17 +62,32 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 		}
 
 		startedAt := time.Now()
-		recordCount := len(message.GetHttpLogs().GetLogEntry())
-		if tcpLogs := message.GetTcpLogs(); tcpLogs != nil {
-			recordCount = len(tcpLogs.GetLogEntry())
+		recordCount := batchRecordCount(message)
+		ctx, span := s.tracer.Start(
+			stream.Context(),
+			"als.receive_batch",
+			// ALS 流可能长期存在。每批独立采样，避免整条流共享一次采样决定并形成超大 Trace。
+			oteltrace.WithNewRoot(),
+			oteltrace.WithSpanKind(oteltrace.SpanKindConsumer),
+		)
+		nodeID, err = s.acceptBatch(ctx, nodeID, message)
+		if err != nil {
+			// 具体错误由协议边界返回或记录，Span 只标记结果，避免意外采集请求内容。
+			span.SetStatus(otelcodes.Error, "batch rejected")
 		}
-
-		nodeID, err = s.acceptBatch(stream.Context(), nodeID, message)
+		span.End()
 		s.events.ObserveBatch(recordCount, time.Since(startedAt))
 		if err != nil {
 			return err
 		}
 	}
+}
+
+func batchRecordCount(message *accesslogservice.StreamAccessLogsMessage) int {
+	if tcpLogs := message.GetTcpLogs(); tcpLogs != nil {
+		return len(tcpLogs.GetLogEntry())
+	}
+	return len(message.GetHttpLogs().GetLogEntry())
 }
 
 func (s *Service) acceptBatch(
