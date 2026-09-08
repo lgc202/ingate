@@ -91,13 +91,13 @@ docker compose --project-directory . \
   stop otel-collector prometheus loki tempo grafana alertmanager
 ```
 
-Grafana 默认位于 <http://127.0.0.1:3000>，仅面向本机开放匿名只读访问；Prometheus 位于 <http://127.0.0.1:9090>，Alertmanager 位于 <http://127.0.0.1:9093>。它们使用独立的 `INGATE_OBSERVABILITY_BIND_ADDRESS`，不会在 Gateway 或 Console 改为外部监听时被连带暴露。在 Grafana Explore 中可以分别查询：
+Grafana 默认位于 <http://127.0.0.1:3000>，仅面向本机开放匿名只读访问；Prometheus 位于 <http://127.0.0.1:9090>，Alertmanager 位于 <http://127.0.0.1:9093>。它们使用独立的 `INGATE_OBSERVABILITY_BIND_ADDRESS`，不会在 Gateway 或 Console 改为外部监听时被连带暴露。Grafana 自动加载 **Ingate / Ingate ALS** Dashboard，告警处置见 [ALS SLO 与告警处置](./als/)。在 Grafana Explore 中可以分别查询：
 
 - Prometheus：`ingate_als_records_received_total`
 - Loki：`{service_namespace="ingate", service_name="ingate-als"}`
 - Tempo：Service Name 选择 `ingate-als`
 
-Prometheus 指标保留 15 天，Loki 日志和 Tempo Trace 保留 7 天，Alertmanager 状态保留 7 天。对应 Volume 在重启后保留数据，但它们不包含在核心业务备份中。本地部署在配置 Trace 出口后默认采集全部 ALS 批次，正式环境可以按容量修改 `sample_ratio`。安装包不再需要观测栈时，先运行 `./bin/stop.sh`，将开关改回 `false`，再运行 `./bin/start.sh`；观测数据 Volume 会继续保留。
+Prometheus 指标保留 35 天，以覆盖 30 天 SLO 计算窗口；Loki 日志和 Tempo Trace 保留 7 天，Alertmanager 状态保留 7 天。对应 Volume 在重启后保留数据，但它们不包含在核心业务备份中。本地部署在配置 Trace 出口后默认采集全部 ALS 批次，正式环境可以按容量修改 `sample_ratio`。安装包不再需要观测栈时，先运行 `./bin/stop.sh`，将开关改回 `false`，再运行 `./bin/start.sh`；观测数据 Volume 会继续保留。
 
 不启动该 Overlay 时，核心 Compose 行为不变。接入已有 Collector 时，只需在 `.env` 中设置 `INGATE_ALS_TRACING_ENDPOINT=<host>:<port>`；地址为空时 ALS 不创建 Trace 出口。使用 TLS 时还应在 ALS 配置中关闭 `insecure` 并配置证书。外部日志采集仍应直接读取 ALS stdout，不需要修改业务代码。
 

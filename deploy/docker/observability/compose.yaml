@@ -35,9 +35,11 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yaml
       - --storage.tsdb.path=/prometheus
-      - --storage.tsdb.retention.time=15d
+      # 30 天 SLO 需要完整观测窗口，再预留 5 天处理告警和采集间隙。
+      - --storage.tsdb.retention.time=35d
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro"
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/observability/rules:/etc/prometheus/rules:ro"
       - prometheus-data:/prometheus
 
   loki:
@@ -68,8 +70,10 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       GF_USERS_DEFAULT_THEME: light
     volumes:
-      # 只挂载实际提供的文件，保留镜像内其他 provisioning 目录。
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/observability/grafana/provisioning/datasources/datasources.yaml:/etc/grafana/provisioning/datasources/ingate.yaml:ro"
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/observability/grafana/provisioning/dashboards/dashboards.yaml:/etc/grafana/provisioning/dashboards/ingate.yaml:ro"
+      # Dashboard 由 Git 管理，Grafana 只负责加载，不在运行时产生第二份配置事实。
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro"
 
   alertmanager:
     image: prom/alertmanager:v0.34.0

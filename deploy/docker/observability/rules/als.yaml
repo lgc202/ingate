@@ -1,0 +1,165 @@
+groups:
+  # 可用性以进入可靠投递流程的记录为总事件，以最终拒绝为坏事件。
+  # 多窗口阈值采用 30 天 SLO 常用的 14.4 倍和 6 倍预算消耗速率。
+  - name: ingate-als-slo
+    interval: 1m
+    rules:
+      - record: ingate_als:sli_reliable_acceptance:ratio_rate30d
+        expr: |
+          clamp(
+            1 - sum by (instance) (rate(ingate_als_records_rejected_total[30d]))
+              / clamp_min(sum by (instance) (rate(ingate_als_records_valid_total[30d])), 1e-9),
+            0,
+            1
+          )
+      # 新鲜度按观测时刻计算：没有 WAL 记录滞留超过 5 分钟即为一个好样本。
+      # 抓取失败必须产生坏样本，不能因业务指标消失而从 SLO 计算中被忽略。
+      - record: ingate_als:sli_kafka_freshness:good
+        expr: |
+          (
+            ingate_als_disk_queue_oldest_entry_age_seconds < bool 300
+              and on (instance)
+            up{job="ingate-als"} == 1
+          )
+            or on (instance)
+          up{job="ingate-als"} * 0
+      - record: ingate_als:sli_kafka_freshness:ratio_rate30d
+        expr: avg_over_time(ingate_als:sli_kafka_freshness:good[30d])
+      - record: ingate_als:sli_reliable_acceptance:error_ratio_rate5m
+        expr: |
+          sum by (instance) (rate(ingate_als_records_rejected_total[5m]))
+            / clamp_min(sum by (instance) (rate(ingate_als_records_valid_total[5m])), 1e-9)
+      - record: ingate_als:sli_reliable_acceptance:error_ratio_rate30m
+        expr: |
+          sum by (instance) (rate(ingate_als_records_rejected_total[30m]))
+            / clamp_min(sum by (instance) (rate(ingate_als_records_valid_total[30m])), 1e-9)
+      - record: ingate_als:sli_reliable_acceptance:error_ratio_rate1h
+        expr: |
+          sum by (instance) (rate(ingate_als_records_rejected_total[1h]))
+            / clamp_min(sum by (instance) (rate(ingate_als_records_valid_total[1h])), 1e-9)
+      - record: ingate_als:sli_reliable_acceptance:error_ratio_rate6h
+        expr: |
+          sum by (instance) (rate(ingate_als_records_rejected_total[6h]))
+            / clamp_min(sum by (instance) (rate(ingate_als_records_valid_total[6h])), 1e-9)
+
+  - name: ingate-als-alerts
+    interval: 30s
+    rules:
+      - alert: ALSAvailabilityBudgetBurnCritical
+        expr: |
+          ingate_als:sli_reliable_acceptance:error_ratio_rate1h > 0.00144
+            and on (instance)
+          ingate_als:sli_reliable_acceptance:error_ratio_rate5m > 0.00144
+        for: 2m
+        labels:
+          severity: critical
+          service: ingate-als
+          slo: reliable-acceptance
+        annotations:
+          summary: ALS is rapidly consuming its reliable-acceptance error budget
+          description: The 5-minute and 1-hour error ratios both exceed a 14.4x burn rate for the 99.99% SLO.
+          runbook_url: https://lgc202.github.io/ingate/operations/als/#alsavailabilitybudgetburncritical
+
+      - alert: ALSAvailabilityBudgetBurnWarning
+        expr: |
+          ingate_als:sli_reliable_acceptance:error_ratio_rate6h > 0.0006
+            and on (instance)
+          ingate_als:sli_reliable_acceptance:error_ratio_rate30m > 0.0006
+        for: 5m
+        labels:
+          severity: warning
+          service: ingate-als
+          slo: reliable-acceptance
+        annotations:
+          summary: ALS is steadily consuming its reliable-acceptance error budget
+          description: The 30-minute and 6-hour error ratios both exceed a 6x burn rate for the 99.99% SLO.
+          runbook_url: https://lgc202.github.io/ingate/operations/als/#alsavailabilitybudgetburnwarning
+
+      - alert: ALSRecordsRejected
+        expr: increase(ingate_als_records_rejected_total[5m]) > 0
+        labels:
+          severity: critical
+          service: ingate-als
+        annotations:
+          summary: ALS rejected valid request records
+          description: Kafka and the disk queue could not accept one or more valid records in the last 5 minutes.
+          runbook_url: https://lgc202.github.io/ingate/operations/als/#alsrecordsrejected
+
+      - alert: ALSRecordsDiscarded
+        expr: increase(ingate_als_records_discarded_total[5m]) > 0
+        labels:
+          severity: critical
+          service: ingate-als
+        annotations:
+          summary: ALS discarded malformed or unsupported request records
+          description: One or more access log records could not enter the reliable delivery path in the last 5 minutes.
+          runbook_url: https://lgc202.github.io/ingate/operations/als/#alsrecordsdiscarded
+
+      - alert: ALSDiskQueueBlocked
+        expr: ingate_als_disk_queue_writable == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: ingate-als
+        annotations:
+          summary: ALS disk queue cannot accept another batch
+          description: WAL capacity, filesystem space, or an I/O failure has removed the Kafka fallback path.
+          runbook_url: https://lgc202.github.io/ingate/operations/als/#alsdiskqueueblocked
+
+      - alert: ALSKafkaUnavailable
+        # kafka_writable 在实例首次写入前为 0；只有已有积压时才说明 Kafka 故障正在影响数据。
+        expr: |
+          ingate_als_kafka_writable == 0
+            and on (instance) ingate_als_disk_queue_records > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: ingate-als
+        annotations:
+          summary: ALS has been unable to write directly to Kafka
+          description: New records are expected to accumulate in the disk queue while this alert is active.
+          runbook_url: https://lgc202.github.io/ingate/operations/als/#alskafkaunavailable
+
+      - alert: ALSKafkaISRInsufficient
+        expr: increase(ingate_als_kafka_isr_failures_total[5m]) > 0
+        labels:
+          severity: critical
+          service: ingate-als
+        annotations:
+          summary: Kafka rejected ALS records because the ISR was insufficient
+          description: The topic cannot currently satisfy the configured all-ISR acknowledgement contract.
+          runbook_url: https://lgc202.github.io/ingate/operations/als/#alskafkaisrinsufficient
+
+      - alert: ALSReplayPaused
+        expr: ingate_als_replay_paused == 1
+        labels:
+          severity: critical
+          service: ingate-als
+        annotations:
+          summary: ALS stopped automatic WAL replay after a permanent Kafka error
+          description: The queue head requires operator action before ordered replay can continue.
+          runbook_url: https://lgc202.github.io/ingate/operations/als/#alsreplaypaused
+
+      - alert: ALSReplayStalled
+        expr: |
+          ingate_als_disk_queue_records > 0
+            and on (instance) ingate_als_kafka_writable == 1
+            and on (instance) increase(ingate_als_records_committed_total[10m]) == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: ingate-als
+        annotations:
+          summary: ALS WAL replay is not making progress
+          description: Records remain queued although Kafka is writable and no records were committed for 10 minutes.
+          runbook_url: https://lgc202.github.io/ingate/operations/als/#alsreplaystalled
+
+      - alert: ALSTraceDropped
+        expr: increase(ingate_telemetry_spans_dropped_total[5m]) > 0
+        labels:
+          severity: warning
+          service: ingate-als
+        annotations:
+          summary: ALS dropped spans from its bounded export queue
+          description: Trace export is slower than span production or the OTLP destination is unavailable.
+          runbook_url: https://lgc202.github.io/ingate/operations/als/#alstracedropped
