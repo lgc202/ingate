@@ -83,13 +83,6 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 	}
 }
 
-func batchRecordCount(message *accesslogservice.StreamAccessLogsMessage) int {
-	if tcpLogs := message.GetTcpLogs(); tcpLogs != nil {
-		return len(tcpLogs.GetLogEntry())
-	}
-	return len(message.GetHttpLogs().GetLogEntry())
-}
-
 func (s *Service) acceptBatch(
 	ctx context.Context,
 	nodeID string,
@@ -129,6 +122,13 @@ func (s *Service) acceptBatch(
 		return "", status.Error(codes.Unavailable, "request record storage is unavailable")
 	}
 	return nodeID, nil
+}
+
+func batchRecordCount(message *accesslogservice.StreamAccessLogsMessage) int {
+	if tcpLogs := message.GetTcpLogs(); tcpLogs != nil {
+		return len(tcpLogs.GetLogEntry())
+	}
+	return len(message.GetHttpLogs().GetLogEntry())
 }
 
 func accessLogNodeID(

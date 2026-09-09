@@ -122,7 +122,7 @@ ingate_als_batches_received_total 1
 # HELP ingate_als_kafka_isr_failures_total Kafka record failures caused by insufficient in-sync replicas.
 # TYPE ingate_als_kafka_isr_failures_total counter
 ingate_als_kafka_isr_failures_total 2
-# HELP ingate_als_kafka_publish_failures_total Kafka publish failures by stable delivery classification.
+# HELP ingate_als_kafka_publish_failures_total Kafka publish failures by stable publish classification.
 # TYPE ingate_als_kafka_publish_failures_total counter
 ingate_als_kafka_publish_failures_total{class="temporary"} 1
 # HELP ingate_als_records_received_total Request records received at the ALS protocol boundary.
@@ -147,7 +147,7 @@ ingate_als_streams_active 1
 	}
 
 	collector.StreamFinished()
-	if got := testutil.ToFloat64(collector.streams); got != 0 {
+	if got := testutil.ToFloat64(collector.activeStreams); got != 0 {
 		t.Errorf("streams_active = %v, want 0", got)
 	}
 }

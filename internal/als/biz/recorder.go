@@ -36,7 +36,8 @@ type RecorderCounters struct {
 	Replayed uint64
 	// Committed 是成功发布后从 WAL 确认删除的记录总数。
 	Committed uint64
-	// Rejected 是 Kafka 与磁盘队列都无法接收时拒绝的记录总数。
+	// Rejected 是 Kafka 未确认整批且磁盘队列追加失败的记录总数。
+	// Kafka 可能已接收其中一部分，因此该计数不等于精确丢失量。
 	Rejected uint64
 	// Discarded 是协议边界丢弃的不完整记录和非 HTTP 记录总数。
 	Discarded uint64
@@ -104,7 +105,7 @@ func (r *Recorder) Write(ctx context.Context, records []*alsv1.RequestRecord) er
 	}
 	r.valid.Add(uint64(len(records)))
 
-	if r.state.reserveWrite(r.topic.Status().Compliant) == queueTarget {
+	if r.state.reserveWriteTarget(r.topic.Status().Compliant) == queueTarget {
 		return r.writeQueue(ctx, records)
 	}
 
@@ -115,14 +116,14 @@ func (r *Recorder) Write(ctx context.Context, records []*alsv1.RequestRecord) er
 // 回放位置只能由单个调用方串行推进。
 func (r *Recorder) ReplayBatch(ctx context.Context, limit int) (ReplayResult, error) {
 	if !r.topic.Status().Compliant {
-		r.state.pausePublishing()
+		r.state.startSpooling()
 		return ReplayIdle, nil
 	}
 
 	batch, err := r.queue.Read(ctx, limit)
 	if errors.Is(err, ErrQueueEmpty) {
 		r.state.queueSucceeded()
-		r.finishReplay(ctx)
+		r.resumeKafkaWrites(ctx)
 		return ReplayIdle, nil
 	}
 	if err != nil {
@@ -134,9 +135,8 @@ func (r *Recorder) ReplayBatch(ctx context.Context, limit int) (ReplayResult, er
 	if result.Err != nil {
 		r.kafkaAccepted.Add(uint64(result.Confirmed))
 		r.replayed.Add(uint64(result.Confirmed))
-		permanent := result.Class == PublishPermanent
-		r.state.replayFailed(permanent)
-		if permanent {
+		r.state.replayFailed(result.Class)
+		if result.Class == PublishPermanent {
 			return ReplayPaused, fmt.Errorf("write queued records: %w", result.Err)
 		}
 		return ReplayRetry, fmt.Errorf("write queued records: %w", result.Err)
@@ -153,16 +153,17 @@ func (r *Recorder) ReplayBatch(ctx context.Context, limit int) (ReplayResult, er
 	r.state.queueSucceeded()
 	r.committed.Add(uint64(len(batch.Records)))
 	// 最后一批应在当前回放 Trace 内完成状态恢复，便于恢复日志与故障链路关联。
-	r.finishReplay(ctx)
+	r.resumeKafkaWrites(ctx)
 
 	return ReplayCommitted, nil
 }
 
 // PrepareReplay 在创建回放 Trace 前确认 Kafka 合规且队列已有积压。
-// 队列为空时同步完成直写恢复；并发追加会通过在途计数阻止错误恢复，并留待下一轮回放。
+// 队列为空时同步完成直写恢复；并发追加会通过在途计数阻止错误恢复，
+// 并留待下一轮回放。
 func (r *Recorder) PrepareReplay(ctx context.Context) bool {
 	if !r.topic.Status().Compliant {
-		r.state.pausePublishing()
+		r.state.startSpooling()
 		return false
 	}
 	pending, _ := r.queue.Pending()
@@ -171,7 +172,7 @@ func (r *Recorder) PrepareReplay(ctx context.Context) bool {
 	}
 
 	r.state.queueSucceeded()
-	r.finishReplay(ctx)
+	r.resumeKafkaWrites(ctx)
 	return false
 }
 
@@ -200,8 +201,8 @@ func (r *Recorder) Discard(count int) {
 	}
 }
 
-func (r *Recorder) finishReplay(ctx context.Context) {
-	if r.state.resumePublishing(r.topic.Status().Compliant, r.queueEmpty) {
+func (r *Recorder) resumeKafkaWrites(ctx context.Context) {
+	if r.state.resumeKafkaWrites(r.topic.Status().Compliant, r.queueEmpty) {
 		r.logger.InfoContext(ctx, "request record publishing recovered")
 	}
 }
@@ -209,13 +210,13 @@ func (r *Recorder) finishReplay(ctx context.Context) {
 func (r *Recorder) writeKafka(ctx context.Context, records []*alsv1.RequestRecord) error {
 	result := r.publisher.Publish(ctx, records)
 	if result.Err == nil {
-		r.state.finishKafkaWrite(true)
+		r.state.completeKafkaWrite()
 		r.kafkaAccepted.Add(uint64(len(records)))
 		return nil
 	}
 	r.kafkaAccepted.Add(uint64(result.Confirmed))
 
-	if r.state.finishKafkaWrite(false) {
+	if r.state.failKafkaWrite() {
 		r.logger.WarnContext(ctx, "Kafka write failed; request records switched to disk queue",
 			"confirmed", result.Confirmed,
 			"failed", result.Failed,
@@ -231,13 +232,11 @@ func (r *Recorder) writeKafka(ctx context.Context, records []*alsv1.RequestRecor
 	return nil
 }
 
-// writeQueue 完成 reserveWrite 或 finishKafkaWrite 登记的磁盘队列写入。
+// writeQueue 完成 reserveWriteTarget 或 failKafkaWrite 登记的磁盘队列写入。
 func (r *Recorder) writeQueue(ctx context.Context, records []*alsv1.RequestRecord) error {
 	// 流取消不应丢弃已经完整接收的记录，但仍保留 Trace 和日志所需的上下文值。
 	err := r.queue.Write(context.WithoutCancel(ctx), records)
-	// 容量拒绝由 Queue.Status 实时反映，不应像 I/O 故障一样锁存；空间释放后就绪状态必须自行恢复。
-	operational := err == nil || errors.Is(err, ErrQueueFull) || errors.Is(err, ErrQueueInvalidBatch)
-	changed := r.state.finishQueueWrite(operational)
+	changed := r.state.finishQueueWrite(err)
 
 	if err != nil {
 		r.rejected.Add(uint64(len(records)))

@@ -31,7 +31,7 @@ var (
 	)
 	rejectedDesc = newDesc(
 		"records_rejected_total",
-		"Request records rejected because Kafka and the disk queue were unavailable.",
+		"Request records not fully acknowledged by Kafka and not appended to the disk queue.",
 	)
 	discardedDesc = newDesc(
 		"records_discarded_total",

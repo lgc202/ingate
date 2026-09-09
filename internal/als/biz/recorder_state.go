@@ -1,6 +1,9 @@
 package biz
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
 
 type writeTarget uint8
 
@@ -33,8 +36,8 @@ func newRecorderState(hasPending bool) *recorderState {
 	}
 }
 
-// reserveWrite 在线性化边界内选择写入目标并登记对应的在途操作。
-func (s *recorderState) reserveWrite(topicCompliant bool) writeTarget {
+// reserveWriteTarget 在线性化边界内选择写入目标并登记对应的在途操作。
+func (s *recorderState) reserveWriteTarget(topicCompliant bool) writeTarget {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -48,20 +51,23 @@ func (s *recorderState) reserveWrite(topicCompliant bool) writeTarget {
 	return kafkaTarget
 }
 
-// finishKafkaWrite 完成一个 Kafka 直写；失败时原子转移为磁盘队列写入。
-// 返回 true 表示本次失败建立了新的故障屏障。
-func (s *recorderState) finishKafkaWrite(succeeded bool) bool {
+func (s *recorderState) completeKafkaWrite() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.kafkaWrites--
-	if succeeded {
-		if !s.spooling {
-			s.kafkaOK = true
-		}
-		return false
+	if !s.spooling {
+		s.kafkaOK = true
 	}
+}
 
+// failKafkaWrite 完成失败的 Kafka 直写并为原批次预留一次 WAL 追加。
+// 返回 true 表示本次失败建立了新的故障屏障。
+func (s *recorderState) failKafkaWrite() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.kafkaWrites--
 	s.kafkaOK = false
 	switched := !s.spooling
 	s.spooling = true
@@ -70,14 +76,15 @@ func (s *recorderState) finishKafkaWrite(succeeded bool) bool {
 }
 
 // finishQueueWrite 结束一个已登记的磁盘队列写入。
-// 返回 true 表示队列可写状态发生变化。
-func (s *recorderState) finishQueueWrite(succeeded bool) bool {
+// 容量与批次约束拒绝不代表存储故障；返回 true 表示队列可用性发生变化。
+func (s *recorderState) finishQueueWrite(err error) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.queueWrites--
-	changed := s.queueOK != succeeded
-	s.queueOK = succeeded
+	available := err == nil || errors.Is(err, ErrQueueFull) || errors.Is(err, ErrQueueInvalidBatch)
+	changed := s.queueOK != available
+	s.queueOK = available
 	return changed
 }
 
@@ -87,11 +94,11 @@ func (s *recorderState) replaySucceeded() {
 	s.mu.Unlock()
 }
 
-func (s *recorderState) replayFailed(permanent bool) {
+func (s *recorderState) replayFailed(class PublishClass) {
 	s.mu.Lock()
 	s.kafkaOK = false
 	s.spooling = true
-	s.replayPaused = s.replayPaused || permanent
+	s.replayPaused = s.replayPaused || class == PublishPermanent
 	s.mu.Unlock()
 }
 
@@ -107,15 +114,15 @@ func (s *recorderState) queueSucceeded() {
 	s.mu.Unlock()
 }
 
-func (s *recorderState) pausePublishing() {
+func (s *recorderState) startSpooling() {
 	s.mu.Lock()
 	s.spooling = true
 	s.mu.Unlock()
 }
 
-// resumePublishing 在状态锁内确认恢复条件，使队列排空与后续写入准入线性化。
+// resumeKafkaWrites 在状态锁内确认恢复条件，使队列排空与后续写入准入线性化。
 // Pending 在 Queue 中读取原子快照，不会在状态锁内执行磁盘 I/O。
-func (s *recorderState) resumePublishing(topicCompliant bool, queueEmpty func() bool) bool {
+func (s *recorderState) resumeKafkaWrites(topicCompliant bool, queueEmpty func() bool) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

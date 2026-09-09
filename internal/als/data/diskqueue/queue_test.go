@@ -21,9 +21,10 @@ import (
 	"github.com/lgc202/ingate/internal/als/conf"
 )
 
-const testSegmentBytes = 1 << 20
-
-const lockProbePathEnv = "INGATE_ALS_TEST_LOCK_PATH"
+const (
+	testSegmentBytes = 1 << 20
+	lockProbePathEnv = "INGATE_ALS_TEST_LOCK_PATH"
+)
 
 var testTracer = noop.NewTracerProvider().Tracer("test")
 

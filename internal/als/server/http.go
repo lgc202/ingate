@@ -99,7 +99,8 @@ func ready(recorder *biz.Recorder) http.HandlerFunc {
 			return
 		}
 		if !status.Topic.Compliant || status.Spooling {
-			// Kafka 短暂故障不应立即摘除 ALS；只要磁盘队列仍可写，组件就能继续无损接收记录
+			// Kafka 短暂故障不应立即摘除 ALS；
+			// 只要磁盘队列仍可写，组件就能继续无损接收记录。
 			body.WriteTarget = "disk_queue"
 		}
 		writeJSON(response, http.StatusOK, body)
