@@ -13,7 +13,6 @@ import (
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
-	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
 const modelCallColumns = `
@@ -222,7 +221,7 @@ func scanModelCallRow(rows driver.Rows) (modelCallRow, error) {
 	); err != nil {
 		return modelCallRow{}, fmt.Errorf("scan model call: %w", err)
 	}
-	if !requestrecord.IsValidID(row.requestRecordID) ||
+	if row.requestRecordID == "" ||
 		!apivalidation.IsValidModelName(row.call.ClientModel) ||
 		!apivalidation.IsValidModelName(row.call.UpstreamModel) ||
 		row.call.ResponseModel != "" && !apivalidation.IsValidModelName(row.call.ResponseModel) {

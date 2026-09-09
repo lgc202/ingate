@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 500" role="img" aria-labelledby="title desc">
+  <title id="title">ALS WAL 条目与确认</title>
+  <desc id="desc">请求记录批次编码为带版本、时间、Trace Context 和 CRC32C 的 QueueEntry，追加同步后等待 Kafka，确认后截断队首。</desc>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#8B8680"/></marker><style>text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1A1A1A}.label{font-size:15px;font-weight:650}.sub{font-size:11px;fill:#6B6560}.code{font-size:11px;fill:#6B6560;font-family:"SFMono-Regular",Consolas,monospace}.node{fill:#FFF;stroke:#C5C0BA;stroke-width:1.5}.focus{fill:#F5F3F8;stroke:#8B6F8A;stroke-width:2}.ok{fill:#F5F8F6;stroke:#5B8A72;stroke-width:1.5}.line{fill:none;stroke:#8B8680;stroke-width:2}</style></defs>
+  <rect width="980" height="500" rx="16" fill="#FAF9F6"/>
+  <line class="line" x1="200" y1="250" x2="260" y2="250" marker-end="url(#arrow)"/><line class="line" x1="520" y1="250" x2="580" y2="250" marker-end="url(#arrow)"/><line class="line" x1="750" y1="250" x2="810" y2="250" marker-end="url(#arrow)"/>
+  <rect class="node" x="30" y="205" width="170" height="90" rx="10"/><text class="label" x="115" y="240" text-anchor="middle">有效批次</text><text class="sub" x="115" y="264" text-anchor="middle">多个 RequestRecord</text>
+  <rect class="focus" x="260" y="80" width="260" height="340" rx="12"/>
+  <text class="label" x="390" y="118" text-anchor="middle">QueueEntry v1</text>
+  <text class="code" x="295" y="162">format_version = 1</text><text class="code" x="295" y="198">enqueued_at_unix_nano</text><text class="code" x="295" y="234">records[]</text><text class="code" x="295" y="270">traceparent / tracestate</text><text class="code" x="295" y="306">crc32c</text>
+  <line x1="290" y1="330" x2="490" y2="330" stroke="#D8D2CB"/><text class="sub" x="390" y="360" text-anchor="middle">确定性 protobuf 编码</text><text class="sub" x="390" y="384" text-anchor="middle">一个批次 = 一个 WAL 条目</text>
+  <rect class="ok" x="580" y="205" width="170" height="90" rx="10"/><text class="label" x="665" y="240" text-anchor="middle">追加并同步</text><text class="sub" x="665" y="264" text-anchor="middle">Write 返回后才算落盘</text>
+  <rect class="node" x="810" y="205" width="140" height="90" rx="10"/><text class="label" x="880" y="240" text-anchor="middle">Kafka 确认</text><text class="sub" x="880" y="264" text-anchor="middle">截断连续队首</text>
+  <text class="sub" x="665" y="340" text-anchor="middle">失败：条目保留，稍后重放</text><text class="sub" x="880" y="340" text-anchor="middle">Commit 失败：可能重复</text>
+</svg>

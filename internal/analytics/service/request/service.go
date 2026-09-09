@@ -14,7 +14,6 @@ import (
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
 	requestbiz "github.com/lgc202/ingate/internal/analytics/biz/request"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
-	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
 // Service 实现 Analytics RequestService gRPC API。
@@ -58,7 +57,7 @@ func (s *Service) GetRequest(
 	request *analyticsv1.GetRequestRequest,
 ) (*alsv1.RequestRecord, error) {
 	startedAt := request.GetStartedAt()
-	if !requestrecord.IsValidID(request.GetId()) || startedAt == nil ||
+	if request.GetId() == "" || startedAt == nil ||
 		startedAt.CheckValid() != nil || !analyticsconfig.IsSupportedTime(startedAt.AsTime()) {
 		return nil, kerrors.BadRequest("INVALID_ARGUMENT", "id and started_at are required")
 	}

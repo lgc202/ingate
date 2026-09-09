@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 460" role="img" aria-labelledby="title desc">
+  <title id="title">Kafka 三副本与 ISR</title>
+  <desc id="desc">Producer 写入分区 Leader，当前三个 ISR 都确认。若一个副本退出 ISR，剩余两个仍可满足最少两个同步副本。</desc>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#5B8A72"/></marker><style>text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1A1A1A}.label{font-size:16px;font-weight:650}.sub{font-size:12px;fill:#6B6560}.note{font-size:11px;fill:#8B8680}.node{fill:#FFF;stroke:#C5C0BA;stroke-width:1.5}.leader{fill:#FFF5F0;stroke:#D97757;stroke-width:2}.isr{fill:#F5F8F6;stroke:#5B8A72;stroke-width:1.5}.line{fill:none;stroke:#5B8A72;stroke-width:2}</style></defs>
+  <rect width="980" height="460" rx="16" fill="#FAF9F6"/>
+  <line class="line" x1="200" y1="205" x2="300" y2="205" marker-end="url(#arrow)"/>
+  <line class="line" x1="470" y1="170" x2="570" y2="110" marker-end="url(#arrow)"/>
+  <line class="line" x1="470" y1="240" x2="570" y2="300" marker-end="url(#arrow)"/>
+  <rect class="node" x="40" y="165" width="160" height="80" rx="10"/><text class="label" x="120" y="198" text-anchor="middle">ALS Producer</text><text class="sub" x="120" y="220" text-anchor="middle">acks=all</text>
+  <rect class="leader" x="300" y="150" width="170" height="110" rx="10"/><text class="label" x="385" y="190" text-anchor="middle">Broker 1</text><text class="sub" x="385" y="214" text-anchor="middle">Partition 0 · Leader</text><text class="sub" x="385" y="236" text-anchor="middle">ISR</text>
+  <rect class="isr" x="570" y="55" width="170" height="110" rx="10"/><text class="label" x="655" y="95" text-anchor="middle">Broker 2</text><text class="sub" x="655" y="119" text-anchor="middle">Partition 0 · Follower</text><text class="sub" x="655" y="141" text-anchor="middle">ISR</text>
+  <rect class="isr" x="570" y="245" width="170" height="110" rx="10"/><text class="label" x="655" y="285" text-anchor="middle">Broker 3</text><text class="sub" x="655" y="309" text-anchor="middle">Partition 0 · Follower</text><text class="sub" x="655" y="331" text-anchor="middle">ISR</text>
+  <rect class="node" x="790" y="150" width="150" height="110" rx="10" stroke-dasharray="6 4"/><text class="label" x="865" y="190" text-anchor="middle">Broker 4+</text><text class="sub" x="865" y="214" text-anchor="middle">可承载其他分区</text><text class="sub" x="865" y="236" text-anchor="middle">不保存本分区</text>
+  <text class="note" x="490" y="405" text-anchor="middle">replication.factor=3：每个分区三份副本，不是集群只能有三个 Broker</text>
+  <text class="note" x="490" y="430" text-anchor="middle">min.insync.replicas=2：当前 ISR 少于两个时拒绝 acks=all 写入</text>
+</svg>

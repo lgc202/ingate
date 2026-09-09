@@ -11,6 +11,7 @@ import (
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	accesslogdata "github.com/envoyproxy/go-control-plane/envoy/data/accesslog/v3"
+	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -24,26 +25,18 @@ import (
 )
 
 const (
-	envoyRouteNamePrefix    = "ingate-route"
+	routeNamePrefix         = "ingate-route"
 	maxExactMetadataInteger = 1<<53 - 1
 )
 
 func parseRequestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) (*alsv1.RequestRecord, error) {
+	if err := validateAccessLogEntry(entry); err != nil {
+		return nil, err
+	}
+
 	common := entry.GetCommonProperties()
 	request := entry.GetRequest()
 	response := entry.GetResponse()
-	if common == nil || request == nil || response == nil || common.GetStartTime() == nil {
-		return nil, errors.New("HTTP access log entry is incomplete")
-	}
-
-	logType := common.GetAccessLogType()
-	if logType != accesslogdata.AccessLogType_NotSet && logType != accesslogdata.AccessLogType_DownstreamEnd {
-		// 周期日志描述尚未完成的请求，若与结束日志同时入库会重复计量请求量和 Token。
-		return nil, fmt.Errorf("HTTP access log type %s is not a completed request", logType)
-	}
-	if err := common.GetStartTime().CheckValid(); err != nil {
-		return nil, fmt.Errorf("HTTP access log start time: %w", err)
-	}
 
 	gatewayID, routeID, err := resourceIDs(common.GetRouteName())
 	if err != nil {
@@ -57,6 +50,17 @@ func parseRequestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) 
 	if err != nil {
 		return nil, fmt.Errorf("HTTP access log response size: %w", err)
 	}
+	duration, err := normalizedDuration(common.GetDuration())
+	if err != nil {
+		return nil, fmt.Errorf("HTTP access log duration: %w", err)
+	}
+	timeToFirstByte, err := normalizedDuration(common.GetTimeToFirstDownstreamTxByte())
+	if err != nil {
+		return nil, fmt.Errorf("HTTP access log time to first byte: %w", err)
+	}
+	if duration != nil && timeToFirstByte != nil && timeToFirstByte.AsDuration() > duration.AsDuration() {
+		return nil, errors.New("HTTP access log time to first byte exceeds request duration")
+	}
 
 	aiMetadata := metadataFields(common.GetMetadata(), aiprotocol.MetadataNamespace)
 	authzMetadata := metadataFields(common.GetMetadata(), extauthz.MetadataNamespace)
@@ -64,15 +68,20 @@ func parseRequestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) 
 	path := cmp.Or(aiMetadata[aiprotocol.ClientPathField].GetStringValue(), request.GetPath())
 
 	record := &alsv1.RequestRecord{
-		RequestId:           request.GetRequestId(),
-		StartedAt:           timestamppb.New(common.GetStartTime().AsTime()),
-		ClientIp:            socketAddress(common.GetDownstreamRemoteAddress()),
-		Method:              request.GetRequestMethod().String(),
-		Host:                requestHost(host),
-		Path:                requestPath(path),
-		StatusCode:          response.GetResponseCode().GetValue(),
-		RequestBytes:        requestBytes,
-		ResponseBytes:       responseBytes,
+		Id:              uuid.NewString(),
+		RequestId:       request.GetRequestId(),
+		StartedAt:       timestamppb.New(common.GetStartTime().AsTime()),
+		Duration:        duration,
+		TimeToFirstByte: timeToFirstByte,
+
+		ClientIp:      socketAddress(common.GetDownstreamRemoteAddress()),
+		Method:        request.GetRequestMethod().String(),
+		Host:          requestHost(host),
+		Path:          requestPath(path),
+		StatusCode:    response.GetResponseCode().GetValue(),
+		RequestBytes:  requestBytes,
+		ResponseBytes: responseBytes,
+
 		GatewayId:           gatewayID,
 		RouteId:             routeID,
 		UpstreamId:          common.GetUpstreamCluster(),
@@ -81,30 +90,11 @@ func parseRequestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) 
 		ResponseCodeDetails: response.GetResponseCodeDetails(),
 		UpstreamAttempts:    common.GetUpstreamRequestAttemptCount(),
 		UpstreamAddress:     socketEndpoint(common.GetUpstreamRemoteAddress()),
-		AiModelCall:         aiModelCall(aiMetadata),
-		CallerId:            authzMetadata[extauthz.CallerIDField].GetStringValue(),
-		AccessKeyId:         authzMetadata[extauthz.AccessKeyIDField].GetStringValue(),
-	}
-	record.Id = requestrecord.NewID(
-		nodeID,
-		common.GetStreamId(),
-		record.GetRequestId(),
-		record.GetStartedAt().AsTime(),
-	)
 
-	duration, err := normalizedDuration(common.GetDuration())
-	if err != nil {
-		return nil, fmt.Errorf("HTTP access log duration: %w", err)
+		AiModelCall: aiModelCall(aiMetadata),
+		CallerId:    authzMetadata[extauthz.CallerIDField].GetStringValue(),
+		AccessKeyId: authzMetadata[extauthz.AccessKeyIDField].GetStringValue(),
 	}
-	record.Duration = duration
-	timeToFirstByte, err := normalizedDuration(common.GetTimeToFirstDownstreamTxByte())
-	if err != nil {
-		return nil, fmt.Errorf("HTTP access log time to first byte: %w", err)
-	}
-	if duration != nil && timeToFirstByte != nil && timeToFirstByte.AsDuration() > duration.AsDuration() {
-		return nil, errors.New("HTTP access log time to first byte exceeds request duration")
-	}
-	record.TimeToFirstByte = timeToFirstByte
 
 	if err := requestrecord.Validate(record); err != nil {
 		return nil, fmt.Errorf("HTTP access log entry: %w", err)
@@ -114,6 +104,25 @@ func parseRequestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) 
 	}
 
 	return record, nil
+}
+
+func validateAccessLogEntry(entry *accesslogdata.HTTPAccessLogEntry) error {
+	common := entry.GetCommonProperties()
+	if common == nil || entry.GetRequest() == nil || entry.GetResponse() == nil || common.GetStartTime() == nil {
+		return errors.New("HTTP access log entry is incomplete")
+	}
+
+	logType := common.GetAccessLogType()
+	switch logType {
+	case accesslogdata.AccessLogType_NotSet, accesslogdata.AccessLogType_DownstreamEnd:
+	default:
+		// 周期日志描述尚未完成的请求，若与结束日志同时入库会重复计量请求量和 Token。
+		return fmt.Errorf("HTTP access log type %s is not a completed request", logType)
+	}
+	if err := common.GetStartTime().CheckValid(); err != nil {
+		return fmt.Errorf("HTTP access log start time: %w", err)
+	}
+	return nil
 }
 
 func normalizedDuration(value *durationpb.Duration) (*durationpb.Duration, error) {
@@ -149,9 +158,8 @@ func aiModelCall(fields map[string]*structpb.Value) *alsv1.AIModelCall {
 		OutputTokens:     metadataTokenCount(fields[aiprotocol.OutputTokensField]),
 		TotalTokens:      metadataTokenCount(fields[aiprotocol.TotalTokensField]),
 	}
-	if call.GetClientModel() == "" && call.GetUpstreamModel() == "" && call.GetUpstreamProtocol() == "" &&
-		call.GetResponseModel() == "" && call.GetFinishReason() == "" && call.InputTokens == nil &&
-		call.OutputTokens == nil && call.TotalTokens == nil {
+	// AI 元数据还承载客户端 Host 和 Path；只有这些辅助字段时不应创建空模型调用。
+	if proto.Size(call) == 0 {
 		return nil
 	}
 	return call
@@ -189,7 +197,7 @@ func httpProtocol(version accesslogdata.HTTPAccessLogEntry_HTTPVersion) string {
 func resourceIDs(routeName string) (string, string, error) {
 	// Controller 生成的 Route 名称格式为 ingate-route/<gateway-id>/<route-id>[/<method>][/<variant>]。
 	parts := strings.Split(routeName, "/")
-	if parts[0] != envoyRouteNamePrefix {
+	if parts[0] != routeNamePrefix {
 		return "", "", nil
 	}
 	if len(parts) < 3 ||
@@ -224,10 +232,11 @@ func requestHost(value string) string {
 }
 
 func socketAddress(address *corev3.Address) string {
-	if address == nil || address.GetSocketAddress() == nil {
+	socket := address.GetSocketAddress()
+	if socket == nil {
 		return ""
 	}
-	return address.GetSocketAddress().GetAddress()
+	return socket.GetAddress()
 }
 
 func socketEndpoint(address *corev3.Address) string {

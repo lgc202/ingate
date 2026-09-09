@@ -16,9 +16,6 @@ func Validate(record *alsv1.RequestRecord) error {
 	if record == nil {
 		return errors.New("request record is nil")
 	}
-	if !IsValidID(record.GetId()) {
-		return errors.New("request record ID is invalid")
-	}
 	if record.GetStartedAt() == nil || record.GetStartedAt().CheckValid() != nil {
 		return errors.New("request record start time is invalid")
 	}

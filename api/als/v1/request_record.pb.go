@@ -139,7 +139,8 @@ func (x *AIModelCall) GetTotalTokens() uint64 {
 // 记录只保存排障和聚合分析所需的元数据，不保存请求头、请求正文和响应正文
 type RequestRecord struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// id 由 Envoy 节点和请求标识稳定生成，用于 Kafka 分区和下游幂等入库
+	// id 由 ALS 为本记录随机生成，并在 Kafka 和磁盘队列重投时保持不变；
+	// Envoy 节点、流和请求标识只用于关联，不参与生成记录 ID
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// request_id 保留 Envoy 的请求标识，用于跨系统排障
 	RequestId string `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`

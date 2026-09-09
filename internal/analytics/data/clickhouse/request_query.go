@@ -14,7 +14,6 @@ import (
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
 	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
-	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
 // requestSummaryColumns 只读取列表展示所需列，避免翻页时扫描完整详情。
@@ -88,7 +87,7 @@ func (s *Store) ListRequests(ctx context.Context, options request.ListOptions) (
 
 // GetRequest 使用完整排序键读取单条请求记录。
 //
-// started_at 既限定保留分区，也与 id 组成查询条件，避免仅按哈希 ID 扫描全部明细。
+// started_at 既限定保留分区，也与 id 组成查询条件，避免仅按记录 ID 扫描全部明细。
 func (s *Store) GetRequest(
 	ctx context.Context,
 	id string,
@@ -355,7 +354,7 @@ func durationFromNanos(nanoseconds uint64) (time.Duration, error) {
 }
 
 func validateRequestSummary(summary request.Summary) error {
-	if !requestrecord.IsValidID(summary.ID) || !analyticsconfig.IsSupportedTime(summary.StartedAt) {
+	if summary.ID == "" || !analyticsconfig.IsSupportedTime(summary.StartedAt) {
 		return errors.New("stored request summary has an invalid identity")
 	}
 	if summary.StatusCode > 0 && summary.StatusCode < 100 {
@@ -374,7 +373,7 @@ func validateRequestSummary(summary request.Summary) error {
 }
 
 func validateRequestRecord(record *request.Record) error {
-	if !requestrecord.IsValidID(record.ID) || !analyticsconfig.IsSupportedTime(record.StartedAt) {
+	if record.ID == "" || !analyticsconfig.IsSupportedTime(record.StartedAt) {
 		return errors.New("stored request record has an invalid identity")
 	}
 	if record.StatusClass != request.ClassifyStatusCode(record.StatusCode) {

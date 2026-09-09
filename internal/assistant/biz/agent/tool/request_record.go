@@ -10,7 +10,6 @@ import (
 	"github.com/cloudwego/eino/components/tool/utils"
 
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
-	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
 type requestRecordInput struct {
@@ -88,7 +87,7 @@ func getRequestRecord(
 	input requestRecordInput,
 ) (requestRecordOutput, error) {
 	recordID := strings.TrimSpace(input.RecordID)
-	if !requestrecord.IsValidID(recordID) {
+	if recordID == "" {
 		return requestRecordErrorResult(
 			invalidInputf("record_id must use the exact value returned by list_recent_failures"),
 		)

@@ -33,7 +33,8 @@ message AIModelCall {
 //
 // 记录只保存排障和聚合分析所需的元数据，不保存请求头、请求正文和响应正文
 message RequestRecord {
-  // id 由 Envoy 节点和请求标识稳定生成，用于 Kafka 分区和下游幂等入库
+  // id 由 ALS 为本记录随机生成，并在 Kafka 和磁盘队列重投时保持不变；
+  // Envoy 节点、流和请求标识只用于关联，不参与生成记录 ID
   string id = 1;
   // request_id 保留 Envoy 的请求标识，用于跨系统排障
   string request_id = 2;

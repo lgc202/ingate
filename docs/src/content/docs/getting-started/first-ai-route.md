@@ -50,7 +50,7 @@ curl http://127.0.0.1:8080/v1/chat/completions \
   }'
 ```
 
-公开 Route 不需要 `Authorization` Header。受保护 Route 的访问密钥通过[调用方](../../governance/caller/)签发。
+公开 Route 不需要 `Authorization` Header。受保护 Route 的访问密钥通过[调用方](../../guide/governance/caller/)签发。
 
 ## 请求如何到达厂商
 
@@ -60,4 +60,4 @@ curl http://127.0.0.1:8080/v1/chat/completions \
 
 当前 Anthropic 转换要求 `n=1`，只支持文本消息，不支持 OpenAI 请求中的 `tools`、`tool_choice` 或 `response_format`；携带这些字段会返回明确的客户端错误。需要工具调用时选择 OpenAI 兼容模型 Service，或由客户端直连支持工具协议的模型端点。
 
-模型线路尝试、Token 用量和最终响应可以在[AI 用量](../../observability/ai-usage/)与请求详情中查看。
+模型线路尝试、Token 用量和最终响应可以在[AI 用量](../../guide/analytics/ai-usage/)与请求详情中查看。
