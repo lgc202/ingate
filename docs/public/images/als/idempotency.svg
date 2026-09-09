@@ -1,14 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 430" role="img" aria-labelledby="title desc">
-  <title id="title">请求记录 ID 的稳定边界</title>
-  <desc id="desc">ALS 解析时生成 UUID，Kafka key 与 WAL 重放保持该 ID。Analytics 和 ClickHouse 使用 ID 识别重复。</desc>
-  <defs><marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#5B8A72"/></marker><style>text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1A1A1A}.label{font-size:15px;font-weight:650}.sub{font-size:11px;fill:#6B6560}.code{font-size:11px;fill:#8B6F8A;font-family:"SFMono-Regular",Consolas,monospace}.node{fill:#FFF;stroke:#C5C0BA;stroke-width:1.5}.focus{fill:#F5F3F8;stroke:#8B6F8A;stroke-width:2}.ok{fill:#F5F8F6;stroke:#5B8A72;stroke-width:1.5}.line{fill:none;stroke:#5B8A72;stroke-width:2}</style></defs>
-  <rect width="1040" height="430" rx="16" fill="#FAF9F6"/>
-  <line class="line" x1="200" y1="190" x2="250" y2="190" marker-end="url(#arrow)"/><line class="line" x1="440" y1="190" x2="500" y2="190" marker-end="url(#arrow)"/><line class="line" x1="680" y1="190" x2="740" y2="190" marker-end="url(#arrow)"/><line class="line" x1="870" y1="190" x2="920" y2="190" marker-end="url(#arrow)"/>
-  <rect class="node" x="30" y="145" width="170" height="90" rx="10"/><text class="label" x="115" y="178" text-anchor="middle">Envoy 日志</text><text class="sub" x="115" y="202" text-anchor="middle">request_id 可缺省或重复</text>
-  <rect class="focus" x="250" y="130" width="190" height="120" rx="10"/><text class="label" x="345" y="168" text-anchor="middle">ALS 解析</text><text class="sub" x="345" y="194" text-anchor="middle">uuid.NewString()</text><text class="code" x="345" y="220" text-anchor="middle">record.id = 7f…</text>
-  <rect class="ok" x="500" y="145" width="180" height="90" rx="10"/><text class="label" x="590" y="178" text-anchor="middle">Kafka / WAL</text><text class="sub" x="590" y="202" text-anchor="middle">key 与重放 ID 不变</text>
-  <rect class="node" x="740" y="145" width="130" height="90" rx="10"/><text class="label" x="805" y="178" text-anchor="middle">Analytics</text><text class="sub" x="805" y="202" text-anchor="middle">批内冲突检查</text>
-  <rect class="node" x="920" y="145" width="90" height="90" rx="10"/><text class="label" x="965" y="178" text-anchor="middle">CH</text><text class="sub" x="965" y="202" text-anchor="middle">token 去重</text>
-  <path d="M345 285V330H590V237" fill="none" stroke="#8B6F8A" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#arrow)"/><text class="sub" x="470" y="352" text-anchor="middle">Kafka 结果不确定或 Commit 失败：同一 ID 再次投递</text>
-  <text class="sub" x="520" y="392" text-anchor="middle">ID 从解析完成后稳定；Envoy 在协议层重新发送并再次解析时会生成新 ID</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 150" role="img" aria-labelledby="title desc">
+  <title id="title">请求记录 ID 传递</title>
+  <desc id="desc">ALS 解析时生成 UUID，Kafka、WAL、Analytics 和 ClickHouse 传递同一记录 ID。</desc>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#35836D"/></marker><style>text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#20252B}.label{font-size:13px;font-weight:650}.sub{font-size:10px;fill:#667085}.node{fill:#FFF;stroke:#98A2B3;stroke-width:1.2}.focus{fill:#F7F4FA;stroke:#826A88;stroke-width:1.4}.line{stroke:#35836D;stroke-width:1.6}</style></defs>
+  <rect width="900" height="150" fill="#FFF"/>
+  <line class="line" x1="130" y1="70" x2="175" y2="70" marker-end="url(#arrow)"/>
+  <line class="line" x1="315" y1="70" x2="365" y2="70" marker-end="url(#arrow)"/>
+  <line class="line" x1="515" y1="70" x2="565" y2="70" marker-end="url(#arrow)"/>
+  <line class="line" x1="685" y1="70" x2="735" y2="70" marker-end="url(#arrow)"/>
+
+  <rect class="node" x="20" y="42" width="110" height="56" rx="4"/>
+  <text class="label" x="75" y="66" text-anchor="middle">Envoy 日志</text>
+  <text class="sub" x="75" y="84" text-anchor="middle">request_id</text>
+
+  <rect class="focus" x="175" y="42" width="140" height="56" rx="4"/>
+  <text class="label" x="245" y="66" text-anchor="middle">ALS 解析</text>
+  <text class="sub" x="245" y="84" text-anchor="middle">id = UUID v4</text>
+
+  <rect class="node" x="365" y="42" width="150" height="56" rx="4"/>
+  <text class="label" x="440" y="66" text-anchor="middle">Kafka / WAL</text>
+  <text class="sub" x="440" y="84" text-anchor="middle">key 与回放 ID 不变</text>
+
+  <rect class="node" x="565" y="42" width="120" height="56" rx="4"/>
+  <text class="label" x="625" y="66" text-anchor="middle">Analytics</text>
+  <text class="sub" x="625" y="84" text-anchor="middle">批内去重</text>
+
+  <rect class="node" x="735" y="42" width="145" height="56" rx="4"/>
+  <text class="label" x="807.5" y="66" text-anchor="middle">ClickHouse</text>
+  <text class="sub" x="807.5" y="84" text-anchor="middle">dedup token = id</text>
 </svg>

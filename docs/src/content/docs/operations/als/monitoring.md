@@ -11,17 +11,19 @@ ALS Dashboard 位于 Grafana 的 **Ingate / Ingate ALS**。它只使用实例等
 
 | 目标 | SLI | 30 天目标 |
 | --- | --- | --- |
-| 可靠接收 | `1 - rejected / valid`；写入 Kafka 或持久化 WAL 均视为成功接收 | 99.99% |
+| 同步确认率（可靠接收代理） | `1 - rejected / valid`；写入 Kafka 或持久化 WAL 均视为取得确认 | 99.99% |
 | Kafka 新鲜度 | 每分钟检查最老 WAL 记录是否不超过 5 分钟；空队列视为满足，ALS 抓取失败视为不满足 | 99% |
 
-可靠接收告警使用两组多窗口预算消耗规则：5 分钟与 1 小时同时超过 14.4 倍预算时报告 Critical；30 分钟与 6 小时同时超过 6 倍预算时报告 Warning。短窗口负责尽快发现突发故障，长窗口过滤瞬时噪声。零流量时记录规则得到 1；可靠接收规则没有像新鲜度规则一样把抓取失败显式算作坏样本，缺失序列会成为无数据。SLO 按实例记录，不代表 Envoy 到 ClickHouse 的全链路完整率。
+同步确认率告警使用两组多窗口预算消耗规则：5 分钟与 1 小时同时超过 14.4 倍预算时报告 Critical；30 分钟与 6 小时同时超过 6 倍预算时报告 Warning。短窗口负责尽快发现突发故障，长窗口过滤瞬时噪声。零流量时记录规则得到 1；这条规则没有像新鲜度规则一样把抓取失败显式算作坏样本，缺失序列会成为无数据。
+
+这是运行代理指标，不是精确丢失率。Kafka 部分成功或确认结果不确定、随后 WAL 又失败时，`rejected` 会按整批增加；进程在批次计数前退出、Envoy 发送前丢弃以及 Analytics 下游故障则不在该指标中。SLO 按实例记录，也不代表 Envoy 到 ClickHouse 的全链路完整率。
 
 Kafka 新鲜度只衡量记录进入 Kafka 前的 WAL 延迟。WAL 为空时，Analytics 或 ClickHouse 仍可能滞后；产品页面的端到端可见性需要结合 Analytics 消费延迟和 ClickHouse 写入状态判断。
 
 ## 常用查询
 
 ```text
-# ALS 已经收到并通过校验，但 Kafka 与 WAL 都未接收
+# Kafka 未确认整批，随后 WAL 追加也失败的记录数
 increase(ingate_als_records_rejected_total[5m])
 
 # Kafka 故障期间的积压与最老等待时间
@@ -51,7 +53,7 @@ Compose 使用 `/readyz` 作为 ALS healthcheck。连续失败会把容器标为
 
 ## ALSAvailabilityBudgetBurnCritical
 
-- **影响：** 可靠接收错误预算正在快速消耗，继续持续会违反 99.99% 月度目标。
+- **影响：** 未取得完整同步持久化确认的批次正在快速增加，继续持续会违反 99.99% 月度目标。
 - **确认：** 检查 5 分钟和 1 小时错误率，并确认 `ALSRecordsRejected`、`ALSDiskQueueBlocked` 是否同时触发。
 - **常见原因：** Kafka 不可写且 WAL 已满、文件系统不可写，或 ALS 实例持续重启。
 - **恢复：** 优先恢复 WAL 写入能力，再恢复 Kafka；若多实例部署，只摘除无法可靠接收的实例。
@@ -59,7 +61,7 @@ Compose 使用 `/readyz` 作为 ALS healthcheck。连续失败会把容器标为
 
 ## ALSAvailabilityBudgetBurnWarning
 
-- **影响：** 可靠接收在较长时间内持续退化，尚未形成快速故障但会耗尽月度预算。
+- **影响：** 同步确认率在较长时间内持续退化，尚未形成快速故障但会耗尽月度预算。
 - **确认：** 检查 30 分钟和 6 小时错误率，按实例比较是否集中在单机。
 - **常见原因：** Kafka 间歇超时、磁盘空间反复触线、实例资源长期不足。
 - **恢复：** 修复持续抖动的依赖或实例；若 WAL 接近容量边界，先恢复 Kafka 消费积压再调整容量。
@@ -67,7 +69,7 @@ Compose 使用 `/readyz` 作为 ALS healthcheck。连续失败会把容器标为
 
 ## ALSRecordsRejected
 
-- **影响：** 已通过协议校验的请求记录未进入 Kafka 或 WAL，形成确定的数据缺口。
+- **影响：** 已通过协议校验的请求记录没有取得完整的 Kafka 或 WAL 同步确认，存在数据缺口风险；该计数不是精确丢失量。
 - **确认：** 检查 `rejected` 增量、`disk_queue_writable`、`kafka_writable` 和同一时刻的 ALS 日志。
 - **常见原因：** Kafka 故障期间 WAL 达到容量限制、文件系统空间不足或 WAL I/O 失败。
 - **恢复：** 恢复 WAL 所在文件系统写入能力或 Kafka；保留现有 WAL，避免扩大数据缺口。
@@ -86,7 +88,7 @@ Compose 使用 `/readyz` 作为 ALS healthcheck。连续失败会把容器标为
 - **影响：** ALS 已失去 Kafka 故障时的持久化兜底能力；后续 Kafka 失败可能立即产生拒绝。
 - **确认：** 检查 WAL 状态、利用率、文件系统剩余字节和安全余量，再查看是否存在 I/O 错误。
 - **常见原因：** WAL 达到配置容量、宿主机磁盘接近耗尽、目录只读或底层存储故障。
-- **恢复：** 先恢复 Kafka 让回放释放队首；必要时扩容同一 Volume 或迁移到健康磁盘。不得手工删除 WAL 分段。
+- **恢复：** 先恢复 Kafka 让回放释放队首；必要时扩容同一 Volume。迁移到健康磁盘前必须停止实例，并按[恢复与迁移](../recovery/)复制整个目录。不得手工删除 WAL 分段。
 - **验证：** `disk_queue_writable` 回到 1，`readyz` 恢复，积压记录按顺序提交并最终归零。
 
 ## ALSKafkaUnavailable
@@ -94,7 +96,7 @@ Compose 使用 `/readyz` 作为 ALS healthcheck。连续失败会把容器标为
 - **影响：** 新记录转入 WAL，持续时间过长会消耗本地容量并降低 Kafka 新鲜度。
 - **确认：** 检查 Broker 健康、Topic 契约、发布失败分类和 WAL 增长速度。
 - **常见原因：** Broker 不可达、认证或 TLS 错误、Topic 不合规、请求超时。
-- **恢复：** 恢复 Broker 与网络；若 Topic 契约不合规，修复副本数和 `min.insync.replicas` 后等待最多一分钟的合规检查刷新。若 `ingate_als_replay_paused` 已为 1，还要在修复后重启 ALS；合规检查恢复不会自动清除暂停状态。
+- **恢复：** 恢复 Broker 与网络；若 Topic 契约不合规，修复副本数和 `min.insync.replicas` 后等待最多一分钟的合规检查刷新。检查请求失败时旧缓存不会过期，因此修改 Topic 后还要用 Kafka 工具直接验证，不能只看 ALS 状态。若 `ingate_als_replay_paused` 已为 1，还要在修复后重启 ALS；合规检查恢复不会自动清除暂停状态。
 - **验证：** `kafka_writable` 回到 1，`replayed` 与 `committed` 持续增长，预计排空时间下降。
 
 ## ALSKafkaISRInsufficient

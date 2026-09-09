@@ -1,58 +1,130 @@
 ---
 title: 并发与状态迁移
-description: 解释 Recorder 的故障屏障、在途计数、队首顺序和互斥锁选择
+description: 用并发批次和 recorderState 代码解释 Kafka 故障屏障
 ---
 
-ALS 可以同时接收多条 Envoy stream，Kafka 写入也可能并发完成。难点不是某个布尔值有没有数据竞争，而是 Kafka 失败后，新批次不能绕过已经进入 WAL 的旧批次。
+ALS 可以同时接收多条 Envoy stream，多批 Kafka 写入也可能交错完成。Recorder 的并发约束不只是消除 data race，还要保证：一批写 Kafka 失败并开始落 WAL 后，新批次不能继续直写 Kafka，否则新记录会绕过 ALS 本地队列中的旧记录。
 
 ![Recorder 在直写、WAL 降级和回放暂停之间的状态迁移](/ingate/images/als/recorder-state.svg)
 
-## 故障屏障
+## 一个具体的竞争场景
 
-正常状态下，一批记录取得 Kafka 写入资格，并增加 `kafkaWrites`。若写入失败，完成动作在同一临界区内做三件事：
+假设 A 和 B 两个批次已经并发写 Kafka：
 
-1. 减少一个在途 Kafka 写入；
-2. 建立 `spooling` 屏障；
-3. 为当前批次登记一个 WAL 写入。
+```text
+A 取得 Kafka 准入 ── Kafka 超时 ── 写 WAL
+B 取得 Kafka 准入 ──────── Kafka 成功
+C 在 A 失败后到达 ───────────── 必须写 WAL
+```
 
-屏障建立后，新批次直接进 WAL，不再为每批等待同样的网络超时。失败批次自己也会完整写入 WAL。
+B 在故障屏障建立前已经取得准入，Recorder 不会取消它，也无法撤销 Kafka 可能已经接收的数据。C 在屏障后到达，必须与 A 一样进入 WAL。只有 A 的 WAL 追加、B 的 Kafka 写入和队列回放全部结束后，才能恢复直写。
 
-故障前已经取得资格的 Kafka 写入仍可能成功。Recorder 不取消它们，也不能假装它们没有发生。恢复直写前必须同时满足：Topic 合规、所有在途 Kafka 写入结束、所有在途 WAL 追加结束、队列为空、回放没有暂停。这样恢复点才不会越过尚未落稳或尚未确认的批次。
+这里保证的是单个 ALS 实例的准入顺序和 WAL 队首提交顺序，不是全局事件顺序。Kafka 会按记录 ID 选择分区，多实例 ALS、不同分区以及 Analytics 并发处理都可能改变最终可见顺序；业务查询必须使用 `started_at` 等显式时间字段排序。
 
-## 状态不是两个重复结构体
+## 准入点一次选定写入目标
 
-`recorderState` 保存可变的并发状态和在途计数，只在 `biz` 内使用。`RecorderStatus` 是给健康检查和指标读取的快照，还会合并 Topic 与 Queue 状态。前者负责迁移，后者负责发布；字段看起来相近，但生命周期和使用方不同。
+`Recorder.Write` 调用 `reserveWrite` 完成目标选择和在途计数：
 
-如果把可变状态结构直接暴露给探针，读取方要么持有内部锁，要么可能观察到一半更新。当前实现由状态对象在锁内构造快照，外部不会参与同步。
+```go
+func (s *recorderState) reserveWrite(topicCompliant bool) writeTarget {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-## 互斥锁的选择
+	if s.spooling || !topicCompliant {
+		s.spooling = true
+		s.queueWrites++
+		return queueTarget
+	}
 
-这些字段需要保持联合不变量。例如建立故障屏障与增加 `queueWrites` 必须是一个不可分割的决定；恢复也要同时检查多个计数和标志。一组原子变量只能保证各字段单独读写安全，不能保证组合状态属于真实发生过的时刻，还容易出现先清屏障、后看到在途写入的错误顺序。
+	s.kafkaWrites++
+	return kafkaTarget
+}
+```
 
-读写锁也没有明显收益。状态临界区只做整数和布尔更新，不执行 Kafka 或磁盘 I/O；写操作比例高，读取只来自指标和探针。普通 `sync.Mutex` 更直接，也更容易审查状态不变量。
+`spooling` 是故障屏障。屏障存在或 Topic 不合规时，新批次不会先等待一次 Kafka 超时，而是直接记一个 `queueWrites` 并写 WAL。准入决定在锁内完成，Kafka 和磁盘 I/O 都在锁外执行。
 
-队列另有一把锁，负责 `Write`、`Read` 和 `Commit` 的磁盘顺序。状态锁不会跨磁盘 I/O，因此两把锁的职责不同，也不会把慢 I/O 带进全局准入临界区。`Pending` 使用不可变原子快照，允许恢复检查在状态锁内读取队列计数而不访问磁盘。
+## Kafka 失败同时建立屏障和预留 WAL 写入
 
-## 串行回放
+```go
+func (s *recorderState) finishKafkaWrite(succeeded bool) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-回放从队首读取一个连续批次，Kafka 成功后再截断对应前缀。并发回放需要额外的确认区间、乱序完成和空洞处理，对当前吞吐需求没有证据表明值得引入。
+	s.kafkaWrites--
+	if succeeded {
+		if !s.spooling {
+			s.kafkaOK = true
+		}
+		return false
+	}
 
-单个回放循环具有几个好处：
+	s.kafkaOK = false
+	switched := !s.spooling
+	s.spooling = true
+	s.queueWrites++
+	return switched
+}
+```
 
-- Commit 位置天然单调前进；
-- 队首永久错误不会被后面的记录越过；
-- 回放顺序容易与积压年龄和故障日志对应；
-- 重启只需重新扫描日志，不需要恢复并发任务状态。
+失败分支在同一个临界区内完成四件事：结束 Kafka 在途操作、标记 Kafka 不可写、建立 `spooling`、为本批预留一个 WAL 在途写入。这使失败批次自己与它之后到达的批次都位于同一道屏障之后。
 
-临时错误使用有上限的指数退避和随机抖动。永久错误暂停本进程，避免同一个无效队首无限请求 Kafka。修复外部原因后重启，组件会从同一条目重新判断。
+`finishKafkaWrite` 返回的 `switched` 只用于把“首次进入降级”日志记一次，不参与后续投递决策。
 
-## 需要保持的状态不变量
+## 恢复直写的全部条件
 
-- `kafkaWrites` 和 `queueWrites` 不能为负数；
-- `spooling=true` 后，新写入不能取得 Kafka 资格；
-- Kafka 失败批次必须在建立屏障的同一迁移中取得 WAL 写入资格；
-- 队列未空或仍有在途写入时不能恢复直写；
-- `replayPaused=true` 时不能自动清除屏障；
-- 状态锁和队列锁都不能包住网络调用。
+```go
+if !s.spooling || !topicCompliant || s.kafkaWrites > 0 || s.queueWrites > 0 ||
+	s.replayPaused || !queueEmpty() {
+	return false
+}
 
-这些不变量比“是否使用原子变量”更值得在并发测试里验证。
+s.spooling = false
+return true
+```
+
+每个条件都对应一个具体的越过风险：
+
+| 恢复条件 | 忽略后的结果 |
+| --- | --- |
+| Topic 合规 | 直写会立即被可预期地拒绝 |
+| `kafkaWrites == 0` | 屏障前的 Kafka 写入结果还没有收敛 |
+| `queueWrites == 0` | 已取得 WAL 准入的批次可能尚未落盘 |
+| `replayPaused == false` | 队首的永久错误会被隐藏 |
+| `queueEmpty()` | 新记录会越过旧积压 |
+
+`queueEmpty` 在状态锁内调用，但只读取 Queue 发布的不可变原子快照，不会进行磁盘 I/O。
+
+## Mutex 保护联合不变量
+
+`spooling`、`kafkaWrites`、`queueWrites` 和 `replayPaused` 需要在一次迁移中联合读写。多个原子变量只能保证每个字段单独安全，无法保证组合快照来自同一个真实时刻。
+
+`sync.RWMutex` 也没有明显收益。这些临界区只做布尔值和计数器更新，写操作占比高，读只来自探针和指标。一把普通 `sync.Mutex` 让不变量更容易阅读和测试。
+
+Recorder 状态锁和 Queue 锁有不同责任：
+
+| 锁 | 保护内容 | 不在锁内执行 |
+| --- | --- | --- |
+| `recorderState.mu` | 写入准入、故障屏障、在途计数 | Kafka 和磁盘 I/O |
+| `Queue.mu` | WAL 的 Write、Read、Commit 和物理占用快照 | Kafka 调用 |
+
+## 回放保持串行
+
+DiskQueueReplayer 只有一个循环推进队首。回放成功后立即处理下一批；队列为空时等待下一个轮询周期；临时错误指数退避并添加随机抖动；永久错误暂停当前进程。
+
+并发回放需要额外的确认区间、乱序完成和空洞跟踪。当前没有吞吐证据支持引入这些复杂度，因此保持串行，使 Commit 位置天然单调前进。
+
+## 代码审查时检查的不变量
+
+- `kafkaWrites` 和 `queueWrites` 不能为负数。
+- `spooling=true` 后，新批次不能取得 Kafka 准入。
+- Kafka 失败批次必须在建立屏障的同一次迁移中预留 WAL 写入。
+- 队列未空或仍有在途写入时，不能恢复 Kafka 直写。
+- `replayPaused=true` 时不能自动清除故障屏障。
+- Recorder 状态锁和 Queue 锁都不能包住 Kafka 网络调用。
+
+## 源码入口
+
+- `internal/als/biz/recorder.go`：写入与回放主流程
+- `internal/als/biz/recorder_state.go`：准入、屏障和恢复迁移
+- `internal/als/data/diskqueue/queue.go`：队首顺序和积压快照
+- `internal/als/server/disk_queue_replayer.go`：串行调度和退避

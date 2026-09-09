@@ -1,19 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 560" role="img" aria-labelledby="title desc">
-  <title id="title">Kafka ACK 丢失与 WAL 重放</title>
-  <desc id="desc">Kafka 已经保存记录但确认响应丢失，ALS 把同一 ID 的记录写入 WAL。重启后再次发布，Analytics 按稳定 ID 去重。</desc>
-  <defs><marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#78716C"/></marker><marker id="bad" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#C96464"/></marker><style>text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1C1917}.label{font-size:15px;font-weight:650}.sub{font-size:11px;fill:#78716C}.msg{font-size:12px;fill:#6B6560}.life{stroke:#C5C0BA;stroke-width:1.5;stroke-dasharray:5 5}.line{fill:none;stroke:#78716C;stroke-width:1.8}.badline{fill:none;stroke:#C96464;stroke-width:1.8;stroke-dasharray:6 4}.head{fill:#FFF;stroke:#C5C0BA;stroke-width:1.5}</style></defs>
-  <path d="M0 0H1040V560H0Z" fill="#FAF9F6"/>
-  <line class="life" x1="130" y1="100" x2="130" y2="515"/><line class="life" x1="385" y1="100" x2="385" y2="515"/><line class="life" x1="650" y1="100" x2="650" y2="515"/><line class="life" x1="910" y1="100" x2="910" y2="515"/>
-  <line class="line" x1="130" y1="150" x2="650" y2="150" marker-end="url(#arrow)"/><text class="msg" x="390" y="138" text-anchor="middle">Publish(id=7f…)</text>
-  <path class="badline" d="M650 205H160"/><path d="M145 196L157 214M157 196L145 214" stroke="#C96464" stroke-width="2"/><text class="msg" x="405" y="193" text-anchor="middle">Broker 已写入；ACK 在网络中丢失</text>
-  <path class="line" d="M130 255H240V285H130" marker-end="url(#arrow)"/><text class="msg" x="185" y="243" text-anchor="middle">等待超时，结果不确定</text>
-  <line class="line" x1="130" y1="335" x2="385" y2="335" marker-end="url(#arrow)"/><text class="msg" x="258" y="323" text-anchor="middle">WAL append(id=7f…)</text>
-  <line class="line" x1="385" y1="385" x2="130" y2="385" marker-end="url(#arrow)"/><text class="msg" x="258" y="373" text-anchor="middle">sync 完成</text>
-  <line class="line" x1="130" y1="435" x2="650" y2="435" marker-end="url(#arrow)"/><text class="msg" x="390" y="423" text-anchor="middle">重启后 Replay(id=7f…)</text>
-  <line class="line" x1="650" y1="485" x2="910" y2="485" marker-end="url(#arrow)"/><text class="msg" x="780" y="473" text-anchor="middle">两条消息，ID 相同</text>
-  <rect class="head" x="55" y="40" width="150" height="60" rx="9"/><text class="label" x="130" y="77" text-anchor="middle">Recorder</text>
-  <rect class="head" x="310" y="40" width="150" height="60" rx="9"/><text class="label" x="385" y="77" text-anchor="middle">WAL</text>
-  <rect class="head" x="575" y="40" width="150" height="60" rx="9"/><text class="label" x="650" y="77" text-anchor="middle">Kafka</text>
-  <rect class="head" x="835" y="40" width="150" height="60" rx="9"/><text class="label" x="910" y="77" text-anchor="middle">Analytics</text>
-  <text class="sub" x="520" y="535" text-anchor="middle">选择可识别的重复，不把不确定结果当作确定失败</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 340" role="img" aria-labelledby="title desc">
+  <title id="title">Kafka 确认丢失与 WAL 回放</title>
+  <desc id="desc">Kafka 已写入但确认丢失，Recorder 把同一 ID 写入 WAL，重放后 Analytics 收到相同 ID 的重复。</desc>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#667085"/></marker><style>text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#20252B}.actor{font-size:13px;font-weight:650}.msg{font-size:10px;fill:#475467}.life{stroke:#CBD0D6;stroke-width:1;stroke-dasharray:4 4}.line{stroke:#667085;stroke-width:1.4}.lost{stroke:#C25450;stroke-width:1.4;stroke-dasharray:5 4}</style></defs>
+  <text class="actor" x="90" y="28" text-anchor="middle">Recorder</text>
+  <text class="actor" x="300" y="28" text-anchor="middle">WAL</text>
+  <text class="actor" x="520" y="28" text-anchor="middle">Kafka</text>
+  <text class="actor" x="735" y="28" text-anchor="middle">Analytics</text>
+  <line class="life" x1="90" y1="40" x2="90" y2="320"/>
+  <line class="life" x1="300" y1="40" x2="300" y2="320"/>
+  <line class="life" x1="520" y1="40" x2="520" y2="320"/>
+  <line class="life" x1="735" y1="40" x2="735" y2="320"/>
+
+  <line class="line" x1="90" y1="75" x2="520" y2="75" marker-end="url(#arrow)"/>
+  <text class="msg" x="305" y="66" text-anchor="middle">Publish(id=7f…)</text>
+
+  <line class="lost" x1="520" y1="115" x2="120" y2="115"/>
+  <path d="M104 108L116 122M116 108L104 122" stroke="#C25450" stroke-width="1.6"/>
+  <text class="msg" x="320" y="106" text-anchor="middle">ACK 丢失，结果不确定</text>
+
+  <line class="line" x1="90" y1="165" x2="300" y2="165" marker-end="url(#arrow)"/>
+  <text class="msg" x="195" y="156" text-anchor="middle">Append(id=7f…)</text>
+  <line class="line" x1="300" y1="195" x2="90" y2="195" marker-end="url(#arrow)"/>
+  <text class="msg" x="195" y="188" text-anchor="middle">fsync 成功</text>
+
+  <line class="line" x1="90" y1="245" x2="520" y2="245" marker-end="url(#arrow)"/>
+  <text class="msg" x="305" y="236" text-anchor="middle">Replay(id=7f…)</text>
+  <line class="line" x1="520" y1="285" x2="735" y2="285" marker-end="url(#arrow)"/>
+  <text class="msg" x="627.5" y="276" text-anchor="middle">同 ID 可能出现两次</text>
 </svg>

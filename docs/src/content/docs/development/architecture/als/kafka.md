@@ -1,76 +1,173 @@
 ---
 title: Kafka 可靠写入
-description: 解释副本、ISR、acks=all、幂等 Producer 和 ALS 的 Topic 契约
+description: 从 Kafka message、ISR 确认到错误分类解释 ALS 的写入语义
 ---
 
-ALS 使用 franz-go 的幂等 Producer，等待 `acks=all`，并在生产模式下要求每个目标分区至少有 3 个副本、`min.insync.replicas >= 2`。这三项解决的问题不同，不能互相替代。
+ALS 把每条 `RequestRecord` 写成一条独立 Kafka message。Kafka 是正常路径上的持久化边界；只有收到 Producer 成功结果后，Recorder 才把这条记录计入 `kafka_accepted`。
+
+## Kafka message 的内容
+
+`internal/als/data/kafka/publisher.go` 负责消息编码：
+
+```go
+messages = append(messages, &kgo.Record{
+	Key:     []byte(record.GetId()),
+	Value:   value,
+	Headers: headers,
+})
+```
+
+| 部分 | 内容 | 用途 |
+| --- | --- | --- |
+| key | `RequestRecord.id` | 分区键和下游幂等标识 |
+| value | protobuf 编码的 `RequestRecord` | 跨进程业务数据 |
+| `content-type` | 固定 protobuf 类型 | 防止消费者误解编码格式 |
+| `message-type` | 固定请求记录类型 | 防止其他消息混入 Topic |
+| `traceparent`、`tracestate` | 当前批次 Trace Context | 连接 ALS 与 Analytics 的 Trace |
+
+Analytics 会校验 key 与 value 中的 ID 一致，并校验两个固定 header。仅能解析 protobuf 还不够，消息外壳也必须符合这份协议。
+
+## Producer 的实际配置
+
+Kafka 客户端直接使用 franz-go 的重试和幂等 Producer。省略连接参数后，关键 Producer 选项如下：
+
+```go
+[]kgo.Opt{
+	kgo.DefaultProduceTopic(config.GetTopic()),
+	kgo.RequiredAcks(kgo.AllISRAcks()),
+	kgo.ProducerBatchCompression(kgo.ZstdCompression()),
+	kgo.RecordDeliveryTimeout(config.GetWriteTimeout().AsDuration()),
+}
+```
+
+这四个 `kgo.Opt` 与 Broker、TLS 和 SASL 连接配置一起传给共用的 `kafkaclient.New`。
+
+franz-go 默认启用幂等 Producer。Ingate 不覆盖它的重试次数和最大在途请求数，避免组合出与幂等要求冲突的参数。项目显式设置的只有：
+
+- 默认 Topic；
+- `acks=all`；
+- Zstd 压缩；
+- 单条记录从进入客户端到得到最终结果的最长时间。
+
+`ProduceSync` 会阻塞到这一批的每条消息都有最终结果。它不是 Kafka 事务：同一批可以有一部分成功、一部分失败。
+
+## 副本、ISR 与确认
 
 ![Kafka 三副本、ISR 与 acks all 的确认关系](/ingate/images/als/kafka-isr.svg)
 
-## 副本数不是 Broker 数
+`replication.factor=3` 表示 Topic 的每个分区有三份副本，不表示集群只能部署三个 Broker。一个五 Broker 集群仍可让某个分区只占用其中三个 Broker，其他分区使用不同组合。
 
-`replication.factor=3` 表示 Topic 的每个分区有三份副本，通常分布在三个不同 Broker 上。集群即使有五个或十个 Broker，这个分区仍只保留三份；其余 Broker 可以承载同一 Topic 的其他分区。
+每个分区只有一个 Leader。Follower 持续从 Leader 拉取日志，达到 Kafka 的同步条件后进入 ISR（in-sync replicas）。ISR 会随着 Broker 故障和复制延迟变化。
 
-每个分区有一个 Leader。Producer 写 Leader，Follower 从 Leader 复制。Kafka 把跟得上 Leader、满足存活与复制条件的副本放进 ISR（in-sync replicas）。ISR 是动态集合，不等于配置的全部副本。
+设某分区的副本为 B1、B2、B3：
 
-## `acks=all` 的确认范围
+```text
+replicas = {B1, B2, B3}
+ISR      = {B1, B2}
+leader   = B1
+```
 
-`acks=all` 等待当前 ISR 中所有副本确认，不是等待集群全部 Broker，也不一定等到配置的全部副本。如果三副本分区当前 ISR 为 `{B1, B2, B3}`，三个都要确认；如果 ISR 已缩到 `{B1, B2}`，两个都要确认。
+此时 `acks=all` 等待 B1 和 B2，不等待已经退出 ISR 的 B3。`min.insync.replicas=2` 允许本次写入。如果 B2 也退出 ISR，只剩 B1，写入会失败，即使 Leader 仍然在线。
 
-`min.insync.replicas=2` 是写入门槛。当 ISR 少于 2 时，即使 Leader 仍在线，`acks=all` 写入也会失败。常用的三副本、最少两个 ISR 组合允许一台副本 Broker 故障，同时避免只剩一份同步副本时继续确认写入。
-
-| 配置 | 防护范围 | 保证边界 |
+| 配置 | 直接约束 | 仍未保证 |
 | --- | --- | --- |
-| `replication.factor=3` | 分区拓扑只配置一份副本 | 三份副本始终同步或在线 |
-| `min.insync.replicas=2` | ISR 只剩一个时仍确认写入 | Producer 一定请求多副本确认 |
-| `acks=all` | Leader 单机写完就返回 | 一定等待配置的全部三副本 |
+| `replication.factor=3` | 每个分区配置三份副本 | 三份副本始终在线或位于不同可用区 |
+| `min.insync.replicas=2` | ISR 少于两个时拒绝写入 | Producer 一定请求 ISR 确认 |
+| `acks=all` | 等待当前 ISR 全部确认 | 等待配置的全部三份副本 |
 
-Kafka 官方对 `min.insync.replicas` 的说明也给出三副本、最少两个 ISR、`acks=all` 这一典型组合。它偏向持久性，代价是 ISR 不足时降低写入可用性。ALS 用本地 WAL 承接这段不可用时间，而不是把确认等级降为 `acks=1`。
+生产模式同时要求副本数至少为 3、`min.insync.replicas` 至少为 2，并固定 `acks=all`。这个组合允许一个副本暂时故障，同时阻止只剩 Leader 单份数据时继续确认写入。写入可用性降低的时间由 WAL 承接。
 
-## Producer 幂等的作用
+## 幂等 Producer 的范围
 
-Kafka 为幂等 Producer 分配 Producer ID，并按分区维护序列号。网络抖动导致客户端重试同一批时，Broker 可以识别同一 Producer 会话内的重复序列，避免把客户端内部重试写成多份。
+Kafka 给 Producer 分配 Producer ID，并为每个分区的写入维护序列号。客户端因网络错误重试同一个批次时，Broker 能识别已经接收的序列，避免在同一 Producer 会话内追加两份。
 
-它不等于端到端恰好一次：
+它不能覆盖以下窗口：
 
-- ALS 重启后通常建立新的 Producer 会话，不能用旧会话序列识别历史重放；
-- Kafka 已经写入，但 ALS 只收到超时或网络错误时，整批仍会进入 WAL；
-- Kafka 写入成功，而 WAL `Commit` 失败时，同一条目下次还会重放；
-- Analytics 在入库后、提交消费 offset 前退出时，Kafka 会再次投递。
+- ALS 重启后建立新的 Producer 会话；
+- Kafka 已写入，但 ALS 没收到确认，随后把整批写入 WAL；
+- Kafka 写入成功，但 WAL Commit 失败，重启后再次回放；
+- Analytics 入库成功，但提交 Kafka offset 前退出。
 
-所以幂等 Producer 仍有价值：它消除最常见的会话内重试重复。稳定的记录 ID 和消费端去重负责更长的故障窗口。
+因此，Producer 幂等减少会话内重复；`RequestRecord.id` 和消费端去重处理跨进程重复。二者解决的范围不同。
 
-## 幂等与 `acks=all` 的关系
+幂等模式需要 `acks=all`。若 Leader 在 Follower 复制消息和序列状态前就返回成功，随后 Leader 故障，新 Leader 可能同时缺少消息和对应序列。客户端此时无法只靠 Producer ID 判断上一批已经写入。
 
-幂等序列必须随着可选 Leader 的复制状态保存。若 Leader 只在本机写入就返回，随后在 Follower 复制前故障，新 Leader 既可能没有消息，也可能没有对应的序列状态，Producer 无法同时保证不丢和不重复。Kafka 因此要求幂等模式使用 `acks=all`、正数重试次数和受限的在途请求数。
+## 逐条结果汇总
 
-Ingate 不手工覆盖 franz-go 的幂等重试与并发默认值，只明确设置 `acks=all`、Zstd 压缩和写入超时，避免一组选项彼此冲突。
+`ProduceSync` 返回每条 message 的结果。ALS 对成功项计数，对失败项保留最高优先级的错误类别：
 
-## 发布错误分类
+```go
+for _, produced := range c.kafka.ProduceSync(ctx, messages...) {
+	if produced.Err == nil {
+		result.Confirmed++
+		continue
+	}
 
-一批记录由 `ProduceSync` 返回逐条结果。ALS 先判断消息已经写入的可能性，再看错误能否重试：
+	result.Failed++
+	class := classifyPublishError(produced.Err)
+	if class > result.Class {
+		result.Class = class
+		result.Err = fmt.Errorf("produce request records: %w", produced.Err)
+	}
+}
+```
 
-| 类别 | 典型情况 | 回放行为 |
-| --- | --- | --- |
-| `temporary` | 客户端缓冲已满，或 Kafka 标记为可重试且能确定未写入 | 留在 WAL，指数退避后重试 |
-| `uncertain` | 网络错误、上下文取消、请求或记录超时、重试耗尽、append 后 ISR 不足 | 留在 WAL；重试可能重复 |
-| `permanent` | 其余无法靠重试恢复的配置或记录错误 | 队首再次确认后暂停回放 |
+`PublishClass` 的数值顺序是 `temporary < uncertain < permanent`，所以简单的 `class > result.Class` 就能让批次采用最严重结果。`Err == nil` 只表示全部消息都成功；部分成功时 `Confirmed` 仍会保留真实数量，用于指标。
 
-同一批有多个错误时，以 `permanent > uncertain > temporary` 的顺序决定批次状态。无论属于哪一类，只要有记录失败，Recorder 都把原批次完整写入 WAL。分类控制回放节奏和告警，不用来删掉“看起来已经成功”的子集。
+## 错误分类
+
+分类先判断消息已经写入的可能性，再判断 Kafka 是否允许重试：
+
+```go
+func classifyPublishError(err error) biz.PublishClass {
+	switch {
+	case mayHavePublished(err):
+		return biz.PublishUncertain
+	case errors.Is(err, kgo.ErrMaxBuffered), kerr.IsRetriable(err):
+		return biz.PublishTemporary
+	default:
+		return biz.PublishPermanent
+	}
+}
+```
+
+| 类别 | 例子 | Recorder 行为 | Replayer 行为 |
+| --- | --- | --- | --- |
+| `temporary` | 本地缓冲满、Kafka 明确可重试错误 | 原批次写 WAL | 退避后重试 |
+| `uncertain` | 网络错误、请求超时、`NotEnoughReplicasAfterAppend` | 原批次写 WAL，允许重复 | 退避后重试 |
+| `permanent` | 消息或配置无法靠重试修复 | 原批次仍先写 WAL | 队首再次失败后暂停 |
+
+`uncertain` 必须优先于 `kerr.IsRetriable`。网络超时即使可以重试，也不能证明 Broker 没有写入消息。把它归成普通临时错误会掩盖重复窗口。
+
+只要批次包含失败项，Recorder 就把原批次完整写入 WAL。已经确认的子集可能再次出现，但其 ID 不变。保存整批比根据不完整结果拼出失败子集更保守，下游能够识别由此产生的重复。
 
 ## Topic 契约缓存
 
-TopicMonitor 在服务接收流量前做首次检查，随后每分钟刷新。它读取每个分区的副本拓扑和 Topic 的 `min.insync.replicas`：
+TopicMonitor 在 transport 启动前做第一次检查，之后每分钟刷新。检查成功时调用 `TopicContract.Update`；检查请求失败时不覆盖旧值：
 
-- 已知合规：允许 Kafka 直写；
-- 已知不合规：停止直写，`/readyz` 返回 `topic_noncompliant`；
-- Kafka 暂时不可达：保留最近一次有效结果；进程刚启动且没有结果时，先写 WAL。
+```go
+topology, err := m.reader.ReadTopology(checkCtx)
+if err != nil {
+	m.checkFailed = true
+	return
+}
 
-把检查放在后台缓存中，是为了让每批写入和健康探针不再同步查询 Kafka 元数据。缓存不替代实际写入结果；Topic 合规但网络仍可能失败，Recorder 仍会降级到 WAL。
+status := m.contract.Update(topology)
+```
 
-当前契约没有检查 Broker 的机架或可用区分布，也没有读取集群级的非同步副本选主配置。三个副本若落在同一故障域，不能提供跨故障域容灾；允许非同步副本成为 Leader，也可能用可用性换取数据缺口。生产部署必须在 Kafka 集群侧管理这两项，不能把“副本数为 3”理解成完整的多可用区保证。
+进程刚启动且检查失败时，状态为 unknown，Recorder 先写 WAL。已有合规结果后发生元数据请求错误，缓存会一直保持上次结果，直到下一次成功检查。若 Topic 在这段时间内被改坏而 Produce 仍可执行，Recorder 可能继续按旧的合规结果直写；当前状态中也没有暴露“上次成功检查时间”。因此平台侧修改 Topic 后应立即用 Kafka 工具验证配置，不能只依赖 ALS 的缓存状态。真实网络故障则会在 Kafka 写入时触发 WAL 降级。
 
-## 参考
+契约检查读取每个分区的最小副本数和 Topic 的 `min.insync.replicas`。它不读取运行时 ISR，也不校验机架分布和非同步副本选主。ISR 不足由实际写入错误和 `kafka_isr_failures_total` 反映。
+
+## 源码入口
+
+- `internal/als/data/kafka/client.go`：Producer 配置
+- `internal/als/data/kafka/publisher.go`：消息编码、逐条结果和错误分类
+- `internal/als/data/kafka/topic.go`：Kafka 元数据读取
+- `internal/als/biz/topic.go`：可靠性契约与原子缓存
+- `internal/als/server/topic_monitor.go`：首次检查和周期刷新
+
+## 上游资料
 
 - [Apache Kafka Producer 配置](https://kafka.apache.org/40/generated/producer_config.html)
 - [Apache Kafka Topic 配置](https://kafka.apache.org/41/generated/topic_config.html)
