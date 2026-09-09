@@ -9,6 +9,7 @@ import (
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 )
 
+// TestParseRequestRecord 验证请求记录 ID 与请求目标的转换规则。
 func TestParseRequestRecord(t *testing.T) {
 	entry := validAccessLogMessage().GetHttpLogs().GetLogEntry()[0]
 	entry.Request.Authority = "example.com:8443"
@@ -42,6 +43,7 @@ func TestParseRequestRecord(t *testing.T) {
 	}
 }
 
+// TestAIModelCallPresence 验证模型调用只在存在用量字段时生成。
 func TestAIModelCallPresence(t *testing.T) {
 	requestMetadata := map[string]*structpb.Value{
 		aiprotocol.ClientHostField: structpb.NewStringValue("example.com"),
