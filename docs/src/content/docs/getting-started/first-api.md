@@ -74,4 +74,4 @@ content-type: application/json
 - HTTP 响应状态
 - 总耗时和首字节耗时
 
-流量趋势和资源排行位于[流量分析](../../observability/traffic-analysis/)。
+流量趋势和资源排行位于[流量分析](../../guide/analytics/traffic-analysis/)。

@@ -91,7 +91,7 @@ docker compose --project-directory . \
   stop otel-collector prometheus loki tempo grafana alertmanager
 ```
 
-Grafana 默认位于 <http://127.0.0.1:3000>，仅面向本机开放匿名只读访问；Prometheus 位于 <http://127.0.0.1:9090>，Alertmanager 位于 <http://127.0.0.1:9093>。它们使用独立的 `INGATE_OBSERVABILITY_BIND_ADDRESS`，不会在 Gateway 或 Console 改为外部监听时被连带暴露。Grafana 自动加载 **Ingate / Ingate ALS** Dashboard，告警处置见 [ALS SLO 与告警处置](./als/)。在 Grafana Explore 中可以分别查询：
+Grafana 默认位于 <http://127.0.0.1:3000>，仅面向本机开放匿名只读访问；Prometheus 位于 <http://127.0.0.1:9090>，Alertmanager 位于 <http://127.0.0.1:9093>。它们使用独立的 `INGATE_OBSERVABILITY_BIND_ADDRESS`，不会在 Gateway 或 Console 改为外部监听时被连带暴露。Grafana 自动加载 **Ingate / Ingate ALS** Dashboard，告警处置见 [ALS SLO 与告警处置](../als/monitoring/)。在 Grafana Explore 中可以分别查询：
 
 - Prometheus：`ingate_als_records_received_total`
 - Loki：`{service_namespace="ingate", service_name="ingate-als"}`

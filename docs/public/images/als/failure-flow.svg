@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 680" role="img" aria-labelledby="title desc">
+  <title id="title">ALS 批次处理流程</title>
+  <desc id="desc">批次解析后优先写 Kafka，失败时完整写入 WAL；Kafka 与 WAL 都失败时拒绝批次。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#78716C"/></marker>
+    <marker id="fail-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#C96464"/></marker>
+    <style>text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1C1917}.label{font-size:15px;font-weight:650}.sub{font-size:11px;fill:#78716C}.yes{font-size:11px;fill:#5B8A72}.no{font-size:11px;fill:#C96464}.node{fill:#FFF;stroke:#78716C;stroke-width:1.5}.focus{fill:#F5F8F6;stroke:#5B8A72;stroke-width:2}.fail{fill:#FFF5F5;stroke:#C96464;stroke-width:1.5}.line{fill:none;stroke:#78716C;stroke-width:2}.bad{fill:none;stroke:#C96464;stroke-width:2}</style>
+  </defs>
+  <rect width="920" height="680" rx="16" fill="#FAF9F6"/>
+
+  <line class="line" x1="300" y1="92" x2="300" y2="135" marker-end="url(#arrow)"/>
+  <line class="line" x1="300" y1="201" x2="300" y2="250" marker-end="url(#arrow)"/>
+  <line class="line" x1="300" y1="316" x2="300" y2="360" marker-end="url(#arrow)"/>
+  <path class="bad" d="M390 283H470Q490 283 490 303V480" marker-end="url(#fail-arrow)"/>
+  <path class="line" d="M300 426V570H410V594" marker-end="url(#arrow)"/>
+  <path class="bad" d="M390 393H620Q640 393 640 413V480" marker-end="url(#fail-arrow)"/>
+  <path class="bad" d="M550 513H640" marker-end="url(#fail-arrow)"/>
+  <line class="line" x1="460" y1="546" x2="460" y2="594" marker-end="url(#arrow)"/>
+
+  <rect class="node" x="210" y="40" width="180" height="52" rx="26"/><text class="label" x="300" y="72" text-anchor="middle">收到 Envoy 批次</text>
+  <polygon class="node" points="300,135 390,168 300,201 210,168"/><text class="label" x="300" y="173" text-anchor="middle">有有效记录？</text>
+  <polygon class="node" points="300,250 390,283 300,316 210,283"/><text class="label" x="300" y="288" text-anchor="middle">允许直写 Kafka？</text>
+  <rect class="focus" x="210" y="360" width="180" height="66" rx="9"/><text class="label" x="300" y="388" text-anchor="middle">同步写 Kafka</text><text class="sub" x="300" y="409" text-anchor="middle">等待每条最终结果</text>
+  <rect class="focus" x="370" y="480" width="180" height="66" rx="9"/><text class="label" x="460" y="508" text-anchor="middle">完整批次写 WAL</text><text class="sub" x="460" y="529" text-anchor="middle">追加 + sync</text>
+  <rect class="fail" x="640" y="480" width="200" height="66" rx="9"/><text class="label" x="740" y="508" text-anchor="middle">拒绝并终止当前流</text><text class="sub" x="740" y="529" text-anchor="middle">records_rejected + Unavailable</text>
+  <rect class="node" x="370" y="594" width="180" height="52" rx="26"/><text class="label" x="460" y="626" text-anchor="middle">批次已接收</text>
+
+  <text class="yes" x="315" y="228">是</text><text class="yes" x="315" y="344">是</text><text class="yes" x="315" y="459">成功</text><text class="yes" x="475" y="574">成功</text>
+  <text class="no" x="407" y="273">否：已有积压 / Topic 不合规</text><text class="no" x="486" y="382">失败或结果不确定</text><text class="no" x="576" y="503">失败</text>
+  <text class="sub" x="420" y="170">否：空批次直接返回；坏记录单独丢弃</text>
+</svg>

@@ -123,11 +123,11 @@ Envoy 是唯一数据平面；etcd 只由 API Server 访问；Redis 保存实时
 | [认识 Ingate](https://lgc202.github.io/ingate/getting-started/introduction/) | 产品边界、流量模型和适用场景 |
 | [系统架构](https://lgc202.github.io/ingate/concepts/architecture/) | 组件职责、控制链路、流量链路和观测链路 |
 | [安装与运维](https://lgc202.github.io/ingate/operations/overview/) | 配置、健康检查、日志、备份和升级 |
-| [运维助手](https://lgc202.github.io/ingate/operations/assistant/) | 模型连接、只读工具、会话和执行恢复边界 |
+| [运维助手](https://lgc202.github.io/ingate/guide/assistant/) | 模型连接、只读工具、会话和执行恢复边界 |
 | [Docker Compose](deploy/compose/README.md) | 安装、启停、备份、恢复、升级和卸载 |
-| [插件体系](https://lgc202.github.io/ingate/plugins/overview/) | 插件源、安装版本、强类型 Policy 和独立升级 |
-| [Gateway](https://lgc202.github.io/ingate/traffic/gateway/) / [Route](https://lgc202.github.io/ingate/traffic/route/) / [Service](https://lgc202.github.io/ingate/traffic/service/) | 核心流量资源 |
-| [IP 访问限制](https://lgc202.github.io/ingate/governance/ip-restriction/) / [请求限流](https://lgc202.github.io/ingate/governance/rate-limit/) / [Token 额度](https://lgc202.github.io/ingate/governance/token-quota/) | 治理策略与执行原理 |
+| [插件体系](https://lgc202.github.io/ingate/guide/plugins/overview/) | 插件源、安装版本、强类型 Policy 和独立升级 |
+| [Gateway](https://lgc202.github.io/ingate/guide/traffic/gateway/) / [Route](https://lgc202.github.io/ingate/guide/traffic/route/) / [Service](https://lgc202.github.io/ingate/guide/traffic/service/) | 核心流量资源 |
+| [IP 访问限制](https://lgc202.github.io/ingate/guide/governance/ip-restriction/) / [请求限流](https://lgc202.github.io/ingate/guide/governance/rate-limit/) / [Token 额度](https://lgc202.github.io/ingate/guide/governance/token-quota/) | 治理策略与执行原理 |
 
 ## 当前范围
 

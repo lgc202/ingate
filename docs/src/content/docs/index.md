@@ -10,7 +10,7 @@ Ingate 是一个基于官方 Envoy 的声明式 API 与 AI 网关。普通 HTTP 
 1. [安装 Ingate](./getting-started/installation/)
 2. [转发第一个 API 请求](./getting-started/first-api/)
 3. [发布并调用第一个模型](./getting-started/first-ai-route/)
-4. [配置并使用运维助手](./operations/assistant/)
+4. [配置并使用运维助手](./guide/assistant/)
 
 ## 资源模型
 
@@ -31,12 +31,13 @@ API 与 AI 是 Route 和 Service 的类型，不形成两套平行资源。AI Ro
 | 分类 | 内容 |
 | --- | --- |
 | [概念与架构](./concepts/architecture/) | 组件职责、通信链路、数据归属和资源关系 |
-| [流量管理](./traffic/gateway/) | Gateway、Route、Service 和 Certificate |
-| [访问治理](./governance/caller/) | Caller、IP 访问限制、请求限流、Token 额度和插件策略 |
-| [插件](./plugins/overview/) | 插件源、安装、升级、Policy 和卸载 |
-| [观测分析](./observability/request-records/) | 请求记录、流量分析和 AI 用量 |
-| [运维助手](./operations/assistant/) | 模型连接、只读工具、对话和执行恢复 |
+| [流量管理](./guide/traffic/gateway/) | Gateway、Route、Service 和 Certificate |
+| [访问治理](./guide/governance/caller/) | Caller、IP 访问限制、请求限流、Token 额度和插件策略 |
+| [插件](./guide/plugins/overview/) | 插件源、安装、升级、Policy 和卸载 |
+| [观测分析](./guide/analytics/request-records/) | 请求记录、流量分析和 AI 用量 |
+| [运维助手](./guide/assistant/) | 模型连接、只读工具、对话和执行恢复 |
 | [运维](./operations/overview/) | 健康检查、日志、备份、恢复和升级 |
+| [开发者文档](./development/overview/) | 组件实现、可靠性边界、关键取舍和代码入口 |
 | [声明式 API](./reference/declarative-api/) | 资源结构、List/Watch、版本和 Status |
 
 ## 已实现能力

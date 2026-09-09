@@ -58,7 +58,7 @@ groups:
         annotations:
           summary: ALS is rapidly consuming its reliable-acceptance error budget
           description: The 5-minute and 1-hour error ratios both exceed a 14.4x burn rate for the 99.99% SLO.
-          runbook_url: https://lgc202.github.io/ingate/operations/als/#alsavailabilitybudgetburncritical
+          runbook_url: https://lgc202.github.io/ingate/operations/als/monitoring/#alsavailabilitybudgetburncritical
 
       - alert: ALSAvailabilityBudgetBurnWarning
         expr: |
@@ -73,7 +73,7 @@ groups:
         annotations:
           summary: ALS is steadily consuming its reliable-acceptance error budget
           description: The 30-minute and 6-hour error ratios both exceed a 6x burn rate for the 99.99% SLO.
-          runbook_url: https://lgc202.github.io/ingate/operations/als/#alsavailabilitybudgetburnwarning
+          runbook_url: https://lgc202.github.io/ingate/operations/als/monitoring/#alsavailabilitybudgetburnwarning
 
       - alert: ALSRecordsRejected
         expr: increase(ingate_als_records_rejected_total[5m]) > 0
@@ -83,7 +83,7 @@ groups:
         annotations:
           summary: ALS rejected valid request records
           description: Kafka and the disk queue could not accept one or more valid records in the last 5 minutes.
-          runbook_url: https://lgc202.github.io/ingate/operations/als/#alsrecordsrejected
+          runbook_url: https://lgc202.github.io/ingate/operations/als/monitoring/#alsrecordsrejected
 
       - alert: ALSRecordsDiscarded
         expr: increase(ingate_als_records_discarded_total[5m]) > 0
@@ -93,7 +93,7 @@ groups:
         annotations:
           summary: ALS discarded malformed or unsupported request records
           description: One or more access log records could not enter the reliable delivery path in the last 5 minutes.
-          runbook_url: https://lgc202.github.io/ingate/operations/als/#alsrecordsdiscarded
+          runbook_url: https://lgc202.github.io/ingate/operations/als/monitoring/#alsrecordsdiscarded
 
       - alert: ALSDiskQueueBlocked
         expr: ingate_als_disk_queue_writable == 0
@@ -104,7 +104,7 @@ groups:
         annotations:
           summary: ALS disk queue cannot accept another batch
           description: WAL capacity, filesystem space, or an I/O failure has removed the Kafka fallback path.
-          runbook_url: https://lgc202.github.io/ingate/operations/als/#alsdiskqueueblocked
+          runbook_url: https://lgc202.github.io/ingate/operations/als/monitoring/#alsdiskqueueblocked
 
       - alert: ALSKafkaUnavailable
         # kafka_writable 在实例首次写入前为 0；只有已有积压时才说明 Kafka 故障正在影响数据。
@@ -118,7 +118,7 @@ groups:
         annotations:
           summary: ALS has been unable to write directly to Kafka
           description: New records are expected to accumulate in the disk queue while this alert is active.
-          runbook_url: https://lgc202.github.io/ingate/operations/als/#alskafkaunavailable
+          runbook_url: https://lgc202.github.io/ingate/operations/als/monitoring/#alskafkaunavailable
 
       - alert: ALSKafkaISRInsufficient
         expr: increase(ingate_als_kafka_isr_failures_total[5m]) > 0
@@ -128,7 +128,7 @@ groups:
         annotations:
           summary: Kafka rejected ALS records because the ISR was insufficient
           description: The topic cannot currently satisfy the configured all-ISR acknowledgement contract.
-          runbook_url: https://lgc202.github.io/ingate/operations/als/#alskafkaisrinsufficient
+          runbook_url: https://lgc202.github.io/ingate/operations/als/monitoring/#alskafkaisrinsufficient
 
       - alert: ALSReplayPaused
         expr: ingate_als_replay_paused == 1
@@ -138,7 +138,7 @@ groups:
         annotations:
           summary: ALS stopped automatic WAL replay after a permanent Kafka error
           description: The queue head requires operator action before ordered replay can continue.
-          runbook_url: https://lgc202.github.io/ingate/operations/als/#alsreplaypaused
+          runbook_url: https://lgc202.github.io/ingate/operations/als/monitoring/#alsreplaypaused
 
       - alert: ALSReplayStalled
         expr: |
@@ -152,7 +152,7 @@ groups:
         annotations:
           summary: ALS WAL replay is not making progress
           description: Records remain queued although Kafka is writable and no records were committed for 10 minutes.
-          runbook_url: https://lgc202.github.io/ingate/operations/als/#alsreplaystalled
+          runbook_url: https://lgc202.github.io/ingate/operations/als/monitoring/#alsreplaystalled
 
       - alert: ALSTraceDropped
         expr: increase(ingate_telemetry_spans_dropped_total[5m]) > 0
@@ -162,4 +162,4 @@ groups:
         annotations:
           summary: ALS dropped spans from its bounded export queue
           description: Trace export is slower than span production or the OTLP destination is unavailable.
-          runbook_url: https://lgc202.github.io/ingate/operations/als/#alstracedropped
+          runbook_url: https://lgc202.github.io/ingate/operations/als/monitoring/#alstracedropped
