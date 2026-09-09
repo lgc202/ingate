@@ -26,6 +26,25 @@ type replayBackoff struct {
 	next time.Duration
 }
 
+func (b *replayBackoff) reset() {
+	b.next = b.min
+}
+
+func (b *replayBackoff) nextDelay() time.Duration {
+	base := b.next
+	if b.next >= b.max/2 {
+		b.next = b.max
+	} else {
+		b.next *= 2
+	}
+
+	jitterLimit := min(base/2, b.max-base)
+	if jitterLimit <= 0 {
+		return base
+	}
+	return base + time.Duration(rand.Int64N(int64(jitterLimit)+1))
+}
+
 // DiskQueueReplayer 周期性把 Kafka 故障期间写入磁盘队列的请求记录重新投递到 Kafka。
 // Kafka 恢复后由单个循环按队首顺序持续排空积压，避免并发回放打乱确认位置。
 // 生命周期状态允许 Kratos 的 Start 和 Stop 并发到达而不遗留后台任务。
@@ -121,25 +140,6 @@ func (r *DiskQueueReplayer) Stop(ctx context.Context) error {
 	case <-ctx.Done():
 		return fmt.Errorf("stop disk queue replayer: %w", ctx.Err())
 	}
-}
-
-func (b *replayBackoff) reset() {
-	b.next = b.min
-}
-
-func (b *replayBackoff) nextDelay() time.Duration {
-	base := b.next
-	if b.next >= b.max/2 {
-		b.next = b.max
-	} else {
-		b.next *= 2
-	}
-
-	jitterLimit := min(base/2, b.max-base)
-	if jitterLimit <= 0 {
-		return base
-	}
-	return base + time.Duration(rand.Int64N(int64(jitterLimit)+1))
 }
 
 // replay 连续提交可用批次，遇到空队列或失败时返回下一次调度决定。

@@ -26,12 +26,18 @@ func run() error {
 	showVersion := flag.Bool("version", false, "print version")
 	flag.Parse()
 	if *showVersion {
-		_, err := fmt.Fprintln(os.Stdout, version.Text())
-		return err
+		if _, err := fmt.Fprintln(os.Stdout, version.Text()); err != nil {
+			return fmt.Errorf("print version: %w", err)
+		}
+		return nil
 	}
+
 	app, err := als.NewApp(*configFile)
 	if err != nil {
-		return err
+		return fmt.Errorf("create ALS application: %w", err)
 	}
-	return app.Run()
+	if err := app.Run(); err != nil {
+		return fmt.Errorf("run ALS application: %w", err)
+	}
+	return nil
 }

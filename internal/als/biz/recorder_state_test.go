@@ -5,24 +5,24 @@ import "testing"
 // TestRecorderStateWaitsForInFlightWrites 验证所有故障屏障前后的在途写入完成后才能恢复直写。
 func TestRecorderStateWaitsForInFlightWrites(t *testing.T) {
 	state := newRecorderState(false)
-	if target := state.reserveWrite(true); target != kafkaTarget {
-		t.Fatalf("recorderState.reserveWrite() = %v, want Kafka", target)
+	if target := state.reserveWriteTarget(true); target != kafkaTarget {
+		t.Fatalf("recorderState.reserveWriteTarget() = %v, want Kafka", target)
 	}
-	if !state.finishKafkaWrite(false) {
-		t.Fatal("recorderState.finishKafkaWrite(first failure) = false, want true")
+	if !state.failKafkaWrite() {
+		t.Fatal("recorderState.failKafkaWrite(first failure) = false, want true")
 	}
-	if target := state.reserveWrite(true); target != queueTarget {
-		t.Fatalf("recorderState.reserveWrite() after failure = %v, want queue", target)
-	}
-
-	if state.resumePublishing(true, func() bool { return true }) {
-		t.Fatal("recorderState.resumePublishing() = true with queue writes in flight, want false")
+	if target := state.reserveWriteTarget(true); target != queueTarget {
+		t.Fatalf("recorderState.reserveWriteTarget() after failure = %v, want queue", target)
 	}
 
-	state.finishQueueWrite(true)
-	state.finishQueueWrite(true)
-	if !state.resumePublishing(true, func() bool { return true }) {
-		t.Fatal("recorderState.resumePublishing() = false after queue drain, want true")
+	if state.resumeKafkaWrites(true, func() bool { return true }) {
+		t.Fatal("recorderState.resumeKafkaWrites() = true with queue writes in flight, want false")
+	}
+
+	state.finishQueueWrite(nil)
+	state.finishQueueWrite(nil)
+	if !state.resumeKafkaWrites(true, func() bool { return true }) {
+		t.Fatal("recorderState.resumeKafkaWrites() = false after queue drain, want true")
 	}
 }
 
@@ -30,42 +30,42 @@ func TestRecorderStateWaitsForInFlightWrites(t *testing.T) {
 func TestRecorderStateCompletesPreBarrierWrites(t *testing.T) {
 	state := newRecorderState(false)
 	for i := range 2 {
-		if target := state.reserveWrite(true); target != kafkaTarget {
-			t.Fatalf("recorderState.reserveWrite() call %d = %v, want Kafka", i+1, target)
+		if target := state.reserveWriteTarget(true); target != kafkaTarget {
+			t.Fatalf("recorderState.reserveWriteTarget() call %d = %v, want Kafka", i+1, target)
 		}
 	}
 
-	if !state.finishKafkaWrite(false) {
-		t.Fatal("recorderState.finishKafkaWrite(first failure) = false, want true")
+	if !state.failKafkaWrite() {
+		t.Fatal("recorderState.failKafkaWrite(first failure) = false, want true")
 	}
-	if state.finishKafkaWrite(false) {
-		t.Fatal("recorderState.finishKafkaWrite(second failure) = true, want false")
+	if state.failKafkaWrite() {
+		t.Fatal("recorderState.failKafkaWrite(second failure) = true, want false")
 	}
-	if target := state.reserveWrite(true); target != queueTarget {
-		t.Fatalf("recorderState.reserveWrite() beyond barrier = %v, want queue", target)
+	if target := state.reserveWriteTarget(true); target != queueTarget {
+		t.Fatalf("recorderState.reserveWriteTarget() beyond barrier = %v, want queue", target)
 	}
 
-	state.finishQueueWrite(true)
-	state.finishQueueWrite(true)
-	state.finishQueueWrite(true)
-	if !state.resumePublishing(true, func() bool { return true }) {
-		t.Fatal("recorderState.resumePublishing() = false after all pre-barrier writes completed")
+	state.finishQueueWrite(nil)
+	state.finishQueueWrite(nil)
+	state.finishQueueWrite(nil)
+	if !state.resumeKafkaWrites(true, func() bool { return true }) {
+		t.Fatal("recorderState.resumeKafkaWrites() = false after all pre-barrier writes completed")
 	}
 }
 
 // TestRecorderStateRequiresRecoveryConditions 验证 Topic、空队列和永久错误共同约束恢复直写。
 func TestRecorderStateRequiresRecoveryConditions(t *testing.T) {
 	state := newRecorderState(true)
-	if state.resumePublishing(true, func() bool { return false }) {
-		t.Fatal("recorderState.resumePublishing() = true with pending records, want false")
+	if state.resumeKafkaWrites(true, func() bool { return false }) {
+		t.Fatal("recorderState.resumeKafkaWrites() = true with pending records, want false")
 	}
-	if state.resumePublishing(false, func() bool { return true }) {
-		t.Fatal("recorderState.resumePublishing() = true with a noncompliant topic, want false")
+	if state.resumeKafkaWrites(false, func() bool { return true }) {
+		t.Fatal("recorderState.resumeKafkaWrites() = true with a noncompliant topic, want false")
 	}
 
-	state.replayFailed(true)
-	if state.resumePublishing(true, func() bool { return true }) {
-		t.Fatal("recorderState.resumePublishing() = true after permanent replay failure, want false")
+	state.replayFailed(PublishPermanent)
+	if state.resumeKafkaWrites(true, func() bool { return true }) {
+		t.Fatal("recorderState.resumeKafkaWrites() = true after permanent replay failure, want false")
 	}
 }
 
@@ -77,7 +77,7 @@ func TestRecorderStateSerializesRecovery(t *testing.T) {
 	recovered := make(chan bool, 1)
 
 	go func() {
-		recovered <- state.resumePublishing(true, func() bool {
+		recovered <- state.resumeKafkaWrites(true, func() bool {
 			close(checkingQueue)
 			<-continueRecovery
 			return true
@@ -87,15 +87,15 @@ func TestRecorderStateSerializesRecovery(t *testing.T) {
 
 	target := make(chan writeTarget, 1)
 	go func() {
-		target <- state.reserveWrite(true)
+		target <- state.reserveWriteTarget(true)
 	}()
 
 	close(continueRecovery)
 	if !<-recovered {
-		t.Fatal("recorderState.resumePublishing() = false, want true")
+		t.Fatal("recorderState.resumeKafkaWrites() = false, want true")
 	}
 	if got := <-target; got != kafkaTarget {
-		t.Fatalf("recorderState.reserveWrite() after recovery = %v, want Kafka", got)
+		t.Fatalf("recorderState.reserveWriteTarget() after recovery = %v, want Kafka", got)
 	}
-	state.finishKafkaWrite(true)
+	state.completeKafkaWrite()
 }

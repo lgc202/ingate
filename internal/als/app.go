@@ -28,9 +28,10 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
-const name = "ingate-als"
-
-const tracerName = "github.com/lgc202/ingate/internal/als"
+const (
+	name       = "ingate-als"
+	tracerName = "github.com/lgc202/ingate/internal/als"
+)
 
 type serviceInstanceID string
 
@@ -79,7 +80,7 @@ func NewApp(configFile string) (*App, error) {
 	if err != nil {
 		shutdownErr := shutdownTracing(tracing, bootstrap.GetServer().GetShutdownTimeout().AsDuration())
 		return nil, errors.Join(
-			fmt.Errorf("create ALS application: %w", err),
+			fmt.Errorf("initialize ALS dependencies: %w", err),
 			shutdownErr,
 		)
 	}

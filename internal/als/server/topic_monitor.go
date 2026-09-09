@@ -15,8 +15,10 @@ import (
 
 const topicRefreshInterval = time.Minute
 
-// TopicMonitor 维护 Kafka Topic 可靠性契约的本地缓存，使写入路径和就绪探针无需同步访问 Kafka。
-// Kafka 暂时不可达时保留最近一次有效结果，由 Recorder 根据缓存决定直写 Kafka 还是写入磁盘队列。
+// TopicMonitor 维护 Kafka Topic 可靠性契约的本地缓存，
+// 使写入路径和就绪探针无需同步访问 Kafka。
+// Kafka 暂时不可达时保留最近一次有效结果，
+// 由 Recorder 根据缓存决定直写 Kafka 还是写入磁盘队列。
 // 生命周期状态允许 Kratos 的 Start 和 Stop 并发到达而不遗留后台任务。
 type TopicMonitor struct {
 	reader   biz.TopicReader

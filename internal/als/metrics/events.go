@@ -12,24 +12,27 @@ var _ prometheus.Collector = (*EventCollector)(nil)
 
 // EventCollector 记录无法从状态快照还原的 ALS 操作指标。
 type EventCollector struct {
-	streams         prometheus.Gauge
-	batches         prometheus.Counter
-	records         prometheus.Counter
-	batchRecords    prometheus.Histogram
-	batchDuration   prometheus.Histogram
-	publishDuration prometheus.Histogram
-	publishFailures *prometheus.CounterVec
-	isrFailures     prometheus.Counter
-	replayBackoff   prometheus.Gauge
-	collectors      []prometheus.Collector
+	activeStreams        prometheus.Gauge
+	receivedBatches      prometheus.Counter
+	receivedRecords      prometheus.Counter
+	batchRecords         prometheus.Histogram
+	batchDuration        prometheus.Histogram
+	kafkaPublishDuration prometheus.Histogram
+	kafkaPublishFailures *prometheus.CounterVec
+	kafkaISRFailures     prometheus.Counter
+	replayBackoff        prometheus.Gauge
+	collectors           []prometheus.Collector
 }
 
 // NewEventCollector 创建 ALS 操作指标采集器。
 func NewEventCollector() *EventCollector {
 	collector := &EventCollector{
-		streams: newGauge("streams_active", "Current Envoy ALS streams."),
-		batches: newCounter("batches_received_total", "Access log batches received from Envoy."),
-		records: newCounter(
+		activeStreams: newGauge("streams_active", "Current Envoy ALS streams."),
+		receivedBatches: newCounter(
+			"batches_received_total",
+			"Access log batches received from Envoy.",
+		),
+		receivedRecords: newCounter(
 			"records_received_total",
 			"Request records received at the ALS protocol boundary.",
 		),
@@ -43,16 +46,16 @@ func NewEventCollector() *EventCollector {
 			"Time spent validating, converting, and durably accepting an access log batch.",
 			nil,
 		),
-		publishDuration: newHistogram(
+		kafkaPublishDuration: newHistogram(
 			"kafka_publish_seconds",
 			"Time spent waiting for a synchronous Kafka publish result.",
 			nil,
 		),
-		publishFailures: prometheus.NewCounterVec(
-			counterOpts("kafka_publish_failures_total", "Kafka publish failures by stable delivery classification."),
+		kafkaPublishFailures: prometheus.NewCounterVec(
+			counterOpts("kafka_publish_failures_total", "Kafka publish failures by stable publish classification."),
 			[]string{"class"},
 		),
-		isrFailures: newCounter(
+		kafkaISRFailures: newCounter(
 			"kafka_isr_failures_total",
 			"Kafka record failures caused by insufficient in-sync replicas.",
 		),
@@ -62,14 +65,14 @@ func NewEventCollector() *EventCollector {
 		),
 	}
 	collector.collectors = []prometheus.Collector{
-		collector.streams,
-		collector.batches,
-		collector.records,
+		collector.activeStreams,
+		collector.receivedBatches,
+		collector.receivedRecords,
 		collector.batchRecords,
 		collector.batchDuration,
-		collector.publishDuration,
-		collector.publishFailures,
-		collector.isrFailures,
+		collector.kafkaPublishDuration,
+		collector.kafkaPublishFailures,
+		collector.kafkaISRFailures,
 		collector.replayBackoff,
 	}
 	return collector
@@ -91,34 +94,34 @@ func (c *EventCollector) Collect(ch chan<- prometheus.Metric) {
 
 // StreamStarted 记录一条已进入协议处理的 ALS 流。
 func (c *EventCollector) StreamStarted() {
-	c.streams.Inc()
+	c.activeStreams.Inc()
 }
 
 // StreamFinished 记录一条已退出协议处理的 ALS 流。
 func (c *EventCollector) StreamFinished() {
-	c.streams.Dec()
+	c.activeStreams.Dec()
 }
 
 // ObserveBatch 记录一个 Envoy 批次的规模和端到端处理时间。
 func (c *EventCollector) ObserveBatch(records int, elapsed time.Duration) {
-	c.batches.Inc()
-	c.records.Add(float64(records))
+	c.receivedBatches.Inc()
+	c.receivedRecords.Add(float64(records))
 	c.batchRecords.Observe(float64(records))
 	c.batchDuration.Observe(elapsed.Seconds())
 }
 
 // ObserveKafkaPublish 记录一次同步 Kafka 发布的耗时和失败类别。
 func (c *EventCollector) ObserveKafkaPublish(elapsed time.Duration, class biz.PublishClass) {
-	c.publishDuration.Observe(elapsed.Seconds())
+	c.kafkaPublishDuration.Observe(elapsed.Seconds())
 	if class != 0 {
-		c.publishFailures.WithLabelValues(class.String()).Inc()
+		c.kafkaPublishFailures.WithLabelValues(class.String()).Inc()
 	}
 }
 
 // AddKafkaISRFailures 累加因同步副本不足而失败的 Kafka 记录数。
 func (c *EventCollector) AddKafkaISRFailures(count int) {
 	if count > 0 {
-		c.isrFailures.Add(float64(count))
+		c.kafkaISRFailures.Add(float64(count))
 	}
 }
 
