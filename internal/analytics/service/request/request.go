@@ -18,7 +18,6 @@ import (
 	requestbiz "github.com/lgc202/ingate/internal/analytics/biz/request"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
 	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
-	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
 const (
@@ -138,7 +137,7 @@ func formatPageToken(cursor *requestbiz.Cursor, filter requestbiz.Filter) (strin
 	if cursor == nil {
 		return "", nil
 	}
-	if !requestrecord.IsValidID(cursor.ID) || !analyticsconfig.IsSupportedTime(cursor.StartedAt) {
+	if cursor.ID == "" || !analyticsconfig.IsSupportedTime(cursor.StartedAt) {
 		return "", errors.New("query returned an invalid page cursor")
 	}
 	fingerprint, err := filterFingerprint(filter)
@@ -177,7 +176,7 @@ func parsePageToken(value string, filter requestbiz.Filter) (*requestbiz.Cursor,
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return nil, errors.New("page token contains trailing data")
 	}
-	if token.StartedAtUnixNano == nil || !requestrecord.IsValidID(token.ID) {
+	if token.StartedAtUnixNano == nil || token.ID == "" {
 		return nil, errors.New("page token contains invalid values")
 	}
 	fingerprint, err := filterFingerprint(filter)

@@ -110,8 +110,8 @@ compose up --detach envoy
 probe http --url http://envoy:9901/ready
 
 step "verify direct Kafka delivery leaves the WAL empty"
-healthy_id=$(probe send --node "$run_id" --request healthy)
-probe kafka --id "$healthy_id"
+probe send --node "$run_id" --request healthy
+probe kafka --request healthy
 probe ready --target kafka --pending 0
 
 step "verify Kafka failure, crash recovery, and automatic replay"
@@ -122,8 +122,8 @@ compose stop als
 compose start als
 follow_als_logs
 probe ready --target disk_queue --pending 0
-queued_id_one=$(probe send --node "$run_id" --request queued-one)
-queued_id_two=$(probe send --node "$run_id" --request queued-two)
+probe send --node "$run_id" --request queued-one
+probe send --node "$run_id" --request queued-two
 probe ready --target disk_queue --min-pending 2
 compose kill --signal SIGKILL als
 compose start als
@@ -133,8 +133,8 @@ compose start kafka
 wait_kafka
 # Topic 契约按生产周期刷新；等待真实后台回放，不通过重启或测试配置绕过恢复路径。
 probe ready --target kafka --pending 0
-probe kafka --id "$queued_id_one"
-probe kafka --id "$queued_id_two"
+probe kafka --request queued-one
+probe kafka --request queued-two
 
 step "verify uncertain publish replay preserves the stable record ID"
 probe duplicate --queue /work/data/duplicate --marker "$run_id"

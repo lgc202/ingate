@@ -7,7 +7,6 @@ import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/analytics/requestrecord"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
-	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
 // Service 实现请求记录查询 API。
@@ -48,7 +47,7 @@ func (s *Service) GetRequestRecord(
 	ctx context.Context,
 	request *adminv1.GetRequestRecordRequest,
 ) (*adminv1.RequestRecord, error) {
-	if !requestrecord.IsValidID(request.GetId()) {
+	if request.GetId() == "" {
 		return nil, adminv1.ErrorInvalidArgument("请求记录标识无效")
 	}
 	startedAt, err := requiredTimestamp(request.GetStartedAt(), "请选择请求开始时间")

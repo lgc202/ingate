@@ -71,15 +71,6 @@ func send(ctx context.Context, args []string) error {
 		return fmt.Errorf("close ALS stream: %w", err)
 	}
 
-	if !*invalid {
-		for index := range *count {
-			entryRequestID := *requestID
-			if *count > 1 {
-				entryRequestID = fmt.Sprintf("%s-%d", *requestID, index)
-			}
-			fmt.Println(requestrecord.NewID(*nodeID, *streamID, entryRequestID, startedAt))
-		}
-	}
 	return nil
 }
 

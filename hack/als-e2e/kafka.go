@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/protobuf/proto"
@@ -21,7 +22,6 @@ import (
 	"github.com/lgc202/ingate/internal/als/data/diskqueue"
 	alskafka "github.com/lgc202/ingate/internal/als/data/kafka"
 	alsmetrics "github.com/lgc202/ingate/internal/als/metrics"
-	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
 const (
@@ -54,18 +54,20 @@ func (p *lostAckPublisher) Publish(ctx context.Context, records []*alsv1.Request
 func waitKafka(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("kafka", flag.ContinueOnError)
 	broker := flags.String("broker", "kafka:9092", "Kafka broker")
-	recordID := flags.String("id", "", "request record ID")
+	requestID := flags.String("request", "", "Envoy request ID")
 	count := flags.Int("count", 1, "required occurrences")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if *recordID == "" || *count <= 0 {
-		return errors.New("a record ID and a positive count are required")
+	if *requestID == "" || *count <= 0 {
+		return errors.New("a request ID and a positive count are required")
 	}
 
 	waitCtx, cancel := context.WithTimeout(ctx, kafkaWaitTimeout)
 	defer cancel()
-	return consumeUntil(waitCtx, *broker, *recordID, *count)
+	return consumeUntil(waitCtx, *broker, *count, func(message *kgo.Record, record *alsv1.RequestRecord) bool {
+		return record.GetRequestId() == *requestID && string(message.Key) == record.GetId()
+	})
 }
 
 func verifyDuplicate(ctx context.Context, args []string) (err error) {
@@ -119,7 +121,7 @@ func verifyDuplicate(ctx context.Context, args []string) (err error) {
 
 	startedAt := time.Now().UTC()
 	record := &alsv1.RequestRecord{
-		Id:          requestrecord.NewID("als-e2e", "duplicate", *marker, startedAt),
+		Id:          uuid.NewString(),
 		RequestId:   *marker,
 		StartedAt:   timestamppb.New(startedAt),
 		Method:      "GET",
@@ -139,7 +141,9 @@ func verifyDuplicate(ctx context.Context, args []string) (err error) {
 	if result != biz.ReplayCommitted {
 		return fmt.Errorf("replay uncertain record returned %s", replayResultName(result))
 	}
-	if err := consumeUntil(ctx, *broker, record.GetId(), 2); err != nil {
+	if err := consumeUntil(ctx, *broker, 2, func(message *kgo.Record, candidate *alsv1.RequestRecord) bool {
+		return candidate.GetId() == record.GetId() && string(message.Key) == record.GetId()
+	}); err != nil {
 		return err
 	}
 
@@ -147,7 +151,12 @@ func verifyDuplicate(ctx context.Context, args []string) (err error) {
 	return nil
 }
 
-func consumeUntil(ctx context.Context, broker, recordID string, want int) error {
+func consumeUntil(
+	ctx context.Context,
+	broker string,
+	want int,
+	match func(*kgo.Record, *alsv1.RequestRecord) bool,
+) error {
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(broker),
 		kgo.ConsumeTopics(kafkaTopic),
@@ -166,8 +175,7 @@ func consumeUntil(ctx context.Context, broker, recordID string, want int) error 
 		}
 		fetches.EachRecord(func(message *kgo.Record) {
 			record := new(alsv1.RequestRecord)
-			if proto.Unmarshal(message.Value, record) == nil &&
-				record.GetId() == recordID && string(message.Key) == recordID {
+			if proto.Unmarshal(message.Value, record) == nil && match(message, record) {
 				count++
 			}
 		})

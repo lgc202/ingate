@@ -13,7 +13,6 @@ import (
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/analytics/requestrecord"
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
-	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
 func requestSummary(summary *analyticsv1.RequestSummary) (requestbiz.Summary, error) {
@@ -92,7 +91,7 @@ func requestRejectionReason(responseDetails string) requestbiz.RejectionReason {
 }
 
 func validRequestIdentity(id string, startedAt *timestamppb.Timestamp) bool {
-	return requestrecord.IsValidID(id) && startedAt != nil && startedAt.CheckValid() == nil &&
+	return id != "" && startedAt != nil && startedAt.CheckValid() == nil &&
 		analyticsconfig.IsSupportedTime(startedAt.AsTime())
 }
 

@@ -1,3 +1,4 @@
+// Package requestrecord 定义 ALS 与 Analytics 共享的请求记录协议约束。
 package requestrecord
 
 const (

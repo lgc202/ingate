@@ -74,7 +74,7 @@ func decodeRequestRecord(message *kgo.Record) (*alsv1.RequestRecord, error) {
 }
 
 func validRequestRecordEnvelope(message *kgo.Record, record *alsv1.RequestRecord) bool {
-	return bytes.Equal(message.Key, []byte(record.GetId())) &&
+	return record.GetId() != "" && bytes.Equal(message.Key, []byte(record.GetId())) &&
 		hasHeader(message.Headers, requestrecord.ContentTypeHeader, requestrecord.ContentType) &&
 		hasHeader(message.Headers, requestrecord.MessageTypeHeader, requestrecord.MessageType)
 }

@@ -13,7 +13,6 @@ import (
 	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
 	apivalidation "github.com/lgc202/ingate/internal/pkg/apis/gateway/validation"
-	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
 // ListFailures 查询排障所需的失败请求元数据，不读取请求内容和凭据。
@@ -188,7 +187,7 @@ func validateFailureResponse(
 	record *adminv1.RequestRecordSummary,
 	query agenttool.FailureQuery,
 ) error {
-	if record == nil || !requestrecord.IsValidID(record.GetId()) ||
+	if record == nil || record.GetId() == "" ||
 		!validTimestamp(record.GetStartedAt()) ||
 		!analyticsconfig.IsSupportedTime(record.GetStartedAt().AsTime()) ||
 		!validDuration(record.GetDuration()) || record.GetMethod() == "" ||
@@ -221,7 +220,7 @@ func validateRequestRecordResponse(
 	recordID string,
 	startedAt time.Time,
 ) error {
-	if record == nil || record.GetId() != recordID || !requestrecord.IsValidID(record.GetId()) ||
+	if record == nil || record.GetId() != recordID || record.GetId() == "" ||
 		!validTimestamp(record.GetStartedAt()) ||
 		!analyticsconfig.IsSupportedTime(record.GetStartedAt().AsTime()) ||
 		!record.GetStartedAt().AsTime().Equal(startedAt) || !validDuration(record.GetDuration()) ||

@@ -1,5 +1,5 @@
 node:
-  # ALS 将节点 ID 纳入稳定记录 ID；演练必须提供真实 Envoy 身份，避免请求只经过代理而未被采集。
+  # 演练保留真实 Envoy 身份，用于验证 ALS 记录的来源字段和故障日志。
   id: als-e2e
 
 static_resources:
