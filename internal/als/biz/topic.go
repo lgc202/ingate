@@ -5,6 +5,11 @@ import (
 	"sync/atomic"
 )
 
+const (
+	productionReplicationFactor = 3
+	productionMinISR            = 2
+)
+
 // ReliabilityMode 表示 ALS 对 Kafka Topic 的可靠性要求。
 type ReliabilityMode uint8
 
@@ -13,11 +18,6 @@ const (
 	ReliabilityDevelopment ReliabilityMode = iota + 1
 	// ReliabilityProduction 要求生产 Topic 至少保留三副本、两个同步副本。
 	ReliabilityProduction
-)
-
-const (
-	productionReplicationFactor = 3
-	productionMinISR            = 2
 )
 
 // TopicTopology 是从 Kafka 读取的 Topic 副本事实。
