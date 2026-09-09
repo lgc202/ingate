@@ -103,6 +103,7 @@ export default defineConfig({
               label: 'ALS 设计',
               items: [
                 { label: '设计总览', slug: 'development/architecture/als' },
+                { label: '协议入口与记录转换', slug: 'development/architecture/als/ingestion' },
                 { label: 'Kafka 可靠写入', slug: 'development/architecture/als/kafka' },
                 { label: 'WAL 与故障恢复', slug: 'development/architecture/als/wal' },
                 { label: '记录 ID 与幂等', slug: 'development/architecture/als/idempotency' },

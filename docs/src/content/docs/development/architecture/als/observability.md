@@ -1,80 +1,159 @@
 ---
 title: 可观测性与验证
-description: ALS 的日志、指标、Trace、SLO 以及端到端故障验证方法
+description: 将 ALS 的指标、就绪探针、Trace 和 SLO 对应到具体执行阶段
 ---
 
-ALS 有两类观测数据。请求记录是提供给 Ingate 用户的产品数据；日志、Prometheus 指标和 Trace 用来判断 ALS 自己是否工作正常。两类数据走不同链路，系统观测后端故障不能反过来阻塞请求记录投递。
+ALS 产生两类数据：
 
-## 处理阶段与指标
+- `RequestRecord` 是产品数据，最终供 Ingate 用户在分析页面查询。
+- 日志、Prometheus 指标和 Trace 是系统观测数据，用于判断 ALS 自身的健康状态。
 
-| 指标 | 含义 |
-| --- | --- |
-| `ingate_als_records_valid_total` | 已通过协议校验并进入可靠投递流程 |
-| `ingate_als_records_kafka_accepted_total` | Kafka 已确认，包括回放及可能重复的发布 |
-| `ingate_als_records_spooled_total` | 已成功追加到 WAL |
-| `ingate_als_records_replayed_total` | WAL 记录已成功发布到 Kafka，可能仍未 Commit |
-| `ingate_als_records_committed_total` | 已从 WAL 确认删除 |
-| `ingate_als_records_rejected_total` | Kafka 与 WAL 都未能接收 |
-| `ingate_als_records_discarded_total` | 协议边界发现的不完整或不支持记录 |
+两类数据不共用可用性边界。OTLP Collector、Tempo 或 Loki 故障可以导致诊断信息丢失，但不应阻塞 `RequestRecord` 进入 Kafka 或 WAL。
 
-这些计数不能简单相减得到严格守恒式。一次 Kafka 部分成功后整批进入 WAL，会同时增加 Kafka accepted 和 spooled；Commit 失败后的重放也会增加 accepted 与 replayed。指标名称故意描述阶段，不把重复发布包装成“成功记录总数”。
+## 计数器对应的确切执行点
 
-WAL 还暴露条目数、记录数、载荷字节、目录物理字节、容量、利用率、最老条目年龄、文件系统剩余空间和最小保留空间。队列状态是 `healthy/warning/critical/blocked` 的低基数 one-hot Gauge。
+| 指标 | 增加位置 | 该次增加已经证明 |
+| --- | --- | --- |
+| `ingate_als_records_received_total` | 一批消息处理结束后，按原始条目数增加 | 已完成这次批处理；若进程在处理期间退出，该批不会增加此计数 |
+| `ingate_als_records_valid_total` | `Recorder.Write` 入口 | 记录已通过协议转换和校验 |
+| `ingate_als_records_kafka_accepted_total` | Kafka 逐条返回成功后 | Kafka 已确认，可能包含重投 |
+| `ingate_als_records_spooled_total` | `Queue.Write` 成功后 | 记录已追加到 WAL |
+| `ingate_als_records_replayed_total` | WAL 来源的记录被 Kafka 逐条确认后 | 对应记录已进入 Kafka，WAL 批次可能尚未 Commit |
+| `ingate_als_records_committed_total` | `Queue.Commit` 成功后 | 已投递条目从 WAL 删除 |
+| `ingate_als_records_rejected_total` | Kafka 未能确认整批，随后 WAL 追加也失败 | 这一批没有取得完整的同步持久化确认，不等于精确丢失条数 |
+| `ingate_als_records_discarded_total` | 协议转换拒绝单条日志后 | 外部输入不完整或不支持 |
 
-Kafka 指标包含发布耗时、按固定类别划分的失败、ISR 不足次数和当前可写状态。标签不放 Gateway、Route、Request ID、Broker 地址、路径或错误文本，避免时序基数随业务数据增长。
+这些数字不能排成一个简单的守恒等式。例如，Kafka 部分成功后，Recorder 会把原批次完整写 WAL，因此同一批同时增加 `kafka_accepted` 和 `spooled`。若此时 WAL 也失败，`rejected` 会按整批增加，其中仍可能有一部分已经进入 Kafka；Kafka 结果为 `uncertain` 时，也无法证明 Broker 没有写入。WAL 已重放而 Commit 失败时，下次回放还会再次增加 `kafka_accepted` 和 `replayed`。
 
-## 探针语义
+WAL Gauge 补充当前状态：待回放条目数、记录数、载荷字节、目录物理字节、容量、利用率、最旧条目年龄和文件系统剩余空间。`healthy/warning/critical/blocked` 使用低基数 one-hot Gauge。
 
-`/livez` 和 `/healthz` 只说明进程还活着，不访问 Kafka 或磁盘。
+Kafka 指标包含发布耗时、固定错误类别、ISR 不足次数和当前可写状态。标签中不放 Gateway、Route、Request ID、Broker 地址、URL path 或错误文本，避免时序数量随业务数据无界增长。
 
-`/readyz` 检查当前实例能否保持可靠降级能力：
+## `/readyz` 表示当前的可靠接收能力
 
-- Kafka 可写且 WAL 可写：`200`，目标为 Kafka；
-- Kafka 暂时不可用但 WAL 可写：`200`，目标为 disk queue；
-- Topic 已知不合规、回放暂停或 WAL 不可写：`503`，返回稳定原因码。
+Readiness 的判断顺序来自 `internal/als/server/http.go`：
 
-响应不会携带 Broker、WAL 路径或内部错误。详细原因留在受控日志和 Dashboard。
-
-## 跨越 WAL 的 Trace
-
-主要 Span 为：
-
-- `als.receive_batch`
-- `als.kafka.publish`
-- `als.wal.append`
-- `als.wal.replay`
-
-ALS stream 可能持续很久，因此每个接收批次创建新的 root Span，避免整条连接共享一次采样决定或形成超大 Trace。WAL 条目保存原批次的 W3C Trace Context；回放可能在数小时后发生，它会创建新的 Trace，并通过 Span Link 指向原接收上下文，而不是伪造一个长期不结束的父子关系。
-
-单次回放最多添加 128 个 Link。超过限制只影响诊断信息，不影响记录读取和投递。OTLP 导出使用有界队列；Collector 或 Tempo 不可用时允许丢 Trace。
-
-## SLO 定义
-
-可靠接收 SLI：
-
-```text
-1 - rate(records_rejected_total) / rate(records_valid_total)
+```go
+if status.Topic.Checked && !status.Topic.Compliant {
+	return unavailable("topic_noncompliant")
+}
+if status.ReplayPaused {
+	return unavailable("replay_paused")
+}
+if !status.Queue.Writable {
+	return unavailable("wal_unavailable")
+}
+if !status.Topic.Compliant || status.Spooling {
+	return ready("disk_queue")
+}
+return ready("kafka")
 ```
 
-30 天目标为 99.99%。Kafka 或 WAL 任一成功都算接收；协议边界丢弃不进入分母，因为它反映上游协议质量，另有独立告警。
+上面是对 handler 的等价压缩，用于显示判断顺序。实际 JSON 响应例如：
 
-Kafka 新鲜度 SLI 每分钟判断最老 WAL 记录是否不超过 5 分钟，30 天目标为 99%。空队列算满足，Prometheus 无法抓取 ALS 时算不满足。它直接描述用户多久能在分析页面看到请求，比用含重复项的 Kafka 写入计数推测延迟更可靠。
+```json
+{
+  "status": "ready",
+  "write_target": "disk_queue",
+  "queue_state": "healthy",
+  "queue_writable": true,
+  "pending_records": 1240,
+  "pending_bytes": 816920
+}
+```
 
-告警窗口、恢复步骤和查询入口见[ALS SLO 与告警处置](../../../../operations/als/monitoring/)。
+这表示 Kafka 当前不能直写，但 WAL 仍能可靠接收新记录，所以返回 HTTP 200。WAL 不可写时的响应为：
 
-## 端到端验证
+```json
+{
+  "status": "unavailable",
+  "reason": "wal_unavailable",
+  "write_target": "none",
+  "queue_state": "blocked",
+  "queue_writable": false,
+  "pending_records": 1240,
+  "pending_bytes": 816920
+}
+```
 
-`make als-e2e` 是本地故障验证入口，不放入标准 CI。它覆盖的行为包括：
+此时返回 HTTP 503。即使 Kafka 暂时正常，实例也已失去 Kafka 故障时的持久降级能力，不应继续接收新 stream。
 
-- Kafka 正常时直接写入，WAL 保持为空；
-- Kafka 故障后落 WAL，ALS 被强制终止并重启，积压能够恢复；
-- 丢失 Kafka ACK 时允许重复，但两份消息的记录 ID 相同；
-- WAL 满时 ALS 拒绝记录，而 Envoy 业务转发仍可完成；
-- Prometheus、Loki 和 Tempo 能查询到同一故障链路；
-- 中间条目损坏时启动失败，不静默跳过。
+`/livez` 和 `/healthz` 只返回进程存活，不访问 Kafka 或磁盘。
 
-单元测试还应覆盖状态迁移、容量边界、格式校验、回放退避和探针响应。测试重点是故障语义，不是为了覆盖率给每个简单 getter 写用例。
+## 长流不共用一个 Trace
 
-## 排查顺序
+Envoy ALS stream 可能持续数小时。如果整条 stream 只创建一个 Span，所有批次会共用一次采样决定，Span 也会持续增长。Service 因此在每次 `Recv` 后创建独立 root Span：
 
-先看 `records_rejected_total` 是否增长，再看 WAL 是否可写和最老积压年龄。Kafka 恢复后确认 `replayed` 与 `committed` 是否增长。若只看 `kafka_writable=0`，容易把正常的 WAL 降级误判为立即丢数据；若只看进程存活，又会漏掉 WAL 已阻塞的实例。
+```go
+ctx, span := s.tracer.Start(
+	stream.Context(),
+	"als.receive_batch",
+	oteltrace.WithNewRoot(),
+	oteltrace.WithSpanKind(oteltrace.SpanKindConsumer),
+)
+```
+
+同一接收批次中的 Kafka 发布和 WAL 追加继承这个上下文。WAL 还会把 W3C `traceparent` 与 `tracestate` 保存到条目中。
+
+回放可能发生在原 Trace 结束数小时后，因此 Replayer 创建新 root Span。Queue 解码条目后，用 Span Link 关联原批次：
+
+```go
+if entry.spanContext.IsValid() && spanLinkCount < maxReplayLinks {
+	oteltrace.SpanFromContext(ctx).AddLink(
+		oteltrace.Link{SpanContext: entry.spanContext},
+	)
+	spanLinkCount++
+}
+```
+
+这种关系表示“新任务由历史批次引起”，没有伪造一个长时间不结束的父子 Trace。单次回放最多保留 128 个 Link；超出上限只损失诊断关联，不会改变记录投递。
+
+OTLP 导出使用有界队列。Collector 或 Tempo 不可用时允许丢 Span。`ingate_telemetry_spans_dropped_total{reason="queue_full"}` 记录本地队列已满时拒绝的 Span；远端持续失败会使队列逐渐占满，最终反映在这个计数中。
+
+## 当前 SLO 是同步确认代理指标
+
+同步确认率 SLI 的实际记录规则为：
+
+```text
+clamp(
+  1 - sum by (instance) (rate(ingate_als_records_rejected_total[30d]))
+    / clamp_min(
+        sum by (instance) (rate(ingate_als_records_valid_total[30d])),
+        1e-9
+      ),
+  0,
+  1
+)
+```
+
+30 天目标是 99.99%。Kafka 确认或 WAL 追加成功都算取得同步持久化确认。`discarded` 不进入分母，因为它表示协议输入质量，而非 Recorder 对有效记录的保存能力。
+
+这个 SLI 是“没有出现未确认批次”的运行代理指标，不是精确的端到端完整率。它会把 Kafka 已接收一部分但 WAL 随后失败的整批计为拒绝，也无法观察进程在计数完成前退出、Envoy 发送前丢弃或 Kafka 不确定结果中的实际写入数。判断数据完整性仍需联合 Envoy 发送侧指标、Kafka 消费进度和 Analytics 入库进度。
+
+Kafka 新鲜度每分钟记录“最旧 WAL 记录年龄小于 5 分钟”是否成立，30 天目标是 99%。空队列视为满足，Prometheus 抓取不到 ALS 时视为不满足。这个 SLI 只到 Kafka；Analytics 消费滞后和 ClickHouse 写入故障需要结合后续组件的指标。
+
+告警窗口、PromQL 和处置顺序见 [ALS SLO 与告警处置](../../../../operations/als/monitoring/)。
+
+## 本地故障验证
+
+`make als-e2e` 是本地专项验证，不放入标准 CI。它覆盖：
+
+- Kafka 正常时直写，WAL 保持为空；
+- Kafka 故障后落 WAL，ALS 被强制终止并重启后恢复积压；
+- Kafka 确认丢失后可能出现两份消息，两份保持同一记录 ID；
+- WAL 满后 ALS 拒绝记录，Envoy 业务转发仍然成功；
+- Prometheus、Loki 和 Tempo 可以查询同一故障链路；
+- 中间 WAL 条目损坏时启动失败，不会静默跳过。
+
+单元测试则覆盖状态迁移、容量边界、格式校验、回放退避和探针响应。测试用于验证故障语义，不为单纯提高覆盖率增加无意义用例。
+
+## 源码与配置入口
+
+- `internal/als/metrics`：ALS 计数器、Gauge 和 Histogram
+- `internal/als/server/http.go`：探针决策和 JSON 响应
+- `internal/als/service/service.go`：每批 root Span
+- `internal/als/data/diskqueue/entry.go`：Trace Context 持久化
+- `internal/pkg/telemetry`：有界 OTLP 导出与丢弃计数
+- `deploy/docker/observability/rules/als.yaml`：SLO 记录规则和告警
+- `deploy/docker/observability/grafana/dashboards/als.json`：ALS Dashboard
+- `hack/als-e2e`：本地故障验证

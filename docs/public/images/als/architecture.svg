@@ -1,42 +1,51 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 500" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 240" role="img" aria-labelledby="title desc">
   <title id="title">ALS 请求记录链路</title>
-  <desc id="desc">Envoy 通过 ALS 把请求记录送到 Recorder。Recorder 正常写 Kafka，故障时写本地 WAL。Analytics 消费 Kafka 并写入 ClickHouse。</desc>
+  <desc id="desc">Recorder 正常直写 Kafka，写入失败时降级到本地 WAL，恢复后回放到 Kafka。</desc>
   <defs>
-    <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="#E8E4DE"/></pattern>
-    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#8B8680"/></marker>
-    <marker id="sage-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#5B8A72"/></marker>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#667085"/></marker>
+    <marker id="ok-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#35836D"/></marker>
+    <marker id="fail-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#C25450"/></marker>
     <style>
-      text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1A1A1A}.label{font-size:16px;font-weight:650}.sub{font-size:12px;fill:#6B6560}.note{font-size:11px;fill:#8B8680}.edge{fill:none;stroke:#8B8680;stroke-width:2}.reliable{fill:none;stroke:#5B8A72;stroke-width:2}.box{fill:#FFF;stroke:#C5C0BA;stroke-width:1.5}.core{fill:#F5F8F6;stroke:#5B8A72;stroke-width:2}.store{fill:#F5F3F8;stroke:#8B6F8A;stroke-width:1.5}.external{fill:#FFF5F0;stroke:#D97757;stroke-width:1.5}
+      text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#20252B}.label{font-size:15px;font-weight:650}.sub{font-size:10px;fill:#667085}.edge{fill:none;stroke:#667085;stroke-width:1.6}.ok{fill:none;stroke:#35836D;stroke-width:1.8}.fail{fill:none;stroke:#C25450;stroke-width:1.8}.node{fill:#FFF;stroke:#98A2B3;stroke-width:1.2}.core{fill:#F3F8F6;stroke:#35836D;stroke-width:1.5}.store{fill:#F7F4FA;stroke:#826A88;stroke-width:1.3}
     </style>
   </defs>
-  <rect width="1080" height="500" rx="16" fill="#FAF9F6"/><rect width="1080" height="500" rx="16" fill="url(#dots)"/>
+  <rect width="900" height="240" fill="#FFF"/>
 
-  <line class="edge" x1="190" y1="194" x2="250" y2="194" marker-end="url(#arrow)"/>
-  <line class="reliable" x1="430" y1="194" x2="500" y2="194" marker-end="url(#sage-arrow)"/>
-  <line class="reliable" x1="590" y1="234" x2="590" y2="310" marker-end="url(#sage-arrow)"/>
-  <path class="reliable" d="M690 350H735Q755 350 755 330V234" marker-end="url(#sage-arrow)"/>
-  <line class="edge" x1="845" y1="194" x2="900" y2="194" marker-end="url(#arrow)"/>
+  <line class="edge" x1="130" y1="75" x2="175" y2="75" marker-end="url(#arrow)"/>
+  <line class="edge" x1="295" y1="75" x2="340" y2="75" marker-end="url(#arrow)"/>
+  <line class="ok" x1="470" y1="75" x2="550" y2="75" marker-end="url(#ok-arrow)"/>
+  <line class="fail" x1="405" y1="105" x2="405" y2="155" marker-end="url(#fail-arrow)"/>
+  <path class="ok" d="M470 185H505Q530 185 530 160V105H605" marker-end="url(#ok-arrow)"/>
+  <line class="edge" x1="660" y1="75" x2="720" y2="75" marker-end="url(#arrow)"/>
 
-  <rect class="external" x="30" y="150" width="160" height="88" rx="10"/>
-  <text class="label" x="110" y="184" text-anchor="middle">Envoy</text><text class="sub" x="110" y="207" text-anchor="middle">gRPC ALS · 异步发送</text>
+  <rect class="node" x="20" y="45" width="110" height="60" rx="4"/>
+  <text class="label" x="75" y="71" text-anchor="middle">Envoy</text>
+  <text class="sub" x="75" y="90" text-anchor="middle">access log</text>
 
-  <rect class="box" x="250" y="150" width="180" height="88" rx="10"/>
-  <text class="label" x="340" y="184" text-anchor="middle">ALS Service</text><text class="sub" x="340" y="207" text-anchor="middle">解析 · 校验 · 生成 ID</text>
+  <rect class="node" x="175" y="45" width="120" height="60" rx="4"/>
+  <text class="label" x="235" y="71" text-anchor="middle">ALS Service</text>
+  <text class="sub" x="235" y="90" text-anchor="middle">解析与校验</text>
 
-  <rect class="core" x="500" y="150" width="180" height="88" rx="10"/>
-  <text class="label" x="590" y="184" text-anchor="middle">Recorder</text><text class="sub" x="590" y="207" text-anchor="middle">Kafka 优先 · WAL 兜底</text>
+  <rect class="core" x="340" y="45" width="130" height="60" rx="4"/>
+  <text class="label" x="405" y="71" text-anchor="middle">Recorder</text>
+  <text class="sub" x="405" y="90" text-anchor="middle">选择写入目标</text>
 
-  <rect class="store" x="490" y="310" width="200" height="80" rx="10"/>
-  <text class="label" x="590" y="343" text-anchor="middle">本地 WAL</text><text class="sub" x="590" y="366" text-anchor="middle">同步追加 · 队首回放</text>
+  <rect class="node" x="550" y="45" width="110" height="60" rx="4"/>
+  <text class="label" x="605" y="71" text-anchor="middle">Kafka</text>
+  <text class="sub" x="605" y="90" text-anchor="middle">request records</text>
 
-  <rect class="external" x="735" y="150" width="110" height="88" rx="10"/>
-  <text class="label" x="790" y="184" text-anchor="middle">Kafka</text><text class="sub" x="790" y="207" text-anchor="middle">至少一次</text>
+  <rect class="node" x="720" y="45" width="155" height="60" rx="4"/>
+  <text class="label" x="797.5" y="71" text-anchor="middle">Analytics</text>
+  <text class="sub" x="797.5" y="90" text-anchor="middle">ClickHouse</text>
 
-  <rect class="box" x="900" y="150" width="150" height="88" rx="10"/>
-  <text class="label" x="975" y="184" text-anchor="middle">Analytics</text><text class="sub" x="975" y="207" text-anchor="middle">ClickHouse</text>
+  <rect class="store" x="340" y="155" width="130" height="60" rx="4"/>
+  <text class="label" x="405" y="181" text-anchor="middle">本地 WAL</text>
+  <text class="sub" x="405" y="200" text-anchor="middle">待回放批次</text>
 
-  <path d="M245 82H690" stroke="#5B8A72" stroke-width="2"/><path d="M245 76V88M690 76V88" stroke="#5B8A72" stroke-width="2"/>
-  <text class="note" x="468" y="65" text-anchor="middle">Ingate 可靠接收边界：有效批次到 Kafka 或 WAL</text>
-  <text class="note" x="110" y="272" text-anchor="middle">协议没有逐批 ACK</text>
-  <text class="note" x="590" y="422" text-anchor="middle">WAL 是有限的单机故障缓冲，不是复制存储</text>
+  <text class="sub" x="152" y="65" text-anchor="middle">gRPC</text>
+  <text class="sub" x="317" y="65" text-anchor="middle">有效记录</text>
+  <text class="sub" x="510" y="65" text-anchor="middle">直写</text>
+  <text class="sub" x="420" y="136">故障</text>
+  <text class="sub" x="518" y="177" text-anchor="middle">回放</text>
+  <text class="sub" x="690" y="65" text-anchor="middle">消费</text>
 </svg>

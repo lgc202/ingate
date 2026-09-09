@@ -5,7 +5,9 @@ description: 配置 Kafka 可靠性契约、本地磁盘队列、回放和 Trace
 
 ALS 的默认配置适合本地单 Broker 联调。生产环境需要显式切换可靠性模式，并为 Kafka Topic 与 WAL 提供相匹配的配置。
 
-## 生产配置基线
+## 数据层配置片段
+
+下面只展示 ALS 数据层相关字段，不能作为可直接启动的完整配置。部署时仍需提供 `server.grpc`、`server.http`、`shutdown`、`logging` 和 `telemetry`；生产环境还应按基础设施要求补充 gRPC、Kafka 与 OTLP 的 TLS、认证和凭据注入。完整字段结构以 `deploy/docker/configs/ingate-als.yaml` 和对应 protobuf 配置定义为准。
 
 ```yaml
 data:
@@ -41,14 +43,39 @@ data:
 
 `write_timeout` 限制一批记录等待 Kafka 最终结果的时间。设得过短会增加“Broker 可能已经写入，但客户端没收到确认”的不确定失败；设得过长会拖慢进入 WAL 的速度。应结合跨机房延迟、Broker 负载和故障切换时间调整。
 
-ALS 不创建 Topic。生产模式会检查目标 Topic 每个分区的副本数和 `min.insync.replicas`：
+ALS 不创建 Topic。新建 Topic 时需要同时指定分区数、副本数和最小同步副本数。下面的 `12` 只是命令示例；实际分区数由峰值写入吞吐和 Analytics 消费并行度决定：
 
-```properties
-replication.factor=3
-min.insync.replicas=2
+```bash
+bin/kafka-topics.sh \
+  --bootstrap-server kafka-1:9092 \
+  --create \
+  --topic ingate.request-records \
+  --partitions 12 \
+  --replication-factor 3 \
+  --config min.insync.replicas=2
 ```
 
-Producer 固定使用 `acks=all`。Topic 每分钟复查一次；检查请求暂时失败时保留最近一次可确定的结果，首次检查无法完成则使用 WAL。
+已有 Topic 可以直接修改 `min.insync.replicas`：
+
+```bash
+bin/kafka-configs.sh \
+  --bootstrap-server kafka-1:9092 \
+  --entity-type topics \
+  --entity-name ingate.request-records \
+  --alter \
+  --add-config min.insync.replicas=2
+```
+
+副本数不是普通 Topic 配置，已有 Topic 不能用上面的命令从 1 改成 3；需要先为每个分区生成并审核副本重分配方案，再按 Kafka 的分区重分配流程执行。完成后验证实际拓扑：
+
+```bash
+bin/kafka-topics.sh \
+  --bootstrap-server kafka-1:9092 \
+  --describe \
+  --topic ingate.request-records
+```
+
+每个分区都应列出至少三个 Replica，并在健康状态下有足够 ISR；Topic 配置中应显示 `min.insync.replicas=2`。Producer 固定使用 `acks=all`。Topic 每分钟复查一次；检查请求暂时失败时保留最近一次可确定的结果，首次检查无法完成则使用 WAL。
 
 生产模式接受更高的值，例如副本数 4、`min.insync.replicas` 3。副本数取所有分区中的最小值，因而任何一个分区低于 3 都不合规。这里检查的是配置的副本拓扑和 Topic 的 `min.insync.replicas`，不是当前 ISR；运行时 ISR 不足由 Kafka 写入结果和告警反映。
 

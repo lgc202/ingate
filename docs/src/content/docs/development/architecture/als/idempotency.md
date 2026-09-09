@@ -1,72 +1,141 @@
 ---
 title: 记录 ID 与幂等
-description: 解释 RequestRecord ID 的生成位置、Envoy Request ID 的用途和端到端去重边界
+description: 通过 ID 的生成和消费端代码说明 ALS 能消除哪些重复
 ---
 
-每条 `RequestRecord` 在 ALS 完成解析时生成一个 UUID v4。这个 ID 随记录一起进入 Kafka 和 WAL，Kafka message key 也使用同一个值。重放不会重新生成 ID。
+ALS 链路中同时存在三种 ID。它们各自处理不同边界，不能互相替代。
+
+| ID | 生成方 | 有效范围 | 用途 |
+| --- | --- | --- | --- |
+| `RequestRecord.id` | Ingate ALS | 记录对象生成后的整条异步链路 | Kafka key、WAL 回放和 ClickHouse 幂等 token |
+| `request_id` | Envoy 或上游 | 一次请求及其调用链 | 关联代理、应用和用户日志 |
+| Kafka Producer ID 与序列号 | Kafka 协议 | 一个 Producer 会话 | 消除同一会话内的重试追加 |
 
 ![RequestRecord ID 在 ALS、Kafka、Analytics 和 ClickHouse 之间的传递](/ingate/images/als/idempotency.svg)
 
-## 在 ALS 生成记录 ID
+## `RequestRecord.id` 在解析成功时生成
 
-ID 要标识的是“一条进入 Ingate 分析链路的请求事实”，它的生命周期从 ALS 解析成功开始。此时生成有几个明确结果：
+`internal/als/service/request_record.go` 为每条通过校验的 Envoy 日志创建 UUID v4：
 
-- 不依赖客户端是否发送 `x-request-id`；
-- 不信任外部输入的唯一性和格式；
-- 同一条记录经过 Kafka 重试或 WAL 回放时保持不变；
-- API 请求 ID 与分析事实 ID 分开，各自表达自己的边界。
+```go
+record := &alsv1.RequestRecord{
+	Id:        uuid.NewString(),
+	RequestId: request.GetRequestId(),
+	// 其他字段来自 Envoy 访问日志。
+}
+```
 
-UUID v4 不需要共享时钟、节点编号或持久化序列。ALS 重启不会复用内存计数，也不要求 Envoy Node ID 稳定。对这条异步分析链路来说，随机碰撞概率已经远低于其他丢失或重复来源，引入 Snowflake 节点租约、数据库序列或复合业务键只会增加状态和故障点。
+这个位置将“记录的生命周期”定义为：ALS 已经把一条外部日志转成 Ingate 记录。后续的 Kafka 重试、WAL 回放和 Analytics 重消费传递同一个对象，因此 ID 保持不变。
 
-## Envoy Request ID 的边界
+UUID v4 不需要共享时钟、节点编号、数据库序列或持久化计数器。ALS 重启只会创建新的随机 ID，不会与已在 WAL 中的记录复用一个本地序列。对请求分析链路来说，这比引入 Snowflake 节点租约或集中序列更简单，也避免新的可用性依赖。
 
-Envoy 的 Request ID 仍保存在 `request_id` 字段，用于把代理日志、上游日志和用户请求串起来，但它不适合作为存储主键：
+Kafka 消息使用记录 ID 作为 key：
 
-- 客户端可以缺省、复用或伪造它；
-- 重试、内部调用和跨代理传播会改变“一个 ID 对应一条事实”的含义；
-- 同一个请求可能在不同观察点产生多条记录；
-- 未来更换生成策略时，不应改变 Ingate 的幂等边界。
+```go
+&kgo.Record{
+	Key:   []byte(record.GetId()),
+	Value: value,
+}
+```
 
-两者不是重复字段。`id` 回答“这条分析记录是谁”，`request_id` 回答“它可能和哪些请求日志相关”。
+因此重放不会只在 value 中保留 ID，Kafka 外层协议也使用同一个值。Analytics 会校验 `message.Key == record.id`，防止封装层和载荷指向不同记录。
 
-## 内容哈希不适合记录 ID
+## `request_id` 只用于关联
 
-确定性哈希看起来可以让 ALS 重启后再次解析同一内容仍得到同一 ID，但真实记录很难定义稳定且无歧义的规范输入。排除时间和动态字段会把两次合法请求误判为重复；包含全部字段又会让微小格式变化生成新 ID。哈希还会把敏感字段选择、协议演进和主键稳定性绑在一起。
+Envoy Request ID 会原样保存到 `request_id`，但不用作主键。原因来自其边界：
 
-当前设计只承诺“记录对象创建后 ID 稳定”。如果 Envoy 在新的 gRPC 消息里重发同一请求，ALS 会再次解析并生成新 ID；这属于 ALS 协议入口之前的重复，不能靠现有 ID 消除。
+- 客户端可以不发、重复使用或伪造该值；
+- 一次请求的重试或内部调用可以产生多条合法观测记录；
+- 多个代理节点可能同时观测同一条调用链。
 
-## 重复产生的位置
+`id` 标识一条 Ingate 分析记录，`request_id` 则用于将它与其他系统的请求日志关联。
 
-| 窗口 | ID 是否相同 | 谁处理 |
+## 备选 ID 方案的取舍
+
+| 方案 | 优点 | 在当前链路中的问题 |
 | --- | --- | --- |
-| franz-go 在同一 Producer 会话内重试 | Kafka 幂等序列处理 | Kafka Broker |
-| Kafka 已写入，但 ALS 收到不确定错误后整批落 WAL | 相同 | Analytics / ClickHouse |
-| WAL 已发布，Commit 失败后再次回放 | 相同 | Analytics / ClickHouse |
-| Analytics 入库后、提交 offset 前退出 | 相同 | Analytics / ClickHouse |
-| Envoy 在协议层重新发送，ALS 再次解析 | 不同 | 当前无法可靠识别 |
+| Envoy `request_id` | 现成，便于跨系统查询 | 可缺失、伪造和复用，不能稳定表示一条分析事实 |
+| 内容哈希 | 同一输入可生成同一 ID | 包含时间等动态字段时难以复现；排除这些字段又可能合并两次合法请求 |
+| Snowflake 或集中序列 | 有序，可从 ID 读出部分信息 | 需要稳定节点号、租约或集中存储，新增一个生成 ID 的故障点 |
+| UUID v7 | 时间有序，对 B-tree 写入更友好 | 当前 ClickHouse 查询按 `started_at` 和 ID 分页，没有依赖 ID 时序的证据 |
+| UUID v4 | 无状态、无共享依赖 | 本身不带时间顺序，查询必须单独使用 `started_at` |
 
-这张表说明“幂等 Producer”不等于端到端恰好一次。每层只能消除它能观察到、并拥有稳定标识的重复。
+当前选择 UUID v4，因为 ALS 只需要在记录对象创建后稳定识别它，没有用 ID 表达业务顺序的需求。若后续的真实压测证明 UUID v4 导致存储局部性问题，UUID v7 是不引入协调依赖的可选替换；在此之前不为理论排序收益增加协议含义。
 
-## Analytics 去重
+## 重复窗口和对应的去重层
 
-Analytics 先写 ClickHouse，再提交 Kafka offset。一个消费批次内：
+| 重复窗口 | 两次投递的 `RequestRecord.id` | 处理者 |
+| --- | --- | --- |
+| franz-go 在同一 Producer 会话重试 | 不需要业务 ID 参与 | Kafka 的 Producer ID 和序列号 |
+| Kafka 已写入，ALS 收到不确定错误后把整批写 WAL | 相同 | Analytics 和 ClickHouse |
+| Kafka 已确认，WAL Commit 失败后重放 | 相同 | Analytics 和 ClickHouse |
+| Analytics 入库后、提交 offset 前退出 | 相同 | Analytics 和 ClickHouse |
+| Envoy 重发日志，ALS 重新解析 | 不同 | 当前无法可靠识别 |
 
-- 相同 ID、相同内容视为重投，只保留一份；
-- 相同 ID、不同内容视为数据冲突，拒绝继续把它当正常重复。
+Kafka 幂等 Producer 只能消除同一 Producer 会话内的重试追加。ALS 重启、Kafka 确认丢失、WAL Commit 失败和消费端重投都超出该会话，需要稳定的 `RequestRecord.id`。
 
-写入 ClickHouse 时使用记录 ID 作为 `insert_deduplication_token`，并开启异步插入及依赖物化视图的去重设置。源表使用 `ReplacingMergeTree`，给查询与后台合并再留一层保护。
+## Analytics 的两层去重
 
-去重窗口不是无限的。当前设置覆盖在线重试和常见故障恢复；很久以前的离线历史数据若重新灌入，可能超出 ClickHouse 的去重窗口。此类操作应按时间范围重建明细和聚合，不能直接依赖旧 token 永久有效。
+消费批次先在内存中检查同 ID 内容是否一致：
 
-当前 Compose 使用 ClickHouse 26.7。ClickHouse 26.1 才修复异步插入在依赖物化视图上的端到端去重，因此不应把运行版本降到 26.1 之前而仍宣称这条保证成立。
+```go
+if previous, exists := seen[record.GetId()]; exists {
+	if proto.Equal(previous, record) {
+		decoded.duplicateCount++
+	} else {
+		decoded.invalidCount++
+	}
+	continue
+}
+seen[record.GetId()] = record
+```
 
-## ID 的证明边界
+同 ID、同内容是重投，本批只保留一份。同 ID、不同内容是主键冲突，不会被当成正常重复。
 
-稳定 ID 能把重复投递变成可识别问题，也能关联 Kafka、WAL、Analytics 和 ClickHouse。它不能证明数据从未丢失，不能替代持久化确认，也不能把没有到达 ALS 的日志补出来。
+跨批次重复由 ClickHouse 处理。每条记录单独使用 ID 作为幂等 token：
 
-完整性要同时看：Envoy 发送侧丢弃指标、ALS 的 `valid/rejected/discarded`、WAL 积压和 Analytics 消费状态。只看 ID 是否唯一，会漏掉最重要的缺口。
+```go
+clickhousego.Context(ctx,
+	clickhousego.WithAsync(true),
+	clickhousego.WithSettings(clickhousego.Settings{
+		"async_insert_deduplicate":                           1,
+		"insert_deduplicate":                                 1,
+		"insert_deduplication_token":                         eventID,
+		"deduplicate_blocks_in_dependent_materialized_views": 1,
+	}),
+)
+```
 
-## 参考
+Analytics 先写 ClickHouse，整批持久化成功后再提交 Kafka offset。进程在两步之间退出时，消费组会重投，但 token 不变。源表还使用 `ReplacingMergeTree`，作为后台合并时的最后一层保护。
+
+这个顺序在 `RequestConsumer` 中是显式的：
+
+```go
+if err := c.recorder.Save(runCtx, decoded.records); err != nil {
+	return fmt.Errorf("record requests: %w", err)
+}
+if err := c.client.CommitUncommittedOffsets(runCtx); err != nil {
+	return fmt.Errorf("commit Kafka offsets: %w", err)
+}
+```
+
+ClickHouse 的去重窗口有限，适用于在线重试和常见故障恢复。将很久以前的备份重新灌入时，应按时间范围重建明细和聚合，不能假设旧 token 永久有效。当前 Compose 使用 ClickHouse 26.7；依赖物化视图去重时不应降级到 26.1 之前。
+
+## ID 不能证明无丢失
+
+`RequestRecord.id` 只在 ALS 成功解析后生成。Envoy 在发送前丢掉的日志没有 ID，自然也无法通过检查 ID 发现。Envoy 在新的 gRPC message 中重发同一请求时，ALS 会生成新 ID，因为官方 ALS 协议没有提供可持久、可确认的日志序列号。
+
+完整性需要同时查看 Envoy 发送侧丢弃、ALS 的 `valid/rejected/discarded`、WAL 积压和 Analytics 消费进度。ID 是幂等工具，不是完整性证明。
+
+## 源码入口
+
+- `internal/als/service/request_record.go`：记录 ID 生成
+- `internal/als/data/kafka/publisher.go`：Kafka key 和消息编码
+- `internal/analytics/server/request_record.go`：批内去重和冲突检查
+- `internal/analytics/server/request_consumer.go`：先入库、后提交 offset
+- `internal/analytics/data/clickhouse/request.go`：每条记录的 ClickHouse 幂等 token
+
+## 上游资料
 
 - [Google UUID 包](https://pkg.go.dev/github.com/google/uuid)
 - [ClickHouse 26.1：异步插入与物化视图去重](https://clickhouse.com/blog/clickhouse-release-26-01)

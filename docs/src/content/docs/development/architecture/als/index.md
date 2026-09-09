@@ -1,75 +1,104 @@
 ---
 title: ALS 设计总览
-description: Envoy 请求记录从协议入口到 Kafka、WAL 和 Analytics 的完整设计
+description: 从 Envoy 日志入口到 Kafka、WAL 和 ClickHouse 的完整执行过程
 ---
 
-Ingate ALS 解决的是一个窄问题：把 Envoy 产生的请求记录送进异步分析链路，并在 Kafka 短暂故障时保住已经接收的数据。它不参与代理转发，也不承担计费账本或通用消息队列的职责。
+Ingate ALS 接收 Envoy 产生的访问日志，将其转换为 `RequestRecord`，再交给 Kafka 和 Analytics。它不参与请求转发。即使 ALS、Kafka 或 ClickHouse 故障，Envoy 仍会继续处理业务请求；受影响的是请求记录的完整性和可见时间。
 
 ![ALS 从 Envoy 到 ClickHouse 的组件与数据边界](/ingate/images/als/architecture.svg)
 
-## 数据路径
+## 一条记录经过的代码
 
-```text
-Envoy -> gRPC ALS -> parse and validate -> Recorder
-                                           |-- Kafka
-                                           `-- disk queue -> replay -> Kafka
-                                                                     |
-                                                                 Analytics
-                                                                     |
-                                                                 ClickHouse
+下表按照实际调用顺序列出入口。阅读源码时可以沿这一列向下走，不需要先理解整个组件。
+
+| 阶段 | 代码入口 | 本阶段完成的工作 |
+| --- | --- | --- |
+| 接收 | `internal/als/service.Service.StreamAccessLogs` | 从 Envoy gRPC stream 读取一个批次 |
+| 转换 | `internal/als/service.parseRequestRecord` | 校验完成日志，生成 ID，删除查询参数，提取资源和 AI 元数据 |
+| 选择写入目标 | `internal/als/biz.Recorder.Write` | 根据 Topic 状态和故障屏障选择 Kafka 或 WAL |
+| Kafka 写入 | `internal/als/data/kafka.Client.Publish` | 为每条记录编码 Kafka message，同步等待投递结果 |
+| WAL 降级 | `internal/als/data/diskqueue.Queue.Write` | 把整个批次编码成一个可校验条目并同步到磁盘 |
+| WAL 回放 | `internal/als/server.DiskQueueReplayer` | 从队首读取，写 Kafka，成功后再 Commit |
+| 消费 | `internal/analytics/server.RequestConsumer` | 批量消费、校验和去重，入库完成后提交 offset |
+| 存储 | `internal/analytics/data/clickhouse.Store` | 使用稳定记录 ID 写明细表和物化视图 |
+
+`Recorder.Write` 的主流程只有一次目标选择：
+
+```go
+if r.state.reserveWrite(r.topic.Status().Compliant) == queueTarget {
+	return r.writeQueue(ctx, records)
+}
+
+return r.writeKafka(ctx, records)
 ```
 
-入口使用 Envoy 官方 `service.accesslog.v3.AccessLogService`。一个长连接承载多个批次，只有首个消息保证带 Node 标识。Ingate 只接受完成的 HTTP 日志；周期日志还没描述完一次请求，如果和结束日志同时入库，会重复统计请求和 Token。
+Topic 合规且没有历史积压时，批次直接写 Kafka。其余情况先写 WAL。Kafka 直写在取得资格后仍可能失败，所以 `writeKafka` 会建立故障屏障，再把原批次交给 `writeQueue`。完整实现见 `internal/als/biz/recorder.go`。
 
-每条有效日志转换为 `RequestRecord`。转换时去掉查询参数，不保存 Header 和正文。这样能限制敏感数据面与单条消息大小，但它也意味着请求记录不能用于流量重放。
+## 正常写入
 
-## Kafka 优先的取舍
+一次正常写入包含以下动作：
 
-正常情况下直接写 Kafka，省去本地写放大和回放延迟。Kafka 写入失败、Topic 不合规或队列已有积压时，后续批次进入降级 WAL。队列排空前不恢复直写，否则新数据会越过旧数据，延迟分布和时间顺序会变得更难解释。
+1. Envoy 将已结束的 HTTP 请求放入 ALS stream。
+2. ALS 校验单条日志并生成 `RequestRecord.id`。
+3. Recorder 为这批记录登记一次在途 Kafka 写入。
+4. franz-go 将每条 `RequestRecord` 编码成独立 Kafka message，message key 等于记录 ID。
+5. `ProduceSync` 等待每条消息的结果。全部成功后，本批处理结束。
+6. Analytics 消费消息并写入 ClickHouse，整批入库成功后才提交 Kafka offset。
 
-WAL 是故障缓冲，不是 Kafka 的替代品。它只有单机副本，容量有限，也不提供跨节点复制。长期故障应通过恢复 Kafka、扩容和告警处理，不能靠无限增大本地队列掩盖。
+正常路径不写本地磁盘。WAL 只处理 Kafka 不可用、Topic 不合规或已有积压的情况。
 
-## 实际保证
-
-| 区间 | 语义 | 说明 |
-| --- | --- | --- |
-| 业务请求完成到 Envoy 发送缓冲 | 尽力而为 | Envoy ALS 不等待服务端逐批确认，缓冲溢出或进程退出可能丢失 |
-| ALS 收到有效批次到 Kafka/WAL | 可靠接收 | Kafka 已确认，或同步 WAL 追加成功 |
-| WAL 到 Kafka | 至少一次 | Kafka 成功而本地 Commit 失败时会重放 |
-| Kafka 到 ClickHouse | 至少一次 + 有界去重 | Analytics 先入库再提交 offset。在线重试按稳定 ID 去重 |
-
-因此，“ALS 不丢数据”不是准确表述。更准确的说法是：它缩小了已进入采集服务后的确定丢失窗口，并让拒绝、积压和新鲜度可观测；协议上游和单机磁盘失效仍在保证之外。
-
-AI Token 额度的同步判断由 AI ExtProc 和 Redis 完成，ALS 记录用于事后分析，不是额度状态的事实来源。少量采集缺口会让报表产生误差，但不会直接改变当次请求是否放行。若将来要按逐笔用量结算，应单独设计计量账本：在结算边界产生稳定事件，经持久 outbox 或等价机制写入复制日志，并与模型厂商账单对账。不能只给现有 ALS 再贴上“零丢失”标签。
-
-## 失败优先级
+## Kafka 故障后的写入
 
 ![ALS 批次在 Kafka、WAL 和拒绝之间的处理流程](/ingate/images/als/failure-flow.svg)
 
-一批 Kafka 写入可能部分成功。只要其中一条返回错误，Recorder 会把原批次完整写入 WAL。这里选择重复而不是缺口：已经成功的部分可能再次出现，但整批都有稳定 ID，Analytics 可以去重。若只把失败子集写入 WAL，错误分类或客户端结果存在歧义时反而可能漏掉已写入但未确认的记录。
+Kafka 失败后，Recorder 不会只保存返回失败的子集。去掉仅用于日志去重的分支后，决定数据语义的代码是：
 
-首次直写若返回永久错误，Recorder 仍先把整批保存到 WAL。回放器读到同一队首并再次确认错误不可恢复后，才把回放状态设为 paused。这样既不在一次分类结果后丢弃批次，也不会让永久错误无限占用 Kafka 请求。
+```go
+r.state.finishKafkaWrite(false)
 
-## 代码边界
+if err := r.writeQueue(ctx, records); err != nil {
+	return fmt.Errorf("write request records: %w", errors.Join(result.Err, err))
+}
+```
 
-| 包 | 责任 |
-| --- | --- |
-| `internal/als/service` | ALS 协议、外部输入校验、`RequestRecord` 转换 |
-| `internal/als/biz` | 可靠投递用例、状态迁移和依赖接口 |
-| `internal/als/data/kafka` | Kafka Producer、Topic 拓扑和错误分类 |
-| `internal/als/data/diskqueue` | WAL 编码、排他访问、容量与恢复 |
-| `internal/als/server` | 进程入口、后台回放、Topic 监测和探针 |
-| `internal/als/metrics` | 低基数 Prometheus 指标 |
+这里传给 `writeQueue` 的仍是原始 `records`。Kafka 结果可能不确定：Broker 已经写入消息，但确认包在网络中丢失，客户端只能看到超时。保存整批会产生可识别的重复；只保存“看起来失败”的部分可能形成无法发现的缺口。
 
-这几个包没有抽象出通用“投递框架”。Kafka、WAL 和 Envoy ALS 的语义是组件本身的一部分，提前泛化只会隐藏失败条件。
+WAL 追加成功后，本批对 ALS 而言已经可靠接收。后台回放器稍后执行 `Read -> Publish -> Commit`。只有 Kafka 确认成功才执行 Commit，因此回放是至少一次语义。
 
-## 继续阅读
+## 四段不同的可靠性
 
-- [Kafka 可靠写入](./kafka/)：副本、ISR、`acks=all` 和 Producer 幂等
-- [WAL 与故障恢复](./wal/)：使用本地日志的原因、确认顺序和恢复方式
-- [记录 ID 与幂等](./idempotency/)：ID 的边界、重复窗口和下游去重
-- [并发与状态迁移](./concurrency/)：故障屏障、在途写入和互斥锁的选择
-- [可观测性与验证](./observability/)：指标、Trace、SLO 与端到端故障场景
+“ALS 不丢数据”会掩盖协议和存储边界。实际保证分成四段：
+
+| 区间 | 语义 | 失败结果 |
+| --- | --- | --- |
+| 请求完成到 Envoy 发送缓冲 | Envoy 尽力发送 | 缓冲溢出或进程退出时，日志可能没有到达 ALS |
+| ALS 收到有效记录到 Kafka/WAL | Kafka 确认或同步 WAL 二选一 | 两者都失败时终止 stream，并增加拒绝计数 |
+| WAL 到 Kafka | 至少一次 | Kafka 成功而 Commit 失败时，同一 ID 会再次发布 |
+| Kafka 到 ClickHouse | 至少一次，加有限窗口去重 | 入库后、提交 offset 前退出会重投；长期历史恢复需单独处理 |
+
+请求记录用于排障、趋势分析和允许小误差的用量统计。AI ExtProc 与 Redis 在请求路径上执行 Token 额度判断，ALS 不是额度状态的事实来源。需要逐笔守恒的付费计量应使用独立计量事件、持久 outbox、复制存储和账单对账，不能只提高现有 ALS 的重试次数。
+
+## 包的责任
+
+| 包 | 责任 | 不承担的责任 |
+| --- | --- | --- |
+| `internal/als/service` | Envoy ALS 协议和外部输入转换 | Kafka 重试与持久化 |
+| `internal/als/biz` | 写入目标选择、状态迁移和回放语义 | Kafka、文件系统的具体 API |
+| `internal/als/data/kafka` | Producer、Topic 拓扑和错误分类 | 决定整批是否写 WAL |
+| `internal/als/data/diskqueue` | WAL 编码、容量、独占访问和恢复 | 后台调度与告警 |
+| `internal/als/server` | gRPC、HTTP 探针和后台任务生命周期 | 业务记录转换 |
+| `internal/als/metrics` | 低基数 Prometheus 指标 | 产品维度的请求分析 |
+
+这些包共同实现一个明确的投递流程，没有抽象成通用消息框架。Kafka 的不确定确认、WAL 的队首 Commit 和 Envoy ALS 的无响应协议都是本组件的具体约束。
+
+## 阅读顺序
+
+1. [协议入口与记录转换](./ingestion/)：Envoy stream、坏记录处理和字段来源
+2. [Kafka 可靠写入](./kafka/)：Kafka message、ISR、`acks=all` 和错误分类
+3. [WAL 与故障恢复](./wal/)：条目格式、同步、回放与容量
+4. [记录 ID 与幂等](./idempotency/)：三个 ID、重复窗口和 ClickHouse 去重
+5. [并发与状态迁移](./concurrency/)：故障屏障、在途写入和恢复条件
+6. [可观测性与验证](./observability/)：指标、探针、Trace、SLO 和故障实验
 
 ## 上游资料
 

@@ -1,12 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 500" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 220" role="img" aria-labelledby="title desc">
   <title id="title">Recorder 状态迁移</title>
-  <desc id="desc">Recorder 从 Kafka 直写转入 WAL 降级，队列排空并满足并发条件后恢复；永久错误会进入回放暂停。</desc>
-  <defs><marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#78716C"/></marker><marker id="bad" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#C96464"/></marker><style>text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1C1917}.label{font-size:16px;font-weight:650}.sub{font-size:11px;fill:#78716C}.node{fill:#FFF;stroke:#78716C;stroke-width:1.5}.active{fill:#F5F8F6;stroke:#5B8A72;stroke-width:2}.paused{fill:#FFF5F5;stroke:#C96464;stroke-width:1.5}.line{fill:none;stroke:#78716C;stroke-width:2}.badline{fill:none;stroke:#C96464;stroke-width:2}</style></defs>
-  <rect width="980" height="500" rx="16" fill="#FAF9F6"/>
-  <path class="badline" d="M330 180H430" marker-end="url(#bad)"/><path class="line" d="M515 230V300H230V230" marker-end="url(#arrow)"/><path class="badline" d="M600 180H680" marker-end="url(#bad)"/><path class="line" d="M780 230V330H515V230" marker-end="url(#arrow)"/>
-  <rect class="active" x="130" y="130" width="200" height="100" rx="12"/><text class="label" x="230" y="170" text-anchor="middle">Kafka 直写</text><text class="sub" x="230" y="197" text-anchor="middle">spooling=false</text>
-  <rect class="node" x="430" y="130" width="170" height="100" rx="12"/><text class="label" x="515" y="170" text-anchor="middle">WAL 降级</text><text class="sub" x="515" y="197" text-anchor="middle">spooling=true</text>
-  <rect class="paused" x="680" y="130" width="200" height="100" rx="12"/><text class="label" x="780" y="170" text-anchor="middle">回放暂停</text><text class="sub" x="780" y="197" text-anchor="middle">permanent error</text>
-  <text class="sub" x="380" y="160" text-anchor="middle">Kafka 失败</text><text class="sub" x="365" y="290" text-anchor="middle">Topic 合规 · 队列空 · 无在途写</text><text class="sub" x="640" y="160" text-anchor="middle">队首永久错误</text><text class="sub" x="655" y="320" text-anchor="middle">修复后重启，从队首重试</text>
-  <rect class="node" x="160" y="390" width="660" height="64" rx="10"/><text class="sub" x="490" y="416" text-anchor="middle">状态锁只保护准入、屏障和在途计数；Kafka 与磁盘 I/O 不在锁内</text><text class="sub" x="490" y="439" text-anchor="middle">队列锁单独串行化 Write / Read / Commit，Pending 通过不可变原子快照读取</text>
+  <desc id="desc">Kafka 写入失败进入 WAL 降级，队列排空后恢复直写，永久错误使回放暂停。</desc>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#667085"/></marker><marker id="bad" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0L8 3L0 6Z" fill="#C25450"/></marker><style>text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#20252B}.label{font-size:14px;font-weight:650}.sub{font-size:10px;fill:#667085}.node{fill:#FFF;stroke:#98A2B3;stroke-width:1.2}.active{fill:#F3F8F6;stroke:#35836D;stroke-width:1.4}.paused{fill:#FFF5F4;stroke:#C25450;stroke-width:1.4}.line{fill:none;stroke:#667085;stroke-width:1.5}.badline{fill:none;stroke:#C25450;stroke-width:1.5}</style></defs>
+  <rect width="780" height="220" fill="#FFF"/>
+
+  <line class="badline" x1="190" y1="75" x2="300" y2="75" marker-end="url(#bad)"/>
+  <line class="badline" x1="460" y1="75" x2="570" y2="75" marker-end="url(#bad)"/>
+  <path class="line" d="M380 110V165H110V110" marker-end="url(#arrow)"/>
+  <path class="line" d="M650 110V190H380V110" marker-end="url(#arrow)"/>
+
+  <rect class="active" x="30" y="45" width="160" height="65" rx="4"/>
+  <text class="label" x="110" y="72" text-anchor="middle">Kafka 直写</text>
+  <text class="sub" x="110" y="91" text-anchor="middle">spooling=false</text>
+
+  <rect class="node" x="300" y="45" width="160" height="65" rx="4"/>
+  <text class="label" x="380" y="72" text-anchor="middle">WAL 降级</text>
+  <text class="sub" x="380" y="91" text-anchor="middle">spooling=true</text>
+
+  <rect class="paused" x="570" y="45" width="160" height="65" rx="4"/>
+  <text class="label" x="650" y="72" text-anchor="middle">回放暂停</text>
+  <text class="sub" x="650" y="91" text-anchor="middle">permanent error</text>
+
+  <text class="sub" x="245" y="65" text-anchor="middle">Kafka 失败</text>
+  <text class="sub" x="515" y="65" text-anchor="middle">队首永久错误</text>
+  <text class="sub" x="245" y="157" text-anchor="middle">Topic 合规 · 无在途写入 · 队列空</text>
+  <text class="sub" x="515" y="183" text-anchor="middle">修复后重启</text>
 </svg>
