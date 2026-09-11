@@ -45,8 +45,9 @@ func NewService(
 }
 
 // StreamAccessLogs 持续接收 Envoy 批量发送的 HTTP access log。
-// ALS 协议没有逐批确认；仅当 Kafka 和磁盘队列都无法接收记录时终止流，
-// 让 Envoy 通过重连重试，而单条无效记录只计入丢弃指标并保留同批有效记录。
+// ALS 协议没有逐批确认；仅当 Kafka 和磁盘队列都无法接收记录时终止流。
+// Envoy 会重新建立失败的流，但协议不保证重发当前批次；
+// 单条无效记录只计入丢弃指标，并保留同批有效记录。
 func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_StreamAccessLogsServer) error {
 	s.events.StreamStarted()
 	defer s.events.StreamFinished()

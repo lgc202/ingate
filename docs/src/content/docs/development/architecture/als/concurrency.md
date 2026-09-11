@@ -23,10 +23,10 @@ B 在故障屏障建立前已经取得准入，Recorder 不会取消它，也无
 
 ## 准入点一次选定写入目标
 
-`Recorder.Write` 调用 `reserveWrite` 完成目标选择和在途计数：
+`Recorder.Write` 调用 `reserveWriteTarget` 完成目标选择和在途计数：
 
 ```go
-func (s *recorderState) reserveWrite(topicCompliant bool) writeTarget {
+func (s *recorderState) reserveWriteTarget(topicCompliant bool) writeTarget {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -46,18 +46,11 @@ func (s *recorderState) reserveWrite(topicCompliant bool) writeTarget {
 ## Kafka 失败同时建立屏障和预留 WAL 写入
 
 ```go
-func (s *recorderState) finishKafkaWrite(succeeded bool) bool {
+func (s *recorderState) failKafkaWrite() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.kafkaWrites--
-	if succeeded {
-		if !s.spooling {
-			s.kafkaOK = true
-		}
-		return false
-	}
-
 	s.kafkaOK = false
 	switched := !s.spooling
 	s.spooling = true
@@ -68,7 +61,7 @@ func (s *recorderState) finishKafkaWrite(succeeded bool) bool {
 
 失败分支在同一个临界区内完成四件事：结束 Kafka 在途操作、标记 Kafka 不可写、建立 `spooling`、为本批预留一个 WAL 在途写入。这使失败批次自己与它之后到达的批次都位于同一道屏障之后。
 
-`finishKafkaWrite` 返回的 `switched` 只用于把“首次进入降级”日志记一次，不参与后续投递决策。
+`failKafkaWrite` 返回的 `switched` 只用于把“首次进入降级”日志记一次，不参与后续投递决策。成功路径由更窄的 `completeKafkaWrite` 结束在途计数，两种迁移不再用布尔参数揉进同一个函数。
 
 ## 恢复直写的全部条件
 
