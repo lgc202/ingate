@@ -25,7 +25,7 @@ Ingate ALS 接收 Envoy 产生的访问日志，将其转换为 `RequestRecord`�
 `Recorder.Write` 的主流程只有一次目标选择：
 
 ```go
-if r.state.reserveWrite(r.topic.Status().Compliant) == queueTarget {
+if r.state.reserveWriteTarget(r.topic.Status().Compliant) == queueTarget {
 	return r.writeQueue(ctx, records)
 }
 
@@ -51,10 +51,10 @@ Topic 合规且没有历史积压时，批次直接写 Kafka。其余情况先�
 
 ![ALS 批次在 Kafka、WAL 和拒绝之间的处理流程](/ingate/images/als/failure-flow.svg)
 
-Kafka 失败后，Recorder 不会只保存返回失败的子集。去掉仅用于日志去重的分支后，决定数据语义的代码是：
+Kafka 失败后，Recorder 不会只保存返回失败的子集。决定数据语义的代码是：
 
 ```go
-r.state.finishKafkaWrite(false)
+r.state.failKafkaWrite()
 
 if err := r.writeQueue(ctx, records); err != nil {
 	return fmt.Errorf("write request records: %w", errors.Join(result.Err, err))
@@ -93,15 +93,21 @@ WAL 追加成功后，本批对 ALS 而言已经可靠接收。后台回放器�
 
 ## 阅读顺序
 
-1. [协议入口与记录转换](./ingestion/)：Envoy stream、坏记录处理和字段来源
-2. [Kafka 可靠写入](./kafka/)：Kafka message、ISR、`acks=all` 和错误分类
-3. [WAL 与故障恢复](./wal/)：条目格式、同步、回放与容量
-4. [记录 ID 与幂等](./idempotency/)：三个 ID、重复窗口和 ClickHouse 去重
-5. [并发与状态迁移](./concurrency/)：故障屏障、在途写入和恢复条件
-6. [可观测性与验证](./observability/)：指标、探针、Trace、SLO 和故障实验
+1. [阅读路线与术语](./reading-guide/)：先建立知识地图，补齐 Kafka、WAL、文件系统和 Trace 的基础概念
+2. [协议入口与记录转换](./ingestion/)：Envoy stream、发送缓冲、坏记录处理和字段来源
+3. [Kafka 可靠写入](./kafka/)：ISR、Producer 序列号、不确定确认和有界取消
+4. [WAL 与故障恢复](./wal/)：追加、同步、分段、截断与崩溃恢复
+5. [故障模型与投递语义](./failure-model/)：逐段列出确认边界、重复窗口和丢失窗口
+6. [记录 ID 与幂等](./idempotency/)：三个 ID、重复窗口和 ClickHouse 去重
+7. [并发与状态迁移](./concurrency/)：故障屏障、在途写入和恢复条件
+8. [容量与吞吐规划](./capacity/)：从请求速率和记录大小推导 WAL 容量及回放能力
+9. [ALS 可观测性](./observability/)：日志、指标、Trace、探针、SLO 和故障实验
+10. [设计推演](./reasoning/)：把确认丢失、ISR 收缩、进程退出和下游故障组合起来推导
+11. [验证与测量](./verification/)：区分源码、单元测试、故障演练和性能数据各自能证明什么
 
 ## 上游资料
 
 - [Envoy gRPC ALS 协议](https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/accesslog/v3/als.proto.html)
+- [Envoy gRPC access logger 配置](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/access_loggers/grpc/v3/als.proto.html)
 - [Envoy gRPC access log 指标](https://www.envoyproxy.io/docs/envoy/latest/configuration/observability/access_log/stats)
-- [franz-go 生产与消费说明](https://github.com/twmb/franz-go/blob/master/docs/producing-and-consuming.md)
+- [franz-go v1.21.0 生产与消费说明](https://github.com/twmb/franz-go/blob/v1.21.0/docs/producing-and-consuming.md)

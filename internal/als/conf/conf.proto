@@ -86,7 +86,7 @@ message Data {
     repeated string brokers = 1;
     // topic 是每条 RequestRecord 独立写入的目标 Topic
     string topic = 2;
-    // write_timeout 是一批记录等待 Kafka ISR 确认的最长时间
+    // write_timeout 是一批记录等待 Kafka 投递结果的近似上限；不确定写超时后原批进入 WAL
     google.protobuf.Duration write_timeout = 3;
     // dial_timeout 是单次 Kafka broker 建连超时
     google.protobuf.Duration dial_timeout = 4;

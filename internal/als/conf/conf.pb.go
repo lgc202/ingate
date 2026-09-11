@@ -580,7 +580,7 @@ type Data_Kafka struct {
 	Brokers []string `protobuf:"bytes,1,rep,name=brokers,proto3" json:"brokers,omitempty"`
 	// topic 是每条 RequestRecord 独立写入的目标 Topic
 	Topic string `protobuf:"bytes,2,opt,name=topic,proto3" json:"topic,omitempty"`
-	// write_timeout 是一批记录等待 Kafka ISR 确认的最长时间
+	// write_timeout 是一批记录等待 Kafka 投递结果的近似上限；不确定写超时后原批进入 WAL
 	WriteTimeout *durationpb.Duration `protobuf:"bytes,3,opt,name=write_timeout,json=writeTimeout,proto3" json:"write_timeout,omitempty"`
 	// dial_timeout 是单次 Kafka broker 建连超时
 	DialTimeout *durationpb.Duration `protobuf:"bytes,4,opt,name=dial_timeout,json=dialTimeout,proto3" json:"dial_timeout,omitempty"`

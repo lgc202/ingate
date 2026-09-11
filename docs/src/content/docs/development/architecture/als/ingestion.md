@@ -25,6 +25,33 @@ for {
 
 这段代码位于 `internal/als/service/service.go`。协议中没有“第 N 批已持久化”的响应，因此 ALS 无法让 Envoy 逐批删除一个可重放发送日志。Envoy 发送缓冲溢出或进程退出时，日志可能在到达 Ingate 前丢失。WAL 只能保护 `Recv` 已经返回后的数据。
 
+## Envoy 先在内存中组成批次
+
+Controller 写入 Envoy 的配置固定为 1 秒或 64 KiB 触发一次 flush，以先到者为准：
+
+```go
+const (
+	alsBufferSizeBytes = 64 * 1024
+	alsFlushInterval   = time.Second
+)
+
+configuration.CommonConfig.BufferFlushInterval = durationpb.New(alsFlushInterval)
+configuration.CommonConfig.BufferSizeBytes = wrapperspb.UInt32(alsBufferSizeBytes)
+```
+
+`buffer_size_bytes` 是软上限，单条较大的日志仍可能让批次越过该值。这里的聚合只减少 gRPC 调用和 protobuf 外壳开销，不是持久队列。一个正常请求结束后，日志通常还会在 Envoy 内存中停留不超过一个 flush 周期；ALS 不可用、gRPC 写缓冲达到高水位或 Envoy 退出时，这批数据仍可能丢失。
+
+Envoy 的发送侧指标需要按它们真正确认到的位置解释：
+
+| Envoy 指标 | 已经证明 | 没有证明 |
+| --- | --- | --- |
+| `logs_written` | 日志进入 logger 且当时未被丢弃 | 已发送到 ALS |
+| `grpc_entries_flushed` | 条目已写入 gRPC send buffer | ALS 已收到、Kafka 或 WAL 已持久化 |
+| `grpc_entries_flush_failed` | 本次 stream 创建或写缓冲提交失败 | 条目最终一定丢失，下一次 flush 仍可能成功 |
+| `logs_dropped` | Envoy 因网络或应用侧积压丢弃了条目 | ALS 能够补回这条记录 |
+
+`StreamAccessLogs` 的流量控制会把 ALS 处理变慢逐步传回 Envoy，但不会暂停业务请求。积压最终耗尽日志缓冲时，Envoy 选择丢日志而不是阻塞代理流量。这也是端到端完整率不能只看 ALS 指标的原因。
+
 ## Node ID 绑定在 stream 上
 
 Envoy 只保证首条消息带 `identifier`。ALS 从首条消息取得 Node ID，后续消息沿用它；同一 stream 中途换 Node ID 会被拒绝：
@@ -157,3 +184,9 @@ return new(uint64(number))
 - `internal/als/service/request_record.go`：字段转换和敏感数据裁剪
 - `api/als/v1/request_record.proto`：跨进程记录协议
 - `internal/pkg/requestrecord/validation.go`：跨 ALS 与 Analytics 复用的字段校验
+
+## 上游资料
+
+- [Envoy gRPC ALS 协议](https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/accesslog/v3/als.proto.html)
+- [Envoy gRPC access logger 缓冲配置](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/access_loggers/grpc/v3/als.proto.html)
+- [Envoy gRPC access log 指标](https://www.envoyproxy.io/docs/envoy/latest/configuration/observability/access_log/stats)

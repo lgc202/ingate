@@ -34,10 +34,16 @@ ingate_als_disk_queue_oldest_entry_age_seconds
 rate(ingate_als_records_replayed_total[5m])
 rate(ingate_als_records_committed_total[5m])
 
-# 粗略排空时间；没有 Commit 速率时下限钳制为 0.001 条/秒
+# 粗略排空时间；使用 Commit 减去新入队记录的净排空速率
 ingate_als_disk_queue_records
-  / clamp_min(rate(ingate_als_records_committed_total[5m]), 0.001)
+  / clamp_min(
+      rate(ingate_als_records_committed_total[5m])
+        - rate(ingate_als_records_spooled_total[5m]),
+      0.001
+    )
 ```
+
+只有 Commit 速率持续高于新入队速率，预计排空时间才有意义。分母被钳制到 `0.001` 时表示队列当前没有净排空能力，面板会显示一个很大的值，不应把它理解为可靠 ETA。完整推导见[容量与吞吐规划](../../../development/architecture/als/capacity/)。
 
 `ingate_als_records_received_total` 在批次处理结束时按 Envoy 消息中的记录数增加，包含随后被丢弃的记录。`valid` 只统计成功解析并进入 Recorder 的记录。二者可以用来排查协议质量，但批次处理异常中断和采样时点会让短窗口不严格守恒。
 

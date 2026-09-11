@@ -21,8 +21,9 @@ type Client struct {
 
 // NewClient 创建使用幂等 Producer 和 all ISR 确认的 Kafka 客户端。
 //
-// franz-go 默认启用幂等 Producer。这里不覆盖其重试和并发默认值，
-// 避免破坏 Producer ID 与序列号所保证的批内幂等性。
+// franz-go 默认启用幂等 Producer。ALS 允许不确定写在超时后取消，
+// 使 Recorder 能及时把原批次转入 WAL。Broker 可能已经收到这批记录，
+// 因此下游必须按稳定的记录 ID 去重。
 func NewClient(
 	config *conf.Data_Kafka,
 	events *alsmetrics.EventCollector,
@@ -47,6 +48,7 @@ func NewClient(
 		kgo.DefaultProduceTopic(config.GetTopic()),
 		kgo.RequiredAcks(kgo.AllISRAcks()),
 		kgo.ProducerBatchCompression(kgo.ZstdCompression()),
+		kgo.AllowIdempotentProduceCancellation(),
 		kgo.RecordDeliveryTimeout(config.GetWriteTimeout().AsDuration()),
 	)
 	if err != nil {

@@ -267,13 +267,13 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "ingate_als_disk_queue_records{instance=~\"$instance\"} / clamp_min(rate(ingate_als_records_committed_total{instance=~\"$instance\"}[$__rate_interval]), 0.001)",
+          "expr": "ingate_als_disk_queue_records{instance=~\"$instance\"} / clamp_min(rate(ingate_als_records_committed_total{instance=~\"$instance\"}[$__rate_interval]) - rate(ingate_als_records_spooled_total{instance=~\"$instance\"}[$__rate_interval]), 0.001)",
           "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Estimated drain time",
+      "title": "Estimated net drain time",
       "type": "stat"
     },
     {

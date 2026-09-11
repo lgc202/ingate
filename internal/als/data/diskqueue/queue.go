@@ -57,7 +57,7 @@ func NewQueue(config *conf.Data_DiskQueue, tracer oteltrace.Tracer) (*Queue, err
 	return openQueueWithProbe(config, measureStorage, tracer)
 }
 
-// Write 将一个请求记录批次编码为单个 WAL 条目并原子追加到磁盘。
+// Write 将一个请求记录批次编码为单个 WAL 条目并顺序追加到磁盘。
 //
 // 追加前同时检查 WAL 目录的物理占用和文件系统剩余空间；
 // 拒绝不会改动既有条目，也不会把记录转存到内存。

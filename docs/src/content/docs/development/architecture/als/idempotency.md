@@ -72,7 +72,7 @@ Envoy Request ID 会原样保存到 `request_id`，但不用作主键。原因�
 | Analytics 入库后、提交 offset 前退出 | 相同 | Analytics 和 ClickHouse |
 | Envoy 重发日志，ALS 重新解析 | 不同 | 当前无法可靠识别 |
 
-Kafka 幂等 Producer 只能消除同一 Producer 会话内的重试追加。ALS 重启、Kafka 确认丢失、WAL Commit 失败和消费端重投都超出该会话，需要稳定的 `RequestRecord.id`。
+Kafka 幂等 Producer 只能消除同一 Producer 会话内的正常重试追加。ALS 允许结果不明的在途写超时，以便及时切换到 WAL；此后的回放属于应用层重新发布，已经超出原序列窗口。ALS 重启、Kafka 确认丢失、WAL Commit 失败和消费端重投同样需要稳定的 `RequestRecord.id`。
 
 ## Analytics 的两层去重
 
