@@ -33,10 +33,6 @@ type apiClient struct {
 	httpClient *http.Client
 }
 
-func (e *apiFailure) Error() string {
-	return fmt.Sprintf("status=%d code=%d reason=%s message=%s", e.status, e.code, e.reason, e.message)
-}
-
 func newAPIClient(rawBaseURL string) (*apiClient, error) {
 	baseURL, err := url.Parse(strings.TrimRight(rawBaseURL, "/"))
 	if err != nil || (baseURL.Scheme != "http" && baseURL.Scheme != "https") || baseURL.Host == "" {
@@ -50,6 +46,10 @@ func newAPIClient(rawBaseURL string) (*apiClient, error) {
 		return nil, fmt.Errorf("create cookie jar: %w", err)
 	}
 	return &apiClient{baseURL: baseURL, httpClient: &http.Client{Jar: jar}}, nil
+}
+
+func (e *apiFailure) Error() string {
+	return fmt.Sprintf("status=%d code=%d reason=%s message=%s", e.status, e.code, e.reason, e.message)
 }
 
 func (c *apiClient) login(ctx context.Context, username, password string) error {

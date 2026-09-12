@@ -221,12 +221,14 @@ func scanModelCallRow(rows driver.Rows) (modelCallRow, error) {
 	); err != nil {
 		return modelCallRow{}, fmt.Errorf("scan model call: %w", err)
 	}
+
 	if row.requestRecordID == "" ||
 		!apivalidation.IsValidModelName(row.call.ClientModel) ||
 		!apivalidation.IsValidModelName(row.call.UpstreamModel) ||
 		row.call.ResponseModel != "" && !apivalidation.IsValidModelName(row.call.ResponseModel) {
 		return modelCallRow{}, errors.New("stored model call has an invalid identity or model mapping")
 	}
+
 	switch row.call.UpstreamProtocol {
 	case string(aiprotocol.UpstreamProtocolOpenAI), string(aiprotocol.UpstreamProtocolAnthropic):
 	default:
@@ -235,6 +237,7 @@ func scanModelCallRow(rows driver.Rows) (modelCallRow, error) {
 			row.requestRecordID,
 		)
 	}
+
 	if row.call.InputTokens != nil && row.call.OutputTokens != nil &&
 		*row.call.InputTokens > math.MaxUint64-*row.call.OutputTokens {
 		return modelCallRow{}, fmt.Errorf(
@@ -242,6 +245,7 @@ func scanModelCallRow(rows driver.Rows) (modelCallRow, error) {
 			row.requestRecordID,
 		)
 	}
+
 	var minimumTotal uint64
 	if row.call.InputTokens != nil {
 		minimumTotal = *row.call.InputTokens

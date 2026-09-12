@@ -20,9 +20,17 @@ type strategy struct {
 	apiregistry.Strategy
 }
 
+func newStrategy(typer runtime.ObjectTyper) strategy {
+	return strategy{Strategy: apiregistry.NewStrategy(typer)}
+}
+
 // statusStrategy 定义 Certificate status 子资源更新规则。
 type statusStrategy struct {
 	strategy
+}
+
+func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
+	return statusStrategy{strategy: newStrategy(typer)}
 }
 
 func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
@@ -65,14 +73,6 @@ func (statusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 func (statusStrategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.ErrorList {
 	certificate := obj.(*resource.Certificate)
 	return apiregistry.ValidateResourceStatus(certificate.Status, certificate.Generation)
-}
-
-func newStrategy(typer runtime.ObjectTyper) strategy {
-	return strategy{Strategy: apiregistry.NewStrategy(typer)}
-}
-
-func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
-	return statusStrategy{strategy: newStrategy(typer)}
 }
 
 func canonicalizeCertificateSpec(spec *resource.CertificateSpec) {

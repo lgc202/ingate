@@ -120,10 +120,11 @@ func loadKeyPair(certificateFile, privateKeyFile string) (tls.Certificate, error
 	if err != nil {
 		return tls.Certificate{}, err
 	}
-	if _, err := certificateutil.ParseKeyPair(
+	pair, err := certificateutil.ParseKeyPair(
 		string(certificatePEM),
 		string(privateKeyPEM),
-	); err != nil {
+	)
+	if err != nil {
 		return tls.Certificate{}, fmt.Errorf(
 			"validate certificate %q and private key %q: %w",
 			certificateFile,
@@ -131,16 +132,7 @@ func loadKeyPair(certificateFile, privateKeyFile string) (tls.Certificate, error
 			err,
 		)
 	}
-	keyPair, err := tls.X509KeyPair(certificatePEM, privateKeyPEM)
-	if err != nil {
-		return tls.Certificate{}, fmt.Errorf(
-			"parse certificate %q and private key %q: %w",
-			certificateFile,
-			privateKeyFile,
-			err,
-		)
-	}
-	return keyPair, nil
+	return pair, nil
 }
 
 func readPEMFile(path string, maxBytes int) ([]byte, error) {

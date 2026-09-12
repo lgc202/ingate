@@ -42,9 +42,17 @@ func (s *Store) UpdateModelConnection(
 			apiKey = *update.APIKey
 		}
 
-		connection = update.Connection
-		connection.APIKey = apiKey
-		connection.Configured = true
+		connection = modelconfig.Connection{
+			Configured:            true,
+			Mode:                  update.Mode,
+			Protocol:              update.Protocol,
+			Endpoint:              update.Endpoint,
+			APIKey:                apiKey,
+			Model:                 update.Model,
+			Timeout:               update.Timeout,
+			MaxOutputTokens:       update.MaxOutputTokens,
+			ReasoningBudgetTokens: update.ReasoningBudgetTokens,
+		}
 		connection.UpdatedAt, err = queries.CurrentTime(ctx)
 		if err != nil {
 			return fmt.Errorf("read MySQL time: %w", err)

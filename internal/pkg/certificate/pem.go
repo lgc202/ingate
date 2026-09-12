@@ -32,21 +32,22 @@ func ParseLeafCertificate(certificatePEM string) (*x509.Certificate, error) {
 	return parseCertificatePEM(certificatePEM)
 }
 
-// ParseKeyPair 校验证书链和私钥的 PEM 格式及配对关系，并返回叶子证书。
-func ParseKeyPair(certificatePEM, privateKeyPEM string) (*x509.Certificate, error) {
-	leaf, err := parseCertificatePEM(certificatePEM)
-	if err != nil {
-		return nil, err
+// ParseKeyPair 校验证书链和私钥的 PEM 格式及配对关系，返回可直接用于 TLS 的证书。
+// 返回值的 Leaf 始终包含解析后的叶子证书；本函数不验证证书链的信任关系或有效期。
+func ParseKeyPair(certificatePEM, privateKeyPEM string) (tls.Certificate, error) {
+	if _, err := parseCertificatePEM(certificatePEM); err != nil {
+		return tls.Certificate{}, err
 	}
 	if err := validatePrivateKeyPEM(privateKeyPEM); err != nil {
-		return nil, err
+		return tls.Certificate{}, err
 	}
 
-	if _, err := tls.X509KeyPair([]byte(certificatePEM), []byte(privateKeyPEM)); err != nil {
-		return nil, fmt.Errorf("parse TLS certificate and private key: %w", err)
+	pair, err := tls.X509KeyPair([]byte(certificatePEM), []byte(privateKeyPEM))
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("parse TLS certificate and private key: %w", err)
 	}
 
-	return leaf, nil
+	return pair, nil
 }
 
 func parseCertificatePEM(value string) (*x509.Certificate, error) {

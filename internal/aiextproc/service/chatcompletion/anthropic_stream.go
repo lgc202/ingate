@@ -61,47 +61,48 @@ func NewAnthropicStream(clientModel string) *AnthropicStream {
 }
 
 // Convert 接收任意边界的响应 chunk，并只输出已经完整解析的 OpenAI SSE 事件。
+// 第三个返回值表示本次有响应元数据更新；正文是否产生输出与该值无关。
 func (s *AnthropicStream) Convert(chunk []byte, endOfStream bool) ([]byte, ResponseMetadata, bool, error) {
 	// gRPC chunk 与 SSE 事件没有边界对应关系，先拼入 buffer 再逐个提取完整事件
 	s.buffer = append(s.buffer, chunk...)
 	var converted []byte
-	changed := false
+	metadataChanged := false
 	for {
 		event, remaining, found := nextSSEEvent(s.buffer)
 		if !found {
 			break
 		}
 		s.buffer = remaining
-		output, eventChanged, err := s.convertEvent(event)
+		output, updated, err := s.convertEvent(event)
 		if err != nil {
 			return nil, ResponseMetadata{}, false, err
 		}
 		converted = append(converted, output...)
-		changed = eventChanged || changed
+		metadataChanged = updated || metadataChanged
 	}
 	if len(s.buffer) > maxPendingSSEBytes {
 		return nil, ResponseMetadata{}, false, errors.New("anthropic stream event exceeds the size limit")
 	}
 	if endOfStream && len(bytes.TrimSpace(s.buffer)) > 0 {
 		// 部分服务结束最后一个 SSE 事件时不带空行，流结束仍要尝试解析尾部数据
-		output, eventChanged, err := s.convertEvent(s.buffer)
+		output, updated, err := s.convertEvent(s.buffer)
 		if err != nil {
 			return nil, ResponseMetadata{}, false, err
 		}
 		converted = append(converted, output...)
-		changed = eventChanged || changed
+		metadataChanged = updated || metadataChanged
 		s.buffer = nil
 	}
 	if endOfStream && !s.finished {
 		// 上游缺少 message_stop 时仍生成标准结束 chunk 和 [DONE]
-		output, eventChanged, err := s.finish()
+		output, updated, err := s.finish()
 		if err != nil {
 			return nil, ResponseMetadata{}, false, err
 		}
 		converted = append(converted, output...)
-		changed = eventChanged || changed
+		metadataChanged = updated || metadataChanged
 	}
-	return converted, s.metadata, changed, nil
+	return converted, s.metadata, metadataChanged, nil
 }
 
 func nextSSEEvent(buffer []byte) (event, remaining []byte, found bool) {
@@ -266,11 +267,11 @@ func (s *AnthropicStream) updateMessage(data []byte) ([]byte, bool, error) {
 
 func (s *AnthropicStream) convertError(data []byte) ([]byte, bool, error) {
 	// 流中错误也转换为 OpenAI 错误对象，并正常结束 SSE，避免客户端一直等待。
-	converted, changed, err := RewriteAnthropicErrorResponse(data)
+	converted, bodyChanged, err := RewriteAnthropicErrorResponse(data)
 	if err != nil {
 		return nil, false, err
 	}
-	if !changed {
+	if !bodyChanged {
 		return nil, false, nil
 	}
 	output := appendSSEData(nil, converted)

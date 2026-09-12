@@ -23,6 +23,7 @@ func NewOpenAIStream(clientModel string) *OpenAIStream {
 
 // Convert 增量读取 OpenAI SSE，提取运行信息并恢复客户端模型名。
 // ExtProc chunk 与 SSE 行没有边界关系，因此不完整行必须留到下一个 chunk 再处理。
+// 第三个返回值表示本次有响应元数据更新；正文是否产生输出与该值无关。
 func (s *OpenAIStream) Convert(chunk []byte, endOfStream bool) ([]byte, ResponseMetadata, bool, error) {
 	s.buffer = append(s.buffer, chunk...)
 	var converted []byte
@@ -34,24 +35,24 @@ func (s *OpenAIStream) Convert(chunk []byte, endOfStream bool) ([]byte, Response
 		}
 		line := s.buffer[:lineEnd]
 		s.buffer = s.buffer[lineEnd+1:]
-		output, changed, err := s.convertLine(line)
+		output, updated, err := s.convertLine(line)
 		if err != nil {
 			return nil, ResponseMetadata{}, false, err
 		}
 		converted = append(converted, output...)
 		converted = append(converted, '\n')
-		metadataChanged = changed || metadataChanged
+		metadataChanged = updated || metadataChanged
 	}
 	if len(s.buffer) > maxPendingSSEBytes {
 		return nil, ResponseMetadata{}, false, errors.New("OpenAI stream event exceeds the size limit")
 	}
 	if endOfStream && len(s.buffer) > 0 {
-		output, changed, err := s.convertLine(s.buffer)
+		output, updated, err := s.convertLine(s.buffer)
 		if err != nil {
 			return nil, ResponseMetadata{}, false, err
 		}
 		converted = append(converted, output...)
-		metadataChanged = changed || metadataChanged
+		metadataChanged = updated || metadataChanged
 		s.buffer = nil
 	}
 	if endOfStream {
@@ -97,12 +98,12 @@ func (s *OpenAIStream) convertLine(line []byte) ([]byte, bool, error) {
 	}
 
 	// OpenAI SSE 的 data 内容与非流式响应复用相同的 model、choices 和 usage 路径。
-	metadata, changed := ObserveOpenAIResponse(payload)
+	metadata, metadataChanged := ObserveOpenAIResponse(payload)
 	if metadata.Usage.Found {
 		// 中间事件可能携带累计 usage，只有 [DONE] 或 HTTP Body 结束才能用于最终结算。
 		metadata.Usage.Final = false
 	}
-	if changed {
+	if metadataChanged {
 		mergeResponseMetadata(&s.metadata, metadata)
 	}
 	converted, bodyChanged, err := RewriteOpenAIResponseModel(payload, s.clientModel)
@@ -115,5 +116,5 @@ func (s *OpenAIStream) convertLine(line []byte) ([]byte, bool, error) {
 	if carriageReturn {
 		line = append(line, '\r')
 	}
-	return line, changed, nil
+	return line, metadataChanged, nil
 }

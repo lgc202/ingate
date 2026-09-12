@@ -73,16 +73,14 @@ func modelUpdate(request *assistantv1.UpdateModelConnectionRequest) (modelconfig
 		apiKey = new("")
 	}
 	return modelconfigbiz.Update{
-		Connection: modelconfigbiz.Connection{
-			Mode:                  mode,
-			Protocol:              protocol,
-			Endpoint:              request.GetEndpoint(),
-			Model:                 request.GetModel(),
-			Timeout:               time.Duration(request.GetTimeoutSeconds()) * time.Second,
-			MaxOutputTokens:       int(request.GetMaxOutputTokens()),
-			ReasoningBudgetTokens: int(request.GetReasoningBudgetTokens()),
-		},
-		APIKey: apiKey,
+		Mode:                  mode,
+		Protocol:              protocol,
+		Endpoint:              request.GetEndpoint(),
+		Model:                 request.GetModel(),
+		Timeout:               time.Duration(request.GetTimeoutSeconds()) * time.Second,
+		MaxOutputTokens:       int(request.GetMaxOutputTokens()),
+		ReasoningBudgetTokens: int(request.GetReasoningBudgetTokens()),
+		APIKey:                apiKey,
 	}, nil
 }
 

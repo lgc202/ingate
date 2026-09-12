@@ -20,9 +20,17 @@ type strategy struct {
 	apiregistry.Strategy
 }
 
+func newStrategy(typer runtime.ObjectTyper) strategy {
+	return strategy{Strategy: apiregistry.NewStrategy(typer)}
+}
+
 // statusStrategy 定义 RateLimitPolicy status 子资源更新规则。
 type statusStrategy struct {
 	strategy
+}
+
+func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
+	return statusStrategy{strategy: newStrategy(typer)}
 }
 
 func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
@@ -69,14 +77,6 @@ func (statusStrategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) f
 		policy.Spec.TargetRefs,
 		policy.Generation,
 	)
-}
-
-func newStrategy(typer runtime.ObjectTyper) strategy {
-	return strategy{Strategy: apiregistry.NewStrategy(typer)}
-}
-
-func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
-	return statusStrategy{strategy: newStrategy(typer)}
 }
 
 func canonicalizeSpec(spec *resource.RateLimitPolicySpec) {

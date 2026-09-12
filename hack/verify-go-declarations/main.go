@@ -161,7 +161,7 @@ func collectConstructors(file *ast.File, types map[string]int) map[string]constr
 	constructors := make(map[string]constructorDeclaration)
 	for index, declaration := range file.Decls {
 		function, ok := declaration.(*ast.FuncDecl)
-		if !ok || function.Recv != nil || !strings.HasPrefix(function.Name.Name, "New") {
+		if !ok {
 			continue
 		}
 		owner := constructorOwner(function, types)
@@ -306,7 +306,7 @@ func classifyDeclaration(
 			return 0, false
 		}
 	case *ast.FuncDecl:
-		if value.Recv == nil && constructorOwner(value, types) != "" {
+		if constructorOwner(value, types) != "" {
 			return categoryType, true
 		}
 		if ast.IsExported(value.Name.Name) {
@@ -319,30 +319,45 @@ func classifyDeclaration(
 }
 
 func constructorOwner(function *ast.FuncDecl, types map[string]int) string {
-	if function.Name.Name != "New" {
-		name := strings.TrimPrefix(function.Name.Name, "New")
-		if _, ok := types[name]; ok {
-			return name
-		}
+	if function.Recv != nil || function.Type.Results == nil {
 		return ""
 	}
-	if function.Type.Results == nil {
+	name := function.Name.Name
+	suffix, hasPrefix := strings.CutPrefix(name, "New")
+	if !hasPrefix {
+		suffix, hasPrefix = strings.CutPrefix(name, "new")
+	}
+	if !hasPrefix || suffix == "" && name != "New" {
 		return ""
 	}
 	for _, result := range function.Type.Results.List {
-		resultType := result.Type
-		if pointer, ok := resultType.(*ast.StarExpr); ok {
-			resultType = pointer.X
-		}
-		identifier, ok := resultType.(*ast.Ident)
-		if !ok {
+		owner := resultTypeName(result.Type)
+		if _, ok := types[owner]; !ok {
 			continue
 		}
-		if _, ok := types[identifier.Name]; ok {
-			return identifier.Name
+		// 构造函数名称必须对应实际返回类型，避免把 newTestRecorder 等配置辅助函数前置。
+		if name == "New" || strings.EqualFold(suffix, owner) {
+			return owner
 		}
 	}
 	return ""
+}
+
+func resultTypeName(expression ast.Expr) string {
+	switch value := expression.(type) {
+	case *ast.Ident:
+		return value.Name
+	case *ast.StarExpr:
+		return resultTypeName(value.X)
+	case *ast.IndexExpr:
+		return resultTypeName(value.X)
+	case *ast.IndexListExpr:
+		return resultTypeName(value.X)
+	case *ast.ParenExpr:
+		return resultTypeName(value.X)
+	default:
+		return ""
+	}
 }
 
 func constantOwner(declaration ast.Decl) string {
