@@ -40,14 +40,23 @@ func (uc *Usecase) ActiveConnection(ctx context.Context) (Connection, error) {
 
 // Update 验证并替换当前模型连接。
 func (uc *Usecase) Update(ctx context.Context, update Update) (Connection, error) {
-	connection := update.Connection.normalized()
+	connection := Connection{
+		Mode:                  update.Mode,
+		Protocol:              update.Protocol,
+		Endpoint:              update.Endpoint,
+		Model:                 update.Model,
+		Timeout:               update.Timeout,
+		MaxOutputTokens:       update.MaxOutputTokens,
+		ReasoningBudgetTokens: update.ReasoningBudgetTokens,
+	}.normalized()
 	if err := connection.validate(); err != nil {
 		return Connection{}, err
 	}
 	if update.APIKey != nil && len(*update.APIKey) > maxAPIKeyLength {
 		return Connection{}, ErrInvalidConnection
 	}
-	update.Connection = connection
+	update.Endpoint = connection.Endpoint
+	update.Model = connection.Model
 	return uc.store.UpdateModelConnection(ctx, update)
 }
 

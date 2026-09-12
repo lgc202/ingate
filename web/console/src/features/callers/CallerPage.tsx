@@ -353,12 +353,38 @@ function callerFilterSummary(filters: CallerFilters): string {
   return conditions.join(' · ') || '全部调用方';
 }
 
-function CallerEditor({ draft, routes, onChange, onCancel, onSave, submitting }: { draft: CallerDraft; routes: CallerRouteOption[]; onChange: (draft: CallerDraft) => void; onCancel: () => void; onSave: () => void; submitting: boolean }) {
+function CallerEditor({
+  draft,
+  routes,
+  onChange,
+  onCancel,
+  onSave,
+  submitting,
+}: {
+  draft: CallerDraft;
+  routes: CallerRouteOption[];
+  onChange: (draft: CallerDraft) => void;
+  onCancel: () => void;
+  onSave: () => void;
+  submitting: boolean;
+}) {
   return (
     <div className="space-y-6">
       <section className="resource-detail-section space-y-4">
-        <LabeledInput label="调用方名称" value={draft.name} onChange={(name) => onChange({ ...draft, name })} placeholder="例如：订单服务" />
-        <label className="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm text-slate-700"><input type="checkbox" checked={draft.enabled} onChange={(event) => onChange({ ...draft, enabled: event.target.checked })} />启用调用方</label>
+        <LabeledInput
+          label="调用方名称"
+          value={draft.name}
+          onChange={(name) => onChange({ ...draft, name })}
+          placeholder="例如：订单服务"
+        />
+        <label className="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={draft.enabled}
+            onChange={(event) => onChange({ ...draft, enabled: event.target.checked })}
+          />
+          启用调用方
+        </label>
       </section>
       <section className="resource-detail-section">
         <CallerRouteSelect
@@ -367,8 +393,31 @@ function CallerEditor({ draft, routes, onChange, onCancel, onSave, submitting }:
           onChange={(routeIDs) => onChange({ ...draft, routeIDs })}
         />
       </section>
-      {!draft.id ? <section className="resource-detail-section space-y-4"><h3>首个访问密钥</h3><LabeledInput label="密钥名称" value={draft.accessKeyName} onChange={(accessKeyName) => onChange({ ...draft, accessKeyName })} placeholder="例如：生产服务" /><ExpirationSelect value={draft.expiration} onChange={(expiration) => onChange({ ...draft, expiration })} /></section> : null}
-      <div className="flex justify-end gap-2 border-t border-slate-200 pt-3"><Button variant="ghost" onClick={onCancel}>取消</Button><Button size="lg" disabled={!draft.name.trim() || (!draft.id && !draft.accessKeyName.trim()) || submitting} onClick={onSave}>{submitting ? '保存中...' : '保存调用方'}</Button></div>
+      {!draft.id ? (
+        <section className="resource-detail-section space-y-4">
+          <h3>首个访问密钥</h3>
+          <LabeledInput
+            label="密钥名称"
+            value={draft.accessKeyName}
+            onChange={(accessKeyName) => onChange({ ...draft, accessKeyName })}
+            placeholder="例如：生产服务"
+          />
+          <ExpirationSelect
+            value={draft.expiration}
+            onChange={(expiration) => onChange({ ...draft, expiration })}
+          />
+        </section>
+      ) : null}
+      <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
+        <Button variant="ghost" onClick={onCancel}>取消</Button>
+        <Button
+          size="lg"
+          disabled={!draft.name.trim() || (!draft.id && !draft.accessKeyName.trim()) || submitting}
+          onClick={onSave}
+        >
+          {submitting ? '保存中...' : '保存调用方'}
+        </Button>
+      </div>
     </div>
   );
 }

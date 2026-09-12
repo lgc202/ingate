@@ -23,7 +23,7 @@ type TraceConfig struct {
 	TLS *tls.Config
 	// SampleRatio 是无父 Span 的采样比例，取值范围为 [0, 1]。
 	SampleRatio float64
-	// QueueSize 是等待导出的 Span 数量上限。
+	// QueueSize 是排队与正在导出的 Span 总数上限。
 	QueueSize int
 	// BatchSize 是单次导出的最大 Span 数量。
 	BatchSize int
@@ -33,9 +33,9 @@ type TraceConfig struct {
 	ExportTimeout time.Duration
 }
 
-// TraceDrops 是因本地容量或远端导出故障丢弃的 Span 计数。
+// TraceDrops 记录因本地缓冲容量不足而拒绝的 Span，不包含远端导出失败。
 type TraceDrops struct {
-	// QueueFull 是本地导出队列已满时拒绝的 Span 数量。
+	// QueueFull 是排队与正在导出的 Span 达到容量上限时拒绝的数量。
 	QueueFull uint64
 }
 

@@ -46,16 +46,6 @@ const (
 // Reason 表示资源编译状态的稳定原因。
 type Reason = gatewayv1.ConditionReason
 
-// ResourceGeneration 标识一次编译所观察到的资源身份和 spec 版本。
-//
-// UID 用于隔离删除后同名重建的资源，Generation 用于避免旧配置结果覆盖新 spec 状态。
-type ResourceGeneration struct {
-	Kind       gatewayv1.Kind
-	Name       string
-	UID        types.UID
-	Generation int64
-}
-
 // CompiledPolicyTarget 标识一条策略实际展开到 Envoy 配置中的作用目标。
 type CompiledPolicyTarget struct {
 	Policy ResourceGeneration
@@ -112,6 +102,25 @@ type Result struct {
 	ResourceGenerations []ResourceGeneration
 	PolicyTargets       []CompiledPolicyTarget
 	Diagnostics         []Diagnostic
+}
+
+// ResourceGeneration 标识一次编译所观察到的资源身份和 spec 版本。
+//
+// UID 用于隔离删除后同名重建的资源，Generation 用于避免旧配置结果覆盖新 spec 状态。
+type ResourceGeneration struct {
+	Kind       gatewayv1.Kind
+	Name       string
+	UID        types.UID
+	Generation int64
+}
+
+func newResourceGeneration(kind gatewayv1.Kind, resource metav1.Object) ResourceGeneration {
+	return ResourceGeneration{
+		Kind:       kind,
+		Name:       resource.GetName(),
+		UID:        resource.GetUID(),
+		Generation: resource.GetGeneration(),
+	}
 }
 
 // Generations 返回当前资源集合中所有非 nil 资源的身份和 spec 版本。
@@ -178,13 +187,4 @@ func (r Result) HasErrors() bool {
 	return slices.ContainsFunc(r.Diagnostics, func(diagnostic Diagnostic) bool {
 		return diagnostic.Severity == SeverityError
 	})
-}
-
-func newResourceGeneration(kind gatewayv1.Kind, resource metav1.Object) ResourceGeneration {
-	return ResourceGeneration{
-		Kind:       kind,
-		Name:       resource.GetName(),
-		UID:        resource.GetUID(),
-		Generation: resource.GetGeneration(),
-	}
 }

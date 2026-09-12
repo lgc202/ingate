@@ -18,8 +18,16 @@ type strategy struct {
 	apiregistry.Strategy
 }
 
+func newStrategy(typer runtime.ObjectTyper) strategy {
+	return strategy{Strategy: apiregistry.NewStrategy(typer)}
+}
+
 type statusStrategy struct {
 	strategy
+}
+
+func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
+	return statusStrategy{strategy: newStrategy(typer)}
 }
 
 func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
@@ -62,14 +70,6 @@ func (statusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 func (statusStrategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.ErrorList {
 	source := obj.(*resource.PluginSource)
 	return apiregistry.ValidateResourceStatus(source.Status, source.Generation)
-}
-
-func newStrategy(typer runtime.ObjectTyper) strategy {
-	return strategy{Strategy: apiregistry.NewStrategy(typer)}
-}
-
-func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
-	return statusStrategy{strategy: newStrategy(typer)}
 }
 
 func canonicalizeSpec(spec *resource.PluginSourceSpec) {

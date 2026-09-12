@@ -62,9 +62,15 @@ type Connection struct {
 	UpdatedAt             time.Time
 }
 
-// Update 使用可空 APIKey 区分“保留原凭据”和“写入新凭据”。
+// Update 只包含模型连接的可写配置，使用可空 APIKey 区分“保留原凭据”和“写入新凭据”。
 // 显式传入空字符串表示清空凭据。
 type Update struct {
-	Connection Connection
-	APIKey     *string
+	Mode                  Mode
+	Protocol              Protocol
+	Endpoint              string
+	Model                 string
+	Timeout               time.Duration
+	MaxOutputTokens       int
+	ReasoningBudgetTokens int
+	APIKey                *string
 }

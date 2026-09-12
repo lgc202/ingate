@@ -166,7 +166,7 @@ func (c *compilation) indexCertificate(certificate *gatewayv1.Certificate) {
 		)
 		return
 	}
-	leaf, err := certificateutil.ParseKeyPair(
+	pair, err := certificateutil.ParseKeyPair(
 		certificate.Spec.CertificatePEM,
 		certificate.Spec.PrivateKeyPEM,
 	)
@@ -179,6 +179,7 @@ func (c *compilation) indexCertificate(certificate *gatewayv1.Certificate) {
 		)
 		return
 	}
+	leaf := pair.Leaf
 	c.certificateLeaves[id] = leaf
 	switch {
 	case c.observedAt.Before(leaf.NotBefore):

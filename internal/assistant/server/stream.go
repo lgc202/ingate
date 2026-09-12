@@ -32,6 +32,14 @@ type sseWriter struct {
 	flusher  http.Flusher
 }
 
+func newSSEWriter(response http.ResponseWriter) (*sseWriter, error) {
+	flusher, ok := response.(http.Flusher)
+	if !ok {
+		return nil, errors.New("response writer does not support flushing")
+	}
+	return &sseWriter{response: response, flusher: flusher}, nil
+}
+
 // StreamHandler 负责执行事件的 SSE 路由、连接生命周期和边界日志。
 type StreamHandler struct {
 	executions *executionbiz.Usecase
@@ -46,14 +54,6 @@ func NewStreamHandler(
 	logger *slog.Logger,
 ) *StreamHandler {
 	return &StreamHandler{executions: executions, config: config, logger: logger}
-}
-
-func newSSEWriter(response http.ResponseWriter) (*sseWriter, error) {
-	flusher, ok := response.(http.Flusher)
-	if !ok {
-		return nil, errors.New("response writer does not support flushing")
-	}
-	return &sseWriter{response: response, flusher: flusher}, nil
 }
 
 func (h *StreamHandler) register(server *kratoshttp.Server) {

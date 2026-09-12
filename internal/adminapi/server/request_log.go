@@ -28,19 +28,6 @@ type requestLog struct {
 	canceled  bool
 }
 
-func requestLoggingMiddleware(logger *slog.Logger) middleware.Middleware {
-	// Kratos logging 会序列化完整请求；管理面日志只保留操作、结果和链路标识。
-	return func(next middleware.Handler) middleware.Handler {
-		return func(ctx context.Context, request any) (any, error) {
-			startedAt := time.Now()
-			reply, err := next(ctx, request)
-
-			newRequestLog(ctx, time.Since(startedAt), err).write(ctx, logger)
-			return reply, err
-		}
-	}
-}
-
 func newRequestLog(ctx context.Context, latency time.Duration, err error) requestLog {
 	entry := requestLog{
 		code:    http.StatusOK,
@@ -70,6 +57,19 @@ func newRequestLog(ctx context.Context, latency time.Duration, err error) reques
 		}
 	}
 	return entry
+}
+
+func requestLoggingMiddleware(logger *slog.Logger) middleware.Middleware {
+	// Kratos logging 会序列化完整请求；管理面日志只保留操作、结果和链路标识。
+	return func(next middleware.Handler) middleware.Handler {
+		return func(ctx context.Context, request any) (any, error) {
+			startedAt := time.Now()
+			reply, err := next(ctx, request)
+
+			newRequestLog(ctx, time.Since(startedAt), err).write(ctx, logger)
+			return reply, err
+		}
+	}
 }
 
 func (l requestLog) write(ctx context.Context, logger *slog.Logger) {

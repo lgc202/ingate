@@ -21,6 +21,22 @@ type eventRecorder struct {
 	leaseDuration time.Duration
 }
 
+func newEventRecorder(
+	store ExecutorStore,
+	events EventStore,
+	executionID string,
+	workerID string,
+	leaseDuration time.Duration,
+) *eventRecorder {
+	return &eventRecorder{
+		store:         store,
+		events:        events,
+		executionID:   executionID,
+		workerID:      workerID,
+		leaseDuration: leaseDuration,
+	}
+}
+
 // Emit 是 Agent 事件协议与执行状态机之间的唯一入口。
 func (r *eventRecorder) Emit(ctx context.Context, event agentbiz.Event) error {
 	switch event := event.(type) {
@@ -44,22 +60,6 @@ func (r *eventRecorder) Emit(ctx context.Context, event agentbiz.Event) error {
 		return nil
 	default:
 		return fmt.Errorf("unsupported assistant agent event %T", event)
-	}
-}
-
-func newEventRecorder(
-	store ExecutorStore,
-	events EventStore,
-	executionID string,
-	workerID string,
-	leaseDuration time.Duration,
-) *eventRecorder {
-	return &eventRecorder{
-		store:         store,
-		events:        events,
-		executionID:   executionID,
-		workerID:      workerID,
-		leaseDuration: leaseDuration,
 	}
 }
 
@@ -98,7 +98,7 @@ func (r *eventRecorder) startStep(
 	name string,
 	kind StepKind,
 ) error {
-	err := r.store.StartExecutionStep(ctx, r.executionID, r.workerID, Step{
+	err := r.store.StartExecutionStep(ctx, r.executionID, r.workerID, StepStart{
 		ID:     uuid.NewString(),
 		Kind:   kind,
 		Name:   name,

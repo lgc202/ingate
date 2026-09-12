@@ -23,13 +23,6 @@ const trafficAggregates = `
     toUInt64(round(coalesce(quantileTDigestMerge(0.95)(duration_p95), 0))) AS p95_duration_ns,
     toUInt64(round(coalesce(quantileTDigestMerge(0.99)(duration_p99), 0))) AS p99_duration_ns`
 
-type trafficDurations struct {
-	average time.Duration
-	p50     time.Duration
-	p95     time.Duration
-	p99     time.Duration
-}
-
 type trafficMetricsRow struct {
 	traffic.Metrics
 	averageNanos uint64
@@ -338,34 +331,6 @@ func trafficBreakdownOrder(order traffic.BreakdownOrder) (string, error) {
 	}
 }
 
-func durationsFromNanos(
-	averageNanoseconds uint64,
-	p50Nanoseconds uint64,
-	p95Nanoseconds uint64,
-	p99Nanoseconds uint64,
-) (trafficDurations, error) {
-	average, err := durationFromNanos(averageNanoseconds)
-	if err != nil {
-		return trafficDurations{}, err
-	}
-	p50, err := durationFromNanos(p50Nanoseconds)
-	if err != nil {
-		return trafficDurations{}, err
-	}
-	p95, err := durationFromNanos(p95Nanoseconds)
-	if err != nil {
-		return trafficDurations{}, err
-	}
-	p99, err := durationFromNanos(p99Nanoseconds)
-	if err != nil {
-		return trafficDurations{}, err
-	}
-	if p50 > p95 || p95 > p99 {
-		return trafficDurations{}, errors.New("duration percentiles are unordered")
-	}
-	return trafficDurations{average: average, p50: p50, p95: p95, p99: p99}, nil
-}
-
 func (r *trafficMetricsRow) scanTargets() []any {
 	return []any{
 		&r.RequestCount,
@@ -380,19 +345,30 @@ func (r *trafficMetricsRow) scanTargets() []any {
 }
 
 func (r *trafficMetricsRow) restoreDurations() error {
-	durations, err := durationsFromNanos(
-		r.averageNanos,
-		r.p50Nanos,
-		r.p95Nanos,
-		r.p99Nanos,
-	)
+	average, err := durationFromNanos(r.averageNanos)
 	if err != nil {
 		return err
 	}
-	r.AverageDuration = durations.average
-	r.P50Duration = durations.p50
-	r.P95Duration = durations.p95
-	r.P99Duration = durations.p99
+	p50, err := durationFromNanos(r.p50Nanos)
+	if err != nil {
+		return err
+	}
+	p95, err := durationFromNanos(r.p95Nanos)
+	if err != nil {
+		return err
+	}
+	p99, err := durationFromNanos(r.p99Nanos)
+	if err != nil {
+		return err
+	}
+	if p50 > p95 || p95 > p99 {
+		return errors.New("duration percentiles are unordered")
+	}
+
+	r.AverageDuration = average
+	r.P50Duration = p50
+	r.P95Duration = p95
+	r.P99Duration = p99
 	return nil
 }
 

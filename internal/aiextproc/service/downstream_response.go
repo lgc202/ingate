@@ -142,11 +142,11 @@ func (s *streamState) handleDownstreamAnthropicResponse(
 		}
 		// ExtProc chunk 不保证按 SSE 事件边界切分，
 		// 转换器负责拼接残片后再输出完整事件。
-		converted, metadata, changed, err := s.anthropicStream.Convert(body.GetBody(), body.GetEndOfStream())
+		converted, metadata, metadataChanged, err := s.anthropicStream.Convert(body.GetBody(), body.GetEndOfStream())
 		if err != nil {
 			return nil, err
 		}
-		if changed {
+		if metadataChanged {
 			s.responseMetadata = metadata
 			s.settleQuota()
 		}
@@ -154,7 +154,7 @@ func (s *streamState) handleDownstreamAnthropicResponse(
 		response := bodyResponse(responseMessage, &extprocv3.BodyMutation{
 			Mutation: &extprocv3.BodyMutation_Body{Body: converted},
 		}, nil)
-		if changed {
+		if metadataChanged {
 			response.DynamicMetadata = s.dynamicMetadata()
 		}
 		return response, nil
@@ -195,11 +195,11 @@ func handleDownstreamAnthropicError(body *extprocv3.HttpBody) (*extprocv3.Proces
 	if !body.GetEndOfStream() {
 		return nil, errResponseNotBuffered
 	}
-	converted, changed, err := chatcompletion.RewriteAnthropicErrorResponse(body.GetBody())
+	converted, bodyChanged, err := chatcompletion.RewriteAnthropicErrorResponse(body.GetBody())
 	if err != nil {
 		return nil, err
 	}
-	if !changed {
+	if !bodyChanged {
 		// 中间代理生成的 HTML 或普通 JSON 错误不属于 Anthropic 协议，保留其状态、Header 和正文
 		return bodyResponse(responseMessage, nil, nil), nil
 	}

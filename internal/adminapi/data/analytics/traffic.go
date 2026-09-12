@@ -48,8 +48,8 @@ func (r *TrafficRepository) Analyze(ctx context.Context, query trafficbiz.Query)
 		})
 		return trafficQueryError(ctx, "query traffic breakdown", err)
 	})
-	// 趋势和资源排名是同一分析页面的两个独立结果。并行请求避免两次 Analytics RPC。
-	// 串行占用调用方的超时预算；任一失败时取消另一条请求，不继续制造无用查询。
+	// 趋势和资源排名是同一分析页面的两个独立结果。并行执行两次 Analytics RPC，
+	// 避免串行占用调用方的超时预算；任一失败时取消另一条请求，不继续制造无用查询。
 	if err := group.Wait(); err != nil {
 		return trafficbiz.Analysis{}, err
 	}

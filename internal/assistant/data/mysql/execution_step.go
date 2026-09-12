@@ -31,7 +31,7 @@ func (s *Store) StartExecutionStep(
 	ctx context.Context,
 	executionID string,
 	workerID string,
-	step execution.Step,
+	step execution.StepStart,
 ) error {
 	err := s.withTransaction(ctx, func(queries *db.Queries) error {
 		if _, err := queries.GetExecutionForWorkerUpdate(ctx, db.GetExecutionForWorkerUpdateParams{

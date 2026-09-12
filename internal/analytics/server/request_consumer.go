@@ -104,6 +104,7 @@ func (c *RequestConsumer) Start(ctx context.Context) error {
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	c.lifecycleMu.Lock()
 	c.cancel = cancel
 	stopping := c.stopping
@@ -112,6 +113,7 @@ func (c *RequestConsumer) Start(ctx context.Context) error {
 		cancel()
 	}
 	defer close(c.done)
+
 	for {
 		fetches := c.client.PollRecords(runCtx, c.batchMaxRecords)
 		if runCtx.Err() != nil || fetches.IsClientClosed() {
@@ -140,6 +142,7 @@ func (c *RequestConsumer) Start(ctx context.Context) error {
 				fetchErr.Err,
 			)
 		}
+
 		messages := fetches.Records()
 		if len(messages) == 0 {
 			// Poll 期间禁止的 Rebalance 必须显式放行，即使本轮没有业务消息。
@@ -162,6 +165,7 @@ func (c *RequestConsumer) Start(ctx context.Context) error {
 		if decoded.duplicateCount > 0 {
 			c.duplicate.Add(uint64(decoded.duplicateCount))
 		}
+
 		if err := c.recorder.Save(runCtx, decoded.records); err != nil {
 			if runCtx.Err() != nil {
 				return nil
@@ -169,6 +173,7 @@ func (c *RequestConsumer) Start(ctx context.Context) error {
 			return fmt.Errorf("record requests: %w", err)
 		}
 		c.stored.Add(uint64(len(decoded.records)))
+
 		// 整批入库后再提交，中途失败会让本轮消息整体重投。
 		if err := c.client.CommitUncommittedOffsets(runCtx); err != nil {
 			if runCtx.Err() != nil {
