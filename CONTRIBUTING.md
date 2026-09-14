@@ -17,14 +17,17 @@ make tools
 
 1. 保持改动聚焦，一个 Pull Request 只解决一个明确问题。
 2. 修改 Proto、Wire 装配或其他生成源后执行 `make generate`。
-3. 提交前执行 `make verify`。
+3. 本地按改动范围执行必要的格式化、生成校验、测试或编译；`make verify` 只在 CI 中运行，本地开发和 Agent 不执行。
 4. 涉及 Go 依赖或安全边界时额外执行 `make vuln`。
+5. 通过功能分支创建 Pull Request，检查通过后合并；不要直接推送 `main`。
 
 `make verify` 会执行 Go、Proto、GitHub Actions 静态检查，验证生成代码，并编译后端与两个前端项目。实际流量行为仍需通过组件联调验证。
 
 `make docker-up` 会保留本地数据卷。当前项目不兼容开发阶段的旧表结构；需要按当前代码重新初始化所有本地数据时，执行 `make docker-reset`。该命令会删除当前 Ingate Compose 项目的全部开发数据卷。
 
 ## 代码与协议
+
+具体编码与审查规则见 [Ingate 开发约定](AGENTS.md)，包括输入契约、抽象边界、命名、声明顺序、注释和重构验证要求。自动检查通过后仍需人工审查可读性，并说明实际验证范围和未覆盖项。
 
 - 声明式资源、Admin API 和前端交互应保持各自清晰的协议边界。
 - 不向外部 API 暴露 Envoy、xDS、插件 ABI 等内部实现细节。
