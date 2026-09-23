@@ -1,9 +1,0 @@
-.git
-.tools
-.env
-**/.DS_Store
-**/node_modules
-**/dist
-_output/*
-!_output/docker
-!_output/docker/**
