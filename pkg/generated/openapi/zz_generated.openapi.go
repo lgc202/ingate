@@ -357,7 +357,7 @@ func schema_pkg_apis_gateway_v1alpha1_PathMatch(ref common.ReferenceCallback) co
 					},
 					"value": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Value 是不含查询参数和片段的绝对请求路径。",
+							Description: "Value 是不含查询参数和片段的绝对请求路径；PathPrefix 匹配时忽略尾斜杠，根路径除外。",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",

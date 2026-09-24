@@ -39,7 +39,7 @@ type RouteSpec struct {
 type PathMatch struct {
 	// Type 选择完整路径或路径前缀匹配。
 	Type PathMatchType `json:"type"`
-	// Value 是不含查询参数和片段的绝对请求路径。
+	// Value 是不含查询参数和片段的绝对请求路径；PathPrefix 匹配时忽略尾斜杠，根路径除外。
 	Value string `json:"value"`
 }
 
