@@ -60,7 +60,8 @@ func (r *Reconciler) SetupWithManager(manager ctrl.Manager) error {
 		Complete(r)
 }
 
-// Reconcile 从当前 Cache 重建并发布完整配置；请求键只负责合并事件。
+// Reconcile 从当前 Cache 重建并发布完整配置，再写回资源的接纳状态。
+// 请求键只负责合并事件。
 func (r *Reconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
 	var gateways gatewayv1alpha1.GatewayList
 	if err := r.client.List(ctx, &gateways); err != nil {
@@ -77,9 +78,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result
 		return ctrl.Result{}, fmt.Errorf("list Upstreams: %w", err)
 	}
 
-	config := compile(resolve(gateways.Items, routes.Items, upstreams.Items))
+	result := resolve(gateways.Items, routes.Items, upstreams.Items)
+	config := compile(result)
+
 	if err := r.publisher.Publish(ctx, config); err != nil {
 		return ctrl.Result{}, fmt.Errorf("publish data plane configuration: %w", err)
+	}
+
+	if err := r.updateGatewayStatuses(ctx, gateways.Items, result.gatewayConflicts); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.updateRouteStatuses(ctx, routes.Items, result.routeRejections); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil

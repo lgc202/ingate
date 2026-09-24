@@ -49,6 +49,10 @@ const (
 	ProtocolHTTP Protocol = "HTTP"
 )
 
+// ConditionAccepted 表示 Controller 是否把资源接纳进共享数据面配置。
+// 它不表示 Envoy 已确认或开始承载流量。
+const ConditionAccepted = "Accepted"
+
 // GatewayStatus 保存 Controller 对 Gateway 的观测结果。
 type GatewayStatus struct {
 	// +listType=map

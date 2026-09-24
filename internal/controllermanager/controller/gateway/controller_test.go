@@ -160,7 +160,11 @@ func (f publisherFunc) Publish(ctx context.Context, config dataplane.Config) err
 
 func newFakeClient(t *testing.T, objects ...client.Object) client.Client {
 	t.Helper()
-	return fake.NewClientBuilder().WithScheme(newTestScheme(t)).WithObjects(objects...).Build()
+	return fake.NewClientBuilder().
+		WithScheme(newTestScheme(t)).
+		WithObjects(objects...).
+		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.Route{}).
+		Build()
 }
 
 func newTestScheme(t *testing.T) *runtime.Scheme {
