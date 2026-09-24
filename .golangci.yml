@@ -1,0 +1,17 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - whitespace
+    - wsl_v5
+  settings:
+    wsl_v5:
+      # 只检查 switch 前的分隔；其他语义空行仍由代码评审判断。
+      default: none
+      enable:
+        - switch
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

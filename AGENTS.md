@@ -3,8 +3,9 @@
 本仓库采用 GoCanon 的 Go 规范。每次请用户评审代码或提交前，按以下顺序检查当前变更；用户未确认前不要提交。
 
 1. 同时查看 `git status --short`、`git diff --name-only` 和 `git ls-files --others --exclude-standard`。逐个审查新增与修改的手写文件；单独使用 `git diff` 会漏掉未跟踪文件。生成文件只核对生成结果与可重复性，不按手写代码逐行审查。
-2. 逐函数检查职责、命名、参数与返回值、错误路径、注释是否仍符合实现。赋值与对应的错误检查保持相邻；只在语义阶段变化处用空行分隔，不机械地要求每个 `return` 前空行。这对应 GoCanon 的 GO-FUNC-013、GO-FUNC-014。
+2. 先按 GoCanon 的 GO-FUNC-012 检查类型、方法和辅助函数的声明顺序，再逐函数检查职责、命名、参数与返回值、错误路径、注释是否仍符合实现。赋值与对应的错误检查保持相邻；只在语义阶段变化处用空行分隔，不机械地要求每个 `return` 前空行。这对应 GO-FUNC-013、GO-FUNC-014。
 3. 检查测试断言能否在目标行为失效时真正失败。涉及筛选、鉴权或冲突检测时，不只验证成功输入，还要验证至少一个不匹配或冲突输入。
-4. 检查本次实现是否使包注释、决策文档和示例过时。运行 `gofmt -l cmd internal pkg`、`git diff --check`、`go vet ./...`、`go test ./...` 和 `go build ./...`；`git diff --check` 不覆盖未跟踪文件。变更 API Server 存储契约时再运行 `go test -tags=integration ./internal/apiserver`，变更 API 类型时重新生成并核对生成文件。
+4. 检查本次实现是否使包注释、决策文档和示例过时。运行 `gofmt -l cmd internal pkg`、`git diff --check`、`golangci-lint run ./...`、`go vet ./...`、`go test ./...` 和 `go build ./...`；`git diff --check` 不覆盖未跟踪文件。变更 API Server 存储契约时再运行 `go test -tags=integration ./internal/apiserver`，变更 API 类型时重新生成并核对生成文件。
 
-自动检查不能判断命名、注释和空行的语义；不要编写猜测这些语义的仓库专用扫描器来代替人工审查。
+`.golangci.yml` 只自动检查代码块首尾的多余空行和 `switch` 前的分隔；不要为了让更宽泛的空行规则通过，在连续错误检查或测试断言间机械插入空行。自动检查不能判断命名、注释和空行的语义；不要编写猜测这些语义的仓库专用扫描器来代替人工审查。
+评审结论须区分已通过的检查与尚未执行的真实组件验证；不能仅凭格式、静态检查和单元测试通过就宣称代码达到模板级或生产就绪。
