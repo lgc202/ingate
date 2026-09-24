@@ -32,6 +32,16 @@ func ValidateUpstreamUpdate(next, previous *gateway.Upstream) field.ErrorList {
 	)...)
 }
 
+// ValidateUpstreamStatusUpdate 校验 Upstream Status 子资源更新。
+func ValidateUpstreamStatusUpdate(next, previous *gateway.Upstream) field.ErrorList {
+	errs := apivalidation.ValidateObjectMetaUpdate(
+		&next.ObjectMeta,
+		&previous.ObjectMeta,
+		field.NewPath("metadata"),
+	)
+	return append(errs, validateConditions(next.Status.Conditions, next.Generation)...)
+}
+
 func validateUpstreamSpec(spec *gateway.UpstreamSpec, path *field.Path) field.ErrorList {
 	endpointsPath := path.Child("endpoints")
 	if len(spec.Endpoints) == 0 {
@@ -48,11 +58,13 @@ func validateUpstreamSpec(spec *gateway.UpstreamSpec, path *field.Path) field.Er
 				))
 			}
 		}
+
 		if endpoint.Port < minPort || endpoint.Port > maxPort {
 			errs = append(errs, field.Invalid(
 				endpointPath.Child("port"), endpoint.Port, "must be between 1 and 65535",
 			))
 		}
+
 		if endpoint.Weight <= 0 {
 			errs = append(errs, field.Invalid(
 				endpointPath.Child("weight"), endpoint.Weight, "must be greater than zero",

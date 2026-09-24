@@ -31,6 +31,16 @@ func ValidateRouteUpdate(next, previous *gateway.Route) field.ErrorList {
 	)...)
 }
 
+// ValidateRouteStatusUpdate 校验 Route Status 子资源更新。
+func ValidateRouteStatusUpdate(next, previous *gateway.Route) field.ErrorList {
+	errs := apivalidation.ValidateObjectMetaUpdate(
+		&next.ObjectMeta,
+		&previous.ObjectMeta,
+		field.NewPath("metadata"),
+	)
+	return append(errs, validateConditions(next.Status.Conditions, next.Generation)...)
+}
+
 func validateRouteSpec(spec *gateway.RouteSpec, path *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	errs = append(errs, validateReferenceName(spec.GatewayName, path.Child("gatewayName"))...)

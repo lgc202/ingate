@@ -1,6 +1,6 @@
 # 0001：Gateway、Route、Upstream 首轮资源契约
 
-- 状态：待评审
+- 状态：实施中，资源契约待最终评审
 
 ## 本轮范围
 
@@ -14,8 +14,8 @@ Route 指向一个 Gateway 的一个 Listener，并把匹配的请求转发到�
 
 ## 后续验收
 
-下一步接入 Generic API Server 的资源存储，再由 Controller 汇总 Gateway、Route 和 Upstream，通过 xDS 发布到数据面。编译共享配置时需要保留 Route 对 Gateway 和 Listener 的引用关系，并处理监听与路由冲突。xDS Cache 写入、Envoy ACK 和实际可承载流量是不同阶段；状态字段的含义必须随发布实现明确，不能在本轮预先等同。
+Gateway、Route 和 Upstream 已接入 Generic API Server 的基础存储。下一步由 Controller 汇总这些资源，通过 xDS 发布到数据面。编译共享配置时需要保留 Route 对 Gateway 和 Listener 的引用关系，并处理监听与路由冲突。xDS Cache 写入、Envoy ACK 和实际可承载流量是不同阶段；状态字段的含义必须随发布实现明确，不能在本轮预先等同。
 
 资源能够保存还不能证明网关业务成立。需要用实际 HTTP 请求验证 `Gateway → Route → Upstream` 的转发路径。Admin API、控制台、TLS 和治理策略不属于这条最小链路。
 
-本决策中的字段选择和阶段划分仍待代码评审确认，不能视为已经定稿的产品契约。
+本决策中的字段选择和阶段划分仍待最终评审，不能视为已经定稿的产品契约。

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
-	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -45,18 +44,7 @@ func ValidateGatewayStatusUpdate(next, previous *gateway.Gateway) field.ErrorLis
 		&previous.ObjectMeta,
 		field.NewPath("metadata"),
 	)
-	conditionsPath := field.NewPath("status", "conditions")
-	errs = append(errs, metav1validation.ValidateConditions(next.Status.Conditions, conditionsPath)...)
-	for i, condition := range next.Status.Conditions {
-		if condition.ObservedGeneration > next.Generation {
-			errs = append(errs, field.Invalid(
-				conditionsPath.Index(i).Child("observedGeneration"),
-				condition.ObservedGeneration,
-				"must not exceed metadata.generation",
-			))
-		}
-	}
-	return errs
+	return append(errs, validateConditions(next.Status.Conditions, next.Generation)...)
 }
 
 func validateSpec(spec *gateway.GatewaySpec, path *field.Path) field.ErrorList {
@@ -108,14 +96,17 @@ func validateListener(listener gateway.Listener, path *field.Path) field.ErrorLi
 	} else if messages := validation.IsDNS1123Label(listener.Name); len(messages) > 0 {
 		errs = append(errs, field.Invalid(path.Child("name"), listener.Name, strings.Join(messages, "; ")))
 	}
+
 	if listener.Protocol != gateway.ProtocolHTTP {
 		errs = append(errs, field.NotSupported(
 			path.Child("protocol"), listener.Protocol, []string{string(gateway.ProtocolHTTP)},
 		))
 	}
+
 	if listener.Port < minPort || listener.Port > maxPort {
 		errs = append(errs, field.Invalid(path.Child("port"), listener.Port, "must be between 1 and 65535"))
 	}
+
 	if listener.Hostname != "" {
 		if messages := validation.IsDNS1123Subdomain(listener.Hostname); len(messages) > 0 {
 			errs = append(errs, field.Invalid(

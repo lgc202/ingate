@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -20,84 +21,142 @@ import (
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
-var gatewayResource = gatewayv1alpha1.SchemeGroupVersion.WithResource("gateways")
+// TestResourceHTTPContract 通过真实 HTTPS 和 etcd 验证三种资源的存储契约。
+func TestResourceHTTPContract(t *testing.T) {
+	tests := []struct {
+		name, kind, resource string
+		spec, updatedSpec    map[string]any
+	}{
+		{
+			name: "edge", kind: "Gateway", resource: "gateways",
+			spec: map[string]any{"listeners": []any{
+				map[string]any{"name": "http", "protocol": "HTTP", "port": int64(8080)},
+			}},
+			updatedSpec: map[string]any{"listeners": []any{
+				map[string]any{"name": "http", "protocol": "HTTP", "port": int64(8081)},
+			}},
+		},
+		{
+			name: "api", kind: "Route", resource: "routes",
+			spec: map[string]any{
+				"gatewayName": "edge", "listenerName": "http", "upstreamName": "backend",
+				"path": map[string]any{"type": "PathPrefix", "value": "/api"},
+			},
+			updatedSpec: map[string]any{
+				"gatewayName": "edge", "listenerName": "http", "upstreamName": "backend",
+				"path": map[string]any{"type": "PathPrefix", "value": "/v1"},
+			},
+		},
+		{
+			name: "backend", kind: "Upstream", resource: "upstreams",
+			spec: map[string]any{"endpoints": []any{
+				map[string]any{"address": "127.0.0.1", "port": int64(8080), "weight": int64(1)},
+			}},
+			updatedSpec: map[string]any{"endpoints": []any{
+				map[string]any{"address": "127.0.0.1", "port": int64(8081), "weight": int64(1)},
+			}},
+		},
+	}
 
-// TestGatewayHTTPContract 覆盖真实 HTTP 与 etcd 存储边界，而非直接调用 REST Strategy。
-func TestGatewayHTTPContract(t *testing.T) {
-	gateways := startGatewayAPI(t)
+	client := startGatewayAPI(t)
+	for _, tt := range tests {
+		t.Run(tt.kind, func(t *testing.T) {
+			resource := gatewayv1alpha1.SchemeGroupVersion.WithResource(tt.resource)
+			testResourceHTTPContract(t, client.Resource(resource), tt.kind, tt.name, tt.spec, tt.updatedSpec)
+		})
+	}
+}
+
+func testResourceHTTPContract(
+	t *testing.T,
+	resources dynamic.ResourceInterface,
+	kind, name string,
+	spec, updatedSpec map[string]any,
+) {
+	t.Helper()
 	ctx := t.Context()
 
-	created, err := gateways.Create(ctx, &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gateway.ingate.io/v1alpha1",
-		"kind":       "Gateway",
-		"metadata":   map[string]any{"name": "edge"},
-		"spec": map[string]any{"listeners": []any{
-			map[string]any{"name": "http", "protocol": "HTTP", "port": int64(8080)},
-		}},
+	created, err := resources.Create(ctx, &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": gatewayv1alpha1.SchemeGroupVersion.String(),
+		"kind":       kind,
+		"metadata": map[string]any{
+			"name": name, "labels": map[string]any{"environment": "test"},
+		},
+		"spec": spec,
 		"status": map[string]any{"conditions": []any{
 			map[string]any{"type": "Accepted", "status": "True"},
 		}},
 	}}, metav1.CreateOptions{})
 	if err != nil {
-		t.Fatalf("Create(Gateway) error = %v", err)
+		t.Fatalf("Create(%s) error = %v", kind, err)
 	}
 	if created.GetGeneration() != 1 || created.GetResourceVersion() == "" {
-		t.Fatalf("created metadata = %#v, want generation 1 and resourceVersion", created.Object["metadata"])
+		t.Fatalf("Create(%s) metadata = %#v, want generation 1 and resourceVersion", kind, created.Object["metadata"])
 	}
 	assertConditions(t, created, 0)
 
-	got, err := gateways.Get(ctx, "edge", metav1.GetOptions{})
+	got, err := resources.Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		t.Fatalf("Get(Gateway) error = %v", err)
+		t.Fatalf("Get(%s, %q) error = %v", kind, name, err)
 	}
 	if got.GetResourceVersion() != created.GetResourceVersion() {
-		t.Errorf("Get(Gateway) resourceVersion = %q, want %q", got.GetResourceVersion(), created.GetResourceVersion())
-	}
-	listed, err := gateways.List(ctx, metav1.ListOptions{})
-	if err != nil {
-		t.Fatalf("List(Gateway) error = %v", err)
-	}
-	if len(listed.Items) != 1 || listed.Items[0].GetName() != "edge" {
-		t.Fatalf("List(Gateway) items = %#v, want only edge", listed.Items)
+		t.Errorf("Get(%s, %q) resourceVersion = %q, want %q",
+			kind, name, got.GetResourceVersion(), created.GetResourceVersion())
 	}
 
-	stream, err := gateways.Watch(ctx, metav1.ListOptions{ResourceVersion: created.GetResourceVersion()})
+	listed, err := resources.List(ctx, metav1.ListOptions{
+		LabelSelector: "environment=test",
+		FieldSelector: "metadata.name=" + name,
+	})
 	if err != nil {
-		t.Fatalf("Watch(Gateway) error = %v", err)
+		t.Fatalf("List(%s) error = %v", kind, err)
+	}
+	if len(listed.Items) != 1 || listed.Items[0].GetName() != name {
+		t.Fatalf("List(%s) items = %#v, want only %q", kind, listed.Items, name)
+	}
+
+	for _, selector := range []metav1.ListOptions{
+		{LabelSelector: "environment=other"},
+		{FieldSelector: "metadata.name=other"},
+	} {
+		listed, err := resources.List(ctx, selector)
+		if err != nil {
+			t.Fatalf("List(%s, %+v) error = %v", kind, selector, err)
+		}
+		if len(listed.Items) != 0 {
+			t.Errorf("List(%s, %+v) items = %#v, want none", kind, selector, listed.Items)
+		}
+	}
+
+	stream, err := resources.Watch(ctx, metav1.ListOptions{ResourceVersion: created.GetResourceVersion()})
+	if err != nil {
+		t.Fatalf("Watch(%s) error = %v", kind, err)
 	}
 	defer stream.Stop()
 
 	updated := created.DeepCopy()
-	listeners, found, err := unstructured.NestedSlice(updated.Object, "spec", "listeners")
-	if err != nil || !found || len(listeners) != 1 {
-		t.Fatalf("read Gateway spec.listeners: found %t, items %d, error %v", found, len(listeners), err)
-	}
-	listeners[0].(map[string]any)["port"] = int64(8081)
-	if err := unstructured.SetNestedSlice(updated.Object, listeners, "spec", "listeners"); err != nil {
-		t.Fatalf("SetNestedSlice(listeners) error = %v", err)
-	}
+	updated.Object["spec"] = updatedSpec
 	updated.Object["status"] = map[string]any{"conditions": []any{
 		map[string]any{"type": "Accepted", "status": "True"},
 	}}
-	updated, err = gateways.Update(ctx, updated, metav1.UpdateOptions{})
+	updated, err = resources.Update(ctx, updated, metav1.UpdateOptions{})
 	if err != nil {
-		t.Fatalf("Update(Gateway spec) error = %v", err)
+		t.Fatalf("Update(%s spec) error = %v", kind, err)
 	}
 	if updated.GetGeneration() != 2 || updated.GetResourceVersion() == created.GetResourceVersion() {
-		t.Errorf("updated metadata = %#v, want new resourceVersion and generation 2", updated.Object["metadata"])
+		t.Errorf("Update(%s spec) metadata = %#v, want new resourceVersion and generation 2",
+			kind, updated.Object["metadata"])
 	}
+	assertSpec(t, updated, updatedSpec)
 	assertConditions(t, updated, 0)
-	expectGatewayEvent(t, stream, watch.Modified, updated.GetResourceVersion())
+	expectResourceEvent(t, stream, watch.Modified, name, updated.GetResourceVersion())
 
-	stale := created.DeepCopy()
-	if _, err := gateways.Update(ctx, stale, metav1.UpdateOptions{}); !apierrors.IsConflict(err) {
-		t.Errorf("Update(Gateway stale resourceVersion) error = %v, want Conflict", err)
+	if _, err := resources.Update(ctx, created.DeepCopy(), metav1.UpdateOptions{}); !apierrors.IsConflict(err) {
+		t.Errorf("Update(%s, stale resourceVersion) error = %v, want Conflict", kind, err)
 	}
 
 	status := updated.DeepCopy()
-	status.Object["spec"] = map[string]any{"listeners": []any{
-		map[string]any{"name": "http", "protocol": "HTTP", "port": int64(9090)},
-	}}
+	status.Object["spec"] = spec
 	status.Object["status"] = map[string]any{"conditions": []any{
 		map[string]any{
 			"type": "Accepted", "status": "True", "reason": "Configured",
@@ -105,26 +164,27 @@ func TestGatewayHTTPContract(t *testing.T) {
 			"lastTransitionTime": metav1.Now().Format(time.RFC3339),
 		},
 	}}
-	status, err = gateways.UpdateStatus(ctx, status, metav1.UpdateOptions{})
+	status, err = resources.UpdateStatus(ctx, status, metav1.UpdateOptions{})
 	if err != nil {
-		t.Fatalf("UpdateStatus(Gateway) error = %v", err)
+		t.Fatalf("UpdateStatus(%s) error = %v", kind, err)
 	}
-	if status.GetGeneration() != 2 || listenerPort(t, status) != 8081 {
-		t.Errorf("status update changed spec or generation: %#v", status.Object)
+	if status.GetGeneration() != 2 {
+		t.Errorf("UpdateStatus(%s) generation = %d, want 2", kind, status.GetGeneration())
 	}
+	assertSpec(t, status, updatedSpec)
 	assertConditions(t, status, 1)
-	expectGatewayEvent(t, stream, watch.Modified, status.GetResourceVersion())
+	expectResourceEvent(t, stream, watch.Modified, name, status.GetResourceVersion())
 
-	if err := gateways.Delete(ctx, "edge", metav1.DeleteOptions{}); err != nil {
-		t.Fatalf("Delete(Gateway) error = %v", err)
+	if err := resources.Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
+		t.Fatalf("Delete(%s, %q) error = %v", kind, name, err)
 	}
-	expectGatewayEvent(t, stream, watch.Deleted, "")
-	if _, err := gateways.Get(ctx, "edge", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
-		t.Errorf("Get(deleted Gateway) error = %v, want NotFound", err)
+	expectResourceEvent(t, stream, watch.Deleted, name, "")
+	if _, err := resources.Get(ctx, name, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Errorf("Get(deleted %s, %q) error = %v, want NotFound", kind, name, err)
 	}
 }
 
-func startGatewayAPI(t *testing.T) dynamic.ResourceInterface {
+func startGatewayAPI(t *testing.T) dynamic.Interface {
 	t.Helper()
 
 	etcd := testserver.RunEtcd(t, nil)
@@ -218,54 +278,59 @@ func startGatewayAPI(t *testing.T) dynamic.ResourceInterface {
 	if err != nil {
 		t.Fatalf("dynamic.NewForConfig() error = %v", err)
 	}
-	return client.Resource(gatewayResource)
+	return client
 }
 
-func expectGatewayEvent(t *testing.T, stream watch.Interface, eventType watch.EventType, resourceVersion string) {
+func expectResourceEvent(
+	t *testing.T,
+	stream watch.Interface,
+	eventType watch.EventType,
+	name, resourceVersion string,
+) {
 	t.Helper()
 
 	select {
 	case event, ok := <-stream.ResultChan():
 		if !ok {
-			t.Fatal("Gateway watch closed before expected event")
+			t.Fatal("resource watch closed before expected event")
 		}
-		gateway, ok := event.Object.(*unstructured.Unstructured)
+		resource, ok := event.Object.(*unstructured.Unstructured)
 		if !ok {
-			t.Fatalf("Gateway watch object = %T, want *unstructured.Unstructured", event.Object)
+			t.Fatalf("resource watch object = %T, want *unstructured.Unstructured", event.Object)
 		}
-		if event.Type != eventType || gateway.GetName() != "edge" {
-			t.Errorf("Gateway watch event = %s %q, want %s edge", event.Type, gateway.GetName(), eventType)
+		if event.Type != eventType || resource.GetName() != name {
+			t.Errorf("resource watch event = %s %q, want %s %q",
+				event.Type, resource.GetName(), eventType, name)
 		}
-		if resourceVersion != "" && gateway.GetResourceVersion() != resourceVersion {
-			t.Errorf("Gateway watch resourceVersion = %q, want %q", gateway.GetResourceVersion(), resourceVersion)
+		if resourceVersion != "" && resource.GetResourceVersion() != resourceVersion {
+			t.Errorf("resource watch resourceVersion = %q, want %q",
+				resource.GetResourceVersion(), resourceVersion)
 		}
 	case <-time.After(10 * time.Second):
-		t.Fatalf("timed out waiting for Gateway %s event", eventType)
+		t.Fatalf("timed out waiting for %q %s event", name, eventType)
 	}
 }
 
-func assertConditions(t *testing.T, gateway *unstructured.Unstructured, want int) {
+func assertSpec(t *testing.T, resource *unstructured.Unstructured, want map[string]any) {
 	t.Helper()
 
-	conditions, found, err := unstructured.NestedSlice(gateway.Object, "status", "conditions")
+	got, found, err := unstructured.NestedMap(resource.Object, "spec")
+	if err != nil || !found {
+		t.Fatalf("read resource spec: found %t, error %v", found, err)
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("resource spec mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func assertConditions(t *testing.T, resource *unstructured.Unstructured, want int) {
+	t.Helper()
+
+	conditions, found, err := unstructured.NestedSlice(resource.Object, "status", "conditions")
 	if err != nil {
-		t.Fatalf("read Gateway status.conditions: %v", err)
+		t.Fatalf("read resource status.conditions: %v", err)
 	}
 	if len(conditions) != want || (!found && want > 0) {
-		t.Errorf("Gateway status.conditions = %#v, want %d item(s)", conditions, want)
+		t.Errorf("resource status.conditions = %#v, want %d item(s)", conditions, want)
 	}
-}
-
-func listenerPort(t *testing.T, gateway *unstructured.Unstructured) int64 {
-	t.Helper()
-
-	listeners, found, err := unstructured.NestedSlice(gateway.Object, "spec", "listeners")
-	if err != nil || !found || len(listeners) != 1 {
-		t.Fatalf("Gateway spec.listeners = %#v, found %t, error %v", listeners, found, err)
-	}
-	port, found, err := unstructured.NestedInt64(listeners[0].(map[string]any), "port")
-	if err != nil || !found {
-		t.Fatalf("Gateway spec.listeners[0].port: found %t, error %v", found, err)
-	}
-	return port
 }
