@@ -136,6 +136,7 @@ require (
 )
 
 tool (
+	k8s.io/code-generator/cmd/client-gen
 	k8s.io/code-generator/cmd/conversion-gen
 	k8s.io/code-generator/cmd/deepcopy-gen
 	k8s.io/kube-openapi/cmd/openapi-gen
