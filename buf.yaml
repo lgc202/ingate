@@ -1,0 +1,23 @@
+version: v2
+
+modules:
+  - path: api
+    lint:
+      use:
+        - STANDARD
+      except:
+        - RPC_RESPONSE_STANDARD_NAME
+  - path: internal
+    lint:
+      use:
+        - STANDARD
+      except:
+        - PACKAGE_VERSION_SUFFIX
+
+deps:
+  - buf.build/bufbuild/protovalidate
+  - buf.build/googleapis/googleapis
+
+breaking:
+  use:
+    - FILE

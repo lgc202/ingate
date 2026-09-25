@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package admin.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// GatewayService 提供面向产品调用方的网关管理接口。
+service GatewayService {
+  // CreateGateway 创建一个 Gateway。
+  rpc CreateGateway(CreateGatewayRequest) returns (CreateGatewayReply) {
+    option (google.api.http) = {
+      post: "/v1/gateways"
+      body: "*"
+    };
+  }
+}
+
+// CreateGatewayRequest 表示创建网关的请求。
+message CreateGatewayRequest {
+  // name 是资源的稳定名称，供资源引用使用。
+  string name = 1 [(buf.validate.field).string = {
+    max_len: 253
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+  }];
+  // display_name 是供人阅读的名称，不参与资源引用或流量匹配。
+  string display_name = 2;
+  // listeners 是网关对外暴露的监听入口。
+  repeated Listener listeners = 3 [(buf.validate.field).repeated.min_items = 1];
+}
+
+// CreateGatewayReply 表示创建网关的结果。
+message CreateGatewayReply {
+  // gateway 是 API Server 保存后的资源。
+  Gateway gateway = 1;
+}
+
+// Gateway 表示面向产品调用方的网关。
+message Gateway {
+  // name 是资源的稳定名称。
+  string name = 1;
+  // display_name 是供人阅读的名称。
+  string display_name = 2;
+  // listeners 是网关对外暴露的监听入口。
+  repeated Listener listeners = 3;
+  // create_time 是资源的创建时间。
+  google.protobuf.Timestamp create_time = 4;
+}
+
+// Listener 表示网关对外暴露的一个监听入口。
+message Listener {
+  // name 是当前 Gateway 内稳定且唯一的 Listener 名称。
+  string name = 1 [(buf.validate.field).string = {
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
+  // protocol 是监听入口处理的应用层协议。
+  ListenerProtocol protocol = 2 [(buf.validate.field).enum.const = 1];
+  // port 是数据面对外监听的端口。
+  int32 port = 3 [(buf.validate.field).int32 = {
+    gte: 1
+    lte: 65535
+  }];
+  // hostname 限制 Listener 接受的 Host；为空时接受任意 Host。
+  string hostname = 4 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string = {
+      max_len: 253
+      pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+    }
+  ];
+}
+
+// ListenerProtocol 表示 Listener 处理的应用层协议。
+enum ListenerProtocol {
+  // LISTENER_PROTOCOL_UNSPECIFIED 表示未指定协议。
+  LISTENER_PROTOCOL_UNSPECIFIED = 0;
+  // LISTENER_PROTOCOL_HTTP 表示明文 HTTP 流量。
+  LISTENER_PROTOCOL_HTTP = 1;
+}

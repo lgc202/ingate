@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package adminapi.conf;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/lgc202/ingate/internal/adminapi/conf;conf";
+
+// Bootstrap 表示 Admin API 启动所需的配置。
+message Bootstrap {
+  // server 配置入站服务。
+  Server server = 1 [(buf.validate.field).required = true];
+  // api_server 配置声明式 API Server 客户端。
+  APIServer api_server = 2 [(buf.validate.field).required = true];
+}
+
+// Server 配置 HTTP 和 gRPC 入站服务。
+message Server {
+  // HTTP 配置 HTTP 服务。
+  message HTTP {
+    // network 是监听使用的 TCP 网络类型。
+    string network = 1 [(buf.validate.field).string = {
+      in: ["tcp", "tcp4", "tcp6"]
+    }];
+    // addr 是 HTTP 服务的监听地址。
+    string addr = 2 [(buf.validate.field).string.min_len = 1];
+    // timeout 是一次 HTTP 请求允许执行的最长时间。
+    google.protobuf.Duration timeout = 3 [
+      (buf.validate.field).required = true,
+      (buf.validate.field).duration.gt = {}
+    ];
+  }
+
+  // GRPC 配置 gRPC 服务。
+  message GRPC {
+    // network 是监听使用的 TCP 网络类型。
+    string network = 1 [(buf.validate.field).string = {
+      in: ["tcp", "tcp4", "tcp6"]
+    }];
+    // addr 是 gRPC 服务的监听地址。
+    string addr = 2 [(buf.validate.field).string.min_len = 1];
+    // timeout 是一次 gRPC 调用允许执行的最长时间。
+    google.protobuf.Duration timeout = 3 [
+      (buf.validate.field).required = true,
+      (buf.validate.field).duration.gt = {}
+    ];
+  }
+
+  // http 配置 HTTP 服务。
+  HTTP http = 1 [(buf.validate.field).required = true];
+  // grpc 配置 gRPC 服务。
+  GRPC grpc = 2 [(buf.validate.field).required = true];
+}
+
+// APIServer 配置声明式 API Server 连接。
+message APIServer {
+  // kubeconfig 是连接 API Server 的 kubeconfig 路径；为空时使用集群内配置。
+  string kubeconfig = 1;
+}

@@ -1,0 +1,12 @@
+# 尚未接入认证，HTTP 和 gRPC 只允许监听本机回环地址。
+server:
+  http:
+    network: tcp
+    addr: 127.0.0.1:8000
+    timeout: 5s
+  grpc:
+    network: tcp
+    addr: 127.0.0.1:9000
+    timeout: 5s
+api_server:
+  kubeconfig: /etc/ingate/admin-api.kubeconfig

@@ -21,7 +21,7 @@ jobs:
           version: v2.13.2
       - name: Go checks
         run: |
-          unformatted=$(gofmt -l cmd internal pkg)
+          unformatted=$(gofmt -l api cmd internal pkg)
           if [ -n "$unformatted" ]; then
             echo "$unformatted"
             exit 1
@@ -34,3 +34,9 @@ jobs:
           bash scripts/generate-api.sh
           git diff --exit-code -- pkg/apis pkg/generated
           test -z "$(git ls-files --others --exclude-standard pkg/apis pkg/generated)"
+      - name: Protobuf contract and generated code
+        run: |
+          go run github.com/bufbuild/buf/cmd/buf@v1.73.0 lint
+          go run github.com/bufbuild/buf/cmd/buf@v1.73.0 generate
+          git diff --exit-code -- api/admin internal/adminapi/conf
+          test -z "$(git ls-files --others --exclude-standard api/admin internal/adminapi/conf)"
