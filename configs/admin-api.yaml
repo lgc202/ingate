@@ -1,4 +1,4 @@
-# 尚未接入认证，HTTP 和 gRPC 只允许监听本机回环地址。
+# TLS 和登录限流尚未接入，HTTP 和 gRPC 只允许监听本机回环地址。
 server:
   http:
     network: tcp
@@ -10,3 +10,7 @@ server:
     timeout: 5s
 api_server:
   kubeconfig: /etc/ingate/admin-api.kubeconfig
+mysql:
+  dsn: ingate:change-me@tcp(127.0.0.1:3306)/ingate
+redis:
+  url: redis://127.0.0.1:6379/0

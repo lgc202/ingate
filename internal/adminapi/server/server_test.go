@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -8,10 +9,13 @@ import (
 	"testing"
 	"time"
 
+	kratoserrors "github.com/go-kratos/kratos/v3/errors"
+	kratosmiddleware "github.com/go-kratos/kratos/v3/middleware"
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
+	accounthandler "github.com/lgc202/ingate/internal/adminapi/handler/account"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
 	"github.com/lgc202/ingate/internal/adminapi/server"
@@ -30,7 +34,7 @@ func TestCreateGatewayHTTP(t *testing.T) {
 
 	response := postGateway(httpServer, createGatewayBody, "application/json")
 	if response.Code != http.StatusOK {
-		t.Fatalf("POST /v1/gateways status = %d, want 200; body = %s", response.Code, response.Body.String())
+		t.Fatalf("POST /api/admin/v1/gateways status = %d, want 200; body = %s", response.Code, response.Body.String())
 	}
 
 	var reply adminv1.CreateGatewayReply
@@ -52,7 +56,7 @@ func TestCreateGatewayHTTPProtoJSON(t *testing.T) {
 
 	response := postGateway(httpServer, createGatewayBody, "application/protojson")
 	if response.Code != http.StatusOK {
-		t.Fatalf("POST /v1/gateways with ProtoJSON status = %d, want 200; body = %s", response.Code, response.Body.String())
+		t.Fatalf("POST /api/admin/v1/gateways with ProtoJSON status = %d, want 200; body = %s", response.Code, response.Body.String())
 	}
 
 	var reply adminv1.CreateGatewayReply
@@ -110,7 +114,67 @@ func TestCreateGatewayHTTPHidesBackendError(t *testing.T) {
 	}
 }
 
+func TestCreateGatewayHTTPOldPathNotRegistered(t *testing.T) {
+	httpServer, _, client := newTestServers()
+	request := httptest.NewRequest(http.MethodPost, "/v1/gateways", strings.NewReader(createGatewayBody))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	httpServer.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Errorf("POST /v1/gateways status = %d, want 404", response.Code)
+	}
+	if actions := client.Actions(); len(actions) != 0 {
+		t.Errorf("POST /v1/gateways caused %d API Server calls, want 0", len(actions))
+	}
+}
+
+func TestAdminAPIAuthenticationSelection(t *testing.T) {
+	reject := func(next kratosmiddleware.Handler) kratosmiddleware.Handler {
+		return func(context.Context, any) (any, error) {
+			return nil, kratoserrors.Unauthorized("AUTH_SESSION_REQUIRED", "请先登录")
+		}
+	}
+	httpServer, _, client := newTestServersWithAuthentication(reject)
+
+	response := postGateway(httpServer, createGatewayBody, "application/json")
+	if response.Code != http.StatusUnauthorized {
+		t.Errorf("POST Gateway without Session status = %d, want 401", response.Code)
+	}
+	if actions := client.Actions(); len(actions) != 0 {
+		t.Errorf("POST Gateway without Session caused %d API Server calls, want 0", len(actions))
+	}
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/admin/v1/accounts/me:changePassword",
+		strings.NewReader(`{"currentPassword":"admin","newPassword":"new-password"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	response = httptest.NewRecorder()
+	httpServer.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Errorf("POST ChangePassword without Session status = %d, want 401", response.Code)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/admin/v1/auth/login", strings.NewReader(`{}`))
+	request.Header.Set("Content-Type", "application/json")
+	response = httptest.NewRecorder()
+	httpServer.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Errorf("POST invalid Login without Session status = %d, want 400", response.Code)
+	}
+}
+
 func newTestServers() (*kratoshttp.Server, *kratosgrpc.Server, *clientfake.Clientset) {
+	allow := func(next kratosmiddleware.Handler) kratosmiddleware.Handler { return next }
+	return newTestServersWithAuthentication(allow)
+}
+
+func newTestServersWithAuthentication(authentication kratosmiddleware.Middleware) (
+	*kratoshttp.Server,
+	*kratosgrpc.Server,
+	*clientfake.Clientset,
+) {
 	client := clientfake.NewSimpleClientset()
 	gateways := repository.NewGateway(client.GatewayV1alpha1().Gateways())
 	handler := gatewayhandler.New(gatewayservice.New(gateways))
@@ -118,13 +182,16 @@ func newTestServers() (*kratoshttp.Server, *kratosgrpc.Server, *clientfake.Clien
 		Http: &conf.Server_HTTP{Addr: "127.0.0.1:0", Timeout: durationpb.New(5 * time.Second)},
 		Grpc: &conf.Server_GRPC{Addr: "127.0.0.1:0", Timeout: durationpb.New(5 * time.Second)},
 	}
-	httpServer, grpcServer := server.New(config, server.Handlers{Gateway: handler})
+	httpServer, grpcServer := server.New(config, server.Handlers{
+		Gateway: handler,
+		Account: accounthandler.New(nil),
+	}, server.NewMiddlewareChain(authentication))
 
 	return httpServer, grpcServer, client
 }
 
 func postGateway(httpServer *kratoshttp.Server, body, mediaType string) *httptest.ResponseRecorder {
-	request := httptest.NewRequest(http.MethodPost, "/v1/gateways", strings.NewReader(body))
+	request := httptest.NewRequest(http.MethodPost, "/api/admin/v1/gateways", strings.NewReader(body))
 	request.Header.Set("Content-Type", mediaType)
 	request.Header.Set("Accept", mediaType)
 	response := httptest.NewRecorder()

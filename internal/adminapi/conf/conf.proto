@@ -13,6 +13,10 @@ message Bootstrap {
   Server server = 1 [(buf.validate.field).required = true];
   // api_server 配置声明式 API Server 客户端。
   APIServer api_server = 2 [(buf.validate.field).required = true];
+  // mysql 配置管理员账户使用的 MySQL。
+  MySQL mysql = 3 [(buf.validate.field).required = true];
+  // redis 配置管理员登录态使用的 Redis。
+  Redis redis = 4 [(buf.validate.field).required = true];
 }
 
 // Server 配置 HTTP 和 gRPC 入站服务。
@@ -21,7 +25,11 @@ message Server {
   message HTTP {
     // network 是监听使用的 TCP 网络类型。
     string network = 1 [(buf.validate.field).string = {
-      in: ["tcp", "tcp4", "tcp6"]
+      in: [
+        "tcp",
+        "tcp4",
+        "tcp6"
+      ]
     }];
     // addr 是 HTTP 服务的监听地址。
     string addr = 2 [(buf.validate.field).string.min_len = 1];
@@ -36,7 +44,11 @@ message Server {
   message GRPC {
     // network 是监听使用的 TCP 网络类型。
     string network = 1 [(buf.validate.field).string = {
-      in: ["tcp", "tcp4", "tcp6"]
+      in: [
+        "tcp",
+        "tcp4",
+        "tcp6"
+      ]
     }];
     // addr 是 gRPC 服务的监听地址。
     string addr = 2 [(buf.validate.field).string.min_len = 1];
@@ -57,4 +69,16 @@ message Server {
 message APIServer {
   // kubeconfig 是连接 API Server 的 kubeconfig 路径；为空时使用集群内配置。
   string kubeconfig = 1;
+}
+
+// MySQL 配置管理员账户使用的数据库连接。
+message MySQL {
+  // dsn 是 MySQL Driver 使用的连接字符串。
+  string dsn = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+// Redis 配置管理员登录态使用的数据库连接。
+message Redis {
+  // url 是 Redis 客户端使用的连接字符串。
+  string url = 1 [(buf.validate.field).string.min_len = 1];
 }

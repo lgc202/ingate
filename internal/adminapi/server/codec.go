@@ -5,7 +5,9 @@ import (
 	"net/http"
 
 	kratosprotojson "github.com/go-kratos/kratos/v3/encoding/protojson"
+	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
+	adminhandler "github.com/lgc202/ingate/internal/adminapi/handler"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -39,4 +41,12 @@ func encodeHTTPResponse(w http.ResponseWriter, r *http.Request, value any) error
 	_, err = w.Write(data)
 
 	return err
+}
+
+func encodeHTTPError(w http.ResponseWriter, r *http.Request, err error) {
+	// 生成的 HTTP 入口先解码再执行中间件，解码错误需在此处统一成公开错误。
+	if kratoserrors.Code(err) == http.StatusBadRequest && kratoserrors.Reason(err) == "CODEC" {
+		err = adminhandler.ToInvalidArgument(err)
+	}
+	kratoshttp.DefaultErrorEncoder(w, r, err)
 }

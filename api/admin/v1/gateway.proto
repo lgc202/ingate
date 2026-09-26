@@ -13,7 +13,7 @@ service GatewayService {
   // CreateGateway 创建一个 Gateway。
   rpc CreateGateway(CreateGatewayRequest) returns (CreateGatewayReply) {
     option (google.api.http) = {
-      post: "/v1/gateways"
+      post: "/api/admin/v1/gateways"
       body: "*"
     };
   }

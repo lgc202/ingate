@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package admin.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// AccountService 提供管理员登录、登出、账户查询和密码修改接口。
+service AccountService {
+  // Login 校验管理员凭据并创建 Session。
+  rpc Login(LoginRequest) returns (LoginReply) {
+    option (google.api.http) = {
+      post: "/api/admin/v1/auth/login"
+      body: "*"
+    };
+  }
+
+  // Logout 撤销当前请求使用的 Session。
+  rpc Logout(LogoutRequest) returns (LogoutReply) {
+    option (google.api.http) = {
+      post: "/api/admin/v1/auth/logout"
+      body: "*"
+    };
+  }
+
+  // GetCurrentAccount 读取当前登录的管理员账户。
+  rpc GetCurrentAccount(GetCurrentAccountRequest) returns (GetCurrentAccountReply) {
+    option (google.api.http) = {get: "/api/admin/v1/accounts/me"};
+  }
+
+  // ChangePassword 修改当前管理员的密码。
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordReply) {
+    option (google.api.http) = {
+      post: "/api/admin/v1/accounts/me:changePassword"
+      body: "*"
+    };
+  }
+}
+
+// LoginRequest 表示使用管理员账户凭据登录的请求。
+message LoginRequest {
+  // username 是管理员的登录名。
+  string username = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 64
+  }];
+  // password 是待校验的密码；长度上限遵循 bcrypt 的输入限制。
+  string password = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 72
+  }];
+}
+
+// LoginReply 表示登录成功后创建的 Session。
+message LoginReply {
+  // session_token 是只返回一次的 Session 凭据。
+  string session_token = 1;
+  // expire_time 是当前 Session 的绝对过期时间。
+  google.protobuf.Timestamp expire_time = 2;
+  // account 是当前登录的管理员账户。
+  Account account = 3;
+}
+
+// LogoutRequest 表示撤销当前 Session 的请求。
+message LogoutRequest {}
+
+// LogoutReply 表示当前 Session 已经失效。
+message LogoutReply {}
+
+// GetCurrentAccountRequest 表示读取当前管理员账户的请求。
+message GetCurrentAccountRequest {}
+
+// GetCurrentAccountReply 表示当前管理员账户的资料。
+message GetCurrentAccountReply {
+  // account 是当前登录的管理员账户。
+  Account account = 1;
+}
+
+// ChangePasswordRequest 表示当前管理员修改密码的请求。
+message ChangePasswordRequest {
+  // current_password 是当前密码。
+  string current_password = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 72
+  }];
+  // new_password 是要设置的新密码。
+  string new_password = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 72
+  }];
+}
+
+// ChangePasswordReply 表示密码修改成功。
+message ChangePasswordReply {}
+
+// Account 表示对外公开的管理员账户资料。
+message Account {
+  // id 是账户创建后不再变化的稳定标识。
+  uint64 id = 1;
+  // username 是管理员的登录名。
+  string username = 2;
+}

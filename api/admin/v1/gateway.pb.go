@@ -353,9 +353,9 @@ const file_admin_v1_gateway_proto_rawDesc = "" +
 	"\bhostname\x18\x04 \x01(\tBN\xbaHK\xd8\x01\x01rF\x18\xfd\x012A^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$R\bhostname*Q\n" +
 	"\x10ListenerProtocol\x12!\n" +
 	"\x1dLISTENER_PROTOCOL_UNSPECIFIED\x10\x00\x12\x1a\n" +
-	"\x16LISTENER_PROTOCOL_HTTP\x10\x012x\n" +
-	"\x0eGatewayService\x12f\n" +
-	"\rCreateGateway\x12\x1e.admin.v1.CreateGatewayRequest\x1a\x1c.admin.v1.CreateGatewayReply\"\x17\x82\xd3\xe4\x93\x02\x11:\x01*\"\f/v1/gatewaysB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x16LISTENER_PROTOCOL_HTTP\x10\x012\x82\x01\n" +
+	"\x0eGatewayService\x12p\n" +
+	"\rCreateGateway\x12\x1e.admin.v1.CreateGatewayRequest\x1a\x1c.admin.v1.CreateGatewayReply\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/api/admin/v1/gatewaysB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_gateway_proto_rawDescOnce sync.Once

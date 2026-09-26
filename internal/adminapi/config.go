@@ -36,7 +36,7 @@ func loadConfig(path string) (*conf.Bootstrap, error) {
 	return config, nil
 }
 
-// 未接入认证前，只允许本机访问管理接口；公网监听必须与认证一起引入。
+// TLS 和登录限流接入前，管理接口只允许监听本机回环地址。
 func validateListenAddresses(server *conf.Server) error {
 	if err := validateLoopbackAddress("HTTP", server.GetHttp().GetAddr()); err != nil {
 		return err
@@ -54,7 +54,7 @@ func validateLoopbackAddress(name, address string) error {
 		return fmt.Errorf("%s listen address %q: %w", name, address, err)
 	}
 	if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
-		return fmt.Errorf("%s listen address %q must use a loopback IP until authentication is available", name, address)
+		return fmt.Errorf("%s listen address %q must use a loopback IP", name, address)
 	}
 
 	return nil

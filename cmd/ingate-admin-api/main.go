@@ -12,9 +12,17 @@ import (
 
 func main() {
 	configFile := flag.String("conf", "configs/admin-api.yaml", "Admin API configuration file")
+	migrate := flag.Bool("migrate", false, "Apply pending database migrations and exit")
 	flag.Parse()
 
-	if err := adminapi.Run(context.Background(), *configFile); err != nil {
+	ctx := context.Background()
+	var err error
+	if *migrate {
+		err = adminapi.Migrate(ctx, *configFile)
+	} else {
+		err = adminapi.Run(ctx, *configFile)
+	}
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "ingate-admin-api: %v\n", err)
 		os.Exit(1)
 	}

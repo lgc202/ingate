@@ -26,7 +26,7 @@ type GatewayServiceHTTPServer interface {
 
 func RegisterGatewayServiceHTTPServer(s *http.Server, srv GatewayServiceHTTPServer) {
 	r := s.Route("/")
-	r.Handle("POST", "/v1/gateways", _GatewayService_CreateGateway0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/admin/v1/gateways", _GatewayService_CreateGateway0_HTTP_Handler(srv))
 }
 
 func _GatewayService_CreateGateway0_HTTP_Handler(srv GatewayServiceHTTPServer) func(ctx http.Context) error {
@@ -64,7 +64,7 @@ func NewGatewayServiceHTTPClient(client *http.Client) GatewayServiceHTTPClient {
 // CreateGateway CreateGateway 创建一个 Gateway。
 func (c *GatewayServiceHTTPClientImpl) CreateGateway(ctx context.Context, in *CreateGatewayRequest, opts ...http.CallOption) (*CreateGatewayReply, error) {
 	var out CreateGatewayReply
-	pattern := "/v1/gateways"
+	pattern := "/api/admin/v1/gateways"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
