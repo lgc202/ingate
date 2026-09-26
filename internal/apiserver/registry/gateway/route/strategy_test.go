@@ -62,9 +62,13 @@ func TestStrategy(t *testing.T) {
 func TestStatusStrategy(t *testing.T) {
 	previous := testRoute()
 	previous.Generation = 3
+	previous.Labels = map[string]string{"environment": "production"}
+	previous.Finalizers = []string{"gateway.ingate.io/cleanup"}
 
 	next := previous.DeepCopy()
 	next.Generation = 99
+	next.Labels["environment"] = "test"
+	next.Finalizers = nil
 	next.Spec.Path.Value = "/v1"
 	next.Status.Conditions = []metav1.Condition{{Type: "Accepted"}}
 	wantStatus := *next.Status.DeepCopy()
@@ -79,6 +83,12 @@ func TestStatusStrategy(t *testing.T) {
 	if next.Generation != previous.Generation {
 		t.Errorf("StatusStrategy.PrepareForUpdate() generation = %d, want %d",
 			next.Generation, previous.Generation)
+	}
+	if diff := cmp.Diff(previous.Labels, next.Labels); diff != "" {
+		t.Errorf("StatusStrategy.PrepareForUpdate() labels mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(previous.Finalizers, next.Finalizers); diff != "" {
+		t.Errorf("StatusStrategy.PrepareForUpdate() finalizers mismatch (-want +got):\n%s", diff)
 	}
 }
 

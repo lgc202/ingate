@@ -85,10 +85,16 @@ func TestStatusStrategy(t *testing.T) {
 	previous := testGateway()
 	previous.Generation = 3
 	previous.ResourceVersion = "1"
+	previous.Labels = map[string]string{"environment": "production"}
+	previous.Annotations = map[string]string{"owner": "platform"}
+	previous.Finalizers = []string{"gateway.ingate.io/cleanup"}
 
 	next := previous.DeepCopy()
 	next.ResourceVersion = "2"
 	next.Generation = 99
+	next.Labels["environment"] = "test"
+	next.Annotations["owner"] = "other"
+	next.Finalizers = nil
 	next.Spec.Listeners[0].Port = 8080
 	next.Status.Conditions = []metav1.Condition{{
 		Type:               "Accepted",
@@ -111,6 +117,15 @@ func TestStatusStrategy(t *testing.T) {
 	if next.Generation != previous.Generation {
 		t.Errorf("StatusStrategy.PrepareForUpdate() generation = %d, want %d",
 			next.Generation, previous.Generation)
+	}
+	if diff := cmp.Diff(previous.Labels, next.Labels); diff != "" {
+		t.Errorf("StatusStrategy.PrepareForUpdate() labels mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(previous.Annotations, next.Annotations); diff != "" {
+		t.Errorf("StatusStrategy.PrepareForUpdate() annotations mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(previous.Finalizers, next.Finalizers); diff != "" {
+		t.Errorf("StatusStrategy.PrepareForUpdate() finalizers mismatch (-want +got):\n%s", diff)
 	}
 	if errs := strategy.ValidateUpdate(context.Background(), next, previous); len(errs) != 0 {
 		t.Errorf("StatusStrategy.ValidateUpdate() errors = %v, want none", errs)

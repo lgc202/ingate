@@ -5,6 +5,7 @@ import (
 	"context"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/registry/rest"
@@ -126,12 +127,12 @@ func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	}
 }
 
-// PrepareForUpdate 保留已有的 Spec 和 Generation。
+// PrepareForUpdate 保留已有的 Spec 和非 Status 元数据。
 func (statusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
 	next := obj.(*gatewayapi.Upstream)
 	previous := old.(*gatewayapi.Upstream)
 	next.Spec = previous.Spec
-	next.Generation = previous.Generation
+	metav1.ResetObjectMetaForStatus(&next.ObjectMeta, &previous.ObjectMeta)
 }
 
 // ValidateUpdate 校验 Upstream Status 子资源更新。
