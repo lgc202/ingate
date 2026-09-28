@@ -37,6 +37,16 @@ func (s *Store) Gateways() gatewayclient.GatewayInterface {
 	return s.client.GatewayV1alpha1().Gateways()
 }
 
+// Routes 返回 Route 资源客户端。
+func (s *Store) Routes() gatewayclient.RouteInterface {
+	return s.client.GatewayV1alpha1().Routes()
+}
+
+// Upstreams 返回 Upstream 资源客户端。
+func (s *Store) Upstreams() gatewayclient.UpstreamInterface {
+	return s.client.GatewayV1alpha1().Upstreams()
+}
+
 func loadConfig(kubeconfig string) (*rest.Config, error) {
 	if kubeconfig == "" {
 		config, err := rest.InClusterConfig()

@@ -38,6 +38,27 @@ func TestValidateUpstream(t *testing.T) {
 			update:     func(u *gateway.Upstream) { u.Spec.Endpoints[0].Port = 0; u.Spec.Endpoints[0].Weight = 0 },
 			wantFields: []string{"spec.endpoints[0].port", "spec.endpoints[0].weight"},
 		},
+		{
+			name: "same address and different port",
+			update: func(u *gateway.Upstream) {
+				u.Spec.Endpoints = append(u.Spec.Endpoints, gateway.Endpoint{
+					Address: "api.example.com",
+					Port:    8081,
+					Weight:  1,
+				})
+			},
+		},
+		{
+			name: "duplicate address and port",
+			update: func(u *gateway.Upstream) {
+				u.Spec.Endpoints = append(u.Spec.Endpoints, gateway.Endpoint{
+					Address: "api.example.com",
+					Port:    8080,
+					Weight:  2,
+				})
+			},
+			wantFields: []string{"spec.endpoints[1]"},
+		},
 	}
 
 	for _, tt := range tests {

@@ -7,12 +7,16 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	accounthandler "github.com/lgc202/ingate/internal/adminapi/handler/account"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
+	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/route"
+	upstreamhandler "github.com/lgc202/ingate/internal/adminapi/handler/upstream"
 )
 
 // Handlers 保存 Admin API 需要注册的业务 Handler。
 type Handlers struct {
-	Gateway *gatewayhandler.Handler
-	Account *accounthandler.Handler
+	Gateway  *gatewayhandler.Handler
+	Route    *routehandler.Handler
+	Upstream *upstreamhandler.Handler
+	Account  *accounthandler.Handler
 }
 
 // New 构造并注册 Admin API 的入站服务，但不开始监听端口。
@@ -24,26 +28,17 @@ func New(
 	httpServer := newHTTP(config.GetHttp(), chain.middlewares...)
 	grpcServer := newGRPC(config.GetGrpc(), chain.middlewares...)
 
-	registerAccount(httpServer, grpcServer, handlers.Account)
-	registerGateway(httpServer, grpcServer, handlers.Gateway)
+	adminv1.RegisterAccountServiceHTTPServer(httpServer, handlers.Account)
+	adminv1.RegisterAccountServiceServer(grpcServer, handlers.Account)
+
+	adminv1.RegisterGatewayServiceHTTPServer(httpServer, handlers.Gateway)
+	adminv1.RegisterGatewayServiceServer(grpcServer, handlers.Gateway)
+
+	adminv1.RegisterRouteServiceHTTPServer(httpServer, handlers.Route)
+	adminv1.RegisterRouteServiceServer(grpcServer, handlers.Route)
+
+	adminv1.RegisterUpstreamServiceHTTPServer(httpServer, handlers.Upstream)
+	adminv1.RegisterUpstreamServiceServer(grpcServer, handlers.Upstream)
 
 	return httpServer, grpcServer
-}
-
-func registerAccount(
-	httpServer *kratoshttp.Server,
-	grpcServer *kratosgrpc.Server,
-	handler *accounthandler.Handler,
-) {
-	adminv1.RegisterAccountServiceHTTPServer(httpServer, handler)
-	adminv1.RegisterAccountServiceServer(grpcServer, handler)
-}
-
-func registerGateway(
-	httpServer *kratoshttp.Server,
-	grpcServer *kratosgrpc.Server,
-	handler *gatewayhandler.Handler,
-) {
-	adminv1.RegisterGatewayServiceHTTPServer(httpServer, handler)
-	adminv1.RegisterGatewayServiceServer(grpcServer, handler)
 }

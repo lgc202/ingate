@@ -20,6 +20,10 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	GatewayService_CreateGateway_FullMethodName = "/admin.v1.GatewayService/CreateGateway"
+	GatewayService_GetGateway_FullMethodName    = "/admin.v1.GatewayService/GetGateway"
+	GatewayService_ListGateways_FullMethodName  = "/admin.v1.GatewayService/ListGateways"
+	GatewayService_UpdateGateway_FullMethodName = "/admin.v1.GatewayService/UpdateGateway"
+	GatewayService_DeleteGateway_FullMethodName = "/admin.v1.GatewayService/DeleteGateway"
 )
 
 // GatewayServiceClient is the client API for GatewayService service.
@@ -30,6 +34,14 @@ const (
 type GatewayServiceClient interface {
 	// CreateGateway 创建一个 Gateway。
 	CreateGateway(ctx context.Context, in *CreateGatewayRequest, opts ...grpc.CallOption) (*CreateGatewayReply, error)
+	// GetGateway 读取指定网关。
+	GetGateway(ctx context.Context, in *GetGatewayRequest, opts ...grpc.CallOption) (*GetGatewayReply, error)
+	// ListGateways 分页列出网关。
+	ListGateways(ctx context.Context, in *ListGatewaysRequest, opts ...grpc.CallOption) (*ListGatewaysReply, error)
+	// UpdateGateway 完整替换网关的可编辑配置。
+	UpdateGateway(ctx context.Context, in *UpdateGatewayRequest, opts ...grpc.CallOption) (*UpdateGatewayReply, error)
+	// DeleteGateway 删除指定网关。
+	DeleteGateway(ctx context.Context, in *DeleteGatewayRequest, opts ...grpc.CallOption) (*DeleteGatewayReply, error)
 }
 
 type gatewayServiceClient struct {
@@ -50,6 +62,46 @@ func (c *gatewayServiceClient) CreateGateway(ctx context.Context, in *CreateGate
 	return out, nil
 }
 
+func (c *gatewayServiceClient) GetGateway(ctx context.Context, in *GetGatewayRequest, opts ...grpc.CallOption) (*GetGatewayReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGatewayReply)
+	err := c.cc.Invoke(ctx, GatewayService_GetGateway_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayServiceClient) ListGateways(ctx context.Context, in *ListGatewaysRequest, opts ...grpc.CallOption) (*ListGatewaysReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGatewaysReply)
+	err := c.cc.Invoke(ctx, GatewayService_ListGateways_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayServiceClient) UpdateGateway(ctx context.Context, in *UpdateGatewayRequest, opts ...grpc.CallOption) (*UpdateGatewayReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateGatewayReply)
+	err := c.cc.Invoke(ctx, GatewayService_UpdateGateway_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayServiceClient) DeleteGateway(ctx context.Context, in *DeleteGatewayRequest, opts ...grpc.CallOption) (*DeleteGatewayReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteGatewayReply)
+	err := c.cc.Invoke(ctx, GatewayService_DeleteGateway_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GatewayServiceServer is the server API for GatewayService service.
 // All implementations must embed UnimplementedGatewayServiceServer
 // for forward compatibility.
@@ -58,6 +110,14 @@ func (c *gatewayServiceClient) CreateGateway(ctx context.Context, in *CreateGate
 type GatewayServiceServer interface {
 	// CreateGateway 创建一个 Gateway。
 	CreateGateway(context.Context, *CreateGatewayRequest) (*CreateGatewayReply, error)
+	// GetGateway 读取指定网关。
+	GetGateway(context.Context, *GetGatewayRequest) (*GetGatewayReply, error)
+	// ListGateways 分页列出网关。
+	ListGateways(context.Context, *ListGatewaysRequest) (*ListGatewaysReply, error)
+	// UpdateGateway 完整替换网关的可编辑配置。
+	UpdateGateway(context.Context, *UpdateGatewayRequest) (*UpdateGatewayReply, error)
+	// DeleteGateway 删除指定网关。
+	DeleteGateway(context.Context, *DeleteGatewayRequest) (*DeleteGatewayReply, error)
 	mustEmbedUnimplementedGatewayServiceServer()
 }
 
@@ -70,6 +130,18 @@ type UnimplementedGatewayServiceServer struct{}
 
 func (UnimplementedGatewayServiceServer) CreateGateway(context.Context, *CreateGatewayRequest) (*CreateGatewayReply, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateGateway not implemented")
+}
+func (UnimplementedGatewayServiceServer) GetGateway(context.Context, *GetGatewayRequest) (*GetGatewayReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGateway not implemented")
+}
+func (UnimplementedGatewayServiceServer) ListGateways(context.Context, *ListGatewaysRequest) (*ListGatewaysReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListGateways not implemented")
+}
+func (UnimplementedGatewayServiceServer) UpdateGateway(context.Context, *UpdateGatewayRequest) (*UpdateGatewayReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateGateway not implemented")
+}
+func (UnimplementedGatewayServiceServer) DeleteGateway(context.Context, *DeleteGatewayRequest) (*DeleteGatewayReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteGateway not implemented")
 }
 func (UnimplementedGatewayServiceServer) mustEmbedUnimplementedGatewayServiceServer() {}
 func (UnimplementedGatewayServiceServer) testEmbeddedByValue()                        {}
@@ -110,6 +182,78 @@ func _GatewayService_CreateGateway_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GatewayService_GetGateway_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGatewayRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).GetGateway(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_GetGateway_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).GetGateway(ctx, req.(*GetGatewayRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GatewayService_ListGateways_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGatewaysRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).ListGateways(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_ListGateways_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).ListGateways(ctx, req.(*ListGatewaysRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GatewayService_UpdateGateway_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateGatewayRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).UpdateGateway(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_UpdateGateway_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).UpdateGateway(ctx, req.(*UpdateGatewayRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GatewayService_DeleteGateway_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteGatewayRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).DeleteGateway(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_DeleteGateway_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).DeleteGateway(ctx, req.(*DeleteGatewayRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GatewayService_ServiceDesc is the grpc.ServiceDesc for GatewayService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -120,6 +264,22 @@ var GatewayService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateGateway",
 			Handler:    _GatewayService_CreateGateway_Handler,
+		},
+		{
+			MethodName: "GetGateway",
+			Handler:    _GatewayService_GetGateway_Handler,
+		},
+		{
+			MethodName: "ListGateways",
+			Handler:    _GatewayService_ListGateways_Handler,
+		},
+		{
+			MethodName: "UpdateGateway",
+			Handler:    _GatewayService_UpdateGateway_Handler,
+		},
+		{
+			MethodName: "DeleteGateway",
+			Handler:    _GatewayService_DeleteGateway_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

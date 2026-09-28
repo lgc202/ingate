@@ -13,7 +13,7 @@ import (
 
 func TestCreateGateway(t *testing.T) {
 	client := clientfake.NewSimpleClientset()
-	gateways := repository.NewGateway(client.GatewayV1alpha1().Gateways())
+	gateways := repository.NewGateway(client.GatewayV1alpha1().Gateways(), nil)
 	handler := New(gatewayservice.New(gateways))
 	request := &adminv1.CreateGatewayRequest{
 		Name:        "public-gateway",

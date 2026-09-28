@@ -51,7 +51,7 @@ Upstream 目前仅由单资源校验保证字段有效，没有独立的跨资�
 
 当前已实现引用解析、冲突裁决、端口与 Host 汇总、三种资源 Watch、首次入队，以及完整配置的 xDS Snapshot Cache 发布。`dataplane.Config` 按端口组织 Host 和 Route，不包含版本化 API 对象或 Envoy 类型。Controller 在裁决和编译时统一去除 PathPrefix 的尾斜杠（根路径 `/` 除外），因此 `/api` 与 `/api/` 冲突并生成相同的路径段匹配；`/api` 不匹配 `/apix`。适配层为每个端口生成 LDS Listener 和 RDS RouteConfiguration；精确路径排在前缀路径之前，较长的前缀优先。纯 IP Upstream 使用 CDS + EDS；包含域名的 Upstream 使用 CDS 的 STRICT_DNS 和内嵌地址分配，因为普通 EDS 地址不能依靠 Envoy 自动解析域名。所有资源类型分别按确定性内容计算版本，单独修改 Endpoint 不改变 LDS、RDS、CDS 版本。发布空集合会删除旧资源；发布成功只表示 xDS Cache 更新，不代表 Envoy 已 ACK。
 
-ADS gRPC Server 已实现为 Manager Runnable：`Start` 才监听端口，取消时停止活动流并等待服务退出，就绪检查要求已监听且首份配置已发布。`cmd/ingate-controller-manager` 用 `--kubeconfig` 或 `--master` 连接 API Server，由 controller-runtime Manager 统一运行 Gateway Controller、ADS、健康探针和指标服务。当前已写回 Gateway 和 Route 的接纳状态，但尚未用 Envoy 进程验证真实请求；构造测试、protobuf、Snapshot 和服务生命周期单元测试都不等同于真实代理验证。后续需要验证 API Server → Controller → ADS → Envoy 的完整请求链路，并在有 Envoy ACK 依据后再讨论是否增加「已生效」状态。
+ADS gRPC Server 已实现为 Manager Runnable：`Start` 才监听端口，取消时停止活动流并等待服务退出，就绪检查要求已监听且首份配置已发布。`cmd/ingate-controller-manager` 用 `--kubeconfig` 或 `--master` 连接 API Server，并要求通过 `--config` 指定 MySQL 查询模型连接；controller-runtime Manager 统一运行 Gateway Controller、资源 MySQL 投影 Controller、ADS、健康探针和指标服务。MySQL 投影的读取边界见 [0005](0005-admin-resource-management.md)。当前已写回 Gateway 和 Route 的接纳状态，但尚未用 Envoy 进程验证真实请求；构造测试、protobuf、Snapshot 和服务生命周期单元测试都不等同于真实代理验证。后续需要验证 API Server → Controller → ADS → Envoy 的完整请求链路，并在有 Envoy ACK 依据后再讨论是否增加「已生效」状态。
 
 当前未配置 Leader Election，按单个 Controller Manager 实例部署。启用主备之前，需要确认 API Server 提供 Leader Election 所需的 Lease 资源和权限，并验证备用实例接管后的 Envoy 重连行为；`NeedLeaderElection()` 本身不等于已经启用主备。
 

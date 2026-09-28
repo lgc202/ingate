@@ -10,6 +10,8 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	accounthandler "github.com/lgc202/ingate/internal/adminapi/handler/account"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
+	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/route"
+	upstreamhandler "github.com/lgc202/ingate/internal/adminapi/handler/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/middleware"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
 	apiserverstore "github.com/lgc202/ingate/internal/adminapi/repository/apiserver"
@@ -18,6 +20,8 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/server"
 	accountservice "github.com/lgc202/ingate/internal/adminapi/service/account"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
+	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
+	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 )
 
 const componentName = "ingate-admin-api"
@@ -29,13 +33,13 @@ func Run(ctx context.Context, configFile string) error {
 		return fmt.Errorf("load Admin API config: %w", err)
 	}
 
-	accountStore, err := mysqlstore.Open(config.GetMysql().GetDsn())
+	mysqlStore, err := mysqlstore.Open(config.GetMysql().GetDsn())
 	if err != nil {
-		return fmt.Errorf("open account store: %w", err)
+		return fmt.Errorf("open MySQL store: %w", err)
 	}
 	defer func() {
-		if err := accountStore.Close(); err != nil {
-			slog.ErrorContext(ctx, "close account store", "err", err)
+		if err := mysqlStore.Close(); err != nil {
+			slog.ErrorContext(ctx, "close MySQL store", "err", err)
 		}
 	}()
 
@@ -49,7 +53,7 @@ func Run(ctx context.Context, configFile string) error {
 		}
 	}()
 
-	accounts := repository.NewAccount(accountStore)
+	accounts := repository.NewAccount(mysqlStore)
 	sessions := repository.NewSession(redisStore)
 	accountService := accountservice.New(accounts, sessions)
 	if err := accountService.Bootstrap(ctx); err != nil {
@@ -61,7 +65,7 @@ func Run(ctx context.Context, configFile string) error {
 		return fmt.Errorf("create API server store: %w", err)
 	}
 
-	app := newApp(ctx, config, apiServerStore, accountService)
+	app := newApp(ctx, config, apiServerStore, mysqlStore, accountService)
 	if err := app.Run(); err != nil {
 		return fmt.Errorf("run Admin API: %w", err)
 	}
@@ -73,16 +77,27 @@ func newApp(
 	ctx context.Context,
 	config *conf.Bootstrap,
 	apiServerStore *apiserverstore.Store,
+	mysqlStore *mysqlstore.Store,
 	accountService *accountservice.Service,
 ) *kratos.App {
-	gateways := repository.NewGateway(apiServerStore.Gateways())
+	gateways := repository.NewGateway(apiServerStore.Gateways(), mysqlStore)
+	routes := repository.NewRoute(apiServerStore.Routes(), mysqlStore)
+	upstreams := repository.NewUpstream(apiServerStore.Upstreams(), mysqlStore)
+
 	gatewayService := gatewayservice.New(gateways)
+	routeService := routeservice.New(routes)
+	upstreamService := upstreamservice.New(upstreams)
+
 	gatewayHandler := gatewayhandler.New(gatewayService)
+	routeHandler := routehandler.New(routeService)
+	upstreamHandler := upstreamhandler.New(upstreamService)
 	accountHandler := accounthandler.New(accountService)
 
 	handlers := server.Handlers{
-		Gateway: gatewayHandler,
-		Account: accountHandler,
+		Gateway:  gatewayHandler,
+		Route:    routeHandler,
+		Upstream: upstreamHandler,
+		Account:  accountHandler,
 	}
 	middlewareChain := server.NewMiddlewareChain(middleware.RequireSession(accountService))
 	httpServer, grpcServer := server.New(config.GetServer(), handlers, middlewareChain)

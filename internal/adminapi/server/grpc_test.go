@@ -71,7 +71,61 @@ func TestCreateGatewayGRPC(t *testing.T) {
 	}
 }
 
+func TestRouteAndUpstreamGRPC(t *testing.T) {
+	connection, backend := newTestGRPCConnection(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	routes := adminv1.NewRouteServiceClient(connection)
+	_, err := routes.CreateRoute(ctx, &adminv1.CreateRouteRequest{})
+	if code := status.Code(err); code != codes.InvalidArgument {
+		t.Errorf("CreateRoute(empty) code = %s, want InvalidArgument", code)
+	}
+	if actions := backend.Actions(); len(actions) != 0 {
+		t.Errorf("CreateRoute(empty) caused %d API Server calls, want 0", len(actions))
+	}
+
+	route, err := routes.CreateRoute(ctx, &adminv1.CreateRouteRequest{
+		Name:         "public",
+		GatewayName:  "edge",
+		ListenerName: "http",
+		Path: &adminv1.PathMatch{
+			Type:  adminv1.PathMatchType_PATH_MATCH_TYPE_EXACT,
+			Value: "/",
+		},
+		UpstreamName: "backend",
+	})
+	if err != nil {
+		t.Fatalf("CreateRoute(public) error = %v, want nil", err)
+	}
+	if route.GetRoute().GetName() != "public" {
+		t.Errorf("CreateRoute(public) name = %q, want public", route.GetRoute().GetName())
+	}
+
+	upstreams := adminv1.NewUpstreamServiceClient(connection)
+	upstream, err := upstreams.CreateUpstream(ctx, &adminv1.CreateUpstreamRequest{
+		Name: "backend",
+		Endpoints: []*adminv1.Endpoint{{
+			Address: "127.0.0.1",
+			Port:    8080,
+			Weight:  1,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("CreateUpstream(backend) error = %v, want nil", err)
+	}
+	if upstream.GetUpstream().GetName() != "backend" {
+		t.Errorf("CreateUpstream(backend) name = %q, want backend", upstream.GetUpstream().GetName())
+	}
+}
+
 func newTestGRPCClient(t *testing.T) (adminv1.GatewayServiceClient, *clientfake.Clientset) {
+	t.Helper()
+	connection, backend := newTestGRPCConnection(t)
+	return adminv1.NewGatewayServiceClient(connection), backend
+}
+
+func newTestGRPCConnection(t *testing.T) (*grpc.ClientConn, *clientfake.Clientset) {
 	t.Helper()
 
 	_, grpcServer, backend := newTestServers()
@@ -113,5 +167,5 @@ func newTestGRPCClient(t *testing.T) (adminv1.GatewayServiceClient, *clientfake.
 		}
 	})
 
-	return adminv1.NewGatewayServiceClient(connection), backend
+	return connection, backend
 }

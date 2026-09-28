@@ -2,7 +2,9 @@
 package upstream
 
 import (
+	"cmp"
 	"context"
+	"slices"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,9 +56,10 @@ func (strategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	}
 }
 
-// PrepareForCreate 清空调用方提交的 Status，并初始化 Generation。
+// PrepareForCreate 整理端点顺序、清空 Status，并初始化 Generation。
 func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
 	upstream := obj.(*gatewayapi.Upstream)
+	sortEndpoints(upstream.Spec.Endpoints)
 	upstream.Status = gatewayapi.UpstreamStatus{}
 	upstream.Generation = 1
 }
@@ -71,7 +74,7 @@ func (strategy) WarningsOnCreate(_ context.Context, _ runtime.Object) []string {
 	return nil
 }
 
-// Canonicalize 当前不调整 Upstream 的表示。
+// Canonicalize 不再调整已经在 PrepareForCreate 或 PrepareForUpdate 中整理的 Upstream。
 func (strategy) Canonicalize(_ runtime.Object) {}
 
 // AllowCreateOnUpdate 禁止通过 Update 创建 Upstream。
@@ -79,11 +82,12 @@ func (strategy) AllowCreateOnUpdate(_ context.Context) bool {
 	return false
 }
 
-// PrepareForUpdate 隔离 Status，并在 Spec 变化时递增 Generation。
+// PrepareForUpdate 整理端点顺序、隔离 Status，并在 Spec 变化时递增 Generation。
 func (strategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
 	next := obj.(*gatewayapi.Upstream)
 	previous := old.(*gatewayapi.Upstream)
 
+	sortEndpoints(next.Spec.Endpoints)
 	next.Status = previous.Status
 	next.Generation = previous.Generation
 	if !apiequality.Semantic.DeepEqual(next.Spec, previous.Spec) {
@@ -107,6 +111,16 @@ func (strategy) WarningsOnUpdate(_ context.Context, _, _ runtime.Object) []strin
 // AllowUnconditionalUpdate 要求 Upstream 更新携带 resourceVersion。
 func (strategy) AllowUnconditionalUpdate(_ context.Context) bool {
 	return false
+}
+
+func sortEndpoints(endpoints []gatewayapi.Endpoint) {
+	slices.SortFunc(endpoints, func(a, b gatewayapi.Endpoint) int {
+		if order := cmp.Compare(a.Address, b.Address); order != 0 {
+			return order
+		}
+
+		return cmp.Compare(a.Port, b.Port)
+	})
 }
 
 type statusStrategy struct {

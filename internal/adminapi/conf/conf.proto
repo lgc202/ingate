@@ -13,7 +13,7 @@ message Bootstrap {
   Server server = 1 [(buf.validate.field).required = true];
   // api_server 配置声明式 API Server 客户端。
   APIServer api_server = 2 [(buf.validate.field).required = true];
-  // mysql 配置管理员账户使用的 MySQL。
+  // mysql 配置管理员账户与资源查询模型使用的 MySQL。
   MySQL mysql = 3 [(buf.validate.field).required = true];
   // redis 配置管理员登录态使用的 Redis。
   Redis redis = 4 [(buf.validate.field).required = true];
@@ -71,7 +71,7 @@ message APIServer {
   string kubeconfig = 1;
 }
 
-// MySQL 配置管理员账户使用的数据库连接。
+// MySQL 配置管理员账户与资源查询模型使用的数据库连接。
 message MySQL {
   // dsn 是 MySQL Driver 使用的连接字符串。
   string dsn = 1 [(buf.validate.field).string.min_len = 1];

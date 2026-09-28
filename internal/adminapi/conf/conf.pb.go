@@ -30,7 +30,7 @@ type Bootstrap struct {
 	Server *Server `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
 	// api_server 配置声明式 API Server 客户端。
 	ApiServer *APIServer `protobuf:"bytes,2,opt,name=api_server,json=apiServer,proto3" json:"api_server,omitempty"`
-	// mysql 配置管理员账户使用的 MySQL。
+	// mysql 配置管理员账户与资源查询模型使用的 MySQL。
 	Mysql *MySQL `protobuf:"bytes,3,opt,name=mysql,proto3" json:"mysql,omitempty"`
 	// redis 配置管理员登录态使用的 Redis。
 	Redis         *Redis `protobuf:"bytes,4,opt,name=redis,proto3" json:"redis,omitempty"`
@@ -197,7 +197,7 @@ func (x *APIServer) GetKubeconfig() string {
 	return ""
 }
 
-// MySQL 配置管理员账户使用的数据库连接。
+// MySQL 配置管理员账户与资源查询模型使用的数据库连接。
 type MySQL struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// dsn 是 MySQL Driver 使用的连接字符串。

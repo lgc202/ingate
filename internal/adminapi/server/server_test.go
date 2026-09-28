@@ -17,9 +17,14 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	accounthandler "github.com/lgc202/ingate/internal/adminapi/handler/account"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
+	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/route"
+	upstreamhandler "github.com/lgc202/ingate/internal/adminapi/handler/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
+	mysqlstore "github.com/lgc202/ingate/internal/adminapi/repository/mysql"
 	"github.com/lgc202/ingate/internal/adminapi/server"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
+	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
+	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 	clientfake "github.com/lgc202/ingate/pkg/generated/clientset/versioned/fake"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -144,6 +149,15 @@ func TestAdminAPIAuthenticationSelection(t *testing.T) {
 	if actions := client.Actions(); len(actions) != 0 {
 		t.Errorf("POST Gateway without Session caused %d API Server calls, want 0", len(actions))
 	}
+	for _, path := range []string{"/api/admin/v1/routes", "/api/admin/v1/upstreams"} {
+		response = requestResource(httpServer, http.MethodPost, path, `{}`)
+		if response.Code != http.StatusUnauthorized {
+			t.Errorf("POST %s without Session status = %d, want 401", path, response.Code)
+		}
+	}
+	if actions := client.Actions(); len(actions) != 0 {
+		t.Errorf("POST resources without Session caused %d API Server calls, want 0", len(actions))
+	}
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/api/admin/v1/accounts/me:changePassword",
@@ -167,6 +181,7 @@ func TestAdminAPIAuthenticationSelection(t *testing.T) {
 
 func newTestServers() (*kratoshttp.Server, *kratosgrpc.Server, *clientfake.Clientset) {
 	allow := func(next kratosmiddleware.Handler) kratosmiddleware.Handler { return next }
+
 	return newTestServersWithAuthentication(allow)
 }
 
@@ -175,17 +190,41 @@ func newTestServersWithAuthentication(authentication kratosmiddleware.Middleware
 	*kratosgrpc.Server,
 	*clientfake.Clientset,
 ) {
+	return newTestServersWithStore(authentication, nil)
+}
+
+func newTestServersWithStore(
+	authentication kratosmiddleware.Middleware,
+	store *mysqlstore.Store,
+) (*kratoshttp.Server, *kratosgrpc.Server, *clientfake.Clientset) {
 	client := clientfake.NewSimpleClientset()
-	gateways := repository.NewGateway(client.GatewayV1alpha1().Gateways())
-	handler := gatewayhandler.New(gatewayservice.New(gateways))
+	gateways := repository.NewGateway(client.GatewayV1alpha1().Gateways(), store)
+	routes := repository.NewRoute(client.GatewayV1alpha1().Routes(), store)
+	upstreams := repository.NewUpstream(client.GatewayV1alpha1().Upstreams(), store)
+
+	gatewayHandler := gatewayhandler.New(gatewayservice.New(gateways))
+	routeHandler := routehandler.New(routeservice.New(routes))
+	upstreamHandler := upstreamhandler.New(upstreamservice.New(upstreams))
+
 	config := &conf.Server{
-		Http: &conf.Server_HTTP{Addr: "127.0.0.1:0", Timeout: durationpb.New(5 * time.Second)},
-		Grpc: &conf.Server_GRPC{Addr: "127.0.0.1:0", Timeout: durationpb.New(5 * time.Second)},
+		Http: &conf.Server_HTTP{
+			Addr:    "127.0.0.1:0",
+			Timeout: durationpb.New(5 * time.Second),
+		},
+		Grpc: &conf.Server_GRPC{
+			Addr:    "127.0.0.1:0",
+			Timeout: durationpb.New(5 * time.Second),
+		},
 	}
-	httpServer, grpcServer := server.New(config, server.Handlers{
-		Gateway: handler,
-		Account: accounthandler.New(nil),
-	}, server.NewMiddlewareChain(authentication))
+
+	handlers := server.Handlers{
+		Gateway:  gatewayHandler,
+		Route:    routeHandler,
+		Upstream: upstreamHandler,
+		Account:  accounthandler.New(nil),
+	}
+	chain := server.NewMiddlewareChain(authentication)
+	httpServer, grpcServer := server.New(config, handlers, chain)
 
 	return httpServer, grpcServer, client
 }
@@ -194,6 +233,7 @@ func postGateway(httpServer *kratoshttp.Server, body, mediaType string) *httptes
 	request := httptest.NewRequest(http.MethodPost, "/api/admin/v1/gateways", strings.NewReader(body))
 	request.Header.Set("Content-Type", mediaType)
 	request.Header.Set("Accept", mediaType)
+
 	response := httptest.NewRecorder()
 	httpServer.ServeHTTP(response, request)
 

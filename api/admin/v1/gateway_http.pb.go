@@ -18,15 +18,31 @@ var _ = new(context.Context)
 const _ = http.SupportPackageIsVersion3
 
 const OperationGatewayServiceCreateGateway = "/admin.v1.GatewayService/CreateGateway"
+const OperationGatewayServiceDeleteGateway = "/admin.v1.GatewayService/DeleteGateway"
+const OperationGatewayServiceGetGateway = "/admin.v1.GatewayService/GetGateway"
+const OperationGatewayServiceListGateways = "/admin.v1.GatewayService/ListGateways"
+const OperationGatewayServiceUpdateGateway = "/admin.v1.GatewayService/UpdateGateway"
 
 type GatewayServiceHTTPServer interface {
 	// CreateGateway CreateGateway 创建一个 Gateway。
 	CreateGateway(context.Context, *CreateGatewayRequest) (*CreateGatewayReply, error)
+	// DeleteGateway DeleteGateway 删除指定网关。
+	DeleteGateway(context.Context, *DeleteGatewayRequest) (*DeleteGatewayReply, error)
+	// GetGateway GetGateway 读取指定网关。
+	GetGateway(context.Context, *GetGatewayRequest) (*GetGatewayReply, error)
+	// ListGateways ListGateways 分页列出网关。
+	ListGateways(context.Context, *ListGatewaysRequest) (*ListGatewaysReply, error)
+	// UpdateGateway UpdateGateway 完整替换网关的可编辑配置。
+	UpdateGateway(context.Context, *UpdateGatewayRequest) (*UpdateGatewayReply, error)
 }
 
 func RegisterGatewayServiceHTTPServer(s *http.Server, srv GatewayServiceHTTPServer) {
 	r := s.Route("/")
 	r.Handle("POST", "/api/admin/v1/gateways", _GatewayService_CreateGateway0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/admin/v1/gateways/{name}", _GatewayService_GetGateway0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/admin/v1/gateways", _GatewayService_ListGateways0_HTTP_Handler(srv))
+	r.Handle("PUT", "/api/admin/v1/gateways/{name}", _GatewayService_UpdateGateway0_HTTP_Handler(srv))
+	r.Handle("DELETE", "/api/admin/v1/gateways/{name}", _GatewayService_DeleteGateway0_HTTP_Handler(srv))
 }
 
 func _GatewayService_CreateGateway0_HTTP_Handler(srv GatewayServiceHTTPServer) func(ctx http.Context) error {
@@ -48,9 +64,102 @@ func _GatewayService_CreateGateway0_HTTP_Handler(srv GatewayServiceHTTPServer) f
 	}
 }
 
+func _GatewayService_GetGateway0_HTTP_Handler(srv GatewayServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetGatewayRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationGatewayServiceGetGateway)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetGateway(ctx, req.(*GetGatewayRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*GetGatewayReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _GatewayService_ListGateways0_HTTP_Handler(srv GatewayServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ListGatewaysRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationGatewayServiceListGateways)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ListGateways(ctx, req.(*ListGatewaysRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ListGatewaysReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _GatewayService_UpdateGateway0_HTTP_Handler(srv GatewayServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in UpdateGatewayRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationGatewayServiceUpdateGateway)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.UpdateGateway(ctx, req.(*UpdateGatewayRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*UpdateGatewayReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _GatewayService_DeleteGateway0_HTTP_Handler(srv GatewayServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in DeleteGatewayRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationGatewayServiceDeleteGateway)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.DeleteGateway(ctx, req.(*DeleteGatewayRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*DeleteGatewayReply)
+		return ctx.Result(200, reply)
+	}
+}
+
 type GatewayServiceHTTPClient interface {
 	// CreateGateway CreateGateway 创建一个 Gateway。
 	CreateGateway(ctx context.Context, req *CreateGatewayRequest, opts ...http.CallOption) (rsp *CreateGatewayReply, err error)
+	// DeleteGateway DeleteGateway 删除指定网关。
+	DeleteGateway(ctx context.Context, req *DeleteGatewayRequest, opts ...http.CallOption) (rsp *DeleteGatewayReply, err error)
+	// GetGateway GetGateway 读取指定网关。
+	GetGateway(ctx context.Context, req *GetGatewayRequest, opts ...http.CallOption) (rsp *GetGatewayReply, err error)
+	// ListGateways ListGateways 分页列出网关。
+	ListGateways(ctx context.Context, req *ListGatewaysRequest, opts ...http.CallOption) (rsp *ListGatewaysReply, err error)
+	// UpdateGateway UpdateGateway 完整替换网关的可编辑配置。
+	UpdateGateway(ctx context.Context, req *UpdateGatewayRequest, opts ...http.CallOption) (rsp *UpdateGatewayReply, err error)
 }
 
 type GatewayServiceHTTPClientImpl struct {
@@ -73,6 +182,75 @@ func (c *GatewayServiceHTTPClientImpl) CreateGateway(ctx context.Context, in *Cr
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteGateway DeleteGateway 删除指定网关。
+func (c *GatewayServiceHTTPClientImpl) DeleteGateway(ctx context.Context, in *DeleteGatewayRequest, opts ...http.CallOption) (*DeleteGatewayReply, error) {
+	var out DeleteGatewayReply
+	pattern := "/api/admin/v1/gateways/{name}"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationGatewayServiceDeleteGateway),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetGateway GetGateway 读取指定网关。
+func (c *GatewayServiceHTTPClientImpl) GetGateway(ctx context.Context, in *GetGatewayRequest, opts ...http.CallOption) (*GetGatewayReply, error) {
+	var out GetGatewayReply
+	pattern := "/api/admin/v1/gateways/{name}"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationGatewayServiceGetGateway),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListGateways ListGateways 分页列出网关。
+func (c *GatewayServiceHTTPClientImpl) ListGateways(ctx context.Context, in *ListGatewaysRequest, opts ...http.CallOption) (*ListGatewaysReply, error) {
+	var out ListGatewaysReply
+	pattern := "/api/admin/v1/gateways"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationGatewayServiceListGateways),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateGateway UpdateGateway 完整替换网关的可编辑配置。
+func (c *GatewayServiceHTTPClientImpl) UpdateGateway(ctx context.Context, in *UpdateGatewayRequest, opts ...http.CallOption) (*UpdateGatewayReply, error) {
+	var out UpdateGatewayReply
+	pattern := "/api/admin/v1/gateways/{name}"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationGatewayServiceUpdateGateway),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "PUT", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

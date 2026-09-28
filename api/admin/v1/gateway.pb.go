@@ -183,6 +183,410 @@ func (x *CreateGatewayReply) GetGateway() *Gateway {
 	return nil
 }
 
+// GetGatewayRequest 表示读取网关的请求。
+type GetGatewayRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name 是资源的稳定名称。
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGatewayRequest) Reset() {
+	*x = GetGatewayRequest{}
+	mi := &file_admin_v1_gateway_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGatewayRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGatewayRequest) ProtoMessage() {}
+
+func (x *GetGatewayRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_gateway_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGatewayRequest.ProtoReflect.Descriptor instead.
+func (*GetGatewayRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *GetGatewayRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// GetGatewayReply 表示读取到的网关。
+type GetGatewayReply struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// gateway 是 MySQL 查询模型中最近同步的网关。
+	Gateway       *Gateway `protobuf:"bytes,1,opt,name=gateway,proto3" json:"gateway,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGatewayReply) Reset() {
+	*x = GetGatewayReply{}
+	mi := &file_admin_v1_gateway_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGatewayReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGatewayReply) ProtoMessage() {}
+
+func (x *GetGatewayReply) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_gateway_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGatewayReply.ProtoReflect.Descriptor instead.
+func (*GetGatewayReply) Descriptor() ([]byte, []int) {
+	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *GetGatewayReply) GetGateway() *Gateway {
+	if x != nil {
+		return x.Gateway
+	}
+	return nil
+}
+
+// ListGatewaysRequest 表示分页列出网关的请求。
+type ListGatewaysRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// page_size 是单页最大数量；为零时使用服务端默认值。
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// page_num 是从 1 开始的页码；为零时使用第一页。
+	PageNum       int32 `protobuf:"varint,2,opt,name=page_num,json=pageNum,proto3" json:"page_num,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListGatewaysRequest) Reset() {
+	*x = ListGatewaysRequest{}
+	mi := &file_admin_v1_gateway_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListGatewaysRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListGatewaysRequest) ProtoMessage() {}
+
+func (x *ListGatewaysRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_gateway_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListGatewaysRequest.ProtoReflect.Descriptor instead.
+func (*ListGatewaysRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ListGatewaysRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListGatewaysRequest) GetPageNum() int32 {
+	if x != nil {
+		return x.PageNum
+	}
+	return 0
+}
+
+// ListGatewaysReply 表示一页网关。
+type ListGatewaysReply struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// gateways 是 MySQL 查询模型中当前页的资源。
+	Gateways []*Gateway `protobuf:"bytes,1,rep,name=gateways,proto3" json:"gateways,omitempty"`
+	// total_count 是查询模型中的资源总数。
+	TotalCount    int64 `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListGatewaysReply) Reset() {
+	*x = ListGatewaysReply{}
+	mi := &file_admin_v1_gateway_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListGatewaysReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListGatewaysReply) ProtoMessage() {}
+
+func (x *ListGatewaysReply) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_gateway_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListGatewaysReply.ProtoReflect.Descriptor instead.
+func (*ListGatewaysReply) Descriptor() ([]byte, []int) {
+	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ListGatewaysReply) GetGateways() []*Gateway {
+	if x != nil {
+		return x.Gateways
+	}
+	return nil
+}
+
+func (x *ListGatewaysReply) GetTotalCount() int64 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+// UpdateGatewayRequest 表示完整替换网关的可编辑配置。
+type UpdateGatewayRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name 是资源的稳定名称，不允许通过更新修改。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// version 是读取网关时获得的版本，用于并发更新检查。
+	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	// display_name 是供人阅读的名称。
+	DisplayName string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// listeners 是网关对外暴露的监听入口。
+	Listeners     []*Listener `protobuf:"bytes,4,rep,name=listeners,proto3" json:"listeners,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateGatewayRequest) Reset() {
+	*x = UpdateGatewayRequest{}
+	mi := &file_admin_v1_gateway_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateGatewayRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateGatewayRequest) ProtoMessage() {}
+
+func (x *UpdateGatewayRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_gateway_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateGatewayRequest.ProtoReflect.Descriptor instead.
+func (*UpdateGatewayRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *UpdateGatewayRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *UpdateGatewayRequest) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *UpdateGatewayRequest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *UpdateGatewayRequest) GetListeners() []*Listener {
+	if x != nil {
+		return x.Listeners
+	}
+	return nil
+}
+
+// UpdateGatewayReply 表示更新后的网关。
+type UpdateGatewayReply struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// gateway 是 API Server 保存后的资源。
+	Gateway       *Gateway `protobuf:"bytes,1,opt,name=gateway,proto3" json:"gateway,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateGatewayReply) Reset() {
+	*x = UpdateGatewayReply{}
+	mi := &file_admin_v1_gateway_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateGatewayReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateGatewayReply) ProtoMessage() {}
+
+func (x *UpdateGatewayReply) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_gateway_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateGatewayReply.ProtoReflect.Descriptor instead.
+func (*UpdateGatewayReply) Descriptor() ([]byte, []int) {
+	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *UpdateGatewayReply) GetGateway() *Gateway {
+	if x != nil {
+		return x.Gateway
+	}
+	return nil
+}
+
+// DeleteGatewayRequest 表示删除网关的请求。
+type DeleteGatewayRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name 是资源的稳定名称。
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteGatewayRequest) Reset() {
+	*x = DeleteGatewayRequest{}
+	mi := &file_admin_v1_gateway_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteGatewayRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteGatewayRequest) ProtoMessage() {}
+
+func (x *DeleteGatewayRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_gateway_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteGatewayRequest.ProtoReflect.Descriptor instead.
+func (*DeleteGatewayRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *DeleteGatewayRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// DeleteGatewayReply 表示 API Server 已接受删除请求。
+type DeleteGatewayReply struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteGatewayReply) Reset() {
+	*x = DeleteGatewayReply{}
+	mi := &file_admin_v1_gateway_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteGatewayReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteGatewayReply) ProtoMessage() {}
+
+func (x *DeleteGatewayReply) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_gateway_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteGatewayReply.ProtoReflect.Descriptor instead.
+func (*DeleteGatewayReply) Descriptor() ([]byte, []int) {
+	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{9}
+}
+
 // Gateway 表示面向产品调用方的网关。
 type Gateway struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -193,14 +597,16 @@ type Gateway struct {
 	// listeners 是网关对外暴露的监听入口。
 	Listeners []*Listener `protobuf:"bytes,3,rep,name=listeners,proto3" json:"listeners,omitempty"`
 	// create_time 是资源的创建时间。
-	CreateTime    *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	CreateTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	// version 是更新时必须提交的资源版本。
+	Version       string `protobuf:"bytes,5,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Gateway) Reset() {
 	*x = Gateway{}
-	mi := &file_admin_v1_gateway_proto_msgTypes[2]
+	mi := &file_admin_v1_gateway_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -212,7 +618,7 @@ func (x *Gateway) String() string {
 func (*Gateway) ProtoMessage() {}
 
 func (x *Gateway) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_gateway_proto_msgTypes[2]
+	mi := &file_admin_v1_gateway_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -225,7 +631,7 @@ func (x *Gateway) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Gateway.ProtoReflect.Descriptor instead.
 func (*Gateway) Descriptor() ([]byte, []int) {
-	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{2}
+	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Gateway) GetName() string {
@@ -256,6 +662,13 @@ func (x *Gateway) GetCreateTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Gateway) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
 // Listener 表示网关对外暴露的一个监听入口。
 type Listener struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -273,7 +686,7 @@ type Listener struct {
 
 func (x *Listener) Reset() {
 	*x = Listener{}
-	mi := &file_admin_v1_gateway_proto_msgTypes[3]
+	mi := &file_admin_v1_gateway_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -285,7 +698,7 @@ func (x *Listener) String() string {
 func (*Listener) ProtoMessage() {}
 
 func (x *Listener) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_gateway_proto_msgTypes[3]
+	mi := &file_admin_v1_gateway_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -298,7 +711,7 @@ func (x *Listener) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Listener.ProtoReflect.Descriptor instead.
 func (*Listener) Descriptor() ([]byte, []int) {
-	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{3}
+	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *Listener) GetName() string {
@@ -339,13 +752,36 @@ const file_admin_v1_gateway_proto_rawDesc = "" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12:\n" +
 	"\tlisteners\x18\x03 \x03(\v2\x12.admin.v1.ListenerB\b\xbaH\x05\x92\x01\x02\b\x01R\tlisteners\"A\n" +
 	"\x12CreateGatewayReply\x12+\n" +
-	"\agateway\x18\x01 \x01(\v2\x11.admin.v1.GatewayR\agateway\"\xaf\x01\n" +
+	"\agateway\x18\x01 \x01(\v2\x11.admin.v1.GatewayR\agateway\"0\n" +
+	"\x11GetGatewayRequest\x12\x1b\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\">\n" +
+	"\x0fGetGatewayReply\x12+\n" +
+	"\agateway\x18\x01 \x01(\v2\x11.admin.v1.GatewayR\agateway\"b\n" +
+	"\x13ListGatewaysRequest\x12'\n" +
+	"\tpage_size\x18\x01 \x01(\x05B\n" +
+	"\xbaH\a\x1a\x05\x18\xc8\x01(\x00R\bpageSize\x12\"\n" +
+	"\bpage_num\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\apageNum\"c\n" +
+	"\x11ListGatewaysReply\x12-\n" +
+	"\bgateways\x18\x01 \x03(\v2\x11.admin.v1.GatewayR\bgateways\x12\x1f\n" +
+	"\vtotal_count\x18\x02 \x01(\x03R\n" +
+	"totalCount\"\xb5\x01\n" +
+	"\x14UpdateGatewayRequest\x12\x1b\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12!\n" +
+	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12!\n" +
+	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12:\n" +
+	"\tlisteners\x18\x04 \x03(\v2\x12.admin.v1.ListenerB\b\xbaH\x05\x92\x01\x02\b\x01R\tlisteners\"A\n" +
+	"\x12UpdateGatewayReply\x12+\n" +
+	"\agateway\x18\x01 \x01(\v2\x11.admin.v1.GatewayR\agateway\"3\n" +
+	"\x14DeleteGatewayRequest\x12\x1b\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\"\x14\n" +
+	"\x12DeleteGatewayReply\"\xc9\x01\n" +
 	"\aGateway\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x120\n" +
 	"\tlisteners\x18\x03 \x03(\v2\x12.admin.v1.ListenerR\tlisteners\x12;\n" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"\x97\x02\n" +
+	"createTime\x12\x18\n" +
+	"\aversion\x18\x05 \x01(\tR\aversion\"\x97\x02\n" +
 	"\bListener\x12<\n" +
 	"\x04name\x18\x01 \x01(\tB(\xbaH%r#\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\x04name\x12@\n" +
 	"\bprotocol\x18\x02 \x01(\x0e2\x1a.admin.v1.ListenerProtocolB\b\xbaH\x05\x82\x01\x02\b\x01R\bprotocol\x12\x1f\n" +
@@ -353,9 +789,14 @@ const file_admin_v1_gateway_proto_rawDesc = "" +
 	"\bhostname\x18\x04 \x01(\tBN\xbaHK\xd8\x01\x01rF\x18\xfd\x012A^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$R\bhostname*Q\n" +
 	"\x10ListenerProtocol\x12!\n" +
 	"\x1dLISTENER_PROTOCOL_UNSPECIFIED\x10\x00\x12\x1a\n" +
-	"\x16LISTENER_PROTOCOL_HTTP\x10\x012\x82\x01\n" +
+	"\x16LISTENER_PROTOCOL_HTTP\x10\x012\xca\x04\n" +
 	"\x0eGatewayService\x12p\n" +
-	"\rCreateGateway\x12\x1e.admin.v1.CreateGatewayRequest\x1a\x1c.admin.v1.CreateGatewayReply\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/api/admin/v1/gatewaysB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\rCreateGateway\x12\x1e.admin.v1.CreateGatewayRequest\x1a\x1c.admin.v1.CreateGatewayReply\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/api/admin/v1/gateways\x12k\n" +
+	"\n" +
+	"GetGateway\x12\x1b.admin.v1.GetGatewayRequest\x1a\x19.admin.v1.GetGatewayReply\"%\x82\xd3\xe4\x93\x02\x1f\x12\x1d/api/admin/v1/gateways/{name}\x12j\n" +
+	"\fListGateways\x12\x1d.admin.v1.ListGatewaysRequest\x1a\x1b.admin.v1.ListGatewaysReply\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/api/admin/v1/gateways\x12w\n" +
+	"\rUpdateGateway\x12\x1e.admin.v1.UpdateGatewayRequest\x1a\x1c.admin.v1.UpdateGatewayReply\"(\x82\xd3\xe4\x93\x02\":\x01*\x1a\x1d/api/admin/v1/gateways/{name}\x12t\n" +
+	"\rDeleteGateway\x12\x1e.admin.v1.DeleteGatewayRequest\x1a\x1c.admin.v1.DeleteGatewayReply\"%\x82\xd3\xe4\x93\x02\x1f*\x1d/api/admin/v1/gateways/{name}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_gateway_proto_rawDescOnce sync.Once
@@ -370,28 +811,48 @@ func file_admin_v1_gateway_proto_rawDescGZIP() []byte {
 }
 
 var file_admin_v1_gateway_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_admin_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_admin_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_admin_v1_gateway_proto_goTypes = []any{
 	(ListenerProtocol)(0),         // 0: admin.v1.ListenerProtocol
 	(*CreateGatewayRequest)(nil),  // 1: admin.v1.CreateGatewayRequest
 	(*CreateGatewayReply)(nil),    // 2: admin.v1.CreateGatewayReply
-	(*Gateway)(nil),               // 3: admin.v1.Gateway
-	(*Listener)(nil),              // 4: admin.v1.Listener
-	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
+	(*GetGatewayRequest)(nil),     // 3: admin.v1.GetGatewayRequest
+	(*GetGatewayReply)(nil),       // 4: admin.v1.GetGatewayReply
+	(*ListGatewaysRequest)(nil),   // 5: admin.v1.ListGatewaysRequest
+	(*ListGatewaysReply)(nil),     // 6: admin.v1.ListGatewaysReply
+	(*UpdateGatewayRequest)(nil),  // 7: admin.v1.UpdateGatewayRequest
+	(*UpdateGatewayReply)(nil),    // 8: admin.v1.UpdateGatewayReply
+	(*DeleteGatewayRequest)(nil),  // 9: admin.v1.DeleteGatewayRequest
+	(*DeleteGatewayReply)(nil),    // 10: admin.v1.DeleteGatewayReply
+	(*Gateway)(nil),               // 11: admin.v1.Gateway
+	(*Listener)(nil),              // 12: admin.v1.Listener
+	(*timestamppb.Timestamp)(nil), // 13: google.protobuf.Timestamp
 }
 var file_admin_v1_gateway_proto_depIdxs = []int32{
-	4, // 0: admin.v1.CreateGatewayRequest.listeners:type_name -> admin.v1.Listener
-	3, // 1: admin.v1.CreateGatewayReply.gateway:type_name -> admin.v1.Gateway
-	4, // 2: admin.v1.Gateway.listeners:type_name -> admin.v1.Listener
-	5, // 3: admin.v1.Gateway.create_time:type_name -> google.protobuf.Timestamp
-	0, // 4: admin.v1.Listener.protocol:type_name -> admin.v1.ListenerProtocol
-	1, // 5: admin.v1.GatewayService.CreateGateway:input_type -> admin.v1.CreateGatewayRequest
-	2, // 6: admin.v1.GatewayService.CreateGateway:output_type -> admin.v1.CreateGatewayReply
-	6, // [6:7] is the sub-list for method output_type
-	5, // [5:6] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	12, // 0: admin.v1.CreateGatewayRequest.listeners:type_name -> admin.v1.Listener
+	11, // 1: admin.v1.CreateGatewayReply.gateway:type_name -> admin.v1.Gateway
+	11, // 2: admin.v1.GetGatewayReply.gateway:type_name -> admin.v1.Gateway
+	11, // 3: admin.v1.ListGatewaysReply.gateways:type_name -> admin.v1.Gateway
+	12, // 4: admin.v1.UpdateGatewayRequest.listeners:type_name -> admin.v1.Listener
+	11, // 5: admin.v1.UpdateGatewayReply.gateway:type_name -> admin.v1.Gateway
+	12, // 6: admin.v1.Gateway.listeners:type_name -> admin.v1.Listener
+	13, // 7: admin.v1.Gateway.create_time:type_name -> google.protobuf.Timestamp
+	0,  // 8: admin.v1.Listener.protocol:type_name -> admin.v1.ListenerProtocol
+	1,  // 9: admin.v1.GatewayService.CreateGateway:input_type -> admin.v1.CreateGatewayRequest
+	3,  // 10: admin.v1.GatewayService.GetGateway:input_type -> admin.v1.GetGatewayRequest
+	5,  // 11: admin.v1.GatewayService.ListGateways:input_type -> admin.v1.ListGatewaysRequest
+	7,  // 12: admin.v1.GatewayService.UpdateGateway:input_type -> admin.v1.UpdateGatewayRequest
+	9,  // 13: admin.v1.GatewayService.DeleteGateway:input_type -> admin.v1.DeleteGatewayRequest
+	2,  // 14: admin.v1.GatewayService.CreateGateway:output_type -> admin.v1.CreateGatewayReply
+	4,  // 15: admin.v1.GatewayService.GetGateway:output_type -> admin.v1.GetGatewayReply
+	6,  // 16: admin.v1.GatewayService.ListGateways:output_type -> admin.v1.ListGatewaysReply
+	8,  // 17: admin.v1.GatewayService.UpdateGateway:output_type -> admin.v1.UpdateGatewayReply
+	10, // 18: admin.v1.GatewayService.DeleteGateway:output_type -> admin.v1.DeleteGatewayReply
+	14, // [14:19] is the sub-list for method output_type
+	9,  // [9:14] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_gateway_proto_init() }
@@ -405,7 +866,7 @@ func file_admin_v1_gateway_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_gateway_proto_rawDesc), len(file_admin_v1_gateway_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   4,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

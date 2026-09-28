@@ -24,6 +24,7 @@ const (
 type Options struct {
 	MasterURL              string
 	Kubeconfig             string
+	ConfigFile             string
 	XDSBindAddress         string
 	MetricsBindAddress     string
 	HealthProbeBindAddress string
@@ -42,6 +43,7 @@ func NewOptions() *Options {
 func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&o.MasterURL, "master", o.MasterURL, "API server address; overrides kubeconfig.")
 	fs.StringVar(&o.Kubeconfig, "kubeconfig", o.Kubeconfig, "Path to the API server kubeconfig file.")
+	fs.StringVar(&o.ConfigFile, "config", o.ConfigFile, "Path to the controller manager configuration file.")
 	fs.StringVar(&o.XDSBindAddress, "xds-bind-address", o.XDSBindAddress, "Address for the xDS ADS server.")
 	fs.StringVar(
 		&o.MetricsBindAddress, "metrics-bind-address", o.MetricsBindAddress,

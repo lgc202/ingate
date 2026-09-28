@@ -1,4 +1,4 @@
-// Package controllermanager 组装共享数据面的 Controller 与 xDS 服务。
+// Package controllermanager 组装共享数据面、资源查询投影与 xDS 服务。
 package controllermanager
 
 import (
@@ -8,7 +8,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
+	mysqlstore "github.com/lgc202/ingate/internal/adminapi/repository/mysql"
 	gatewaycontroller "github.com/lgc202/ingate/internal/controllermanager/controller/gateway"
+	"github.com/lgc202/ingate/internal/controllermanager/controller/projection"
 	"github.com/lgc202/ingate/internal/controllermanager/dataplane/envoy"
 )
 
@@ -20,7 +22,7 @@ type Config struct {
 }
 
 // New 创建并配置 Manager，但不启动 Controller 或网络监听。
-func (c *Config) New() (ctrl.Manager, error) {
+func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
 	manager, err := ctrl.NewManager(c.RESTConfig, c.ManagerOptions)
 	if err != nil {
 		return nil, fmt.Errorf("create controller manager: %w", err)
@@ -39,6 +41,17 @@ func (c *Config) New() (ctrl.Manager, error) {
 	if err := reconciler.SetupWithManager(manager); err != nil {
 		return nil, fmt.Errorf("setup Gateway controller: %w", err)
 	}
+
+	if err := projection.NewGateway(manager.GetClient(), store).SetupWithManager(manager); err != nil {
+		return nil, fmt.Errorf("setup Gateway projection controller: %w", err)
+	}
+	if err := projection.NewRoute(manager.GetClient(), store).SetupWithManager(manager); err != nil {
+		return nil, fmt.Errorf("setup Route projection controller: %w", err)
+	}
+	if err := projection.NewUpstream(manager.GetClient(), store).SetupWithManager(manager); err != nil {
+		return nil, fmt.Errorf("setup Upstream projection controller: %w", err)
+	}
+
 	if err := manager.AddReadyzCheck("xds", xdsServer.CheckReady); err != nil {
 		return nil, fmt.Errorf("add xDS readiness check: %w", err)
 	}

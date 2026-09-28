@@ -48,9 +48,21 @@ func validateUpstreamSpec(spec *gateway.UpstreamSpec, path *field.Path) field.Er
 		return field.ErrorList{field.Required(endpointsPath, "must contain at least one endpoint")}
 	}
 
+	type endpointKey struct {
+		address string
+		port    int32
+	}
+	seen := make(map[endpointKey]bool, len(spec.Endpoints))
+
 	var errs field.ErrorList
 	for i, endpoint := range spec.Endpoints {
 		endpointPath := endpointsPath.Index(i)
+		key := endpointKey{address: endpoint.Address, port: endpoint.Port}
+		if seen[key] {
+			errs = append(errs, field.Duplicate(endpointPath, key))
+		}
+		seen[key] = true
+
 		if _, err := netip.ParseAddr(endpoint.Address); err != nil {
 			if messages := validation.IsDNS1123Subdomain(endpoint.Address); len(messages) > 0 {
 				errs = append(errs, field.Invalid(

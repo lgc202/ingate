@@ -59,6 +59,32 @@ func TestStrategy(t *testing.T) {
 	}
 }
 
+func TestStrategyCanonicalizesEndpointOrder(t *testing.T) {
+	strategy := NewStrategy(runtime.NewScheme())
+	ctx := context.Background()
+	first := gatewayapi.Endpoint{Address: "a.example.com", Port: 8080, Weight: 1}
+	second := gatewayapi.Endpoint{Address: "b.example.com", Port: 8080, Weight: 2}
+
+	created := testUpstream()
+	created.Spec.Endpoints = []gatewayapi.Endpoint{second, first}
+	strategy.PrepareForCreate(ctx, created)
+	if diff := cmp.Diff([]gatewayapi.Endpoint{first, second}, created.Spec.Endpoints); diff != "" {
+		t.Errorf("PrepareForCreate() endpoints mismatch (-want +got):\n%s", diff)
+	}
+
+	previous := created.DeepCopy()
+	previous.Generation = 3
+	next := previous.DeepCopy()
+	next.Spec.Endpoints[0], next.Spec.Endpoints[1] = next.Spec.Endpoints[1], next.Spec.Endpoints[0]
+	strategy.PrepareForUpdate(ctx, next, previous)
+	if diff := cmp.Diff(previous.Spec.Endpoints, next.Spec.Endpoints); diff != "" {
+		t.Errorf("PrepareForUpdate(reordered endpoints) mismatch (-want +got):\n%s", diff)
+	}
+	if next.Generation != previous.Generation {
+		t.Errorf("PrepareForUpdate(reordered endpoints) generation = %d, want %d", next.Generation, previous.Generation)
+	}
+}
+
 func TestStatusStrategy(t *testing.T) {
 	previous := testUpstream()
 	previous.Generation = 3

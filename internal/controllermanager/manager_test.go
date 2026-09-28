@@ -27,7 +27,7 @@ func TestConfigNew(t *testing.T) {
 		},
 	}
 
-	manager, err := config.New()
+	manager, err := config.New(nil)
 	if err != nil {
 		t.Fatalf("Config.New() error = %v, want nil", err)
 	}

@@ -1,0 +1,132 @@
+syntax = "proto3";
+
+package admin.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// UpstreamService 提供后端资源管理接口。
+service UpstreamService {
+  // CreateUpstream 创建后端资源。
+  rpc CreateUpstream(CreateUpstreamRequest) returns (CreateUpstreamReply) {
+    option (google.api.http) = {
+      post: "/api/admin/v1/upstreams"
+      body: "*"
+    };
+  }
+
+  // GetUpstream 读取指定后端资源。
+  rpc GetUpstream(GetUpstreamRequest) returns (GetUpstreamReply) {
+    option (google.api.http) = {get: "/api/admin/v1/upstreams/{name}"};
+  }
+
+  // ListUpstreams 分页列出后端资源。
+  rpc ListUpstreams(ListUpstreamsRequest) returns (ListUpstreamsReply) {
+    option (google.api.http) = {get: "/api/admin/v1/upstreams"};
+  }
+
+  // UpdateUpstream 完整替换后端资源的可编辑配置。
+  rpc UpdateUpstream(UpdateUpstreamRequest) returns (UpdateUpstreamReply) {
+    option (google.api.http) = {
+      put: "/api/admin/v1/upstreams/{name}"
+      body: "*"
+    };
+  }
+
+  // DeleteUpstream 删除指定后端资源。
+  rpc DeleteUpstream(DeleteUpstreamRequest) returns (DeleteUpstreamReply) {
+    option (google.api.http) = {delete: "/api/admin/v1/upstreams/{name}"};
+  }
+}
+
+// CreateUpstreamRequest 表示创建后端资源的请求。
+message CreateUpstreamRequest {
+  // name 是资源的稳定名称。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  // endpoints 是后端地址及其相对权重；输入顺序没有业务含义。
+  repeated Endpoint endpoints = 2 [(buf.validate.field).repeated.min_items = 1];
+}
+
+// CreateUpstreamReply 表示创建后的后端资源。
+message CreateUpstreamReply {
+  // upstream 是 API Server 保存后的资源。
+  Upstream upstream = 1;
+}
+
+// GetUpstreamRequest 表示读取后端资源的请求。
+message GetUpstreamRequest {
+  // name 是资源的稳定名称。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+// GetUpstreamReply 表示读取到的后端资源。
+message GetUpstreamReply {
+  // upstream 是 MySQL 查询模型中最近同步的资源。
+  Upstream upstream = 1;
+}
+
+// ListUpstreamsRequest 表示分页列出后端资源的请求。
+message ListUpstreamsRequest {
+  // page_size 是单页最大数量；为零时使用服务端默认值。
+  int32 page_size = 1 [(buf.validate.field).int32 = {gte: 0, lte: 200}];
+  // page_num 是从 1 开始的页码；为零时使用第一页。
+  int32 page_num = 2 [(buf.validate.field).int32.gte = 0];
+}
+
+// ListUpstreamsReply 表示一页后端资源。
+message ListUpstreamsReply {
+  // upstreams 是 MySQL 查询模型中当前页的资源。
+  repeated Upstream upstreams = 1;
+  // total_count 是查询模型中的资源总数。
+  int64 total_count = 2;
+}
+
+// UpdateUpstreamRequest 表示完整替换后端资源的可编辑配置。
+message UpdateUpstreamRequest {
+  // name 是资源的稳定名称，不允许通过更新修改。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  // version 是读取后端资源时获得的版本，用于并发更新检查。
+  string version = 2 [(buf.validate.field).string.min_len = 1];
+  // endpoints 是后端地址及其相对权重；输入顺序没有业务含义。
+  repeated Endpoint endpoints = 3 [(buf.validate.field).repeated.min_items = 1];
+}
+
+// UpdateUpstreamReply 表示更新后的后端资源。
+message UpdateUpstreamReply {
+  // upstream 是 API Server 保存后的资源。
+  Upstream upstream = 1;
+}
+
+// DeleteUpstreamRequest 表示删除后端资源的请求。
+message DeleteUpstreamRequest {
+  // name 是资源的稳定名称。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+// DeleteUpstreamReply 表示 API Server 已接受删除请求。
+message DeleteUpstreamReply {}
+
+// Upstream 表示面向产品调用方的后端资源。
+message Upstream {
+  // name 是资源的稳定名称。
+  string name = 1;
+  // endpoints 是后端地址及其相对权重，按地址和端口排序返回。
+  repeated Endpoint endpoints = 2;
+  // create_time 是资源的创建时间。
+  google.protobuf.Timestamp create_time = 3;
+  // version 是更新时必须提交的资源版本。
+  string version = 4;
+}
+
+// Endpoint 表示一个后端地址及其相对流量权重。
+message Endpoint {
+  // address 是不含端口的主机名或 IP 地址。
+  string address = 1 [(buf.validate.field).string.min_len = 1];
+  // port 是后端服务的监听端口。
+  int32 port = 2 [(buf.validate.field).int32 = {gte: 1, lte: 65535}];
+  // weight 是该地址的相对流量权重。
+  int32 weight = 3 [(buf.validate.field).int32 = {gte: 1}];
+}

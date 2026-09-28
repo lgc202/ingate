@@ -27,6 +27,7 @@ type UpstreamList struct {
 
 // UpstreamSpec 定义 Upstream 的期望状态。
 type UpstreamSpec struct {
+	// Endpoints 中的顺序不影响转发；同一地址和端口只能出现一次。
 	// +listType=atomic
 	Endpoints []Endpoint `json:"endpoints"`
 }

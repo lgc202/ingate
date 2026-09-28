@@ -17,6 +17,29 @@ service GatewayService {
       body: "*"
     };
   }
+
+  // GetGateway 读取指定网关。
+  rpc GetGateway(GetGatewayRequest) returns (GetGatewayReply) {
+    option (google.api.http) = {get: "/api/admin/v1/gateways/{name}"};
+  }
+
+  // ListGateways 分页列出网关。
+  rpc ListGateways(ListGatewaysRequest) returns (ListGatewaysReply) {
+    option (google.api.http) = {get: "/api/admin/v1/gateways"};
+  }
+
+  // UpdateGateway 完整替换网关的可编辑配置。
+  rpc UpdateGateway(UpdateGatewayRequest) returns (UpdateGatewayReply) {
+    option (google.api.http) = {
+      put: "/api/admin/v1/gateways/{name}"
+      body: "*"
+    };
+  }
+
+  // DeleteGateway 删除指定网关。
+  rpc DeleteGateway(DeleteGatewayRequest) returns (DeleteGatewayReply) {
+    option (google.api.http) = {delete: "/api/admin/v1/gateways/{name}"};
+  }
 }
 
 // CreateGatewayRequest 表示创建网关的请求。
@@ -38,6 +61,61 @@ message CreateGatewayReply {
   Gateway gateway = 1;
 }
 
+// GetGatewayRequest 表示读取网关的请求。
+message GetGatewayRequest {
+  // name 是资源的稳定名称。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+// GetGatewayReply 表示读取到的网关。
+message GetGatewayReply {
+  // gateway 是 MySQL 查询模型中最近同步的网关。
+  Gateway gateway = 1;
+}
+
+// ListGatewaysRequest 表示分页列出网关的请求。
+message ListGatewaysRequest {
+  // page_size 是单页最大数量；为零时使用服务端默认值。
+  int32 page_size = 1 [(buf.validate.field).int32 = {gte: 0, lte: 200}];
+  // page_num 是从 1 开始的页码；为零时使用第一页。
+  int32 page_num = 2 [(buf.validate.field).int32.gte = 0];
+}
+
+// ListGatewaysReply 表示一页网关。
+message ListGatewaysReply {
+  // gateways 是 MySQL 查询模型中当前页的资源。
+  repeated Gateway gateways = 1;
+  // total_count 是查询模型中的资源总数。
+  int64 total_count = 2;
+}
+
+// UpdateGatewayRequest 表示完整替换网关的可编辑配置。
+message UpdateGatewayRequest {
+  // name 是资源的稳定名称，不允许通过更新修改。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  // version 是读取网关时获得的版本，用于并发更新检查。
+  string version = 2 [(buf.validate.field).string.min_len = 1];
+  // display_name 是供人阅读的名称。
+  string display_name = 3;
+  // listeners 是网关对外暴露的监听入口。
+  repeated Listener listeners = 4 [(buf.validate.field).repeated.min_items = 1];
+}
+
+// UpdateGatewayReply 表示更新后的网关。
+message UpdateGatewayReply {
+  // gateway 是 API Server 保存后的资源。
+  Gateway gateway = 1;
+}
+
+// DeleteGatewayRequest 表示删除网关的请求。
+message DeleteGatewayRequest {
+  // name 是资源的稳定名称。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+// DeleteGatewayReply 表示 API Server 已接受删除请求。
+message DeleteGatewayReply {}
+
 // Gateway 表示面向产品调用方的网关。
 message Gateway {
   // name 是资源的稳定名称。
@@ -48,6 +126,8 @@ message Gateway {
   repeated Listener listeners = 3;
   // create_time 是资源的创建时间。
   google.protobuf.Timestamp create_time = 4;
+  // version 是更新时必须提交的资源版本。
+  string version = 5;
 }
 
 // Listener 表示网关对外暴露的一个监听入口。

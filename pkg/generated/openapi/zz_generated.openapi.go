@@ -658,7 +658,8 @@ func schema_pkg_apis_gateway_v1alpha1_UpstreamSpec(ref common.ReferenceCallback)
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "Endpoints 中的顺序不影响转发；同一地址和端口只能出现一次。",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{

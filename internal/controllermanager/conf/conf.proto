@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package controllermanager.conf;
+
+import "buf/validate/validate.proto";
+
+option go_package = "github.com/lgc202/ingate/internal/controllermanager/conf;conf";
+
+// Bootstrap 保存 Controller Manager 的组件配置。
+message Bootstrap {
+  // mysql 配置资源查询模型使用的 MySQL。
+  MySQL mysql = 1 [(buf.validate.field).required = true];
+}
+
+// MySQL 配置资源查询模型使用的数据库连接。
+message MySQL {
+  // dsn 是 MySQL Driver 使用的连接字符串。
+  string dsn = 1 [(buf.validate.field).string.min_len = 1];
+}
