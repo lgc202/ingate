@@ -29,6 +29,12 @@ type Server struct {
 	listening  atomic.Bool
 }
 
+// adsServer 只实现 SotW ADS；Delta RPC 保持 Unimplemented。
+type adsServer struct {
+	discoveryv3.UnimplementedAggregatedDiscoveryServiceServer
+	server sotwv3.Server
+}
+
 // NewServer 注册 ADS 服务，但不监听端口或启动 goroutine。
 func NewServer(address string, publisher *Publisher) *Server {
 	grpcServer := grpc.NewServer()
@@ -80,22 +86,16 @@ func (s *Server) CheckReady(_ *http.Request) error {
 	return nil
 }
 
-func serveError(err error) error {
-	if err == nil || errors.Is(err, grpc.ErrServerStopped) {
-		return nil
-	}
-	return fmt.Errorf("serve xDS: %w", err)
-}
-
-// adsServer 只实现 SotW ADS；Delta RPC 保持 Unimplemented。
-type adsServer struct {
-	discoveryv3.UnimplementedAggregatedDiscoveryServiceServer
-	server sotwv3.Server
-}
-
 // StreamAggregatedResources 把 SotW ADS 流交给 go-control-plane。
 func (s *adsServer) StreamAggregatedResources(
 	stream discoveryv3.AggregatedDiscoveryService_StreamAggregatedResourcesServer,
 ) error {
 	return s.server.StreamHandler(stream, resourcev3.AnyType)
+}
+
+func serveError(err error) error {
+	if err == nil || errors.Is(err, grpc.ErrServerStopped) {
+		return nil
+	}
+	return fmt.Errorf("serve xDS: %w", err)
 }

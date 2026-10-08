@@ -78,10 +78,7 @@ func TestGatewayReadsQueryModelAndUpdatesAPIServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gorm.Open() error = %v, want nil", err)
 	}
-	store, err := mysql.New(gormDB)
-	if err != nil {
-		t.Fatalf("mysql.New() error = %v, want nil", err)
-	}
+	store := mysql.New(gormDB)
 	gateways := NewGateway(client.GatewayV1alpha1().Gateways(), store)
 
 	query.ExpectBegin()

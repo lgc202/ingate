@@ -196,35 +196,7 @@ func newListener(port int32) (*listenerv3.Listener, error) {
 
 func newCluster(upstream dataplane.Upstream) (*clusterv3.Cluster, *endpointv3.ClusterLoadAssignment, error) {
 	name := clusterName(upstream.Name)
-	assignment := &endpointv3.ClusterLoadAssignment{ClusterName: name}
-	endpoints := slices.Clone(upstream.Endpoints)
-	slices.SortFunc(endpoints, func(a, b dataplane.Endpoint) int {
-		if n := cmp.Compare(a.Address, b.Address); n != 0 {
-			return n
-		}
-
-		if n := cmp.Compare(a.Port, b.Port); n != 0 {
-			return n
-		}
-
-		return cmp.Compare(a.Weight, b.Weight)
-	})
-
-	locality := &endpointv3.LocalityLbEndpoints{}
-	hasDNSName := false
-	for _, endpoint := range endpoints {
-		if _, err := netip.ParseAddr(endpoint.Address); err != nil {
-			hasDNSName = true
-		}
-		locality.LbEndpoints = append(locality.LbEndpoints, &endpointv3.LbEndpoint{
-			HostIdentifier: &endpointv3.LbEndpoint_Endpoint{Endpoint: &endpointv3.Endpoint{
-				Address: socketAddress(endpoint.Address, endpoint.Port),
-			}},
-			LoadBalancingWeight: wrapperspb.UInt32(uint32(endpoint.Weight)),
-		})
-	}
-	assignment.Endpoints = []*endpointv3.LocalityLbEndpoints{locality}
-
+	assignment, hasDNSName := newEndpointAssignment(name, upstream.Endpoints)
 	cluster := &clusterv3.Cluster{
 		Name:           name,
 		ConnectTimeout: durationpb.New(5 * time.Second),
@@ -250,6 +222,41 @@ func newCluster(upstream dataplane.Upstream) (*clusterv3.Cluster, *endpointv3.Cl
 	}
 
 	return cluster, assignment, nil
+}
+
+// newEndpointAssignment 克隆后排序端点并识别 DNS；完整校验由 newCluster 按原顺序执行。
+func newEndpointAssignment(name string, endpoints []dataplane.Endpoint) (*endpointv3.ClusterLoadAssignment, bool) {
+	ordered := slices.Clone(endpoints)
+	slices.SortFunc(ordered, func(a, b dataplane.Endpoint) int {
+		if n := cmp.Compare(a.Address, b.Address); n != 0 {
+			return n
+		}
+
+		if n := cmp.Compare(a.Port, b.Port); n != 0 {
+			return n
+		}
+
+		return cmp.Compare(a.Weight, b.Weight)
+	})
+
+	locality := &endpointv3.LocalityLbEndpoints{}
+	hasDNSName := false
+	for _, endpoint := range ordered {
+		if _, err := netip.ParseAddr(endpoint.Address); err != nil {
+			hasDNSName = true
+		}
+		locality.LbEndpoints = append(locality.LbEndpoints, &endpointv3.LbEndpoint{
+			HostIdentifier: &endpointv3.LbEndpoint_Endpoint{Endpoint: &endpointv3.Endpoint{
+				Address: socketAddress(endpoint.Address, endpoint.Port),
+			}},
+			LoadBalancingWeight: wrapperspb.UInt32(uint32(endpoint.Weight)),
+		})
+	}
+
+	return &endpointv3.ClusterLoadAssignment{
+		ClusterName: name,
+		Endpoints:   []*endpointv3.LocalityLbEndpoints{locality},
+	}, hasDNSName
 }
 
 func adsConfigSource() *corev3.ConfigSource {

@@ -1,36 +1,14 @@
 // Package redis 保存 Admin API 的登录态。
 package redis
 
-import (
-	"context"
-	"fmt"
+import goredis "github.com/redis/go-redis/v9"
 
-	goredis "github.com/redis/go-redis/v9"
-)
-
-// Store 持有登录态使用的 Redis 连接池。
+// Store 使用组件持有的 Redis 客户端读写登录态。
 type Store struct {
-	client *goredis.Client
+	client goredis.UniversalClient
 }
 
-// Open 建立 Redis 客户端并验证连接。
-func Open(ctx context.Context, url string) (*Store, error) {
-	options, err := goredis.ParseURL(url)
-	if err != nil {
-		return nil, fmt.Errorf("parse Redis URL: %w", err)
-	}
-
-	client := goredis.NewClient(options)
-	if err := client.Ping(ctx).Err(); err != nil {
-		// 连接尚未交给调用方；清理失败也以原始连接错误为准。
-		_ = client.Close()
-		return nil, fmt.Errorf("ping Redis: %w", err)
-	}
-
-	return &Store{client: client}, nil
-}
-
-// Close 关闭 Redis 连接池。
-func (s *Store) Close() error {
-	return s.client.Close()
+// New 使用已有 Redis 客户端创建 Store；客户端由组件负责关闭。
+func New(client goredis.UniversalClient) *Store {
+	return &Store{client: client}
 }

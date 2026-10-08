@@ -3,12 +3,24 @@ package account
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/lgc202/ingate/internal/adminapi/domain"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
+	"golang.org/x/crypto/bcrypt"
 )
+
+type fakeAccountRepository struct {
+	account             domain.Account
+	updatePasswordCalls int
+}
+
+type fakeSessionRepository struct {
+	items       map[string]domain.Session
+	createCalls int
+}
 
 func TestAccountSessionLifecycle(t *testing.T) {
 	ctx := context.Background()
@@ -68,8 +80,135 @@ func TestAccountSessionLifecycle(t *testing.T) {
 	}
 }
 
-type fakeAccountRepository struct {
-	account domain.Account
+func TestPasswordVerificationRejectsIncorrectPassword(t *testing.T) {
+	hash := passwordHash(t, "current-password")
+	operations := []struct {
+		name string
+		run  func(context.Context, *Service, string) error
+	}{
+		{
+			name: "Login",
+			run: func(ctx context.Context, service *Service, password string) error {
+				_, err := service.Login(ctx, "admin", password)
+				return err
+			},
+		},
+		{
+			name: "ChangePassword",
+			run: func(ctx context.Context, service *Service, password string) error {
+				return service.ChangePassword(ctx, initialAdminID, password, "new-password")
+			},
+		},
+	}
+
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			for _, password := range []string{"wrong-password", "", strings.Repeat("x", 73)} {
+				t.Run("password="+password, func(t *testing.T) {
+					account := domain.Account{
+						ID:             initialAdminID,
+						Username:       "admin",
+						PasswordHash:   hash,
+						SessionVersion: 7,
+					}
+					accounts := &fakeAccountRepository{account: account}
+					sessions := &fakeSessionRepository{items: make(map[string]domain.Session)}
+					service := New(accounts, sessions)
+
+					err := operation.run(t.Context(), service, password)
+					if !errors.Is(err, ErrInvalidCredentials) {
+						t.Errorf("%s(password=%q) error = %v, want ErrInvalidCredentials", operation.name, password, err)
+					}
+					if errors.Is(err, ErrUnavailable) {
+						t.Errorf("%s(password=%q) error = %v, want no ErrUnavailable", operation.name, password, err)
+					}
+					if sessions.createCalls != 0 || len(sessions.items) != 0 {
+						t.Errorf("%s(password=%q) created sessions: calls=%d, items=%d, want both 0",
+							operation.name, password, sessions.createCalls, len(sessions.items))
+					}
+					if accounts.updatePasswordCalls != 0 || accounts.account != account {
+						t.Errorf("%s(password=%q) changed account: update calls=%d, unchanged=%t, want 0 and true",
+							operation.name, password, accounts.updatePasswordCalls, accounts.account == account)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestPasswordVerificationRejectsMalformedHash(t *testing.T) {
+	hash := passwordHash(t, "current-password")
+	tests := []struct {
+		name      string
+		hash      string
+		wantCause error
+	}{
+		{name: "short", hash: "broken", wantCause: bcrypt.ErrHashTooShort},
+		{name: "prefix", hash: "!" + hash[1:], wantCause: bcrypt.InvalidHashPrefixError('!')},
+		{name: "version", hash: "$3" + hash[2:], wantCause: bcrypt.HashVersionTooNewError('3')},
+		{name: "cost", hash: hash[:4] + "03" + hash[6:], wantCause: bcrypt.InvalidCostError(3)},
+	}
+	operations := []struct {
+		name        string
+		run         func(context.Context, *Service) error
+		wantContext string
+	}{
+		{
+			name: "Login",
+			run: func(ctx context.Context, service *Service) error {
+				_, err := service.Login(ctx, "admin", "current-password")
+				return err
+			},
+			wantContext: "compare password",
+		},
+		{
+			name: "ChangePassword",
+			run: func(ctx context.Context, service *Service) error {
+				return service.ChangePassword(ctx, initialAdminID, "current-password", "new-password")
+			},
+			wantContext: "compare current password",
+		},
+	}
+
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					account := domain.Account{
+						ID:             initialAdminID,
+						Username:       "admin",
+						PasswordHash:   tt.hash,
+						SessionVersion: 7,
+					}
+					accounts := &fakeAccountRepository{account: account}
+					sessions := &fakeSessionRepository{items: make(map[string]domain.Session)}
+					service := New(accounts, sessions)
+
+					err := operation.run(t.Context(), service)
+					if !errors.Is(err, ErrUnavailable) {
+						t.Errorf("%s(hash=%q) error = %v, want ErrUnavailable", operation.name, tt.hash, err)
+					}
+					if errors.Is(err, ErrInvalidCredentials) {
+						t.Errorf("%s(hash=%q) error = %v, want no ErrInvalidCredentials", operation.name, tt.hash, err)
+					}
+					if !errors.Is(err, tt.wantCause) {
+						t.Errorf("%s(hash=%q) error = %v, want cause %v", operation.name, tt.hash, err, tt.wantCause)
+					}
+					if err != nil && !strings.Contains(err.Error(), operation.wantContext) {
+						t.Errorf("%s(hash=%q) error = %v, want context %q", operation.name, tt.hash, err, operation.wantContext)
+					}
+					if sessions.createCalls != 0 || len(sessions.items) != 0 {
+						t.Errorf("%s(hash=%q) created sessions: calls=%d, items=%d, want both 0",
+							operation.name, tt.hash, sessions.createCalls, len(sessions.items))
+					}
+					if accounts.updatePasswordCalls != 0 || accounts.account != account {
+						t.Errorf("%s(hash=%q) changed account: update calls=%d, unchanged=%t, want 0 and true",
+							operation.name, tt.hash, accounts.updatePasswordCalls, accounts.account == account)
+					}
+				})
+			}
+		})
+	}
 }
 
 func (r *fakeAccountRepository) Create(_ context.Context, account domain.Account) error {
@@ -95,6 +234,7 @@ func (r *fakeAccountRepository) GetByUsername(_ context.Context, username string
 }
 
 func (r *fakeAccountRepository) UpdatePassword(_ context.Context, id uint64, oldHash, newHash string) error {
+	r.updatePasswordCalls++
 	if r.account.ID != id || r.account.PasswordHash != oldHash {
 		return repository.ErrAccountChanged
 	}
@@ -103,11 +243,8 @@ func (r *fakeAccountRepository) UpdatePassword(_ context.Context, id uint64, old
 	return nil
 }
 
-type fakeSessionRepository struct {
-	items map[string]domain.Session
-}
-
 func (r *fakeSessionRepository) Create(_ context.Context, id string, session domain.Session, _ time.Time) error {
+	r.createCalls++
 	r.items[id] = session
 	return nil
 }
@@ -123,4 +260,13 @@ func (r *fakeSessionRepository) Get(_ context.Context, id string) (domain.Sessio
 func (r *fakeSessionRepository) Delete(_ context.Context, id string) error {
 	delete(r.items, id)
 	return nil
+}
+
+func passwordHash(t *testing.T, password string) string {
+	t.Helper()
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
+	if err != nil {
+		t.Fatalf("GenerateFromPassword(test password, MinCost) error = %v, want nil", err)
+	}
+	return string(hash)
 }

@@ -206,6 +206,16 @@ func newQueryTestServer(t *testing.T) (*kratoshttp.Server, *clientfake.Clientset
 	if err != nil {
 		t.Fatalf("sqlmock.New() error = %v, want nil", err)
 	}
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		if err := db.Close(); err != nil {
+			t.Errorf("SQL pool Close() error = %v, want nil", err)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("SQL expectations error = %v, want nil", err)
+		}
+	})
+
 	gormDB, err := gorm.Open(gormmysql.New(gormmysql.Config{
 		Conn:                      db,
 		SkipInitializeWithVersion: true,
@@ -213,19 +223,7 @@ func newQueryTestServer(t *testing.T) (*kratoshttp.Server, *clientfake.Clientset
 	if err != nil {
 		t.Fatalf("gorm.Open() error = %v, want nil", err)
 	}
-	store, err := mysql.New(gormDB)
-	if err != nil {
-		t.Fatalf("mysql.New() error = %v, want nil", err)
-	}
-	t.Cleanup(func() {
-		mock.ExpectClose()
-		if err := store.Close(); err != nil {
-			t.Errorf("Store.Close() error = %v, want nil", err)
-		}
-		if err := mock.ExpectationsWereMet(); err != nil {
-			t.Errorf("SQL expectations error = %v, want nil", err)
-		}
-	})
+	store := mysql.New(gormDB)
 
 	allow := func(next kratosmiddleware.Handler) kratosmiddleware.Handler { return next }
 	httpServer, _, apiClient := newTestServersWithStore(allow, store)

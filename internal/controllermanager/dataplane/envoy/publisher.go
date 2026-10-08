@@ -23,6 +23,8 @@ type Publisher struct {
 	cache cachev3.SnapshotCache
 }
 
+type clusterHash struct{}
+
 // NewPublisher 创建按 Envoy node.cluster 分组的 ADS Snapshot Cache。
 func NewPublisher() *Publisher {
 	return &Publisher{cache: cachev3.NewSnapshotCache(true, clusterHash{}, nil)}
@@ -48,6 +50,11 @@ func (p *Publisher) Publish(ctx context.Context, config dataplane.Config) error 
 		return fmt.Errorf("publish xDS snapshot: %w", err)
 	}
 	return nil
+}
+
+// ID 使用 node.cluster，让同一数据面组的所有 Envoy 副本取得相同配置。
+func (clusterHash) ID(node *corev3.Node) string {
+	return node.GetCluster()
 }
 
 func newSnapshot(resources resourceSet) (*cachev3.Snapshot, error) {
@@ -142,11 +149,4 @@ func sameVersions(current cachev3.ResourceSnapshot, next *cachev3.Snapshot) bool
 		}
 	}
 	return true
-}
-
-type clusterHash struct{}
-
-// ID 使用 node.cluster，让同一数据面组的所有 Envoy 副本取得相同配置。
-func (clusterHash) ID(node *corev3.Node) string {
-	return node.GetCluster()
 }

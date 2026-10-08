@@ -11,6 +11,14 @@ import (
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
+type resolutionView struct {
+	Gateways         []string
+	Routes           []string
+	Upstreams        []string
+	GatewayConflicts []string
+	RouteRejections  []string
+}
+
 func TestResolveGatewayConflict(t *testing.T) {
 	gateways := []gatewayv1alpha1.Gateway{
 		gatewayResource("later", 2,
@@ -193,12 +201,66 @@ func TestResolveOrderAndRecovery(t *testing.T) {
 	}
 }
 
-type resolutionView struct {
-	Gateways         []string
-	Routes           []string
-	Upstreams        []string
-	GatewayConflicts []string
-	RouteRejections  []string
+func TestResolveReferenceRejectionPrecedesMatchConflict(t *testing.T) {
+	gateways := []gatewayv1alpha1.Gateway{
+		gatewayResource("edge", 1, listener("http", 8080, "")),
+		gatewayResource("blocked", 2, listener("http", 8080, "")),
+	}
+	routes := []gatewayv1alpha1.Route{
+		routeResource("missing-gateway", 1, "unknown", "other", "unknown", gatewayv1alpha1.PathMatchPrefix),
+		routeResource("rejected-gateway", 2, "blocked", "other", "unknown", gatewayv1alpha1.PathMatchPrefix),
+		routeResource("missing-listener", 3, "edge", "other", "unknown", gatewayv1alpha1.PathMatchPrefix),
+		routeResource("missing-upstream", 4, "edge", "http", "unknown", gatewayv1alpha1.PathMatchPrefix),
+		routeResource("accepted", 5, "edge", "http", "backend", gatewayv1alpha1.PathMatchPrefix),
+		routeResource("missing-upstream-after-owner", 6, "edge", "http", "unknown", gatewayv1alpha1.PathMatchPrefix),
+		routeResource("conflict", 7, "edge", "http", "unused", gatewayv1alpha1.PathMatchPrefix),
+	}
+	upstreams := []gatewayv1alpha1.Upstream{upstreamResource("unused"), upstreamResource("backend")}
+	want := resolutionView{
+		Gateways:         []string{"edge"},
+		Routes:           []string{"accepted"},
+		Upstreams:        []string{"backend"},
+		GatewayConflicts: []string{"blocked/http: edge/http"},
+		RouteRejections: []string{
+			"missing-gateway: GatewayMissing (unknown)",
+			"rejected-gateway: GatewayRejected (blocked)",
+			"missing-listener: ListenerMissing (other)",
+			"missing-upstream: UpstreamMissing (unknown)",
+			"missing-upstream-after-owner: UpstreamMissing (unknown)",
+			"conflict: MatchConflict (accepted)",
+		},
+	}
+
+	if diff := cmp.Diff(want, viewOf(resolve(gateways, routes, upstreams))); diff != "" {
+		t.Errorf("resolve(routes with multiple rejection causes) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestResolveDoesNotModifyInputs(t *testing.T) {
+	gateways := []gatewayv1alpha1.Gateway{
+		gatewayResource("later", 2, listener("http", 8080, "")),
+		gatewayResource("edge", 1, listener("http", 8080, "")),
+	}
+	routes := []gatewayv1alpha1.Route{
+		routeResource("later", 2, "edge", "http", "backend", gatewayv1alpha1.PathMatchPrefix),
+		routeResource("first", 1, "edge", "http", "backend", gatewayv1alpha1.PathMatchPrefix),
+	}
+	routes[0].Spec.Path.Value = "/api/"
+	upstreams := []gatewayv1alpha1.Upstream{upstreamResource("unused"), upstreamResource("backend")}
+	wantGateways := (&gatewayv1alpha1.GatewayList{Items: gateways}).DeepCopy().Items
+	wantRoutes := (&gatewayv1alpha1.RouteList{Items: routes}).DeepCopy().Items
+	wantUpstreams := (&gatewayv1alpha1.UpstreamList{Items: upstreams}).DeepCopy().Items
+
+	resolve(gateways, routes, upstreams)
+	if diff := cmp.Diff(wantGateways, gateways); diff != "" {
+		t.Errorf("resolve(unsorted gateways) modified input (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(wantRoutes, routes); diff != "" {
+		t.Errorf("resolve(routes with canonicalizable paths) modified input (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(wantUpstreams, upstreams); diff != "" {
+		t.Errorf("resolve(upstreams with unused entries) modified input (-want +got):\n%s", diff)
+	}
 }
 
 func viewOf(result resolution) resolutionView {

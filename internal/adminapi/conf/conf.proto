@@ -17,6 +17,45 @@ message Bootstrap {
   MySQL mysql = 3 [(buf.validate.field).required = true];
   // redis 配置管理员登录态使用的 Redis。
   Redis redis = 4 [(buf.validate.field).required = true];
+  // log 配置普通运行日志；省略时使用 info、JSON 和 stdout。
+  Log log = 5;
+}
+
+// Log 配置启动时固定的原生 slog 输出，不包含请求日志。
+message Log {
+  option (buf.validate.message).cel = {
+    id: "log.file_path"
+    message: "file output requires a non-empty file path"
+    expression: "!('file' in this.outputs) || (has(this.file) && this.file.path != '')"
+  };
+
+  // File 配置一个进程独占的轮转文件，路径相对进程工作目录解析。
+  message File {
+    // path 在选择 file 输出时必须非空。
+    string path = 1;
+    // max_size_mb 为 0 时沿用 lumberjack 的 100 MiB 默认值。
+    int32 max_size_mb = 2 [(buf.validate.field).int32.gte = 0];
+    // max_backups 为 0 时不按数量清理备份。
+    int32 max_backups = 3 [(buf.validate.field).int32.gte = 0];
+    // max_age_days 为 0 时不按天数清理备份。
+    int32 max_age_days = 4 [(buf.validate.field).int32.gte = 0];
+    // compress 是否使用 gzip 压缩备份。
+    bool compress = 5;
+  }
+
+  // level 省略时为 info。
+  string level = 1 [(buf.validate.field).string = {in: ["", "debug", "info", "warn", "error"]}];
+  // format 省略时为 json。
+  string format = 2 [(buf.validate.field).string = {in: ["", "json", "text"]}];
+  // outputs 可组合但不能重复；省略时只输出 stdout。
+  repeated string outputs = 3 [(buf.validate.field).repeated = {
+    unique: true
+    items: {string: {in: ["stdout", "stderr", "file"]}}
+  }];
+  // add_source 是否在日志中附带调用位置。
+  bool add_source = 4;
+  // file 仅在选择 file 输出时启用。
+  File file = 5;
 }
 
 // Server 配置 HTTP 和 gRPC 入站服务。
@@ -79,6 +118,43 @@ message MySQL {
 
 // Redis 配置管理员登录态使用的数据库连接。
 message Redis {
-  // url 是 Redis 客户端使用的连接字符串。
-  string url = 1 [(buf.validate.field).string.min_len = 1];
+  reserved 1;
+  reserved "url";
+
+  // addrs 是单节点地址或 Sentinel/Cluster 种子地址，不是连接 URL。
+  repeated string addrs = 2 [(buf.validate.field).repeated = {
+    min_items: 1
+    items: {string: {min_len: 1}}
+  }];
+  // username 是 Redis 数据节点的 ACL 用户名。
+  string username = 3;
+  // password 是 Redis 数据节点的密码，不得写入日志。
+  string password = 4;
+  // sentinel_username 是 Sentinel 自身的 ACL 用户名。
+  string sentinel_username = 5;
+  // sentinel_password 是 Sentinel 自身的密码，不得写入日志。
+  string sentinel_password = 6;
+  // db 是单节点或 Sentinel 的数据库编号；Redis Cluster 必须为 0。
+  int32 db = 7 [(buf.validate.field).int32.gte = 0];
+  // master_name 非空时，addrs 指向 Sentinel，由驱动发现主节点。
+  string master_name = 8;
+  // is_cluster_mode 可在只有一个种子地址时启用 ClusterClient。
+  // 与 master_name 一起设置时沿用驱动的 Sentinel FailoverClusterClient。
+  bool is_cluster_mode = 9;
+  // pool_size 是每个节点的连接池容量，0 沿用驱动默认值。
+  int32 pool_size = 10 [(buf.validate.field).int32.gte = 0];
+  // min_idle_conns 是每个节点的最小空闲连接数，0 不预建空闲连接。
+  int32 min_idle_conns = 11 [(buf.validate.field).int32.gte = 0];
+  // dial_timeout 是连接超时，未配置时沿用驱动默认值。
+  google.protobuf.Duration dial_timeout = 12 [(buf.validate.field).duration.gt = {}];
+  // read_timeout 是读取超时，未配置时沿用驱动默认值。
+  google.protobuf.Duration read_timeout = 13 [(buf.validate.field).duration.gt = {}];
+  // write_timeout 是写入超时，未配置时沿用驱动默认值。
+  google.protobuf.Duration write_timeout = 14 [(buf.validate.field).duration.gt = {}];
+  // pool_timeout 是等待可用连接的超时，未配置时沿用驱动默认值。
+  google.protobuf.Duration pool_timeout = 15 [(buf.validate.field).duration.gt = {}];
+  // tls 启用 TLS，使用系统可信根并验证服务器证书。
+  bool tls = 16;
+  // tls_server_name 可覆盖 TLS 证书验证使用的服务器名称。
+  string tls_server_name = 17;
 }

@@ -17,4 +17,4 @@ Admin API 对 Gateway、Route、Upstream 分别提供创建、读取、列表、
 
 写入 API Server 成功后，Controller 异步更新 MySQL。因而创建后立即 Get/List 可能暂时看不到新资源，更新后可能读到旧版本，删除后可能暂时读到旧记录；Admin API 不从 API Server 回退查询，也不声称读后立即一致。Controller 暂停或 MySQL 不可用会延长延迟，投影协调报错后由工作队列重试。Manager readiness 仍表示 xDS 是否就绪，不承诺 MySQL 投影已经追平；需要另行监控同步错误与延迟。
 
-当前 HTTP 合同测试使用生成的 fake client 和模拟查询模型验证路由、协议转换、版本冲突、元数据保留、删除和公开错误；它不执行 API Server 的真实字段校验，也不覆盖真实 MySQL 事务及异步同步时序。三种资源经真实 API Server、Controller、MySQL、Admin API 和 Envoy 的端到端联动仍需验证。
+当前 HTTP 合同测试使用生成的 fake client 和模拟查询模型验证路由、协议转换、版本冲突、元数据保留、删除和公开错误。投影包使用 controller-runtime fake client 与 sqlmock 直接调用三种 Reconciler，验证 Status 单独更新后的资源版本投影、启动补齐与残留清理、空资源集合、读取失败，以及写入或部分清理失败后再次协调的结果。SQL 期望同时检查资源字段和 Gateway Listener、Upstream Endpoint 子记录；这些测试不执行 API Server 的真实字段校验，也不证明真实 MySQL 事务、Manager 的首次入队、Watch 过滤或工作队列自动重试。三种资源经真实 API Server、Controller、MySQL、Admin API 和 Envoy 的端到端联动仍需验证。

@@ -54,6 +54,13 @@ type routeMatch struct {
 	pathValue    string
 }
 
+// routeReferences 只索引本轮资源；引用检查不占用匹配规则，也不修改输入。
+type routeReferences struct {
+	allGateways      map[string]bool
+	acceptedGateways map[string]*gatewayv1alpha1.Gateway
+	upstreams        map[string]*gatewayv1alpha1.Upstream
+}
+
 // resolve 根据同一轮列出的资源计算接纳结果；调用方负责 List 和发布失败的重试。
 func resolve(
 	gateways []gatewayv1alpha1.Gateway,
@@ -94,21 +101,7 @@ func (r *resolution) selectRoutes(
 	routes []gatewayv1alpha1.Route,
 	upstreams []gatewayv1alpha1.Upstream,
 ) {
-	allGateways := make(map[string]bool, len(gateways))
-	for i := range gateways {
-		allGateways[gateways[i].Name] = true
-	}
-
-	acceptedGateways := make(map[string]*gatewayv1alpha1.Gateway, len(r.gateways))
-	for _, gateway := range r.gateways {
-		acceptedGateways[gateway.Name] = gateway
-	}
-
-	upstreamsByName := make(map[string]*gatewayv1alpha1.Upstream, len(upstreams))
-	for i := range upstreams {
-		upstreamsByName[upstreams[i].Name] = &upstreams[i]
-	}
-
+	references := newRouteReferences(gateways, r.gateways, upstreams)
 	ordered := make([]*gatewayv1alpha1.Route, 0, len(routes))
 	for i := range routes {
 		ordered = append(ordered, &routes[i])
@@ -120,30 +113,9 @@ func (r *resolution) selectRoutes(
 	usedUpstreams := make(map[string]bool)
 	matches := make(map[routeMatch]*gatewayv1alpha1.Route)
 	for _, route := range ordered {
-		gateway, accepted := acceptedGateways[route.Spec.GatewayName]
-		if !accepted {
-			reason := gatewayMissing
-			if allGateways[route.Spec.GatewayName] {
-				reason = gatewayRejected
-			}
-			r.routeRejections = append(r.routeRejections, routeRejection{
-				route: route, reason: reason, relatedName: route.Spec.GatewayName,
-			})
-			continue
-		}
-
-		if !hasListener(gateway, route.Spec.ListenerName) {
-			r.routeRejections = append(r.routeRejections, routeRejection{
-				route: route, reason: listenerMissing, relatedName: route.Spec.ListenerName,
-			})
-			continue
-		}
-
-		upstream := upstreamsByName[route.Spec.UpstreamName]
-		if upstream == nil {
-			r.routeRejections = append(r.routeRejections, routeRejection{
-				route: route, reason: upstreamMissing, relatedName: route.Spec.UpstreamName,
-			})
+		upstream, rejection := references.resolve(route)
+		if rejection != nil {
+			r.routeRejections = append(r.routeRejections, *rejection)
 			continue
 		}
 
@@ -167,6 +139,51 @@ func (r *resolution) selectRoutes(
 			usedUpstreams[upstream.Name] = true
 		}
 	}
+}
+
+func newRouteReferences(
+	gateways []gatewayv1alpha1.Gateway,
+	acceptedGateways []*gatewayv1alpha1.Gateway,
+	upstreams []gatewayv1alpha1.Upstream,
+) routeReferences {
+	references := routeReferences{
+		allGateways:      make(map[string]bool, len(gateways)),
+		acceptedGateways: make(map[string]*gatewayv1alpha1.Gateway, len(acceptedGateways)),
+		upstreams:        make(map[string]*gatewayv1alpha1.Upstream, len(upstreams)),
+	}
+	for i := range gateways {
+		references.allGateways[gateways[i].Name] = true
+	}
+	for _, gateway := range acceptedGateways {
+		references.acceptedGateways[gateway.Name] = gateway
+	}
+	for i := range upstreams {
+		references.upstreams[upstreams[i].Name] = &upstreams[i]
+	}
+
+	return references
+}
+
+// resolve 按 Gateway、Listener、Upstream 的顺序检查引用；成功时 rejection 为 nil。
+func (r routeReferences) resolve(route *gatewayv1alpha1.Route) (*gatewayv1alpha1.Upstream, *routeRejection) {
+	gateway, accepted := r.acceptedGateways[route.Spec.GatewayName]
+	if !accepted {
+		reason := gatewayMissing
+		if r.allGateways[route.Spec.GatewayName] {
+			reason = gatewayRejected
+		}
+		return nil, &routeRejection{route: route, reason: reason, relatedName: route.Spec.GatewayName}
+	}
+	if !hasListener(gateway, route.Spec.ListenerName) {
+		return nil, &routeRejection{route: route, reason: listenerMissing, relatedName: route.Spec.ListenerName}
+	}
+
+	upstream := r.upstreams[route.Spec.UpstreamName]
+	if upstream == nil {
+		return nil, &routeRejection{route: route, reason: upstreamMissing, relatedName: route.Spec.UpstreamName}
+	}
+
+	return upstream, nil
 }
 
 func findListenerConflict(candidate *gatewayv1alpha1.Gateway, bindings []listenerBinding) (gatewayConflict, bool) {

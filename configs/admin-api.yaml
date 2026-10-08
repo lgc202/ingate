@@ -12,5 +12,11 @@ api_server:
   kubeconfig: /etc/ingate/admin-api.kubeconfig
 mysql:
   dsn: ingate:change-me@tcp(127.0.0.1:3306)/ingate
+log:
+  level: info
+  format: json
+  outputs: [stdout]
 redis:
-  url: redis://127.0.0.1:6379/0
+  addrs:
+    - 127.0.0.1:6379
+  db: 0

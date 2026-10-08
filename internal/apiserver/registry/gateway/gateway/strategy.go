@@ -17,6 +17,15 @@ import (
 	gatewayvalidation "github.com/lgc202/ingate/pkg/apis/gateway/validation"
 )
 
+type strategy struct {
+	runtime.ObjectTyper
+	names.NameGenerator
+}
+
+type statusStrategy struct {
+	strategy
+}
+
 var (
 	_ rest.RESTCreateStrategy  = strategy{}
 	_ rest.RESTUpdateStrategy  = strategy{}
@@ -27,17 +36,17 @@ var (
 	_ rest.ResetFieldsStrategy = statusStrategy{}
 )
 
-type strategy struct {
-	runtime.ObjectTyper
-	names.NameGenerator
-}
-
 // NewStrategy 创建 Gateway 主资源的 REST Strategy。
 func NewStrategy(typer runtime.ObjectTyper) strategy {
 	return strategy{
 		ObjectTyper:   typer,
 		NameGenerator: names.SimpleNameGenerator,
 	}
+}
+
+// NewStatusStrategy 创建 Gateway Status 子资源的 REST Strategy。
+func NewStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
+	return statusStrategy{strategy: NewStrategy(typer)}
 }
 
 // NamespaceScoped 表示 Gateway 是集群级资源。
@@ -107,15 +116,6 @@ func (strategy) WarningsOnUpdate(_ context.Context, _, _ runtime.Object) []strin
 // AllowUnconditionalUpdate 要求 Gateway 更新携带 resourceVersion。
 func (strategy) AllowUnconditionalUpdate(_ context.Context) bool {
 	return false
-}
-
-type statusStrategy struct {
-	strategy
-}
-
-// NewStatusStrategy 创建 Gateway Status 子资源的 REST Strategy。
-func NewStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
-	return statusStrategy{strategy: NewStrategy(typer)}
 }
 
 // GetResetFields 声明 Status 子资源入口不允许修改 Spec。

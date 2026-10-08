@@ -33,7 +33,9 @@ type Bootstrap struct {
 	// mysql 配置管理员账户与资源查询模型使用的 MySQL。
 	Mysql *MySQL `protobuf:"bytes,3,opt,name=mysql,proto3" json:"mysql,omitempty"`
 	// redis 配置管理员登录态使用的 Redis。
-	Redis         *Redis `protobuf:"bytes,4,opt,name=redis,proto3" json:"redis,omitempty"`
+	Redis *Redis `protobuf:"bytes,4,opt,name=redis,proto3" json:"redis,omitempty"`
+	// log 配置普通运行日志；省略时使用 info、JSON 和 stdout。
+	Log           *Log `protobuf:"bytes,5,opt,name=log,proto3" json:"log,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -96,6 +98,95 @@ func (x *Bootstrap) GetRedis() *Redis {
 	return nil
 }
 
+func (x *Bootstrap) GetLog() *Log {
+	if x != nil {
+		return x.Log
+	}
+	return nil
+}
+
+// Log 配置启动时固定的原生 slog 输出，不包含请求日志。
+type Log struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// level 省略时为 info。
+	Level string `protobuf:"bytes,1,opt,name=level,proto3" json:"level,omitempty"`
+	// format 省略时为 json。
+	Format string `protobuf:"bytes,2,opt,name=format,proto3" json:"format,omitempty"`
+	// outputs 可组合但不能重复；省略时只输出 stdout。
+	Outputs []string `protobuf:"bytes,3,rep,name=outputs,proto3" json:"outputs,omitempty"`
+	// add_source 是否在日志中附带调用位置。
+	AddSource bool `protobuf:"varint,4,opt,name=add_source,json=addSource,proto3" json:"add_source,omitempty"`
+	// file 仅在选择 file 输出时启用。
+	File          *Log_File `protobuf:"bytes,5,opt,name=file,proto3" json:"file,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Log) Reset() {
+	*x = Log{}
+	mi := &file_adminapi_conf_conf_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Log) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Log) ProtoMessage() {}
+
+func (x *Log) ProtoReflect() protoreflect.Message {
+	mi := &file_adminapi_conf_conf_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Log.ProtoReflect.Descriptor instead.
+func (*Log) Descriptor() ([]byte, []int) {
+	return file_adminapi_conf_conf_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Log) GetLevel() string {
+	if x != nil {
+		return x.Level
+	}
+	return ""
+}
+
+func (x *Log) GetFormat() string {
+	if x != nil {
+		return x.Format
+	}
+	return ""
+}
+
+func (x *Log) GetOutputs() []string {
+	if x != nil {
+		return x.Outputs
+	}
+	return nil
+}
+
+func (x *Log) GetAddSource() bool {
+	if x != nil {
+		return x.AddSource
+	}
+	return false
+}
+
+func (x *Log) GetFile() *Log_File {
+	if x != nil {
+		return x.File
+	}
+	return nil
+}
+
 // Server 配置 HTTP 和 gRPC 入站服务。
 type Server struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -109,7 +200,7 @@ type Server struct {
 
 func (x *Server) Reset() {
 	*x = Server{}
-	mi := &file_adminapi_conf_conf_proto_msgTypes[1]
+	mi := &file_adminapi_conf_conf_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -121,7 +212,7 @@ func (x *Server) String() string {
 func (*Server) ProtoMessage() {}
 
 func (x *Server) ProtoReflect() protoreflect.Message {
-	mi := &file_adminapi_conf_conf_proto_msgTypes[1]
+	mi := &file_adminapi_conf_conf_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -134,7 +225,7 @@ func (x *Server) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Server.ProtoReflect.Descriptor instead.
 func (*Server) Descriptor() ([]byte, []int) {
-	return file_adminapi_conf_conf_proto_rawDescGZIP(), []int{1}
+	return file_adminapi_conf_conf_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Server) GetHttp() *Server_HTTP {
@@ -162,7 +253,7 @@ type APIServer struct {
 
 func (x *APIServer) Reset() {
 	*x = APIServer{}
-	mi := &file_adminapi_conf_conf_proto_msgTypes[2]
+	mi := &file_adminapi_conf_conf_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -174,7 +265,7 @@ func (x *APIServer) String() string {
 func (*APIServer) ProtoMessage() {}
 
 func (x *APIServer) ProtoReflect() protoreflect.Message {
-	mi := &file_adminapi_conf_conf_proto_msgTypes[2]
+	mi := &file_adminapi_conf_conf_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -187,7 +278,7 @@ func (x *APIServer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use APIServer.ProtoReflect.Descriptor instead.
 func (*APIServer) Descriptor() ([]byte, []int) {
-	return file_adminapi_conf_conf_proto_rawDescGZIP(), []int{2}
+	return file_adminapi_conf_conf_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *APIServer) GetKubeconfig() string {
@@ -208,7 +299,7 @@ type MySQL struct {
 
 func (x *MySQL) Reset() {
 	*x = MySQL{}
-	mi := &file_adminapi_conf_conf_proto_msgTypes[3]
+	mi := &file_adminapi_conf_conf_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -220,7 +311,7 @@ func (x *MySQL) String() string {
 func (*MySQL) ProtoMessage() {}
 
 func (x *MySQL) ProtoReflect() protoreflect.Message {
-	mi := &file_adminapi_conf_conf_proto_msgTypes[3]
+	mi := &file_adminapi_conf_conf_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -233,7 +324,7 @@ func (x *MySQL) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MySQL.ProtoReflect.Descriptor instead.
 func (*MySQL) Descriptor() ([]byte, []int) {
-	return file_adminapi_conf_conf_proto_rawDescGZIP(), []int{3}
+	return file_adminapi_conf_conf_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *MySQL) GetDsn() string {
@@ -246,15 +337,46 @@ func (x *MySQL) GetDsn() string {
 // Redis 配置管理员登录态使用的数据库连接。
 type Redis struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// url 是 Redis 客户端使用的连接字符串。
-	Url           string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	// addrs 是单节点地址或 Sentinel/Cluster 种子地址，不是连接 URL。
+	Addrs []string `protobuf:"bytes,2,rep,name=addrs,proto3" json:"addrs,omitempty"`
+	// username 是 Redis 数据节点的 ACL 用户名。
+	Username string `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
+	// password 是 Redis 数据节点的密码，不得写入日志。
+	Password string `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`
+	// sentinel_username 是 Sentinel 自身的 ACL 用户名。
+	SentinelUsername string `protobuf:"bytes,5,opt,name=sentinel_username,json=sentinelUsername,proto3" json:"sentinel_username,omitempty"`
+	// sentinel_password 是 Sentinel 自身的密码，不得写入日志。
+	SentinelPassword string `protobuf:"bytes,6,opt,name=sentinel_password,json=sentinelPassword,proto3" json:"sentinel_password,omitempty"`
+	// db 是单节点或 Sentinel 的数据库编号；Redis Cluster 必须为 0。
+	Db int32 `protobuf:"varint,7,opt,name=db,proto3" json:"db,omitempty"`
+	// master_name 非空时，addrs 指向 Sentinel，由驱动发现主节点。
+	MasterName string `protobuf:"bytes,8,opt,name=master_name,json=masterName,proto3" json:"master_name,omitempty"`
+	// is_cluster_mode 可在只有一个种子地址时启用 ClusterClient。
+	// 与 master_name 一起设置时沿用驱动的 Sentinel FailoverClusterClient。
+	IsClusterMode bool `protobuf:"varint,9,opt,name=is_cluster_mode,json=isClusterMode,proto3" json:"is_cluster_mode,omitempty"`
+	// pool_size 是每个节点的连接池容量，0 沿用驱动默认值。
+	PoolSize int32 `protobuf:"varint,10,opt,name=pool_size,json=poolSize,proto3" json:"pool_size,omitempty"`
+	// min_idle_conns 是每个节点的最小空闲连接数，0 不预建空闲连接。
+	MinIdleConns int32 `protobuf:"varint,11,opt,name=min_idle_conns,json=minIdleConns,proto3" json:"min_idle_conns,omitempty"`
+	// dial_timeout 是连接超时，未配置时沿用驱动默认值。
+	DialTimeout *durationpb.Duration `protobuf:"bytes,12,opt,name=dial_timeout,json=dialTimeout,proto3" json:"dial_timeout,omitempty"`
+	// read_timeout 是读取超时，未配置时沿用驱动默认值。
+	ReadTimeout *durationpb.Duration `protobuf:"bytes,13,opt,name=read_timeout,json=readTimeout,proto3" json:"read_timeout,omitempty"`
+	// write_timeout 是写入超时，未配置时沿用驱动默认值。
+	WriteTimeout *durationpb.Duration `protobuf:"bytes,14,opt,name=write_timeout,json=writeTimeout,proto3" json:"write_timeout,omitempty"`
+	// pool_timeout 是等待可用连接的超时，未配置时沿用驱动默认值。
+	PoolTimeout *durationpb.Duration `protobuf:"bytes,15,opt,name=pool_timeout,json=poolTimeout,proto3" json:"pool_timeout,omitempty"`
+	// tls 启用 TLS，使用系统可信根并验证服务器证书。
+	Tls bool `protobuf:"varint,16,opt,name=tls,proto3" json:"tls,omitempty"`
+	// tls_server_name 可覆盖 TLS 证书验证使用的服务器名称。
+	TlsServerName string `protobuf:"bytes,17,opt,name=tls_server_name,json=tlsServerName,proto3" json:"tls_server_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Redis) Reset() {
 	*x = Redis{}
-	mi := &file_adminapi_conf_conf_proto_msgTypes[4]
+	mi := &file_adminapi_conf_conf_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -266,7 +388,7 @@ func (x *Redis) String() string {
 func (*Redis) ProtoMessage() {}
 
 func (x *Redis) ProtoReflect() protoreflect.Message {
-	mi := &file_adminapi_conf_conf_proto_msgTypes[4]
+	mi := &file_adminapi_conf_conf_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -279,14 +401,201 @@ func (x *Redis) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Redis.ProtoReflect.Descriptor instead.
 func (*Redis) Descriptor() ([]byte, []int) {
-	return file_adminapi_conf_conf_proto_rawDescGZIP(), []int{4}
+	return file_adminapi_conf_conf_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *Redis) GetUrl() string {
+func (x *Redis) GetAddrs() []string {
 	if x != nil {
-		return x.Url
+		return x.Addrs
+	}
+	return nil
+}
+
+func (x *Redis) GetUsername() string {
+	if x != nil {
+		return x.Username
 	}
 	return ""
+}
+
+func (x *Redis) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *Redis) GetSentinelUsername() string {
+	if x != nil {
+		return x.SentinelUsername
+	}
+	return ""
+}
+
+func (x *Redis) GetSentinelPassword() string {
+	if x != nil {
+		return x.SentinelPassword
+	}
+	return ""
+}
+
+func (x *Redis) GetDb() int32 {
+	if x != nil {
+		return x.Db
+	}
+	return 0
+}
+
+func (x *Redis) GetMasterName() string {
+	if x != nil {
+		return x.MasterName
+	}
+	return ""
+}
+
+func (x *Redis) GetIsClusterMode() bool {
+	if x != nil {
+		return x.IsClusterMode
+	}
+	return false
+}
+
+func (x *Redis) GetPoolSize() int32 {
+	if x != nil {
+		return x.PoolSize
+	}
+	return 0
+}
+
+func (x *Redis) GetMinIdleConns() int32 {
+	if x != nil {
+		return x.MinIdleConns
+	}
+	return 0
+}
+
+func (x *Redis) GetDialTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.DialTimeout
+	}
+	return nil
+}
+
+func (x *Redis) GetReadTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.ReadTimeout
+	}
+	return nil
+}
+
+func (x *Redis) GetWriteTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.WriteTimeout
+	}
+	return nil
+}
+
+func (x *Redis) GetPoolTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.PoolTimeout
+	}
+	return nil
+}
+
+func (x *Redis) GetTls() bool {
+	if x != nil {
+		return x.Tls
+	}
+	return false
+}
+
+func (x *Redis) GetTlsServerName() string {
+	if x != nil {
+		return x.TlsServerName
+	}
+	return ""
+}
+
+// File 配置一个进程独占的轮转文件，路径相对进程工作目录解析。
+type Log_File struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// path 在选择 file 输出时必须非空。
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// max_size_mb 为 0 时沿用 lumberjack 的 100 MiB 默认值。
+	MaxSizeMb int32 `protobuf:"varint,2,opt,name=max_size_mb,json=maxSizeMb,proto3" json:"max_size_mb,omitempty"`
+	// max_backups 为 0 时不按数量清理备份。
+	MaxBackups int32 `protobuf:"varint,3,opt,name=max_backups,json=maxBackups,proto3" json:"max_backups,omitempty"`
+	// max_age_days 为 0 时不按天数清理备份。
+	MaxAgeDays int32 `protobuf:"varint,4,opt,name=max_age_days,json=maxAgeDays,proto3" json:"max_age_days,omitempty"`
+	// compress 是否使用 gzip 压缩备份。
+	Compress      bool `protobuf:"varint,5,opt,name=compress,proto3" json:"compress,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Log_File) Reset() {
+	*x = Log_File{}
+	mi := &file_adminapi_conf_conf_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Log_File) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Log_File) ProtoMessage() {}
+
+func (x *Log_File) ProtoReflect() protoreflect.Message {
+	mi := &file_adminapi_conf_conf_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Log_File.ProtoReflect.Descriptor instead.
+func (*Log_File) Descriptor() ([]byte, []int) {
+	return file_adminapi_conf_conf_proto_rawDescGZIP(), []int{1, 0}
+}
+
+func (x *Log_File) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *Log_File) GetMaxSizeMb() int32 {
+	if x != nil {
+		return x.MaxSizeMb
+	}
+	return 0
+}
+
+func (x *Log_File) GetMaxBackups() int32 {
+	if x != nil {
+		return x.MaxBackups
+	}
+	return 0
+}
+
+func (x *Log_File) GetMaxAgeDays() int32 {
+	if x != nil {
+		return x.MaxAgeDays
+	}
+	return 0
+}
+
+func (x *Log_File) GetCompress() bool {
+	if x != nil {
+		return x.Compress
+	}
+	return false
 }
 
 // HTTP 配置 HTTP 服务。
@@ -304,7 +613,7 @@ type Server_HTTP struct {
 
 func (x *Server_HTTP) Reset() {
 	*x = Server_HTTP{}
-	mi := &file_adminapi_conf_conf_proto_msgTypes[5]
+	mi := &file_adminapi_conf_conf_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -316,7 +625,7 @@ func (x *Server_HTTP) String() string {
 func (*Server_HTTP) ProtoMessage() {}
 
 func (x *Server_HTTP) ProtoReflect() protoreflect.Message {
-	mi := &file_adminapi_conf_conf_proto_msgTypes[5]
+	mi := &file_adminapi_conf_conf_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -329,7 +638,7 @@ func (x *Server_HTTP) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Server_HTTP.ProtoReflect.Descriptor instead.
 func (*Server_HTTP) Descriptor() ([]byte, []int) {
-	return file_adminapi_conf_conf_proto_rawDescGZIP(), []int{1, 0}
+	return file_adminapi_conf_conf_proto_rawDescGZIP(), []int{2, 0}
 }
 
 func (x *Server_HTTP) GetNetwork() string {
@@ -368,7 +677,7 @@ type Server_GRPC struct {
 
 func (x *Server_GRPC) Reset() {
 	*x = Server_GRPC{}
-	mi := &file_adminapi_conf_conf_proto_msgTypes[6]
+	mi := &file_adminapi_conf_conf_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -380,7 +689,7 @@ func (x *Server_GRPC) String() string {
 func (*Server_GRPC) ProtoMessage() {}
 
 func (x *Server_GRPC) ProtoReflect() protoreflect.Message {
-	mi := &file_adminapi_conf_conf_proto_msgTypes[6]
+	mi := &file_adminapi_conf_conf_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -393,7 +702,7 @@ func (x *Server_GRPC) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Server_GRPC.ProtoReflect.Descriptor instead.
 func (*Server_GRPC) Descriptor() ([]byte, []int) {
-	return file_adminapi_conf_conf_proto_rawDescGZIP(), []int{1, 1}
+	return file_adminapi_conf_conf_proto_rawDescGZIP(), []int{2, 1}
 }
 
 func (x *Server_GRPC) GetNetwork() string {
@@ -421,13 +730,30 @@ var File_adminapi_conf_conf_proto protoreflect.FileDescriptor
 
 const file_adminapi_conf_conf_proto_rawDesc = "" +
 	"\n" +
-	"\x18adminapi/conf/conf.proto\x12\radminapi.conf\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\"\xeb\x01\n" +
+	"\x18adminapi/conf/conf.proto\x12\radminapi.conf\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\"\x91\x02\n" +
 	"\tBootstrap\x125\n" +
 	"\x06server\x18\x01 \x01(\v2\x15.adminapi.conf.ServerB\x06\xbaH\x03\xc8\x01\x01R\x06server\x12?\n" +
 	"\n" +
 	"api_server\x18\x02 \x01(\v2\x18.adminapi.conf.APIServerB\x06\xbaH\x03\xc8\x01\x01R\tapiServer\x122\n" +
 	"\x05mysql\x18\x03 \x01(\v2\x14.adminapi.conf.MySQLB\x06\xbaH\x03\xc8\x01\x01R\x05mysql\x122\n" +
-	"\x05redis\x18\x04 \x01(\v2\x14.adminapi.conf.RedisB\x06\xbaH\x03\xc8\x01\x01R\x05redis\"\xac\x03\n" +
+	"\x05redis\x18\x04 \x01(\v2\x14.adminapi.conf.RedisB\x06\xbaH\x03\xc8\x01\x01R\x05redis\x12$\n" +
+	"\x03log\x18\x05 \x01(\v2\x12.adminapi.conf.LogR\x03log\"\xb8\x04\n" +
+	"\x03Log\x127\n" +
+	"\x05level\x18\x01 \x01(\tB!\xbaH\x1er\x1cR\x00R\x05debugR\x04infoR\x04warnR\x05errorR\x05level\x12+\n" +
+	"\x06format\x18\x02 \x01(\tB\x13\xbaH\x10r\x0eR\x00R\x04jsonR\x04textR\x06format\x12<\n" +
+	"\aoutputs\x18\x03 \x03(\tB\"\xbaH\x1f\x92\x01\x1c\x18\x01\"\x18r\x16R\x06stdoutR\x06stderrR\x04fileR\aoutputs\x12\x1d\n" +
+	"\n" +
+	"add_source\x18\x04 \x01(\bR\taddSource\x12+\n" +
+	"\x04file\x18\x05 \x01(\v2\x17.adminapi.conf.Log.FileR\x04file\x1a\xb4\x01\n" +
+	"\x04File\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12'\n" +
+	"\vmax_size_mb\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\tmaxSizeMb\x12(\n" +
+	"\vmax_backups\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\n" +
+	"maxBackups\x12)\n" +
+	"\fmax_age_days\x18\x04 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\n" +
+	"maxAgeDays\x12\x1a\n" +
+	"\bcompress\x18\x05 \x01(\bR\bcompress:\x89\x01\xbaH\x85\x01\x1a\x82\x01\n" +
+	"\rlog.file_path\x12*file output requires a non-empty file path\x1aE!('file' in this.outputs) || (has(this.file) && this.file.path != '')\"\xac\x03\n" +
 	"\x06Server\x126\n" +
 	"\x04http\x18\x01 \x01(\v2\x1a.adminapi.conf.Server.HTTPB\x06\xbaH\x03\xc8\x01\x01R\x04http\x126\n" +
 	"\x04grpc\x18\x02 \x01(\v2\x1a.adminapi.conf.Server.GRPCB\x06\xbaH\x03\xc8\x01\x01R\x04grpc\x1a\x97\x01\n" +
@@ -444,9 +770,26 @@ const file_adminapi_conf_conf_proto_rawDesc = "" +
 	"kubeconfig\x18\x01 \x01(\tR\n" +
 	"kubeconfig\"\"\n" +
 	"\x05MySQL\x12\x19\n" +
-	"\x03dsn\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x03dsn\"\"\n" +
-	"\x05Redis\x12\x19\n" +
-	"\x03url\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x03urlB6Z4github.com/lgc202/ingate/internal/adminapi/conf;confb\x06proto3"
+	"\x03dsn\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x03dsn\"\xdd\x05\n" +
+	"\x05Redis\x12$\n" +
+	"\x05addrs\x18\x02 \x03(\tB\x0e\xbaH\v\x92\x01\b\b\x01\"\x04r\x02\x10\x01R\x05addrs\x12\x1a\n" +
+	"\busername\x18\x03 \x01(\tR\busername\x12\x1a\n" +
+	"\bpassword\x18\x04 \x01(\tR\bpassword\x12+\n" +
+	"\x11sentinel_username\x18\x05 \x01(\tR\x10sentinelUsername\x12+\n" +
+	"\x11sentinel_password\x18\x06 \x01(\tR\x10sentinelPassword\x12\x17\n" +
+	"\x02db\x18\a \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x02db\x12\x1f\n" +
+	"\vmaster_name\x18\b \x01(\tR\n" +
+	"masterName\x12&\n" +
+	"\x0fis_cluster_mode\x18\t \x01(\bR\risClusterMode\x12$\n" +
+	"\tpool_size\x18\n" +
+	" \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\bpoolSize\x12-\n" +
+	"\x0emin_idle_conns\x18\v \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\fminIdleConns\x12F\n" +
+	"\fdial_timeout\x18\f \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\vdialTimeout\x12F\n" +
+	"\fread_timeout\x18\r \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\vreadTimeout\x12H\n" +
+	"\rwrite_timeout\x18\x0e \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\fwriteTimeout\x12F\n" +
+	"\fpool_timeout\x18\x0f \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\vpoolTimeout\x12\x10\n" +
+	"\x03tls\x18\x10 \x01(\bR\x03tls\x12&\n" +
+	"\x0ftls_server_name\x18\x11 \x01(\tR\rtlsServerNameJ\x04\b\x01\x10\x02R\x03urlB6Z4github.com/lgc202/ingate/internal/adminapi/conf;confb\x06proto3"
 
 var (
 	file_adminapi_conf_conf_proto_rawDescOnce sync.Once
@@ -460,31 +803,39 @@ func file_adminapi_conf_conf_proto_rawDescGZIP() []byte {
 	return file_adminapi_conf_conf_proto_rawDescData
 }
 
-var file_adminapi_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_adminapi_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_adminapi_conf_conf_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: adminapi.conf.Bootstrap
-	(*Server)(nil),              // 1: adminapi.conf.Server
-	(*APIServer)(nil),           // 2: adminapi.conf.APIServer
-	(*MySQL)(nil),               // 3: adminapi.conf.MySQL
-	(*Redis)(nil),               // 4: adminapi.conf.Redis
-	(*Server_HTTP)(nil),         // 5: adminapi.conf.Server.HTTP
-	(*Server_GRPC)(nil),         // 6: adminapi.conf.Server.GRPC
-	(*durationpb.Duration)(nil), // 7: google.protobuf.Duration
+	(*Log)(nil),                 // 1: adminapi.conf.Log
+	(*Server)(nil),              // 2: adminapi.conf.Server
+	(*APIServer)(nil),           // 3: adminapi.conf.APIServer
+	(*MySQL)(nil),               // 4: adminapi.conf.MySQL
+	(*Redis)(nil),               // 5: adminapi.conf.Redis
+	(*Log_File)(nil),            // 6: adminapi.conf.Log.File
+	(*Server_HTTP)(nil),         // 7: adminapi.conf.Server.HTTP
+	(*Server_GRPC)(nil),         // 8: adminapi.conf.Server.GRPC
+	(*durationpb.Duration)(nil), // 9: google.protobuf.Duration
 }
 var file_adminapi_conf_conf_proto_depIdxs = []int32{
-	1, // 0: adminapi.conf.Bootstrap.server:type_name -> adminapi.conf.Server
-	2, // 1: adminapi.conf.Bootstrap.api_server:type_name -> adminapi.conf.APIServer
-	3, // 2: adminapi.conf.Bootstrap.mysql:type_name -> adminapi.conf.MySQL
-	4, // 3: adminapi.conf.Bootstrap.redis:type_name -> adminapi.conf.Redis
-	5, // 4: adminapi.conf.Server.http:type_name -> adminapi.conf.Server.HTTP
-	6, // 5: adminapi.conf.Server.grpc:type_name -> adminapi.conf.Server.GRPC
-	7, // 6: adminapi.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	7, // 7: adminapi.conf.Server.GRPC.timeout:type_name -> google.protobuf.Duration
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	2,  // 0: adminapi.conf.Bootstrap.server:type_name -> adminapi.conf.Server
+	3,  // 1: adminapi.conf.Bootstrap.api_server:type_name -> adminapi.conf.APIServer
+	4,  // 2: adminapi.conf.Bootstrap.mysql:type_name -> adminapi.conf.MySQL
+	5,  // 3: adminapi.conf.Bootstrap.redis:type_name -> adminapi.conf.Redis
+	1,  // 4: adminapi.conf.Bootstrap.log:type_name -> adminapi.conf.Log
+	6,  // 5: adminapi.conf.Log.file:type_name -> adminapi.conf.Log.File
+	7,  // 6: adminapi.conf.Server.http:type_name -> adminapi.conf.Server.HTTP
+	8,  // 7: adminapi.conf.Server.grpc:type_name -> adminapi.conf.Server.GRPC
+	9,  // 8: adminapi.conf.Redis.dial_timeout:type_name -> google.protobuf.Duration
+	9,  // 9: adminapi.conf.Redis.read_timeout:type_name -> google.protobuf.Duration
+	9,  // 10: adminapi.conf.Redis.write_timeout:type_name -> google.protobuf.Duration
+	9,  // 11: adminapi.conf.Redis.pool_timeout:type_name -> google.protobuf.Duration
+	9,  // 12: adminapi.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	9,  // 13: adminapi.conf.Server.GRPC.timeout:type_name -> google.protobuf.Duration
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_adminapi_conf_conf_proto_init() }
@@ -498,7 +849,7 @@ func file_adminapi_conf_conf_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_adminapi_conf_conf_proto_rawDesc), len(file_adminapi_conf_conf_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

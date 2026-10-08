@@ -3,6 +3,7 @@ package adminapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -22,36 +23,59 @@ import (
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
 	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
+	logconfig "github.com/lgc202/ingate/internal/pkg/log"
+	mysqlclient "github.com/lgc202/ingate/internal/pkg/mysql"
+	redisclient "github.com/lgc202/ingate/internal/pkg/redis"
+	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
 const componentName = "ingate-admin-api"
 
 // Run 组装并运行 Admin API，直到 Context 取消或服务退出。
-func Run(ctx context.Context, configFile string) error {
+func Run(ctx context.Context, configFile string) (runErr error) {
 	config, err := loadConfig(configFile)
 	if err != nil {
 		return fmt.Errorf("load Admin API config: %w", err)
 	}
+	logger, closeLog, err := logconfig.New(logConfig(config.GetLog()))
+	if err != nil {
+		return fmt.Errorf("initialize Admin API log: %w", err)
+	}
+	defer func() {
+		runErr = closeLogger(closeLog, runErr)
+	}()
+	logger = logger.With("service", componentName)
 
-	mysqlStore, err := mysqlstore.Open(config.GetMysql().GetDsn())
+	db, err := mysqlclient.Open(config.GetMysql().GetDsn())
 	if err != nil {
 		return fmt.Errorf("open MySQL store: %w", err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("get MySQL connection pool: %w", err)
+	}
 	defer func() {
-		if err := mysqlStore.Close(); err != nil {
-			slog.ErrorContext(ctx, "close MySQL store", "err", err)
+		if err := sqlDB.Close(); err != nil {
+			logger.ErrorContext(ctx, "close MySQL store", "err", err)
 		}
 	}()
+	mysqlStore := mysqlstore.New(db)
 
-	redisStore, err := redisstore.Open(ctx, config.GetRedis().GetUrl())
+	redisClient, err := redisclient.New(redisConfig(config.GetRedis()))
 	if err != nil {
 		return fmt.Errorf("open session store: %w", err)
 	}
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		// 清理失败不覆盖原始连接错误，保持启动探测的返回语义。
+		_ = redisClient.Close()
+		return fmt.Errorf("open session store: ping Redis: %w", err)
+	}
 	defer func() {
-		if err := redisStore.Close(); err != nil {
-			slog.ErrorContext(ctx, "close session store", "err", err)
+		if err := redisClient.Close(); err != nil {
+			logger.ErrorContext(ctx, "close session store", "err", err)
 		}
 	}()
+	redisStore := redisstore.New(redisClient)
 
 	accounts := repository.NewAccount(mysqlStore)
 	sessions := repository.NewSession(redisStore)
@@ -65,7 +89,7 @@ func Run(ctx context.Context, configFile string) error {
 		return fmt.Errorf("create API server store: %w", err)
 	}
 
-	app := newApp(ctx, config, apiServerStore, mysqlStore, accountService)
+	app := newApp(ctx, config, apiServerStore, mysqlStore, accountService, logger)
 	if err := app.Run(); err != nil {
 		return fmt.Errorf("run Admin API: %w", err)
 	}
@@ -79,6 +103,7 @@ func newApp(
 	apiServerStore *apiserverstore.Store,
 	mysqlStore *mysqlstore.Store,
 	accountService *accountservice.Service,
+	logger *slog.Logger,
 ) *kratos.App {
 	gateways := repository.NewGateway(apiServerStore.Gateways(), mysqlStore)
 	routes := repository.NewRoute(apiServerStore.Routes(), mysqlStore)
@@ -105,6 +130,15 @@ func newApp(
 	return kratos.New(
 		kratos.Context(ctx),
 		kratos.Name(componentName),
+		kratos.Version(version.Get().String()),
+		kratos.Logger(logger),
 		kratos.Server(httpServer, grpcServer),
 	)
+}
+
+func closeLogger(closeLog func() error, runErr error) error {
+	if err := closeLog(); err != nil {
+		return errors.Join(runErr, fmt.Errorf("close Admin API log: %w", err))
+	}
+	return runErr
 }

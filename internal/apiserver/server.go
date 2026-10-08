@@ -1,44 +1,35 @@
 package apiserver
 
 import (
-	"context"
+	"fmt"
 
-	"github.com/spf13/cobra"
+	genericapiserver "k8s.io/apiserver/pkg/server"
 )
 
-// NewCommand 创建 API Server 的启动命令。
-func NewCommand(ctx context.Context, options *Options) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   componentName,
-		Short: "Run the Ingate API server",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			// 校验先于 Config：后者可能准备 HTTPS Listener。
-			if err := options.Validate(); err != nil {
-				return err
-			}
-
-			return options.Run(cmd.Context())
-		},
-	}
-	cmd.SetContext(ctx)
-	options.AddFlags(cmd.Flags())
-
-	return cmd
+// Server 保存组装完成、尚未运行的 Generic API Server。
+type Server struct {
+	GenericAPIServer *genericapiserver.GenericAPIServer
 }
 
-// Run 组装并运行 API Server，直到 ctx 取消或服务返回错误。
-func (o *Options) Run(ctx context.Context) error {
-	config, err := o.Config()
+// New 组装 Generic API Server 并安装 Gateway API Group，但不启动服务。
+func (c completedConfig) New() (*Server, error) {
+	genericServer, err := c.genericConfig.New(
+		componentName,
+		genericapiserver.NewEmptyDelegate(),
+	)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("create generic API server: %w", err)
 	}
 
-	server, err := config.Complete().New()
-	if err != nil {
-		return err
+	server := &Server{GenericAPIServer: genericServer}
+	if err := installGatewayAPIGroup(
+		server.GenericAPIServer,
+		c.scheme,
+		c.genericConfig.RESTOptionsGetter,
+	); err != nil {
+		server.GenericAPIServer.Destroy()
+		return nil, err
 	}
 
-	// Generic API Server 统一管理启动与优雅退出。
-	return server.GenericAPIServer.PrepareRun().RunWithContext(ctx)
+	return server, nil
 }

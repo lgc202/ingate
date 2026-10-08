@@ -19,9 +19,6 @@ type Upstream struct {
 	Endpoints       []UpstreamEndpoint `gorm:"-"`
 }
 
-// TableName 返回 Upstream 使用的数据库表名。
-func (Upstream) TableName() string { return "upstreams" }
-
 // UpstreamEndpoint 对应 MySQL upstream_endpoints 表中的一个后端端点。
 type UpstreamEndpoint struct {
 	ID         uint64 `gorm:"column:id;primaryKey;autoIncrement"`
@@ -31,14 +28,17 @@ type UpstreamEndpoint struct {
 	Weight     int32  `gorm:"column:weight"`
 }
 
-// TableName 返回 UpstreamEndpoint 使用的数据库表名。
-func (UpstreamEndpoint) TableName() string { return "upstream_endpoints" }
-
 // UpstreamPage 保存一次列表查询的结果和总数。
 type UpstreamPage struct {
 	Items      []Upstream
 	TotalCount int64
 }
+
+// TableName 返回 Upstream 使用的数据库表名。
+func (Upstream) TableName() string { return "upstreams" }
+
+// TableName 返回 UpstreamEndpoint 使用的数据库表名。
+func (UpstreamEndpoint) TableName() string { return "upstream_endpoints" }
 
 // UpsertUpstream 在一个事务内更新 Upstream 及其 Endpoint 集合。
 func (s *Store) UpsertUpstream(ctx context.Context, upstream Upstream) error {

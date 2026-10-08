@@ -119,8 +119,8 @@ func (s *Service) Login(ctx context.Context, username, password string) (LoginRe
 		}
 		return LoginResult{}, fmt.Errorf("%w: read account: %w", ErrUnavailable, err)
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(account.PasswordHash), []byte(password)); err != nil {
-		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) || errors.Is(err, bcrypt.ErrPasswordTooLong) {
+	if err := verifyPassword(account.PasswordHash, password); err != nil {
+		if errors.Is(err, ErrInvalidCredentials) {
 			return LoginResult{}, ErrInvalidCredentials
 		}
 		return LoginResult{}, fmt.Errorf("%w: compare password: %w", ErrUnavailable, err)
@@ -200,8 +200,8 @@ func (s *Service) ChangePassword(ctx context.Context, accountID uint64, currentP
 	if err != nil {
 		return err
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(account.PasswordHash), []byte(currentPassword)); err != nil {
-		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) || errors.Is(err, bcrypt.ErrPasswordTooLong) {
+	if err := verifyPassword(account.PasswordHash, currentPassword); err != nil {
+		if errors.Is(err, ErrInvalidCredentials) {
 			return ErrInvalidCredentials
 		}
 		return fmt.Errorf("%w: compare current password: %w", ErrUnavailable, err)
@@ -230,6 +230,15 @@ func requireInitialAdmin(account domain.Account) error {
 	}
 
 	return nil
+}
+
+// verifyPassword 统一密码不匹配的错误分类，其他 bcrypt 错误由调用方补充用例上下文。
+func verifyPassword(hash, password string) error {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) || errors.Is(err, bcrypt.ErrPasswordTooLong) {
+		return ErrInvalidCredentials
+	}
+	return err
 }
 
 func sessionID(token string) string {

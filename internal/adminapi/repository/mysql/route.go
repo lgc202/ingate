@@ -23,14 +23,14 @@ type Route struct {
 	UpdatedAt       time.Time `gorm:"column:updated_at;autoCreateTime;autoUpdateTime"`
 }
 
-// TableName 返回 Route 使用的数据库表名。
-func (Route) TableName() string { return "routes" }
-
 // RoutePage 保存一次列表查询的结果和总数。
 type RoutePage struct {
 	Items      []Route
 	TotalCount int64
 }
+
+// TableName 返回 Route 使用的数据库表名。
+func (Route) TableName() string { return "routes" }
 
 // UpsertRoute 按名称创建或更新 Route。
 func (s *Store) UpsertRoute(ctx context.Context, route Route) error {

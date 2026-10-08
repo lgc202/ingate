@@ -7,9 +7,9 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"time"
 
 	mysqldriver "github.com/go-sql-driver/mysql"
+	mysqlclient "github.com/lgc202/ingate/internal/pkg/mysql"
 	"github.com/pressly/goose/v3"
 )
 
@@ -20,13 +20,10 @@ var migrationFiles embed.FS
 
 // Up 执行尚未应用的 Admin API 数据库迁移。
 func Up(ctx context.Context, dsn string) (err error) {
-	driverConfig, err := mysqldriver.ParseDSN(dsn)
+	driverConfig, err := mysqlclient.ParseDSN(dsn)
 	if err != nil {
-		return fmt.Errorf("parse MySQL DSN: %w", err)
+		return err
 	}
-	driverConfig.ParseTime = true
-	driverConfig.Loc = time.UTC
-	driverConfig.MultiStatements = false
 
 	connector, err := mysqldriver.NewConnector(driverConfig)
 	if err != nil {

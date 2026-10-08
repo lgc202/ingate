@@ -20,9 +20,6 @@ type Gateway struct {
 	Listeners       []GatewayListener `gorm:"-"`
 }
 
-// TableName 返回 Gateway 使用的数据库表名。
-func (Gateway) TableName() string { return "gateways" }
-
 // GatewayListener 对应 MySQL gateway_listeners 表中的监听入口。
 type GatewayListener struct {
 	ID        uint64 `gorm:"column:id;primaryKey;autoIncrement"`
@@ -33,14 +30,17 @@ type GatewayListener struct {
 	Hostname  string `gorm:"column:hostname"`
 }
 
-// TableName 返回 GatewayListener 使用的数据库表名。
-func (GatewayListener) TableName() string { return "gateway_listeners" }
-
 // GatewayPage 保存一次列表查询的结果和总数。
 type GatewayPage struct {
 	Items      []Gateway
 	TotalCount int64
 }
+
+// TableName 返回 Gateway 使用的数据库表名。
+func (Gateway) TableName() string { return "gateways" }
+
+// TableName 返回 GatewayListener 使用的数据库表名。
+func (GatewayListener) TableName() string { return "gateway_listeners" }
 
 // UpsertGateway 在一个事务内更新 Gateway 及其 Listener 集合。
 func (s *Store) UpsertGateway(ctx context.Context, gateway Gateway) error {

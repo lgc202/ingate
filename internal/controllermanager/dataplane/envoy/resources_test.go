@@ -1,15 +1,119 @@
 package envoy
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
 	clusterv3 "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	cachetypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	resourcev3 "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/lgc202/ingate/internal/controllermanager/dataplane"
 )
+
+func TestNewClusterEndpointAssignment(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		endpoints []dataplane.Endpoint
+		want      []dataplane.Endpoint
+		wantType  clusterv3.Cluster_DiscoveryType
+	}{
+		{
+			name: "IP",
+			endpoints: []dataplane.Endpoint{
+				{Address: "2001:db8::1", Port: 9000, Weight: 1},
+				{Address: "192.0.2.1", Port: 9001, Weight: 3},
+				{Address: "192.0.2.1", Port: 9000, Weight: 2},
+				{Address: "192.0.2.1", Port: 9000, Weight: 1},
+			},
+			want: []dataplane.Endpoint{
+				{Address: "192.0.2.1", Port: 9000, Weight: 1},
+				{Address: "192.0.2.1", Port: 9000, Weight: 2},
+				{Address: "192.0.2.1", Port: 9001, Weight: 3},
+				{Address: "2001:db8::1", Port: 9000, Weight: 1},
+			},
+			wantType: clusterv3.Cluster_EDS,
+		},
+		{
+			name: "mixed IP and DNS",
+			endpoints: []dataplane.Endpoint{
+				{Address: "backend.example.com", Port: 9000, Weight: 2},
+				{Address: "192.0.2.1", Port: 9001, Weight: 1},
+			},
+			want: []dataplane.Endpoint{
+				{Address: "192.0.2.1", Port: 9001, Weight: 1},
+				{Address: "backend.example.com", Port: 9000, Weight: 2},
+			},
+			wantType: clusterv3.Cluster_STRICT_DNS,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			before := slices.Clone(tt.endpoints)
+			cluster, assignment, err := newCluster(dataplane.Upstream{Name: "backend", Endpoints: tt.endpoints})
+			if err != nil {
+				t.Fatalf("newCluster(%v) error = %v, want nil", tt.endpoints, err)
+			}
+			if got := cluster.GetType(); got != tt.wantType {
+				t.Errorf("newCluster(%v) discovery type = %v, want %v", tt.endpoints, got, tt.wantType)
+			}
+			if got := assignment.ClusterName; got != "upstream/backend" {
+				t.Errorf("newCluster(%v) assignment name = %q, want upstream/backend", tt.endpoints, got)
+			}
+			if len(assignment.Endpoints) != 1 {
+				t.Fatalf("newCluster(%v) localities = %d, want 1", tt.endpoints, len(assignment.Endpoints))
+			}
+
+			var got []dataplane.Endpoint
+			for _, endpoint := range assignment.Endpoints[0].LbEndpoints {
+				address := endpoint.GetEndpoint().GetAddress().GetSocketAddress()
+				got = append(got, dataplane.Endpoint{
+					Address: address.GetAddress(), Port: int32(address.GetPortValue()),
+					Weight: int32(endpoint.GetLoadBalancingWeight().GetValue()),
+				})
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("newCluster(%v) endpoints mismatch (-want +got):\n%s", tt.endpoints, diff)
+			}
+			if diff := cmp.Diff(before, tt.endpoints); diff != "" {
+				t.Errorf("newCluster(%v) modified input (-want +got):\n%s", before, diff)
+			}
+			if tt.wantType == clusterv3.Cluster_STRICT_DNS {
+				if cluster.LoadAssignment != assignment || cluster.EdsClusterConfig != nil {
+					t.Errorf("newCluster(%v) did not embed DNS assignment or unexpectedly configured EDS", tt.endpoints)
+				}
+			} else if cluster.LoadAssignment != nil || cluster.GetEdsClusterConfig().GetServiceName() != "upstream/backend" {
+				t.Errorf("newCluster(%v) did not configure EDS service or unexpectedly embedded assignment", tt.endpoints)
+			}
+		})
+	}
+}
+
+func TestNewClusterRejectsInvalidEndpoint(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		endpoint   dataplane.Endpoint
+		wantPrefix string
+	}{
+		{name: "IP weight", endpoint: dataplane.Endpoint{Address: "192.0.2.1", Port: 9000}, wantPrefix: "validate endpoints for \"upstream/backend\": "},
+		{name: "DNS weight", endpoint: dataplane.Endpoint{Address: "backend.example.com", Port: 9000}, wantPrefix: "validate cluster \"upstream/backend\": "},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cluster, assignment, err := newCluster(dataplane.Upstream{Name: "backend", Endpoints: []dataplane.Endpoint{tt.endpoint}})
+			if err == nil {
+				t.Fatalf("newCluster(%+v) error = nil, want validation error", tt.endpoint)
+			}
+			if cluster != nil || assignment != nil {
+				t.Errorf("newCluster(%+v) = (%v, %v), want nil results on error", tt.endpoint, cluster, assignment)
+			}
+			if !strings.HasPrefix(err.Error(), tt.wantPrefix) {
+				t.Errorf("newCluster(%+v) error = %v, want prefix %q", tt.endpoint, err, tt.wantPrefix)
+			}
+		})
+	}
+}
 
 func TestBuildResources(t *testing.T) {
 	config := dataplane.Config{

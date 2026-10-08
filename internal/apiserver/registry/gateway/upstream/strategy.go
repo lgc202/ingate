@@ -19,6 +19,15 @@ import (
 	gatewayvalidation "github.com/lgc202/ingate/pkg/apis/gateway/validation"
 )
 
+type strategy struct {
+	runtime.ObjectTyper
+	names.NameGenerator
+}
+
+type statusStrategy struct {
+	strategy
+}
+
 var (
 	_ rest.RESTCreateStrategy  = strategy{}
 	_ rest.RESTUpdateStrategy  = strategy{}
@@ -29,17 +38,17 @@ var (
 	_ rest.ResetFieldsStrategy = statusStrategy{}
 )
 
-type strategy struct {
-	runtime.ObjectTyper
-	names.NameGenerator
-}
-
 // NewStrategy 创建 Upstream 主资源的 REST Strategy。
 func NewStrategy(typer runtime.ObjectTyper) strategy {
 	return strategy{
 		ObjectTyper:   typer,
 		NameGenerator: names.SimpleNameGenerator,
 	}
+}
+
+// NewStatusStrategy 创建 Upstream Status 子资源的 REST Strategy。
+func NewStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
+	return statusStrategy{strategy: NewStrategy(typer)}
 }
 
 // NamespaceScoped 表示 Upstream 是集群级资源。
@@ -113,25 +122,6 @@ func (strategy) AllowUnconditionalUpdate(_ context.Context) bool {
 	return false
 }
 
-func sortEndpoints(endpoints []gatewayapi.Endpoint) {
-	slices.SortFunc(endpoints, func(a, b gatewayapi.Endpoint) int {
-		if order := cmp.Compare(a.Address, b.Address); order != 0 {
-			return order
-		}
-
-		return cmp.Compare(a.Port, b.Port)
-	})
-}
-
-type statusStrategy struct {
-	strategy
-}
-
-// NewStatusStrategy 创建 Upstream Status 子资源的 REST Strategy。
-func NewStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
-	return statusStrategy{strategy: NewStrategy(typer)}
-}
-
 // GetResetFields 声明 Status 子资源入口不允许修改 Spec。
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
@@ -155,4 +145,14 @@ func (statusStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object)
 		obj.(*gatewayapi.Upstream),
 		old.(*gatewayapi.Upstream),
 	)
+}
+
+func sortEndpoints(endpoints []gatewayapi.Endpoint) {
+	slices.SortFunc(endpoints, func(a, b gatewayapi.Endpoint) int {
+		if order := cmp.Compare(a.Address, b.Address); order != 0 {
+			return order
+		}
+
+		return cmp.Compare(a.Port, b.Port)
+	})
 }
