@@ -1,0 +1,146 @@
+package httproute
+
+import (
+	"context"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
+
+	gatewayapi "github.com/lgc202/ingate/pkg/apis/gateway"
+	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
+)
+
+func TestStrategy(t *testing.T) {
+	strategy := NewStrategy(runtime.NewScheme())
+	ctx := context.Background()
+
+	if strategy.NamespaceScoped() {
+		t.Error("NamespaceScoped() = true, want false")
+	}
+	if strategy.AllowCreateOnUpdate(ctx) {
+		t.Error("AllowCreateOnUpdate() = true, want false")
+	}
+	if strategy.AllowUnconditionalUpdate(ctx) {
+		t.Error("AllowUnconditionalUpdate() = true, want false")
+	}
+
+	route := testHTTPRoute()
+	route.Generation = 9
+	route.Status.Parents = []gatewayapi.RouteParentStatus{{
+		ParentRef:      gatewayapi.ParentReference{Name: "edge"},
+		ControllerName: "gateway.ingate.io/test",
+		Conditions:     []metav1.Condition{{Type: "Accepted"}},
+	}}
+	strategy.PrepareForCreate(ctx, route)
+	if route.Generation != 1 || len(route.Status.Parents) != 0 {
+		t.Errorf("PrepareForCreate(HTTPRoute) = generation %d, status %#v; want 1 and empty status",
+			route.Generation, route.Status)
+	}
+
+	previous := testHTTPRoute()
+	previous.Generation = 3
+	previous.Status.Parents = []gatewayapi.RouteParentStatus{{
+		ParentRef:      gatewayapi.ParentReference{Name: "edge"},
+		ControllerName: "gateway.ingate.io/test",
+		Conditions:     []metav1.Condition{{Type: "Accepted"}},
+	}}
+
+	metadataOnly := previous.DeepCopy()
+	metadataOnly.Status = gatewayapi.HTTPRouteStatus{}
+	strategy.PrepareForUpdate(ctx, metadataOnly, previous)
+	if metadataOnly.Generation != 3 {
+		t.Errorf("PrepareForUpdate(metadata only) generation = %d, want 3", metadataOnly.Generation)
+	}
+
+	next := previous.DeepCopy()
+	next.Spec.Rules[0].Matches[0].Path.Value = "/v1"
+	next.Status = gatewayapi.HTTPRouteStatus{}
+	strategy.PrepareForUpdate(ctx, next, previous)
+	if next.Generation != 4 {
+		t.Errorf("PrepareForUpdate(spec changed) generation = %d, want 4", next.Generation)
+	}
+	if diff := cmp.Diff(previous.Status, next.Status); diff != "" {
+		t.Errorf("PrepareForUpdate(spec changed) status mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestStatusStrategy(t *testing.T) {
+	previous := testHTTPRoute()
+	previous.Generation = 3
+	previous.Labels = map[string]string{"environment": "production"}
+	previous.Finalizers = []string{"gateway.ingate.io/cleanup"}
+
+	next := previous.DeepCopy()
+	next.Generation = 99
+	next.Labels["environment"] = "test"
+	next.Finalizers = nil
+	next.Spec.Rules[0].Matches[0].Path.Value = "/v1"
+	next.Status.Parents = []gatewayapi.RouteParentStatus{{
+		ParentRef:      gatewayapi.ParentReference{Name: "edge"},
+		ControllerName: "gateway.ingate.io/test",
+		Conditions:     []metav1.Condition{{Type: "Accepted"}},
+	}}
+	wantStatus := *next.Status.DeepCopy()
+
+	NewStatusStrategy(runtime.NewScheme()).PrepareForUpdate(context.Background(), next, previous)
+	if diff := cmp.Diff(previous.Spec, next.Spec); diff != "" {
+		t.Errorf("StatusStrategy.PrepareForUpdate() spec mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(wantStatus, next.Status); diff != "" {
+		t.Errorf("StatusStrategy.PrepareForUpdate() status mismatch (-want +got):\n%s", diff)
+	}
+	if next.Generation != previous.Generation {
+		t.Errorf("StatusStrategy.PrepareForUpdate() generation = %d, want %d",
+			next.Generation, previous.Generation)
+	}
+	if diff := cmp.Diff(previous.Labels, next.Labels); diff != "" {
+		t.Errorf("StatusStrategy.PrepareForUpdate() labels mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(previous.Finalizers, next.Finalizers); diff != "" {
+		t.Errorf("StatusStrategy.PrepareForUpdate() finalizers mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestResetFields(t *testing.T) {
+	version := fieldpath.APIVersion(gatewayv1alpha1.SchemeGroupVersion.String())
+	for _, tt := range []struct {
+		name string
+		got  map[fieldpath.APIVersion]*fieldpath.Set
+		want fieldpath.Path
+	}{
+		{
+			name: "main resource",
+			got:  NewStrategy(runtime.NewScheme()).GetResetFields(),
+			want: fieldpath.MakePathOrDie("status"),
+		},
+		{
+			name: "status",
+			got:  NewStatusStrategy(runtime.NewScheme()).GetResetFields(),
+			want: fieldpath.MakePathOrDie("spec"),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if len(tt.got) != 1 || tt.got[version] == nil || tt.got[version].Size() != 1 || !tt.got[version].Has(tt.want) {
+				t.Errorf("GetResetFields() = %v, want only %q for %q", tt.got, tt.want, version)
+			}
+		})
+	}
+}
+
+func testHTTPRoute() *gatewayapi.HTTPRoute {
+	return &gatewayapi.HTTPRoute{
+		ObjectMeta: metav1.ObjectMeta{Name: "api"},
+		Spec: gatewayapi.HTTPRouteSpec{
+			ParentRefs: []gatewayapi.ParentReference{{Name: "edge", SectionName: "http"}},
+			Rules: []gatewayapi.HTTPRouteRule{{
+				Matches: []gatewayapi.HTTPRouteMatch{{
+					Path: &gatewayapi.PathMatch{Type: gatewayapi.PathMatchPrefix, Value: "/api"},
+				}},
+				BackendRefs: []gatewayapi.BackendReference{{Name: "backend"}},
+			}},
+		},
+	}
+}

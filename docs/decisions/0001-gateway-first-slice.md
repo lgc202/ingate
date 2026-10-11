@@ -1,5 +1,7 @@
 # 0001：Gateway、Route、Upstream 首轮资源契约
 
+> 历史决策保留当时的 Route/Upstream 契约；2026-10-10 的 HTTPRoute/Backend 替换和行为变更见 [0011](0011-http-resource-contract.md)。
+
 - 状态：实施中，资源契约待最终评审
 
 ## 本轮范围

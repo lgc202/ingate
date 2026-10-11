@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"cmp"
+	"maps"
 	"slices"
 	"strings"
 
@@ -10,13 +11,13 @@ import (
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
-// resolution 是一轮协调的接纳结果，不修改输入资源，也不代表配置已经发布。
+// resolution 是本轮配置及父引用状态，不修改输入，也不代表数据面已 ACK。
 type resolution struct {
 	gateways         []*gatewayv1alpha1.Gateway
-	routes           []*gatewayv1alpha1.Route
-	upstreams        []*gatewayv1alpha1.Upstream
+	backends         []*gatewayv1alpha1.Backend
+	bindings         []routeBinding
 	gatewayConflicts []gatewayConflict
-	routeRejections  []routeRejection
+	parents          []parentResolution
 }
 
 type gatewayConflict struct {
@@ -26,50 +27,39 @@ type gatewayConflict struct {
 	ownerListenerName string
 }
 
-type routeRejection struct {
-	route       *gatewayv1alpha1.Route
-	reason      routeRejectionReason
-	relatedName string
-}
-
-type routeRejectionReason string
-
-const (
-	gatewayMissing  routeRejectionReason = "GatewayMissing"
-	gatewayRejected routeRejectionReason = "GatewayRejected"
-	listenerMissing routeRejectionReason = "ListenerMissing"
-	upstreamMissing routeRejectionReason = "UpstreamMissing"
-	matchConflict   routeRejectionReason = "MatchConflict"
-)
-
 type listenerBinding struct {
 	gateway  *gatewayv1alpha1.Gateway
 	listener gatewayv1alpha1.Listener
 }
 
-type routeMatch struct {
+type routeBinding struct {
+	route        *gatewayv1alpha1.HTTPRoute
 	gatewayName  string
 	listenerName string
-	pathType     gatewayv1alpha1.PathMatchType
-	pathValue    string
+	ruleIndex    int
+	matchIndex   int
+	path         gatewayv1alpha1.PathMatch
+	backendName  string
 }
 
-// routeReferences 只索引本轮资源；引用检查不占用匹配规则，也不修改输入。
-type routeReferences struct {
-	allGateways      map[string]bool
-	acceptedGateways map[string]*gatewayv1alpha1.Gateway
-	upstreams        map[string]*gatewayv1alpha1.Upstream
+type parentResolution struct {
+	routeName      string
+	parentRef      gatewayv1alpha1.ParentReference
+	accepted       bool
+	reason         string
+	message        string
+	missingBackend string
 }
 
-// resolve 根据同一轮列出的资源计算接纳结果；调用方负责 List 和发布失败的重试。
+// resolve 按创建时间和名称稳定排列候选；引用失效不移除路径匹配。
 func resolve(
 	gateways []gatewayv1alpha1.Gateway,
-	routes []gatewayv1alpha1.Route,
-	upstreams []gatewayv1alpha1.Upstream,
+	routes []gatewayv1alpha1.HTTPRoute,
+	backends []gatewayv1alpha1.Backend,
 ) resolution {
 	var result resolution
 	result.selectGateways(gateways)
-	result.selectRoutes(gateways, routes, upstreams)
+	result.selectRoutes(routes, backends)
 	return result
 }
 
@@ -96,94 +86,115 @@ func (r *resolution) selectGateways(gateways []gatewayv1alpha1.Gateway) {
 	}
 }
 
-func (r *resolution) selectRoutes(
-	gateways []gatewayv1alpha1.Gateway,
-	routes []gatewayv1alpha1.Route,
-	upstreams []gatewayv1alpha1.Upstream,
-) {
-	references := newRouteReferences(gateways, r.gateways, upstreams)
-	ordered := make([]*gatewayv1alpha1.Route, 0, len(routes))
-	for i := range routes {
-		ordered = append(ordered, &routes[i])
+func (r *resolution) selectRoutes(routes []gatewayv1alpha1.HTTPRoute, backends []gatewayv1alpha1.Backend) {
+	gatewaysByName := make(map[string]*gatewayv1alpha1.Gateway, len(r.gateways))
+	for _, gateway := range r.gateways {
+		gatewaysByName[gateway.Name] = gateway
 	}
-	slices.SortFunc(ordered, func(a, b *gatewayv1alpha1.Route) int {
+	backendsByName := make(map[string]*gatewayv1alpha1.Backend, len(backends))
+	for i := range backends {
+		backendsByName[backends[i].Name] = &backends[i]
+	}
+	ordered := make([]*gatewayv1alpha1.HTTPRoute, len(routes))
+	for i := range routes {
+		ordered[i] = &routes[i]
+	}
+	slices.SortFunc(ordered, func(a, b *gatewayv1alpha1.HTTPRoute) int {
 		return compareMeta(a.ObjectMeta, b.ObjectMeta)
 	})
 
-	usedUpstreams := make(map[string]bool)
-	matches := make(map[routeMatch]*gatewayv1alpha1.Route)
+	used := make(map[string]bool)
 	for _, route := range ordered {
-		upstream, rejection := references.resolve(route)
-		if rejection != nil {
-			r.routeRejections = append(r.routeRejections, *rejection)
+		for _, parent := range route.Spec.ParentRefs {
+			state := r.attachParent(route, parent, gatewaysByName[parent.Name], backendsByName, used)
+			for _, rule := range route.Spec.Rules {
+				for _, ref := range rule.BackendRefs {
+					if backendsByName[ref.Name] == nil && state.missingBackend == "" {
+						state.missingBackend = ref.Name
+					}
+				}
+			}
+			r.parents = append(r.parents, state)
+		}
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(used)) {
+		r.backends = append(r.backends, backendsByName[name])
+	}
+}
+
+func (r *resolution) attachParent(
+	route *gatewayv1alpha1.HTTPRoute,
+	parent gatewayv1alpha1.ParentReference,
+	gateway *gatewayv1alpha1.Gateway,
+	backends map[string]*gatewayv1alpha1.Backend,
+	used map[string]bool,
+) parentResolution {
+	state := parentResolution{
+		routeName: route.Name,
+		parentRef: parent,
+		reason:    "NoMatchingParent",
+		message:   "no accepted HTTP listener matches the parent reference",
+	}
+	if gateway == nil {
+		return state
+	}
+
+	for _, listener := range gateway.Spec.Listeners {
+		if listener.Protocol != gatewayv1alpha1.ProtocolHTTP {
+			continue
+		}
+		if parent.SectionName != "" && parent.SectionName != listener.Name {
 			continue
 		}
 
-		match := routeMatch{
-			gatewayName:  route.Spec.GatewayName,
-			listenerName: route.Spec.ListenerName,
-			pathType:     route.Spec.Path.Type,
-			pathValue:    canonicalPath(route.Spec.Path),
+		state.accepted = true
+		state.reason = "Accepted"
+		state.message = "attached to at least one HTTP listener"
+		r.bindRules(route, gateway.Name, listener.Name, backends, used)
+	}
+
+	return state
+}
+
+func (r *resolution) bindRules(
+	route *gatewayv1alpha1.HTTPRoute,
+	gatewayName, listenerName string,
+	backends map[string]*gatewayv1alpha1.Backend,
+	used map[string]bool,
+) {
+	for i, rule := range route.Spec.Rules {
+		// API 只接受单个目标，异常的多引用不能被静默裁剪为第一个。
+		backendName := ""
+		if len(rule.BackendRefs) == 1 && backends[rule.BackendRefs[0].Name] != nil {
+			backendName = rule.BackendRefs[0].Name
+			used[backendName] = true
 		}
-		if owner := matches[match]; owner != nil {
-			r.routeRejections = append(r.routeRejections, routeRejection{
-				route: route, reason: matchConflict, relatedName: owner.Name,
+
+		matches := rule.Matches
+		if len(matches) == 0 {
+			matches = []gatewayv1alpha1.HTTPRouteMatch{{}}
+		}
+		for j, match := range matches {
+			r.bindings = append(r.bindings, routeBinding{
+				route:        route,
+				gatewayName:  gatewayName,
+				listenerName: listenerName,
+				ruleIndex:    i,
+				matchIndex:   j,
+				path:         defaultPath(match.Path),
+				backendName:  backendName,
 			})
-			continue
-		}
-
-		r.routes = append(r.routes, route)
-		matches[match] = route
-		if !usedUpstreams[upstream.Name] {
-			r.upstreams = append(r.upstreams, upstream)
-			usedUpstreams[upstream.Name] = true
 		}
 	}
 }
 
-func newRouteReferences(
-	gateways []gatewayv1alpha1.Gateway,
-	acceptedGateways []*gatewayv1alpha1.Gateway,
-	upstreams []gatewayv1alpha1.Upstream,
-) routeReferences {
-	references := routeReferences{
-		allGateways:      make(map[string]bool, len(gateways)),
-		acceptedGateways: make(map[string]*gatewayv1alpha1.Gateway, len(acceptedGateways)),
-		upstreams:        make(map[string]*gatewayv1alpha1.Upstream, len(upstreams)),
-	}
-	for i := range gateways {
-		references.allGateways[gateways[i].Name] = true
-	}
-	for _, gateway := range acceptedGateways {
-		references.acceptedGateways[gateway.Name] = gateway
-	}
-	for i := range upstreams {
-		references.upstreams[upstreams[i].Name] = &upstreams[i]
+func compareMeta(a, b metav1.ObjectMeta) int {
+	if order := a.CreationTimestamp.Compare(b.CreationTimestamp.Time); order != 0 {
+		return order
 	}
 
-	return references
-}
-
-// resolve 按 Gateway、Listener、Upstream 的顺序检查引用；成功时 rejection 为 nil。
-func (r routeReferences) resolve(route *gatewayv1alpha1.Route) (*gatewayv1alpha1.Upstream, *routeRejection) {
-	gateway, accepted := r.acceptedGateways[route.Spec.GatewayName]
-	if !accepted {
-		reason := gatewayMissing
-		if r.allGateways[route.Spec.GatewayName] {
-			reason = gatewayRejected
-		}
-		return nil, &routeRejection{route: route, reason: reason, relatedName: route.Spec.GatewayName}
-	}
-	if !hasListener(gateway, route.Spec.ListenerName) {
-		return nil, &routeRejection{route: route, reason: listenerMissing, relatedName: route.Spec.ListenerName}
-	}
-
-	upstream := r.upstreams[route.Spec.UpstreamName]
-	if upstream == nil {
-		return nil, &routeRejection{route: route, reason: upstreamMissing, relatedName: route.Spec.UpstreamName}
-	}
-
-	return upstream, nil
+	return cmp.Compare(a.Name, b.Name)
 }
 
 func findListenerConflict(candidate *gatewayv1alpha1.Gateway, bindings []listenerBinding) (gatewayConflict, bool) {
@@ -208,29 +219,18 @@ func findListenerConflict(candidate *gatewayv1alpha1.Gateway, bindings []listene
 	return gatewayConflict{}, false
 }
 
-func hasListener(gateway *gatewayv1alpha1.Gateway, name string) bool {
-	for _, listener := range gateway.Spec.Listeners {
-		if listener.Name == name {
-			return true
+func defaultPath(path *gatewayv1alpha1.PathMatch) gatewayv1alpha1.PathMatch {
+	result := gatewayv1alpha1.PathMatch{Type: gatewayv1alpha1.PathMatchPrefix, Value: "/"}
+	if path != nil {
+		if path.Type != "" {
+			result.Type = path.Type
+		}
+		if path.Value != "" {
+			result.Value = path.Value
 		}
 	}
-
-	return false
-}
-
-// canonicalPath 使尾斜杠不同的 PathPrefix 表示同一条路径段匹配规则。
-func canonicalPath(path gatewayv1alpha1.PathMatch) string {
-	if path.Type != gatewayv1alpha1.PathMatchPrefix || path.Value == "/" {
-		return path.Value
+	if result.Type == gatewayv1alpha1.PathMatchPrefix && result.Value != "/" {
+		result.Value = strings.TrimSuffix(result.Value, "/")
 	}
-
-	return strings.TrimSuffix(path.Value, "/")
-}
-
-func compareMeta(a, b metav1.ObjectMeta) int {
-	if order := a.CreationTimestamp.Compare(b.CreationTimestamp.Time); order != 0 {
-		return order
-	}
-
-	return cmp.Compare(a.Name, b.Name)
+	return result
 }

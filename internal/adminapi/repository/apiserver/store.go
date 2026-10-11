@@ -37,14 +37,14 @@ func (s *Store) Gateways() gatewayclient.GatewayInterface {
 	return s.client.GatewayV1alpha1().Gateways()
 }
 
-// Routes 返回 Route 资源客户端。
-func (s *Store) Routes() gatewayclient.RouteInterface {
-	return s.client.GatewayV1alpha1().Routes()
+// HTTPRoutes 返回 HTTPRoute 资源客户端。
+func (s *Store) HTTPRoutes() gatewayclient.HTTPRouteInterface {
+	return s.client.GatewayV1alpha1().HTTPRoutes()
 }
 
-// Upstreams 返回 Upstream 资源客户端。
-func (s *Store) Upstreams() gatewayclient.UpstreamInterface {
-	return s.client.GatewayV1alpha1().Upstreams()
+// Backends 返回 Backend 资源客户端。
+func (s *Store) Backends() gatewayclient.BackendInterface {
+	return s.client.GatewayV1alpha1().Backends()
 }
 
 func loadConfig(kubeconfig string) (*rest.Config, error) {

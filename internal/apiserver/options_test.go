@@ -31,8 +31,8 @@ func TestOpenAPIDefinitions(t *testing.T) {
 
 	for _, modelName := range []string{
 		gatewayv1alpha1.Gateway{}.OpenAPIModelName(),
-		gatewayv1alpha1.Route{}.OpenAPIModelName(),
-		gatewayv1alpha1.Upstream{}.OpenAPIModelName(),
+		gatewayv1alpha1.HTTPRoute{}.OpenAPIModelName(),
+		gatewayv1alpha1.Backend{}.OpenAPIModelName(),
 	} {
 		if _, ok := definitions[modelName]; !ok {
 			t.Errorf("GetOpenAPIDefinitions()[%q] exists = false, want true", modelName)

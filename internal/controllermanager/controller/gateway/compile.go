@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 
@@ -15,13 +16,13 @@ type listenerRef struct {
 // compile 只转换已接纳资源；跨资源引用和冲突已由 resolve 处理。
 func compile(result resolution) dataplane.Config {
 	routesByListener := make(map[listenerRef][]dataplane.Route)
-	for _, route := range result.routes {
-		ref := listenerRef{gatewayName: route.Spec.GatewayName, listenerName: route.Spec.ListenerName}
+	for _, binding := range result.bindings {
+		ref := listenerRef{gatewayName: binding.gatewayName, listenerName: binding.listenerName}
 		routesByListener[ref] = append(routesByListener[ref], dataplane.Route{
-			Name:         route.Name,
-			PathType:     dataplane.PathMatchType(route.Spec.Path.Type),
-			Path:         canonicalPath(route.Spec.Path),
-			UpstreamName: route.Spec.UpstreamName,
+			Name:        fmt.Sprintf("%s/rule/%d/match/%d", binding.route.Name, binding.ruleIndex, binding.matchIndex),
+			PathType:    dataplane.PathMatchType(binding.path.Type),
+			Path:        binding.path.Value,
+			BackendName: binding.backendName,
 		})
 	}
 
@@ -48,17 +49,17 @@ func compile(result resolution) dataplane.Config {
 		config.Listeners = append(config.Listeners, *listenersByPort[port])
 	}
 
-	for _, upstream := range result.upstreams {
-		endpoints := make([]dataplane.Endpoint, len(upstream.Spec.Endpoints))
-		for i, endpoint := range upstream.Spec.Endpoints {
+	for _, backend := range result.backends {
+		endpoints := make([]dataplane.Endpoint, len(backend.Spec.Endpoints))
+		for i, endpoint := range backend.Spec.Endpoints {
 			endpoints[i] = dataplane.Endpoint{
 				Address: endpoint.Address,
 				Port:    endpoint.Port,
 				Weight:  endpoint.Weight,
 			}
 		}
-		config.Upstreams = append(config.Upstreams, dataplane.Upstream{
-			Name:      upstream.Name,
+		config.Backends = append(config.Backends, dataplane.Backend{
+			Name:      backend.Name,
 			Endpoints: endpoints,
 		})
 	}

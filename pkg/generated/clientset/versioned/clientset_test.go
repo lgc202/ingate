@@ -26,29 +26,29 @@ func TestGeneratedResourceClients(t *testing.T) {
 		t.Errorf("Gateways().Get(edge).Name = %q, want edge", gateway.Name)
 	}
 
-	if _, err := resources.Routes().Create(t.Context(), &gatewayv1alpha1.Route{
+	if _, err := resources.HTTPRoutes().Create(t.Context(), &gatewayv1alpha1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{Name: "web"},
 	}, metav1.CreateOptions{}); err != nil {
-		t.Fatalf("Routes().Create(web) error = %v, want nil", err)
+		t.Fatalf("HTTPRoutes().Create(web) error = %v, want nil", err)
 	}
-	route, err := resources.Routes().Get(t.Context(), "web", metav1.GetOptions{})
+	route, err := resources.HTTPRoutes().Get(t.Context(), "web", metav1.GetOptions{})
 	if err != nil {
-		t.Fatalf("Routes().Get(web) error = %v, want nil", err)
+		t.Fatalf("HTTPRoutes().Get(web) error = %v, want nil", err)
 	}
 	if route.Name != "web" {
-		t.Errorf("Routes().Get(web).Name = %q, want web", route.Name)
+		t.Errorf("HTTPRoutes().Get(web).Name = %q, want web", route.Name)
 	}
 
-	if _, err := resources.Upstreams().Create(t.Context(), &gatewayv1alpha1.Upstream{
+	if _, err := resources.Backends().Create(t.Context(), &gatewayv1alpha1.Backend{
 		ObjectMeta: metav1.ObjectMeta{Name: "backend"},
 	}, metav1.CreateOptions{}); err != nil {
-		t.Fatalf("Upstreams().Create(backend) error = %v, want nil", err)
+		t.Fatalf("Backends().Create(backend) error = %v, want nil", err)
 	}
-	upstream, err := resources.Upstreams().Get(t.Context(), "backend", metav1.GetOptions{})
+	backend, err := resources.Backends().Get(t.Context(), "backend", metav1.GetOptions{})
 	if err != nil {
-		t.Fatalf("Upstreams().Get(backend) error = %v, want nil", err)
+		t.Fatalf("Backends().Get(backend) error = %v, want nil", err)
 	}
-	if upstream.Name != "backend" {
-		t.Errorf("Upstreams().Get(backend).Name = %q, want backend", upstream.Name)
+	if backend.Name != "backend" {
+		t.Errorf("Backends().Get(backend).Name = %q, want backend", backend.Name)
 	}
 }

@@ -53,8 +53,8 @@ func buildResources(config dataplane.Config) (resourceSet, error) {
 		resources.listeners = append(resources.listeners, xdsListener)
 	}
 
-	for _, upstream := range config.Upstreams {
-		cluster, assignment, err := newCluster(upstream)
+	for _, backend := range config.Backends {
+		cluster, assignment, err := newCluster(backend)
 		if err != nil {
 			return resourceSet{}, err
 		}
@@ -95,25 +95,29 @@ func newVirtualHost(host dataplane.Host) (*routev3.VirtualHost, error) {
 	virtualHost := &routev3.VirtualHost{Name: host.Name, Domains: []string{domain}}
 
 	routes := slices.Clone(host.Routes)
-	slices.SortFunc(routes, compareRoutes)
+	slices.SortStableFunc(routes, compareRoutes)
 	for _, route := range routes {
 		match, err := newRouteMatch(route)
 		if err != nil {
 			return nil, fmt.Errorf("route %q: %w", route.Name, err)
 		}
-		virtualHost.Routes = append(virtualHost.Routes, &routev3.Route{
+		xdsRoute := &routev3.Route{
 			Name:  route.Name,
 			Match: match,
 			Action: &routev3.Route_Route{Route: &routev3.RouteAction{
-				ClusterSpecifier: &routev3.RouteAction_Cluster{Cluster: clusterName(route.UpstreamName)},
+				ClusterSpecifier: &routev3.RouteAction_Cluster{Cluster: clusterName(route.BackendName)},
 			}},
-		})
+		}
+		if route.BackendName == "" {
+			xdsRoute.Action = &routev3.Route_DirectResponse{DirectResponse: &routev3.DirectResponseAction{Status: 500}}
+		}
+		virtualHost.Routes = append(virtualHost.Routes, xdsRoute)
 	}
 
 	return virtualHost, nil
 }
 
-// Envoy 按数组顺序选择首个匹配项：精确匹配优先，前缀按长度递减，再按名称排序。
+// Envoy 按数组顺序选择首个匹配项；平局保留 Controller 的跨资源和规则列表排序。
 func compareRoutes(a, b dataplane.Route) int {
 	if a.PathType != b.PathType {
 		if a.PathType == dataplane.PathMatchExact {
@@ -129,7 +133,7 @@ func compareRoutes(a, b dataplane.Route) int {
 		return cmp.Compare(len(b.Path), len(a.Path))
 	}
 
-	return cmp.Compare(a.Name, b.Name)
+	return 0
 }
 
 func newRouteMatch(route dataplane.Route) (*routev3.RouteMatch, error) {
@@ -194,9 +198,9 @@ func newListener(port int32) (*listenerv3.Listener, error) {
 	return listener, nil
 }
 
-func newCluster(upstream dataplane.Upstream) (*clusterv3.Cluster, *endpointv3.ClusterLoadAssignment, error) {
-	name := clusterName(upstream.Name)
-	assignment, hasDNSName := newEndpointAssignment(name, upstream.Endpoints)
+func newCluster(backend dataplane.Backend) (*clusterv3.Cluster, *endpointv3.ClusterLoadAssignment, error) {
+	name := clusterName(backend.Name)
+	assignment, hasDNSName := newEndpointAssignment(name, backend.Endpoints)
 	cluster := &clusterv3.Cluster{
 		Name:           name,
 		ConnectTimeout: durationpb.New(5 * time.Second),
@@ -281,6 +285,6 @@ func routeName(port int32) string {
 	return "route/" + strconv.FormatInt(int64(port), 10)
 }
 
-func clusterName(upstream string) string {
-	return "upstream/" + upstream
+func clusterName(backend string) string {
+	return "backend/" + backend
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
@@ -16,7 +15,6 @@ func TestCreateGateway(t *testing.T) {
 	gateways := repository.NewGateway(client.GatewayV1alpha1().Gateways(), nil)
 	handler := New(gatewayservice.New(gateways))
 	request := &adminv1.CreateGatewayRequest{
-		Name:        "public-gateway",
 		DisplayName: "Public Gateway",
 		Listeners: []*adminv1.Listener{{
 			Name:     "http",
@@ -37,8 +35,11 @@ func TestCreateGateway(t *testing.T) {
 		t.Errorf("CreateGateway(public-gateway) listeners = %v, want one listener on port 8080", listeners)
 	}
 
-	_, err = handler.CreateGateway(context.Background(), request)
-	if code := kratoserrors.Code(err); code != 409 {
-		t.Errorf("CreateGateway(duplicate public-gateway) code = %d, want 409; error = %v", code, err)
+	second, err := handler.CreateGateway(context.Background(), request)
+	if err != nil {
+		t.Fatalf("CreateGateway(duplicate display name) error = %v, want nil", err)
+	}
+	if second.GetGateway().GetName() == reply.GetGateway().GetName() || second.GetGateway().GetDisplayName() != request.DisplayName {
+		t.Errorf("CreateGateway(duplicate display name) = %v, want distinct ID and unchanged display name", second)
 	}
 }

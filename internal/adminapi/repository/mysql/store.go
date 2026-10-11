@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -16,6 +17,13 @@ var ErrNotFound = errors.New("resource not found")
 // 客户端的初始化与连接池关闭由组件运行入口负责。
 type Store struct {
 	db *gorm.DB
+}
+
+// ResourceListParams 保存网关或后端列表的分页与展示名称筛选。
+type ResourceListParams struct {
+	PageSize    int32
+	PageNum     int32
+	DisplayName string
 }
 
 // New 使用已构造的 GORM 客户端创建业务 Store，不取得连接池的关闭责任。
@@ -33,4 +41,14 @@ func (s *Store) readOnlyTransaction(ctx context.Context, query func(*gorm.DB) er
 
 func page(db *gorm.DB, size, number int32) *gorm.DB {
 	return db.Offset(int(int64(number-1) * int64(size))).Limit(int(size))
+}
+
+func filterDisplayName(db *gorm.DB, name string) *gorm.DB {
+	if name == "" {
+		return db
+	}
+
+	// 显式使用 ! 转义，避免依赖 MySQL 的反斜杠 SQL 模式。
+	escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(name)
+	return db.Where("display_name LIKE ? ESCAPE '!'", "%"+escaped+"%")
 }

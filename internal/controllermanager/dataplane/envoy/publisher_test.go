@@ -13,14 +13,22 @@ import (
 func TestPublishReplacesCompleteConfiguration(t *testing.T) {
 	publisher := NewPublisher()
 	config := dataplane.Config{
-		Listeners: []dataplane.Listener{{Port: 8080, Hosts: []dataplane.Host{{
-			Name: "gateway/main/listener/http", Hostname: "example.com",
-			Routes: []dataplane.Route{{
-				Name: "api", PathType: dataplane.PathMatchPrefix, Path: "/api", UpstreamName: "backend",
+		Listeners: []dataplane.Listener{{
+			Port: 8080,
+			Hosts: []dataplane.Host{{
+				Name:     "gateway/main/listener/http",
+				Hostname: "example.com",
+				Routes: []dataplane.Route{{
+					Name:        "api",
+					PathType:    dataplane.PathMatchPrefix,
+					Path:        "/api",
+					BackendName: "backend",
+				}},
 			}},
-		}}}},
-		Upstreams: []dataplane.Upstream{{
-			Name: "backend", Endpoints: []dataplane.Endpoint{{Address: "192.0.2.1", Port: 9000, Weight: 1}},
+		}},
+		Backends: []dataplane.Backend{{
+			Name:      "backend",
+			Endpoints: []dataplane.Endpoint{{Address: "192.0.2.1", Port: 9000, Weight: 1}},
 		}},
 	}
 
@@ -63,7 +71,7 @@ func TestPublishReplacesCompleteConfiguration(t *testing.T) {
 		t.Error("Publish(invalid route) replaced the last valid snapshot")
 	}
 	config.Listeners[0].Hosts[0].Routes[0].PathType = dataplane.PathMatchPrefix
-	config.Upstreams[0].Endpoints[0].Address = "192.0.2.2"
+	config.Backends[0].Endpoints[0].Address = "192.0.2.2"
 	if err := publisher.Publish(context.Background(), config); err != nil {
 		t.Fatalf("Publish(changed endpoint) error = %v, want nil", err)
 	}
@@ -96,6 +104,52 @@ func TestPublishReplacesCompleteConfiguration(t *testing.T) {
 	}
 }
 
+func TestPublishDirectResponseAndRecovery(t *testing.T) {
+	publisher := NewPublisher()
+	config := dataplane.Config{
+		Listeners: []dataplane.Listener{{
+			Port: 8080,
+			Hosts: []dataplane.Host{{
+				Name: "edge/http",
+				Routes: []dataplane.Route{{
+					Name:     "missing",
+					PathType: dataplane.PathMatchPrefix,
+					Path:     "/api",
+				}},
+			}},
+		}},
+	}
+	if err := publisher.Publish(t.Context(), config); err != nil {
+		t.Fatalf("Publish(direct response): %v", err)
+	}
+
+	snapshot, err := publisher.cache.GetSnapshot(sharedDataPlaneCluster)
+	if err != nil {
+		t.Fatal(err)
+	}
+	routes := snapshot.GetResources(resourcev3.RouteType)["route/8080"].(*routev3.RouteConfiguration)
+	if got := routes.VirtualHosts[0].Routes[0].GetDirectResponse().GetStatus(); got != 500 {
+		t.Errorf("direct response status = %d, want 500", got)
+	}
+
+	config.Listeners[0].Hosts[0].Routes[0].BackendName = "backend"
+	config.Backends = []dataplane.Backend{{
+		Name:      "backend",
+		Endpoints: []dataplane.Endpoint{{Address: "192.0.2.1", Port: 9000, Weight: 1}},
+	}}
+	if err := publisher.Publish(t.Context(), config); err != nil {
+		t.Fatalf("Publish(recovered backend): %v", err)
+	}
+	snapshot, err = publisher.cache.GetSnapshot(sharedDataPlaneCluster)
+	if err != nil {
+		t.Fatal(err)
+	}
+	routes = snapshot.GetResources(resourcev3.RouteType)["route/8080"].(*routev3.RouteConfiguration)
+	if got := routes.VirtualHosts[0].Routes[0].GetRoute().GetCluster(); got != "backend/backend" {
+		t.Errorf("recovered route cluster = %q, want backend/backend", got)
+	}
+}
+
 func TestNewSnapshotRejectsMissingCluster(t *testing.T) {
 	_, err := newSnapshot(resourceSet{routes: []*routev3.RouteConfiguration{{
 		Name: "route/8080",
@@ -104,7 +158,7 @@ func TestNewSnapshotRejectsMissingCluster(t *testing.T) {
 			Routes: []*routev3.Route{{
 				Name: "api",
 				Action: &routev3.Route_Route{Route: &routev3.RouteAction{
-					ClusterSpecifier: &routev3.RouteAction_Cluster{Cluster: "upstream/missing"},
+					ClusterSpecifier: &routev3.RouteAction_Cluster{Cluster: "backend/missing"},
 				}},
 			}},
 		}},

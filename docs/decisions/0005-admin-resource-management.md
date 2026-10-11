@@ -1,5 +1,7 @@
 # 0005：Admin API 管理网关资源
 
+> 历史决策保留当时的 Route/Upstream 契约和 Domain 布局；HTTPRoute/Backend 替换见 [0011](0011-http-resource-contract.md)，当前资源名称、查询表及版本化写入/Repository 查询视图边界见 [0012](0012-resource-names-and-query-schema.md)。
+
 - 状态：待评审
 - 日期：2026-09-26
 
@@ -9,7 +11,7 @@ Admin API 对 Gateway、Route、Upstream 分别提供创建、读取、列表、
 
 `PUT` 是可编辑配置的完整替换，不是部分修改。资源名称不能通过更新改变；Controller 的 Status 不在公开写入契约里。删除按名称执行，不附带版本前提，也不尝试在 Admin API 内阻止删除正在被 Route 引用的 Gateway 或 Upstream；引用缺失由 Controller 按现有裁决规则反映在 Route 状态中。
 
-查询模型分别保存三种资源的主记录及 Gateway Listener、Upstream Endpoint 子记录。主表和子表使用数据库内部 `id` 关联，不建立数据库外键；对外稳定名称仍是资源名。Listener 顺序没有业务含义，按名称返回；Endpoint 以地址和端口确定身份，同一 Upstream 内不允许重复。API Server 写入前按地址和端口整理 Endpoint，MySQL 和公开响应也按相同顺序返回；单纯调换端点顺序不改变 `generation`。MySQL 的 `resource_version` 只服务 Ingate 的产品更新令牌，不用于增量同步检查点。Repository 将 API Server 或 MySQL 的存储表示转换为不带 Kubernetes 元数据和 GORM 标签的 Domain 类型，Handler 再转换为公开 protobuf。
+查询模型分别保存三种资源的主记录及 Gateway Listener、Upstream Endpoint 子记录。主表和子表使用数据库内部 `id` 关联，不建立数据库外键；对外稳定名称仍是资源名。Listener 顺序没有业务含义，按名称返回；Endpoint 以地址和端口确定身份，同一 Upstream 内不允许重复。API Server 写入前按地址和端口整理 Endpoint，MySQL 和公开响应也按相同顺序返回；单纯调换端点顺序不改变 `generation`。MySQL 的版本字段（当时名为 `resource_version`，现为 `version`）只服务 Ingate 的产品更新令牌，不用于增量同步检查点。Repository 将 API Server 或 MySQL 的存储表示转换为不带 Kubernetes 元数据和 GORM 标签的 Domain 类型，Handler 再转换为公开 protobuf。
 
 三个独立投影 Controller 分别按资源名同步。单个资源及其子项的写入在 MySQL 事务中完成；Manager 启动时先逐条补齐 API Server 的资源，再按名称删除 MySQL 中的残留。每个 Controller 只有一个 Worker，同进程内的启动对账与普通协调串行；失败时保留已完成的记录并由队列重试。不做整表删除重建，也不引入同步检查点或首次同步就绪标记。当前仍按单个 Controller Manager 实例部署，多副本写入不在本次支持范围。Controller Manager 通过 `--config` 加载自己的 protobuf Bootstrap；它与 Admin API 必须使用同一已迁移 MySQL 业务库。
 

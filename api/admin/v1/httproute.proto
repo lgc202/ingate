@@ -1,0 +1,184 @@
+syntax = "proto3";
+
+package admin.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// HTTPRouteService 提供路由管理接口。
+service HTTPRouteService {
+  // CreateHTTPRoute 创建路由。
+  rpc CreateHTTPRoute(CreateHTTPRouteRequest) returns (CreateHTTPRouteReply) {
+    option (google.api.http) = {
+      post: "/api/admin/v1/http-routes"
+      body: "*"
+    };
+  }
+
+  // GetHTTPRoute 读取指定路由。
+  rpc GetHTTPRoute(GetHTTPRouteRequest) returns (GetHTTPRouteReply) {
+    option (google.api.http) = {get: "/api/admin/v1/http-routes/{name}"};
+  }
+
+  // ListHTTPRoutes 分页列出路由。
+  rpc ListHTTPRoutes(ListHTTPRoutesRequest) returns (ListHTTPRoutesReply) {
+    option (google.api.http) = {get: "/api/admin/v1/http-routes"};
+  }
+
+  // UpdateHTTPRoute 完整替换路由的可编辑配置。
+  rpc UpdateHTTPRoute(UpdateHTTPRouteRequest) returns (UpdateHTTPRouteReply) {
+    option (google.api.http) = {
+      put: "/api/admin/v1/http-routes/{name}"
+      body: "*"
+    };
+  }
+
+  // DeleteHTTPRoute 删除指定路由。
+  rpc DeleteHTTPRoute(DeleteHTTPRouteRequest) returns (DeleteHTTPRouteReply) {
+    option (google.api.http) = {delete: "/api/admin/v1/http-routes/{name}"};
+  }
+}
+
+// CreateHTTPRouteRequest 表示创建路由的请求。
+message CreateHTTPRouteRequest {
+  // display_name 是可修改且允许重复的展示名称；技术标识由服务端生成。
+  string display_name = 1;
+  // parent_refs 引用入口及可选 Listener。
+  repeated ParentReference parent_refs = 2 [(buf.validate.field).repeated.min_items = 1];
+  // rules 按列表顺序保存规则。
+  repeated HTTPRouteRule rules = 3 [(buf.validate.field).repeated.min_items = 1];
+}
+
+// CreateHTTPRouteReply 表示创建后的路由。
+message CreateHTTPRouteReply {
+  // route 是 API Server 保存后的资源。
+  HTTPRoute route = 1;
+}
+
+// GetHTTPRouteRequest 表示读取路由的请求。
+message GetHTTPRouteRequest {
+  // name 是资源的稳定名称。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+// GetHTTPRouteReply 表示读取到的路由。
+message GetHTTPRouteReply {
+  // route 是 MySQL 查询模型中最近同步的路由。
+  HTTPRoute route = 1;
+}
+
+// ListHTTPRoutesRequest 表示分页列出路由的请求。
+message ListHTTPRoutesRequest {
+  // page_size 是单页最大数量；为零时使用服务端默认值。
+  int32 page_size = 1 [(buf.validate.field).int32 = {gte: 0, lte: 200}];
+  // page_num 是从 1 开始的页码；为零时使用第一页。
+  int32 page_num = 2 [(buf.validate.field).int32.gte = 0];
+  // display_name 按展示名称文字包含匹配筛选。
+  string display_name = 3;
+  // gateway_name 精确筛选附着到指定稳定 Gateway 名称的路由。
+  string gateway_name = 4;
+}
+
+// ListHTTPRoutesReply 表示一页路由。
+message ListHTTPRoutesReply {
+  // routes 是 MySQL 查询模型中当前页的资源。
+  repeated HTTPRoute routes = 1;
+  // total_count 是查询模型中的资源总数。
+  int64 total_count = 2;
+}
+
+// UpdateHTTPRouteRequest 表示完整替换路由的可编辑配置。
+message UpdateHTTPRouteRequest {
+  // name 是资源的稳定名称，不允许通过更新修改。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  // version 是读取路由时获得的版本，用于并发更新检查。
+  string version = 2 [(buf.validate.field).string.min_len = 1];
+  // parent_refs 引用入口及可选 Listener。
+  repeated ParentReference parent_refs = 3 [(buf.validate.field).repeated.min_items = 1];
+  // rules 按列表顺序保存规则。
+  repeated HTTPRouteRule rules = 4 [(buf.validate.field).repeated.min_items = 1];
+  // display_name 是可修改且允许重复的展示名称，不改变资源引用。
+  string display_name = 5;
+}
+
+// UpdateHTTPRouteReply 表示更新后的路由。
+message UpdateHTTPRouteReply {
+  // route 是 API Server 保存后的资源。
+  HTTPRoute route = 1;
+}
+
+// DeleteHTTPRouteRequest 表示删除路由的请求。
+message DeleteHTTPRouteRequest {
+  // name 是资源的稳定名称。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+// DeleteHTTPRouteReply 表示 API Server 已接受删除请求。
+message DeleteHTTPRouteReply {}
+
+// HTTPRoute 表示面向产品调用方的路由。
+message HTTPRoute {
+  // name 是资源的稳定名称。
+  string name = 1;
+  // parent_refs 引用入口及可选 Listener。
+  repeated ParentReference parent_refs = 2 [(buf.validate.field).repeated.min_items = 1];
+  // rules 按列表顺序保存规则。
+  repeated HTTPRouteRule rules = 3 [(buf.validate.field).repeated.min_items = 1];
+  // create_time 是资源的创建时间。
+  google.protobuf.Timestamp create_time = 4;
+  // version 是更新时必须提交的资源版本。
+  string version = 5;
+  // display_name 是供人阅读的名称，不用于资源引用。
+  string display_name = 6;
+}
+
+// PathMatch 表示请求路径的匹配方式和值。
+message PathMatch {
+  // type 选择完整路径或路径前缀匹配。
+  PathMatchType type = 1 [(buf.validate.field).enum.defined_only = true];
+  // value 是不含查询参数和片段的绝对路径。
+  string value = 2;
+}
+
+// PathMatchType 表示请求路径的匹配方式。
+enum PathMatchType {
+  // PATH_MATCH_TYPE_UNSPECIFIED 表示未指定匹配方式。
+  PATH_MATCH_TYPE_UNSPECIFIED = 0;
+  // PATH_MATCH_TYPE_EXACT 表示完整路径匹配。
+  PATH_MATCH_TYPE_EXACT = 1;
+  // PATH_MATCH_TYPE_PREFIX 表示按路径段匹配前缀。
+  PATH_MATCH_TYPE_PREFIX = 2;
+}
+
+// ParentReference 引用 Gateway 及可选 Listener。
+message ParentReference {
+  // name 是 Gateway 的稳定名称。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  // section_name 省略时选择所有受支持的 HTTP Listener。
+  string section_name = 2;
+}
+
+// HTTPRouteRule 保存 OR 匹配条件和一个后端引用。
+message HTTPRouteRule {
+  // name 可选，不影响匹配优先级。
+  string name = 1;
+  // matches 省略时匹配 PathPrefix /。
+  repeated HTTPRouteMatch matches = 2;
+  // backend_refs 当前只接受一个目标。
+  repeated BackendReference backend_refs = 3 [(buf.validate.field).repeated = {min_items: 1, max_items: 1}];
+}
+
+// HTTPRouteMatch 保存单个请求匹配条件。
+message HTTPRouteMatch {
+  // path 省略时匹配 PathPrefix /。
+  PathMatch path = 1;
+}
+
+// BackendReference 引用网络后端。
+message BackendReference {
+  // name 是 Backend 的稳定名称。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+}

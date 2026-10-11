@@ -18,10 +18,15 @@ func TestInstall(t *testing.T) {
 	}
 
 	for _, version := range []schema.GroupVersion{gateway.SchemeGroupVersion, v1alpha1.SchemeGroupVersion} {
-		for _, kind := range []string{"Gateway", "Route", "Upstream"} {
+		for _, kind := range []string{"Gateway", "HTTPRoute", "Backend"} {
 			gvk := version.WithKind(kind)
 			if _, err := scheme.New(gvk); err != nil {
 				t.Errorf("Scheme.New(%s) error = %v, want nil", gvk, err)
+			}
+		}
+		for _, kind := range []string{"Route", "Upstream"} {
+			if gvk := version.WithKind(kind); scheme.Recognizes(gvk) {
+				t.Errorf("Scheme still registers removed resource %s", gvk)
 			}
 		}
 	}

@@ -45,11 +45,11 @@ func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
 	if err := projection.NewGateway(manager.GetClient(), store).SetupWithManager(manager); err != nil {
 		return nil, fmt.Errorf("setup Gateway projection controller: %w", err)
 	}
-	if err := projection.NewRoute(manager.GetClient(), store).SetupWithManager(manager); err != nil {
-		return nil, fmt.Errorf("setup Route projection controller: %w", err)
+	if err := projection.NewHTTPRoute(manager.GetClient(), store).SetupWithManager(manager); err != nil {
+		return nil, fmt.Errorf("setup HTTPRoute projection controller: %w", err)
 	}
-	if err := projection.NewUpstream(manager.GetClient(), store).SetupWithManager(manager); err != nil {
-		return nil, fmt.Errorf("setup Upstream projection controller: %w", err)
+	if err := projection.NewBackend(manager.GetClient(), store).SetupWithManager(manager); err != nil {
+		return nil, fmt.Errorf("setup Backend projection controller: %w", err)
 	}
 
 	if err := manager.AddReadyzCheck("xds", xdsServer.CheckReady); err != nil {

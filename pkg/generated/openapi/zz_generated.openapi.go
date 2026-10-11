@@ -17,21 +17,26 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
+		v1alpha1.Backend{}.OpenAPIModelName():             schema_pkg_apis_gateway_v1alpha1_Backend(ref),
+		v1alpha1.BackendList{}.OpenAPIModelName():         schema_pkg_apis_gateway_v1alpha1_BackendList(ref),
+		v1alpha1.BackendReference{}.OpenAPIModelName():    schema_pkg_apis_gateway_v1alpha1_BackendReference(ref),
+		v1alpha1.BackendSpec{}.OpenAPIModelName():         schema_pkg_apis_gateway_v1alpha1_BackendSpec(ref),
+		v1alpha1.BackendStatus{}.OpenAPIModelName():       schema_pkg_apis_gateway_v1alpha1_BackendStatus(ref),
 		v1alpha1.Endpoint{}.OpenAPIModelName():            schema_pkg_apis_gateway_v1alpha1_Endpoint(ref),
 		v1alpha1.Gateway{}.OpenAPIModelName():             schema_pkg_apis_gateway_v1alpha1_Gateway(ref),
 		v1alpha1.GatewayList{}.OpenAPIModelName():         schema_pkg_apis_gateway_v1alpha1_GatewayList(ref),
 		v1alpha1.GatewaySpec{}.OpenAPIModelName():         schema_pkg_apis_gateway_v1alpha1_GatewaySpec(ref),
 		v1alpha1.GatewayStatus{}.OpenAPIModelName():       schema_pkg_apis_gateway_v1alpha1_GatewayStatus(ref),
+		v1alpha1.HTTPRoute{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_HTTPRoute(ref),
+		v1alpha1.HTTPRouteList{}.OpenAPIModelName():       schema_pkg_apis_gateway_v1alpha1_HTTPRouteList(ref),
+		v1alpha1.HTTPRouteMatch{}.OpenAPIModelName():      schema_pkg_apis_gateway_v1alpha1_HTTPRouteMatch(ref),
+		v1alpha1.HTTPRouteRule{}.OpenAPIModelName():       schema_pkg_apis_gateway_v1alpha1_HTTPRouteRule(ref),
+		v1alpha1.HTTPRouteSpec{}.OpenAPIModelName():       schema_pkg_apis_gateway_v1alpha1_HTTPRouteSpec(ref),
+		v1alpha1.HTTPRouteStatus{}.OpenAPIModelName():     schema_pkg_apis_gateway_v1alpha1_HTTPRouteStatus(ref),
 		v1alpha1.Listener{}.OpenAPIModelName():            schema_pkg_apis_gateway_v1alpha1_Listener(ref),
+		v1alpha1.ParentReference{}.OpenAPIModelName():     schema_pkg_apis_gateway_v1alpha1_ParentReference(ref),
 		v1alpha1.PathMatch{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_PathMatch(ref),
-		v1alpha1.Route{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_Route(ref),
-		v1alpha1.RouteList{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_RouteList(ref),
-		v1alpha1.RouteSpec{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_RouteSpec(ref),
-		v1alpha1.RouteStatus{}.OpenAPIModelName():         schema_pkg_apis_gateway_v1alpha1_RouteStatus(ref),
-		v1alpha1.Upstream{}.OpenAPIModelName():            schema_pkg_apis_gateway_v1alpha1_Upstream(ref),
-		v1alpha1.UpstreamList{}.OpenAPIModelName():        schema_pkg_apis_gateway_v1alpha1_UpstreamList(ref),
-		v1alpha1.UpstreamSpec{}.OpenAPIModelName():        schema_pkg_apis_gateway_v1alpha1_UpstreamSpec(ref),
-		v1alpha1.UpstreamStatus{}.OpenAPIModelName():      schema_pkg_apis_gateway_v1alpha1_UpstreamStatus(ref),
+		v1alpha1.RouteParentStatus{}.OpenAPIModelName():   schema_pkg_apis_gateway_v1alpha1_RouteParentStatus(ref),
 		resource.Quantity{}.OpenAPIModelName():            schema_apimachinery_pkg_api_resource_Quantity(ref),
 		v1.APIGroup{}.OpenAPIModelName():                  schema_pkg_apis_meta_v1_APIGroup(ref),
 		v1.APIGroupList{}.OpenAPIModelName():              schema_pkg_apis_meta_v1_APIGroupList(ref),
@@ -90,6 +95,199 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 	}
 }
 
+func schema_pkg_apis_gateway_v1alpha1_Backend(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "Backend 声明 HTTPRoute 可引用的一组后端地址。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1.ObjectMeta{}.OpenAPIModelName()),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.BackendSpec{}.OpenAPIModelName()),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.BackendStatus{}.OpenAPIModelName()),
+						},
+					},
+				},
+				Required: []string{"spec"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.BackendSpec{}.OpenAPIModelName(), v1alpha1.BackendStatus{}.OpenAPIModelName(), v1.ObjectMeta{}.OpenAPIModelName()},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_BackendList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "BackendList 表示 Backend 集合。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1.ListMeta{}.OpenAPIModelName()),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref(v1alpha1.Backend{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.Backend{}.OpenAPIModelName(), v1.ListMeta{}.OpenAPIModelName()},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_BackendReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "BackendReference 引用当前集群作用域内的 Backend。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_BackendSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "BackendSpec 定义 Backend 的期望状态。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 是可修改且允许重复的展示名称，不作为资源引用依据。",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"endpoints": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "Endpoints 中的顺序不影响转发；同一地址和端口只能出现一次。",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref(v1alpha1.Endpoint{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"endpoints"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.Endpoint{}.OpenAPIModelName()},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_BackendStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "BackendStatus 保存 Controller 对 Backend 的观测结果。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref(v1.Condition{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			v1.Condition{}.OpenAPIModelName()},
+	}
+}
+
 func schema_pkg_apis_gateway_v1alpha1_Endpoint(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -115,7 +313,7 @@ func schema_pkg_apis_gateway_v1alpha1_Endpoint(ref common.ReferenceCallback) com
 					},
 					"weight": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Weight 是该地址在 Upstream 内的相对流量权重。",
+							Description: "Weight 是该地址在 Backend 内的相对流量权重。",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
@@ -299,6 +497,267 @@ func schema_pkg_apis_gateway_v1alpha1_GatewayStatus(ref common.ReferenceCallback
 	}
 }
 
+func schema_pkg_apis_gateway_v1alpha1_HTTPRoute(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "HTTPRoute 将 Gateway 的 HTTP 入口匹配到 Backend。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1.ObjectMeta{}.OpenAPIModelName()),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.HTTPRouteSpec{}.OpenAPIModelName()),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.HTTPRouteStatus{}.OpenAPIModelName()),
+						},
+					},
+				},
+				Required: []string{"spec"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.HTTPRouteSpec{}.OpenAPIModelName(), v1alpha1.HTTPRouteStatus{}.OpenAPIModelName(), v1.ObjectMeta{}.OpenAPIModelName()},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_HTTPRouteList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "HTTPRouteList 表示 HTTPRoute 集合。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1.ListMeta{}.OpenAPIModelName()),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref(v1alpha1.HTTPRoute{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.HTTPRoute{}.OpenAPIModelName(), v1.ListMeta{}.OpenAPIModelName()},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_HTTPRouteMatch(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "HTTPRouteMatch 是单个请求匹配条件；省略 Path 时匹配 PathPrefix /。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref(v1alpha1.PathMatch{}.OpenAPIModelName()),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.PathMatch{}.OpenAPIModelName()},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_HTTPRouteRule(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "HTTPRouteRule 包含 OR 匹配条件和单个 Backend 引用；Name 可选且不参与排序。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"matches": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref(v1alpha1.HTTPRouteMatch{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+					"backendRefs": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref(v1alpha1.BackendReference{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"backendRefs"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.BackendReference{}.OpenAPIModelName(), v1alpha1.HTTPRouteMatch{}.OpenAPIModelName()},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_HTTPRouteSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "HTTPRouteSpec 定义 HTTPRoute 的期望状态。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 是可修改且允许重复的展示名称，不作为资源引用依据。",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"parentRefs": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref(v1alpha1.ParentReference{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+					"rules": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref(v1alpha1.HTTPRouteRule{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"parentRefs", "rules"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.HTTPRouteRule{}.OpenAPIModelName(), v1alpha1.ParentReference{}.OpenAPIModelName()},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_HTTPRouteStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "HTTPRouteStatus 保存 Controller 对 HTTPRoute 的观测结果。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"parents": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref(v1alpha1.RouteParentStatus{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.RouteParentStatus{}.OpenAPIModelName()},
+	}
+}
+
 func schema_pkg_apis_gateway_v1alpha1_Listener(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -340,6 +799,33 @@ func schema_pkg_apis_gateway_v1alpha1_Listener(ref common.ReferenceCallback) com
 	}
 }
 
+func schema_pkg_apis_gateway_v1alpha1_ParentReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ParentReference 引用 Gateway；省略 SectionName 时附着所有受支持的 HTTP Listener。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"sectionName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_gateway_v1alpha1_PathMatch(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -350,7 +836,6 @@ func schema_pkg_apis_gateway_v1alpha1_PathMatch(ref common.ReferenceCallback) co
 					"type": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Type 选择完整路径或路径前缀匹配。",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -358,168 +843,36 @@ func schema_pkg_apis_gateway_v1alpha1_PathMatch(ref common.ReferenceCallback) co
 					"value": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Value 是不含查询参数和片段的绝对请求路径；PathPrefix 匹配时忽略尾斜杠，根路径除外。",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 				},
-				Required: []string{"type", "value"},
 			},
 		},
 	}
 }
 
-func schema_pkg_apis_gateway_v1alpha1_Route(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_gateway_v1alpha1_RouteParentStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "Route 将 Gateway 的一个监听入口上的请求转发到 Upstream。",
+				Description: "RouteParentStatus 沿用 Gateway API 的父引用、控制器和 Conditions 形状。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
+					"parentRef": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref(v1.ObjectMeta{}.OpenAPIModelName()),
+							Ref:     ref(v1alpha1.ParentReference{}.OpenAPIModelName()),
 						},
 					},
-					"spec": {
+					"controllerName": {
 						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref(v1alpha1.RouteSpec{}.OpenAPIModelName()),
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
 						},
 					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref(v1alpha1.RouteStatus{}.OpenAPIModelName()),
-						},
-					},
-				},
-				Required: []string{"spec"},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.RouteSpec{}.OpenAPIModelName(), v1alpha1.RouteStatus{}.OpenAPIModelName(), v1.ObjectMeta{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_RouteList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RouteList 表示 Route 集合。",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref(v1.ListMeta{}.OpenAPIModelName()),
-						},
-					},
-					"items": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Ref: ref(v1alpha1.Route{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"items"},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.Route{}.OpenAPIModelName(), v1.ListMeta{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_RouteSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RouteSpec 定义 Route 的期望状态。",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"gatewayName": {
-						SchemaProps: spec.SchemaProps{
-							Description: "GatewayName 引用此路由所属的 Gateway。",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"listenerName": {
-						SchemaProps: spec.SchemaProps{
-							Description: "ListenerName 引用 Gateway 内的监听入口。",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"path": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Path 定义请求路径的匹配条件。",
-							Default:     map[string]interface{}{},
-							Ref:         ref(v1alpha1.PathMatch{}.OpenAPIModelName()),
-						},
-					},
-					"upstreamName": {
-						SchemaProps: spec.SchemaProps{
-							Description: "UpstreamName 引用接收请求的后端资源。",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-				},
-				Required: []string{"gatewayName", "listenerName", "path", "upstreamName"},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.PathMatch{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_RouteStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RouteStatus 保存 Controller 对 Route 的观测结果。",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
 					"conditions": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
@@ -541,175 +894,11 @@ func schema_pkg_apis_gateway_v1alpha1_RouteStatus(ref common.ReferenceCallback) 
 						},
 					},
 				},
+				Required: []string{"parentRef", "controllerName"},
 			},
 		},
 		Dependencies: []string{
-			v1.Condition{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_Upstream(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "Upstream 声明 Route 可引用的一组后端地址。",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref(v1.ObjectMeta{}.OpenAPIModelName()),
-						},
-					},
-					"spec": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref(v1alpha1.UpstreamSpec{}.OpenAPIModelName()),
-						},
-					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref(v1alpha1.UpstreamStatus{}.OpenAPIModelName()),
-						},
-					},
-				},
-				Required: []string{"spec"},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.UpstreamSpec{}.OpenAPIModelName(), v1alpha1.UpstreamStatus{}.OpenAPIModelName(), v1.ObjectMeta{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_UpstreamList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamList 表示 Upstream 集合。",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref(v1.ListMeta{}.OpenAPIModelName()),
-						},
-					},
-					"items": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Ref: ref(v1alpha1.Upstream{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"items"},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.Upstream{}.OpenAPIModelName(), v1.ListMeta{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_UpstreamSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamSpec 定义 Upstream 的期望状态。",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"endpoints": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Description: "Endpoints 中的顺序不影响转发；同一地址和端口只能出现一次。",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Ref: ref(v1alpha1.Endpoint{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"endpoints"},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.Endpoint{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_UpstreamStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamStatus 保存 Controller 对 Upstream 的观测结果。",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"conditions": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-map-keys": []interface{}{
-									"type",
-								},
-								"x-kubernetes-list-type": "map",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Ref: ref(v1.Condition{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			v1.Condition{}.OpenAPIModelName()},
+			v1alpha1.ParentReference{}.OpenAPIModelName(), v1.Condition{}.OpenAPIModelName()},
 	}
 }
 

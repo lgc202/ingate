@@ -12,16 +12,16 @@ type FakeGatewayV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeGatewayV1alpha1) Backends() v1alpha1.BackendInterface {
+	return newFakeBackends(c)
+}
+
 func (c *FakeGatewayV1alpha1) Gateways() v1alpha1.GatewayInterface {
 	return newFakeGateways(c)
 }
 
-func (c *FakeGatewayV1alpha1) Routes() v1alpha1.RouteInterface {
-	return newFakeRoutes(c)
-}
-
-func (c *FakeGatewayV1alpha1) Upstreams() v1alpha1.UpstreamInterface {
-	return newFakeUpstreams(c)
+func (c *FakeGatewayV1alpha1) HTTPRoutes() v1alpha1.HTTPRouteInterface {
+	return newFakeHTTPRoutes(c)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

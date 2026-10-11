@@ -4,6 +4,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -42,7 +44,7 @@ func TestGatewayConversion(t *testing.T) {
 	}
 }
 
-func TestRouteAndUpstreamConversion(t *testing.T) {
+func TestHTTPRouteAndBackendConversion(t *testing.T) {
 	scheme := runtime.NewScheme()
 	if err := gateway.AddToScheme(scheme); err != nil {
 		t.Fatalf("gateway.AddToScheme() error = %v", err)
@@ -51,41 +53,49 @@ func TestRouteAndUpstreamConversion(t *testing.T) {
 		t.Fatalf("v1alpha1.AddToScheme() error = %v", err)
 	}
 
-	route := &Route{
+	route := &HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{Name: "route-1"},
-		Spec: RouteSpec{
-			GatewayName:  "gateway-1",
-			ListenerName: "http",
-			Path:         PathMatch{Type: PathMatchPrefix, Value: "/api"},
-			UpstreamName: "backend-1",
+		Spec: HTTPRouteSpec{
+			DisplayName: "订单路由",
+			ParentRefs:  []ParentReference{{Name: "gateway-1", SectionName: "http"}},
+			Rules: []HTTPRouteRule{{
+				Matches:     []HTTPRouteMatch{{Path: &PathMatch{Type: PathMatchPrefix, Value: "/api"}}},
+				BackendRefs: []BackendReference{{Name: "backend-1"}},
+			}},
 		},
 	}
-	var internalRoute gateway.Route
-	if err := scheme.Convert(route, &internalRoute, nil); err != nil {
-		t.Fatalf("scheme.Convert(Route, internal Route) error = %v", err)
+	var internalHTTPRoute gateway.HTTPRoute
+	if err := scheme.Convert(route, &internalHTTPRoute, nil); err != nil {
+		t.Fatalf("scheme.Convert(HTTPRoute, internal HTTPRoute) error = %v", err)
 	}
-	wantRoute := gateway.RouteSpec{
-		GatewayName:  "gateway-1",
-		ListenerName: "http",
-		Path:         gateway.PathMatch{Type: gateway.PathMatchPrefix, Value: "/api"},
-		UpstreamName: "backend-1",
+	wantHTTPRoute := gateway.HTTPRouteSpec{
+		DisplayName: "订单路由",
+		ParentRefs:  []gateway.ParentReference{{Name: "gateway-1", SectionName: "http"}},
+		Rules: []gateway.HTTPRouteRule{{
+			Matches:     []gateway.HTTPRouteMatch{{Path: &gateway.PathMatch{Type: gateway.PathMatchPrefix, Value: "/api"}}},
+			BackendRefs: []gateway.BackendReference{{Name: "backend-1"}},
+		}},
 	}
-	if got := internalRoute.Spec; got != wantRoute {
-		t.Errorf("scheme.Convert(Route, internal Route).Spec = %+v, want %+v", got, wantRoute)
+	if diff := cmp.Diff(wantHTTPRoute, internalHTTPRoute.Spec); diff != "" {
+		t.Errorf("HTTPRoute conversion (-want +got):\n%s", diff)
 	}
 
-	upstream := &Upstream{
+	backend := &Backend{
 		ObjectMeta: metav1.ObjectMeta{Name: "backend-1"},
-		Spec: UpstreamSpec{
-			Endpoints: []Endpoint{{Address: "api.example.com", Port: 8080, Weight: 1}},
+		Spec: BackendSpec{
+			DisplayName: "订单后端",
+			Endpoints:   []Endpoint{{Address: "api.example.com", Port: 8080, Weight: 1}},
 		},
 	}
-	var internalUpstream gateway.Upstream
-	if err := scheme.Convert(upstream, &internalUpstream, nil); err != nil {
-		t.Fatalf("scheme.Convert(Upstream, internal Upstream) error = %v", err)
+	var internalBackend gateway.Backend
+	if err := scheme.Convert(backend, &internalBackend, nil); err != nil {
+		t.Fatalf("scheme.Convert(Backend, internal Backend) error = %v", err)
 	}
 	wantEndpoints := []gateway.Endpoint{{Address: "api.example.com", Port: 8080, Weight: 1}}
-	if got := internalUpstream.Spec.Endpoints; !slices.Equal(got, wantEndpoints) {
-		t.Errorf("scheme.Convert(Upstream, internal Upstream).Spec.Endpoints = %v, want %v", got, wantEndpoints)
+	if internalBackend.Spec.DisplayName != "订单后端" {
+		t.Errorf("scheme.Convert(Backend).DisplayName = %q, want 订单后端", internalBackend.Spec.DisplayName)
+	}
+	if got := internalBackend.Spec.Endpoints; !slices.Equal(got, wantEndpoints) {
+		t.Errorf("scheme.Convert(Backend, internal Backend).Spec.Endpoints = %v, want %v", got, wantEndpoints)
 	}
 }

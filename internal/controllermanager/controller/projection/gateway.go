@@ -112,11 +112,11 @@ func gatewayToMySQL(gateway *gatewayv1alpha1.Gateway) mysql.Gateway {
 	}
 
 	return mysql.Gateway{
-		Name:            gateway.Name,
-		DisplayName:     gateway.Spec.DisplayName,
-		ResourceVersion: gateway.ResourceVersion,
-		CreatedAt:       gateway.CreationTimestamp.UTC(),
-		Listeners:       listeners,
+		Name:        gateway.Name,
+		DisplayName: gateway.Spec.DisplayName,
+		Version:     gateway.ResourceVersion,
+		CreatedAt:   gateway.CreationTimestamp.UTC(),
+		Listeners:   listeners,
 	}
 }
 

@@ -10,9 +10,9 @@ import (
 	"github.com/go-kratos/kratos/v3"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	accounthandler "github.com/lgc202/ingate/internal/adminapi/handler/account"
+	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
-	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/route"
-	upstreamhandler "github.com/lgc202/ingate/internal/adminapi/handler/upstream"
+	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
 	"github.com/lgc202/ingate/internal/adminapi/middleware"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
 	apiserverstore "github.com/lgc202/ingate/internal/adminapi/repository/apiserver"
@@ -20,9 +20,9 @@ import (
 	redisstore "github.com/lgc202/ingate/internal/adminapi/repository/redis"
 	"github.com/lgc202/ingate/internal/adminapi/server"
 	accountservice "github.com/lgc202/ingate/internal/adminapi/service/account"
+	backendservice "github.com/lgc202/ingate/internal/adminapi/service/backend"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
-	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
-	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
+	routeservice "github.com/lgc202/ingate/internal/adminapi/service/httproute"
 	logconfig "github.com/lgc202/ingate/internal/pkg/log"
 	mysqlclient "github.com/lgc202/ingate/internal/pkg/mysql"
 	redisclient "github.com/lgc202/ingate/internal/pkg/redis"
@@ -106,23 +106,23 @@ func newApp(
 	logger *slog.Logger,
 ) *kratos.App {
 	gateways := repository.NewGateway(apiServerStore.Gateways(), mysqlStore)
-	routes := repository.NewRoute(apiServerStore.Routes(), mysqlStore)
-	upstreams := repository.NewUpstream(apiServerStore.Upstreams(), mysqlStore)
+	routes := repository.NewHTTPRoute(apiServerStore.HTTPRoutes(), mysqlStore)
+	backends := repository.NewBackend(apiServerStore.Backends(), mysqlStore)
 
 	gatewayService := gatewayservice.New(gateways)
 	routeService := routeservice.New(routes)
-	upstreamService := upstreamservice.New(upstreams)
+	backendService := backendservice.New(backends)
 
 	gatewayHandler := gatewayhandler.New(gatewayService)
 	routeHandler := routehandler.New(routeService)
-	upstreamHandler := upstreamhandler.New(upstreamService)
+	backendHandler := backendhandler.New(backendService)
 	accountHandler := accounthandler.New(accountService)
 
 	handlers := server.Handlers{
-		Gateway:  gatewayHandler,
-		Route:    routeHandler,
-		Upstream: upstreamHandler,
-		Account:  accountHandler,
+		Gateway:   gatewayHandler,
+		HTTPRoute: routeHandler,
+		Backend:   backendHandler,
+		Account:   accountHandler,
 	}
 	middlewareChain := server.NewMiddlewareChain(middleware.RequireSession(accountService))
 	httpServer, grpcServer := server.New(config.GetServer(), handlers, middlewareChain)

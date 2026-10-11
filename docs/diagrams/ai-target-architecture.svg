@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 790" role="img" aria-labelledby="title desc">
+  <title id="title">统一 Go AI Proxy 的目标架构</title>
+  <desc id="desc">Controller 同时编译 Envoy 配置和 Go 运行时配置。Go 通过 API Server 订阅派生配置，普通 HTTP 不进入 Go。Go 经 Envoy 内部出站访问 AI 后端是待评审拓扑。</desc>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#5B8A72"/></marker><marker id="purple" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#8B6F8A"/></marker></defs>
+  <style>text{font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif;fill:#252525;font-size:17px;text-anchor:middle}.note{font-size:14px;fill:#666}.edge{fill:none;stroke:#5B8A72;stroke-width:2;marker-end:url(#arrow)}.newedge{fill:none;stroke:#8B6F8A;stroke-width:2;stroke-dasharray:6 4;marker-end:url(#purple)}.box{fill:#F5F8F6;stroke:#5B8A72;stroke-width:1.5}.new{fill:#F5F3F8;stroke:#8B6F8A;stroke-width:1.5;stroke-dasharray:6 4}</style>
+  <rect width="100%" height="100%" fill="#FAF9F6"/>
+  <g class="edge">
+    <path marker-end="url(#arrow)" d="M260 115 H430"/>
+    <path marker-end="url(#arrow)" d="M700 115 H970"/>
+    <path marker-end="url(#arrow)" d="M565 150 V270"/>
+    <path marker-end="url(#arrow)" d="M1100 150 V225 H145 V270"/>
+    <path marker-end="url(#arrow)" d="M145 270 V150"/>
+    <path marker-end="url(#arrow)" d="M1000 150 V195 H370 V470"/>
+    <path marker-end="url(#arrow)" d="M220 510 H280"/>
+    <path marker-end="url(#arrow)" d="M370 550 V650"/>
+  </g>
+  <g class="newedge">
+    <path marker-end="url(#purple)" d="M1100 80 V35 H565 V80"/>
+    <path marker-end="url(#purple)" d="M650 150 V175 H850 V430 H690 V470"/>
+    <path marker-end="url(#purple)" d="M460 510 H580"/>
+    <path marker-end="url(#purple)" d="M800 510 H930"/>
+    <path marker-end="url(#purple)" d="M1040 550 V650"/>
+  </g>
+  <g>
+    <text x="345" y="102" class="note">资源写入</text>
+    <text x="830" y="102" class="note">原始资源 List / Watch</text>
+    <text x="855" y="24" class="note">派生快照写回（新增）</text>
+    <text x="615" y="212" class="note">xDS 网络配置</text>
+    <text x="720" y="416" class="note">运行时配置 List / Watch（新增）</text>
+    <text x="647" y="255" class="note">持久化</text>
+    <text x="750" y="247" class="note">异步查询投影</text>
+    <text x="69" y="213" class="note">读取</text>
+    <text x="520" y="496" class="note">AI 请求</text>
+    <text x="865" y="496" class="note">逻辑后端</text>
+    <text x="435" y="600" class="note">普通 HTTP</text>
+    <text x="1130" y="600" class="note">候选出站路径</text>
+    <rect class="box" x="30" y="80" width="230" height="70" rx="10"/>
+    <text x="145" y="110">Admin API</text><text x="145" y="135" class="note">MySQL 异步查询不变</text>
+    <rect class="box" x="430" y="80" width="270" height="70" rx="10"/>
+    <text x="565" y="110">Ingate API Server</text><text x="565" y="135" class="note">领域资源 + 未来运行时资源</text>
+    <rect class="box" x="970" y="80" width="250" height="70" rx="10"/>
+    <text x="1095" y="110">Controller Manager</text><text x="1095" y="135" class="note">统一裁决 · 两类编译输出</text>
+    <rect class="box" x="30" y="270" width="230" height="70" rx="10"/>
+    <text x="145" y="310">MySQL 查询模型</text>
+    <rect class="box" x="450" y="270" width="230" height="70" rx="10"/>
+    <text x="565" y="310">etcd</text>
+    <rect class="box" x="30" y="470" width="190" height="80" rx="10"/>
+    <text x="125" y="515">客户端</text>
+    <rect class="box" x="280" y="470" width="180" height="80" rx="10"/>
+    <text x="370" y="503">Envoy 入口</text><text x="370" y="529" class="note">区分 HTTP / AI 路由</text>
+    <rect class="new" x="580" y="470" width="220" height="80" rx="10"/>
+    <text x="690" y="503">Go AI Proxy</text><text x="690" y="529" class="note">模型模块 / MCP 模块</text>
+    <rect class="new" x="930" y="470" width="220" height="80" rx="10"/>
+    <text x="1040" y="503">Envoy 内部出站</text><text x="1040" y="529" class="note">网络策略 · 拓扑待评审</text>
+    <rect class="box" x="280" y="650" width="180" height="70" rx="10"/>
+    <text x="370" y="690">HTTP 后端</text>
+    <rect class="new" x="930" y="650" width="220" height="70" rx="10"/>
+    <text x="1040" y="690">模型 / MCP 后端</text>
+    <text x="640" y="760" class="note">紫色虚线为尚未实现部分。运行组件、配置下发和资源关系已确认；具体字段、激活协议及部署拓扑待评审。</text>
+  </g>
+</svg>

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/lgc202/ingate/internal/adminapi/domain"
 	"github.com/lgc202/ingate/internal/adminapi/repository/mysql"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 	clientfake "github.com/lgc202/ingate/pkg/generated/clientset/versioned/fake"
@@ -23,7 +22,7 @@ func TestGatewayCreate(t *testing.T) {
 	client := clientfake.NewSimpleClientset()
 	gateways := NewGateway(client.GatewayV1alpha1().Gateways(), nil)
 
-	created, err := gateways.Create(context.Background(), domain.Gateway{Name: "public-gateway"})
+	created, err := gateways.Create(context.Background(), &gatewayv1alpha1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: "public-gateway"}})
 	if err != nil {
 		t.Fatalf("Gateway.Create(public-gateway) error = %v, want nil", err)
 	}
@@ -41,7 +40,7 @@ func TestGatewayCreateAlreadyExists(t *testing.T) {
 	})
 	gateways := NewGateway(client.GatewayV1alpha1().Gateways(), nil)
 
-	_, err := gateways.Create(context.Background(), domain.Gateway{Name: "public-gateway"})
+	_, err := gateways.Create(context.Background(), &gatewayv1alpha1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: "public-gateway"}})
 	if !errors.Is(err, ErrAlreadyExists) {
 		t.Errorf("Gateway.Create(public-gateway) error = %v, want ErrAlreadyExists", err)
 	}
@@ -83,7 +82,7 @@ func TestGatewayReadsQueryModelAndUpdatesAPIServer(t *testing.T) {
 
 	query.ExpectBegin()
 	query.ExpectQuery("FROM `gateways` WHERE name = ").WillReturnRows(
-		sqlmock.NewRows([]string{"id", "name", "resource_version"}).AddRow(1, "edge", "7"),
+		sqlmock.NewRows([]string{"id", "name", "version"}).AddRow(1, "edge", "7"),
 	)
 	query.ExpectQuery("FROM `gateway_listeners` WHERE gateway_id =").WillReturnRows(
 		sqlmock.NewRows([]string{"id", "gateway_id", "name", "protocol", "port", "hostname"}),
@@ -103,19 +102,19 @@ func TestGatewayReadsQueryModelAndUpdatesAPIServer(t *testing.T) {
 		sqlmock.NewRows([]string{"count"}).AddRow(1),
 	)
 	query.ExpectQuery("FROM `gateways` ORDER BY name LIMIT").WillReturnRows(
-		sqlmock.NewRows([]string{"id", "name", "resource_version"}).AddRow(1, "edge", "7"),
+		sqlmock.NewRows([]string{"id", "name", "version"}).AddRow(1, "edge", "7"),
 	)
 	query.ExpectQuery("FROM `gateway_listeners` WHERE gateway_id IN").WillReturnRows(
 		sqlmock.NewRows([]string{"id", "gateway_id", "name", "protocol", "port", "hostname"}),
 	)
 	query.ExpectCommit()
 
-	items, totalCount, err := gateways.List(ctx, 20, 1)
-	if err != nil || totalCount != 1 || len(items) != 1 || len(client.Actions()) != 0 {
-		t.Errorf("List = %d items, total %d, err %v, API actions %d; want 1, 1, nil, 0", len(items), totalCount, err, len(client.Actions()))
+	page, err := gateways.List(ctx, ResourceListParams{PageSize: 20, PageNum: 1})
+	if err != nil || page.TotalCount != 1 || len(page.Items) != 1 || len(client.Actions()) != 0 {
+		t.Errorf("List = %d items, total %d, err %v, API actions %d; want 1, 1, nil, 0", len(page.Items), page.TotalCount, err, len(client.Actions()))
 	}
 
-	_, err = gateways.Update(ctx, domain.Gateway{Name: "edge", Version: "7"})
+	_, err = gateways.Update(ctx, &gatewayv1alpha1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: "edge", ResourceVersion: "7"}})
 	if !errors.Is(err, ErrConflict) {
 		t.Errorf("Update with stale projected version error = %v, want ErrConflict", err)
 	}

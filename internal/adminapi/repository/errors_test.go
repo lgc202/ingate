@@ -9,7 +9,7 @@ import (
 )
 
 func TestTranslateResourceError(t *testing.T) {
-	resource := schema.GroupResource{Group: "gateway.ingate.io", Resource: "routes"}
+	resource := schema.GroupResource{Group: "gateway.ingate.io", Resource: "httproutes"}
 	tests := []struct {
 		name string
 		err  error

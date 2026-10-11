@@ -11,13 +11,13 @@ import (
 
 // Gateway 对应 MySQL gateways 表及其 Listener 集合。
 type Gateway struct {
-	ID              uint64            `gorm:"column:id;primaryKey;autoIncrement"`
-	Name            string            `gorm:"column:name"`
-	DisplayName     string            `gorm:"column:display_name"`
-	ResourceVersion string            `gorm:"column:resource_version"`
-	CreatedAt       time.Time         `gorm:"column:created_at;autoCreateTime:false"`
-	UpdatedAt       time.Time         `gorm:"column:updated_at;autoCreateTime;autoUpdateTime"`
-	Listeners       []GatewayListener `gorm:"-"`
+	ID          uint64            `gorm:"column:id;primaryKey;autoIncrement"`
+	Name        string            `gorm:"column:name"`
+	DisplayName string            `gorm:"column:display_name"`
+	Version     string            `gorm:"column:version"`
+	CreatedAt   time.Time         `gorm:"column:created_at;autoCreateTime:false"`
+	UpdatedAt   time.Time         `gorm:"column:updated_at;autoCreateTime;autoUpdateTime"`
+	Listeners   []GatewayListener `gorm:"-"`
 }
 
 // GatewayListener 对应 MySQL gateway_listeners 表中的监听入口。
@@ -136,14 +136,15 @@ func (s *Store) GetGateway(ctx context.Context, name string) (Gateway, error) {
 }
 
 // ListGateways 按名称分页读取 Gateway 与 Listener。
-func (s *Store) ListGateways(ctx context.Context, size, number int32) (GatewayPage, error) {
+func (s *Store) ListGateways(ctx context.Context, params ResourceListParams) (GatewayPage, error) {
 	var result GatewayPage
 	err := s.readOnlyTransaction(ctx, func(tx *gorm.DB) error {
-		if err := tx.Model(&Gateway{}).Count(&result.TotalCount).Error; err != nil {
+		query := filterDisplayName(tx.Model(&Gateway{}), params.DisplayName)
+		if err := query.Count(&result.TotalCount).Error; err != nil {
 			return fmt.Errorf("count gateways: %w", err)
 		}
 
-		gatewayQuery := page(tx.Model(&Gateway{}).Order("name"), size, number)
+		gatewayQuery := page(query.Order("name"), params.PageSize, params.PageNum)
 		if err := gatewayQuery.Find(&result.Items).Error; err != nil {
 			return fmt.Errorf("list gateways: %w", err)
 		}
@@ -183,10 +184,10 @@ func upsertGatewayRow(tx *gorm.DB, gateway Gateway) (uint64, error) {
 	err := tx.Select("id").Where("name = ?", gateway.Name).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		row = Gateway{
-			Name:            gateway.Name,
-			DisplayName:     gateway.DisplayName,
-			ResourceVersion: gateway.ResourceVersion,
-			CreatedAt:       gateway.CreatedAt,
+			Name:        gateway.Name,
+			DisplayName: gateway.DisplayName,
+			Version:     gateway.Version,
+			CreatedAt:   gateway.CreatedAt,
 		}
 		if err := tx.Create(&row).Error; err != nil {
 			return 0, fmt.Errorf("create gateway: %w", err)
@@ -198,9 +199,9 @@ func upsertGatewayRow(tx *gorm.DB, gateway Gateway) (uint64, error) {
 	}
 
 	updates := map[string]any{
-		"display_name":     gateway.DisplayName,
-		"resource_version": gateway.ResourceVersion,
-		"created_at":       gateway.CreatedAt,
+		"display_name": gateway.DisplayName,
+		"version":      gateway.Version,
+		"created_at":   gateway.CreatedAt,
 	}
 	if err := tx.Model(&row).Updates(updates).Error; err != nil {
 		return 0, fmt.Errorf("update gateway: %w", err)

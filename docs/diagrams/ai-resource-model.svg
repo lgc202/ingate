@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 600" role="img" aria-labelledby="title desc">
+  <title id="title">Ingate 已确认的目标资源关系</title>
+  <desc id="desc">HTTPRoute、ModelRoute、MCPRoute 均通过 parentRefs 引用 Gateway。HTTPRoute 和 MCPRoute 直接引用 Backend，ModelRoute 引用 AIBackend，AIBackend 再引用 Backend。箭头是配置引用而非请求转发；具体字段和实现尚未完成。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#5B8A72"/></marker>
+  </defs>
+  <style>text{font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif;fill:#252525;font-size:21px;text-anchor:middle}.note{font-size:16px;fill:#666}.edge{fill:none;stroke:#5B8A72;stroke-width:2}.box{fill:#F5F8F6;stroke:#5B8A72;stroke-width:1.5}.model{fill:#F5F3F8;stroke:#8B6F8A;stroke-width:1.5}</style>
+  <rect width="100%" height="100%" fill="#FAF9F6"/>
+  <g class="edge">
+    <path marker-end="url(#arrow)" d="M400 145 H340 V270 H290"/>
+    <path marker-end="url(#arrow)" d="M400 295 H290"/>
+    <path marker-end="url(#arrow)" d="M400 445 H340 V320 H290"/>
+    <path marker-end="url(#arrow)" d="M630 145 H1260 V240"/>
+    <path marker-end="url(#arrow)" d="M630 295 H800"/>
+    <path marker-end="url(#arrow)" d="M1020 295 H1140"/>
+    <path marker-end="url(#arrow)" d="M630 445 H1260 V350"/>
+  </g>
+  <g>
+    <text x="720" y="40">目标资源关系 · 已确认，尚未实现</text>
+    <text x="175" y="215" class="note">三种路由均通过 parentRefs 引用</text>
+    <text x="900" y="127" class="note">backendRefs</text>
+    <text x="715" y="277" class="note">backendRefs</text>
+    <text x="1080" y="277" class="note">backendRef</text>
+    <text x="900" y="427" class="note">backendRefs</text>
+    <rect class="box" x="60" y="240" width="230" height="110" rx="10"/>
+    <text x="175" y="287">Gateway</text><text x="175" y="319" class="note">入口与 Listener</text>
+    <rect class="box" x="400" y="100" width="230" height="90" rx="10"/>
+    <text x="515" y="140">HTTPRoute</text><text x="515" y="168" class="note">HTTP 匹配与转发</text>
+    <rect class="model" x="400" y="250" width="230" height="90" rx="10"/>
+    <text x="515" y="290">ModelRoute</text><text x="515" y="318" class="note">模型入口与目标映射</text>
+    <rect class="box" x="400" y="400" width="230" height="90" rx="10"/>
+    <text x="515" y="440">MCPRoute</text><text x="515" y="468" class="note">MCP 入口与协议路由</text>
+    <rect class="model" x="800" y="250" width="220" height="90" rx="10"/>
+    <text x="910" y="290">AIBackend</text><text x="910" y="318" class="note">模型服务访问契约</text>
+    <rect class="box" x="1140" y="240" width="240" height="110" rx="10"/>
+    <text x="1260" y="287">Backend</text><text x="1260" y="319" class="note">统一网络目标</text>
+    <text x="720" y="540" class="note">箭头表示配置引用，不增加代理跳数；Backend 表示资源类型，不要求所有路由共用同一实例。</text>
+    <text x="720" y="573" class="note">资源分层不改变统一 Go AI Proxy；字段、凭据与策略附着、引用权限及发布协议仍待评审。</text>
+  </g>
+</svg>

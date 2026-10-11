@@ -84,10 +84,10 @@ func TestADSStreamsPublishedResources(t *testing.T) {
 		Listeners: []dataplane.Listener{{Port: 8080, Hosts: []dataplane.Host{{
 			Name: "gateway/main/listener/http", Hostname: "example.com",
 			Routes: []dataplane.Route{{
-				Name: "api", PathType: dataplane.PathMatchPrefix, Path: "/api", UpstreamName: "backend",
+				Name: "api", PathType: dataplane.PathMatchPrefix, Path: "/api", BackendName: "backend",
 			}},
 		}}}},
-		Upstreams: []dataplane.Upstream{{
+		Backends: []dataplane.Backend{{
 			Name: "backend", Endpoints: []dataplane.Endpoint{{Address: "192.0.2.1", Port: 9000, Weight: 1}},
 		}},
 	}
@@ -133,7 +133,7 @@ func TestADSStreamsPublishedResources(t *testing.T) {
 		name    string
 	}{
 		{resourcev3.ClusterType, ""},
-		{resourcev3.EndpointType, "upstream/backend"},
+		{resourcev3.EndpointType, "backend/backend"},
 		{resourcev3.ListenerType, ""},
 		{resourcev3.RouteType, "route/8080"},
 	} {

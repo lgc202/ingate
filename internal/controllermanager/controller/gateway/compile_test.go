@@ -17,25 +17,35 @@ func TestCompileGroupsHostsByPort(t *testing.T) {
 			listener("http", 8080, "a.example.com"),
 		),
 	}
-	routes := []gatewayv1alpha1.Route{
+	routes := []gatewayv1alpha1.HTTPRoute{
 		routeResource("missing", 1, "first", "http", "unknown", gatewayv1alpha1.PathMatchPrefix),
 		routeResource("valid", 2, "second", "http", "backend", gatewayv1alpha1.PathMatchExact),
 	}
-	upstreams := []gatewayv1alpha1.Upstream{upstreamResource("backend")}
+	backends := []gatewayv1alpha1.Backend{backendResource("backend")}
 
-	got := compile(resolve(gateways, routes, upstreams))
+	got := compile(resolve(gateways, routes, backends))
 	want := dataplane.Config{
 		Listeners: []dataplane.Listener{
 			{
 				Port: 8080,
 				Hosts: []dataplane.Host{
-					{Name: "gateway/first/listener/http", Hostname: "a.example.com"},
+					{
+						Name:     "gateway/first/listener/http",
+						Hostname: "a.example.com",
+						Routes: []dataplane.Route{{
+							Name:     "missing/rule/0/match/0",
+							PathType: dataplane.PathMatchPrefix,
+							Path:     "/api",
+						}},
+					},
 					{
 						Name:     "gateway/second/listener/http",
 						Hostname: "b.example.com",
 						Routes: []dataplane.Route{{
-							Name: "valid", PathType: dataplane.PathMatchExact,
-							Path: "/api", UpstreamName: "backend",
+							Name:        "valid/rule/0/match/0",
+							PathType:    dataplane.PathMatchExact,
+							Path:        "/api",
+							BackendName: "backend",
 						}},
 					},
 				},
@@ -45,7 +55,7 @@ func TestCompileGroupsHostsByPort(t *testing.T) {
 				Hosts: []dataplane.Host{{Name: "gateway/first/listener/admin"}},
 			},
 		},
-		Upstreams: []dataplane.Upstream{{
+		Backends: []dataplane.Backend{{
 			Name: "backend",
 			Endpoints: []dataplane.Endpoint{{
 				Address: "127.0.0.1", Port: 8081, Weight: 1,
@@ -54,7 +64,7 @@ func TestCompileGroupsHostsByPort(t *testing.T) {
 	}
 
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("compile(resolve(two Gateways, one missing Upstream)) mismatch (-want +got):\n%s", diff)
+		t.Errorf("compile(resolve(two Gateways, one missing Backend)) mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -67,20 +77,20 @@ func TestCompileEmpty(t *testing.T) {
 
 func TestCompileNormalizesPathPrefix(t *testing.T) {
 	route := routeResource("api", 1, "edge", "http", "backend", gatewayv1alpha1.PathMatchPrefix)
-	route.Spec.Path.Value = "/api/"
+	route.Spec.Rules[0].Matches[0].Path.Value = "/api/"
 
 	config := compile(resolve(
 		[]gatewayv1alpha1.Gateway{gatewayResource("edge", 1, listener("http", 8080, ""))},
-		[]gatewayv1alpha1.Route{route},
-		[]gatewayv1alpha1.Upstream{upstreamResource("backend")},
+		[]gatewayv1alpha1.HTTPRoute{route},
+		[]gatewayv1alpha1.Backend{backendResource("backend")},
 	))
 	want := []dataplane.Listener{{
 		Port: 8080,
 		Hosts: []dataplane.Host{{
 			Name: "gateway/edge/listener/http",
 			Routes: []dataplane.Route{{
-				Name: "api", PathType: dataplane.PathMatchPrefix,
-				Path: "/api", UpstreamName: "backend",
+				Name: "api/rule/0/match/0", PathType: dataplane.PathMatchPrefix,
+				Path: "/api", BackendName: "backend",
 			}},
 		}},
 	}}

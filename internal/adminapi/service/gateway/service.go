@@ -2,11 +2,15 @@ package gateway
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"strings"
 
-	"github.com/lgc202/ingate/internal/adminapi/domain"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/lgc202/ingate/internal/adminapi/repository"
+	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
 const defaultPageSize = 50
@@ -14,7 +18,7 @@ const defaultPageSize = 50
 var (
 	// ErrInvalidArgument 表示网关参数不合法。
 	ErrInvalidArgument = errors.New("invalid gateway argument")
-	// ErrAlreadyExists 表示同名网关已存在。
+	// ErrAlreadyExists 表示生成的资源标识已存在。
 	ErrAlreadyExists = errors.New("gateway already exists")
 	// ErrNotFound 表示指定网关不存在。
 	ErrNotFound = errors.New("gateway not found")
@@ -24,9 +28,8 @@ var (
 
 // CreateParams 保存创建 Gateway 所需的参数。
 type CreateParams struct {
-	Name        string
 	DisplayName string
-	Listeners   []domain.Listener
+	Listeners   []gatewayv1alpha1.Listener
 }
 
 // UpdateParams 保存完整替换 Gateway 可编辑配置所需的参数。
@@ -34,13 +37,14 @@ type UpdateParams struct {
 	Name        string
 	Version     string
 	DisplayName string
-	Listeners   []domain.Listener
+	Listeners   []gatewayv1alpha1.Listener
 }
 
-// ListResult 保存一页网关和本次查询的总数。
-type ListResult struct {
-	Items      []domain.Gateway
-	TotalCount int64
+// ListParams 保存分页与展示名称包含匹配条件。
+type ListParams struct {
+	PageSize    int32
+	PageNum     int32
+	DisplayName string
 }
 
 // Service 实现 Gateway 管理用例。
@@ -53,64 +57,83 @@ func New(gateways *repository.Gateway) *Service {
 	return &Service{gateways: gateways}
 }
 
-// Create 创建 Gateway。
+// Create 生成稳定资源标识并创建 Gateway，不按展示名称去重。
 func (s *Service) Create(
 	ctx context.Context,
 	params CreateParams,
-) (domain.Gateway, error) {
-	gateway := domain.Gateway{
-		Name:        params.Name,
-		DisplayName: params.DisplayName,
-		Listeners:   params.Listeners,
+) (repository.GatewayInfo, error) {
+	gateway := &gatewayv1alpha1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{Name: "gateway-" + strings.ToLower(rand.Text())},
+		Spec: gatewayv1alpha1.GatewaySpec{
+			DisplayName: params.DisplayName,
+			Listeners:   params.Listeners,
+		},
 	}
 
 	created, err := s.gateways.Create(ctx, gateway)
 	if err != nil {
-		return domain.Gateway{}, translateRepositoryError(err)
+		return repository.GatewayInfo{}, translateRepositoryError(err)
 	}
 
 	return created, nil
 }
 
 // Get 读取指定 Gateway。
-func (s *Service) Get(ctx context.Context, name string) (domain.Gateway, error) {
+func (s *Service) Get(
+	ctx context.Context,
+	name string,
+) (repository.GatewayInfo, error) {
 	gateway, err := s.gateways.Get(ctx, name)
 	if err != nil {
-		return domain.Gateway{}, translateRepositoryError(err)
+		return repository.GatewayInfo{}, translateRepositoryError(err)
 	}
 
 	return gateway, nil
 }
 
 // List 分页列出 Gateway。
-func (s *Service) List(ctx context.Context, pageSize, pageNum int32) (ListResult, error) {
-	if pageSize == 0 {
-		pageSize = defaultPageSize
+func (s *Service) List(
+	ctx context.Context,
+	params ListParams,
+) (repository.GatewayPage, error) {
+	if params.PageSize == 0 {
+		params.PageSize = defaultPageSize
 	}
-	if pageNum == 0 {
-		pageNum = 1
+	if params.PageNum == 0 {
+		params.PageNum = 1
 	}
 
-	gateways, totalCount, err := s.gateways.List(ctx, pageSize, pageNum)
+	page, err := s.gateways.List(ctx, repository.ResourceListParams{
+		PageSize:    params.PageSize,
+		PageNum:     params.PageNum,
+		DisplayName: params.DisplayName,
+	})
 	if err != nil {
-		return ListResult{}, translateRepositoryError(err)
+		return repository.GatewayPage{}, translateRepositoryError(err)
 	}
 
-	return ListResult{Items: gateways, TotalCount: totalCount}, nil
+	return page, nil
 }
 
 // Update 完整替换 Gateway 的可编辑配置，并检查调用方读取的版本。
-func (s *Service) Update(ctx context.Context, params UpdateParams) (domain.Gateway, error) {
-	gateway := domain.Gateway{
-		Name:        params.Name,
-		Version:     params.Version,
-		DisplayName: params.DisplayName,
-		Listeners:   params.Listeners,
+func (s *Service) Update(
+	ctx context.Context,
+	params UpdateParams,
+) (repository.GatewayInfo, error) {
+	gateway := &gatewayv1alpha1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            params.Name,
+			ResourceVersion: params.Version,
+		},
+		Spec: gatewayv1alpha1.GatewaySpec{
+			DisplayName: params.DisplayName,
+			Listeners:   params.Listeners,
+		},
 	}
 
 	updated, err := s.gateways.Update(ctx, gateway)
 	if err != nil {
-		return domain.Gateway{}, translateRepositoryError(err)
+		return repository.GatewayInfo{}, translateRepositoryError(err)
 	}
 
 	return updated, nil

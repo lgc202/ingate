@@ -52,15 +52,15 @@ func TestNewClusterEndpointAssignment(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			before := slices.Clone(tt.endpoints)
-			cluster, assignment, err := newCluster(dataplane.Upstream{Name: "backend", Endpoints: tt.endpoints})
+			cluster, assignment, err := newCluster(dataplane.Backend{Name: "backend", Endpoints: tt.endpoints})
 			if err != nil {
 				t.Fatalf("newCluster(%v) error = %v, want nil", tt.endpoints, err)
 			}
 			if got := cluster.GetType(); got != tt.wantType {
 				t.Errorf("newCluster(%v) discovery type = %v, want %v", tt.endpoints, got, tt.wantType)
 			}
-			if got := assignment.ClusterName; got != "upstream/backend" {
-				t.Errorf("newCluster(%v) assignment name = %q, want upstream/backend", tt.endpoints, got)
+			if got := assignment.ClusterName; got != "backend/backend" {
+				t.Errorf("newCluster(%v) assignment name = %q, want backend/backend", tt.endpoints, got)
 			}
 			if len(assignment.Endpoints) != 1 {
 				t.Fatalf("newCluster(%v) localities = %d, want 1", tt.endpoints, len(assignment.Endpoints))
@@ -84,7 +84,7 @@ func TestNewClusterEndpointAssignment(t *testing.T) {
 				if cluster.LoadAssignment != assignment || cluster.EdsClusterConfig != nil {
 					t.Errorf("newCluster(%v) did not embed DNS assignment or unexpectedly configured EDS", tt.endpoints)
 				}
-			} else if cluster.LoadAssignment != nil || cluster.GetEdsClusterConfig().GetServiceName() != "upstream/backend" {
+			} else if cluster.LoadAssignment != nil || cluster.GetEdsClusterConfig().GetServiceName() != "backend/backend" {
 				t.Errorf("newCluster(%v) did not configure EDS service or unexpectedly embedded assignment", tt.endpoints)
 			}
 		})
@@ -97,11 +97,11 @@ func TestNewClusterRejectsInvalidEndpoint(t *testing.T) {
 		endpoint   dataplane.Endpoint
 		wantPrefix string
 	}{
-		{name: "IP weight", endpoint: dataplane.Endpoint{Address: "192.0.2.1", Port: 9000}, wantPrefix: "validate endpoints for \"upstream/backend\": "},
-		{name: "DNS weight", endpoint: dataplane.Endpoint{Address: "backend.example.com", Port: 9000}, wantPrefix: "validate cluster \"upstream/backend\": "},
+		{name: "IP weight", endpoint: dataplane.Endpoint{Address: "192.0.2.1", Port: 9000}, wantPrefix: "validate endpoints for \"backend/backend\": "},
+		{name: "DNS weight", endpoint: dataplane.Endpoint{Address: "backend.example.com", Port: 9000}, wantPrefix: "validate cluster \"backend/backend\": "},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			cluster, assignment, err := newCluster(dataplane.Upstream{Name: "backend", Endpoints: []dataplane.Endpoint{tt.endpoint}})
+			cluster, assignment, err := newCluster(dataplane.Backend{Name: "backend", Endpoints: []dataplane.Endpoint{tt.endpoint}})
 			if err == nil {
 				t.Fatalf("newCluster(%+v) error = nil, want validation error", tt.endpoint)
 			}
@@ -115,6 +115,42 @@ func TestNewClusterRejectsInvalidEndpoint(t *testing.T) {
 	}
 }
 
+func TestInvalidBackendKeepsMatchBeforeFallback(t *testing.T) {
+	listener := dataplane.Listener{Port: 8080, Hosts: []dataplane.Host{{Name: "edge", Routes: []dataplane.Route{
+		{Name: "fallback", PathType: dataplane.PathMatchPrefix, Path: "/", BackendName: "valid"},
+		{Name: "z-first-rule", PathType: dataplane.PathMatchPrefix, Path: "/api"},
+		{Name: "a-second-rule", PathType: dataplane.PathMatchPrefix, Path: "/api", BackendName: "valid"},
+	}}}}
+	config, err := newRouteConfiguration(listener)
+	if err != nil {
+		t.Fatalf("newRouteConfiguration: %v", err)
+	}
+	routes := config.VirtualHosts[0].Routes
+	if len(routes) != 3 {
+		t.Fatalf("routes = %d, want invalid match and both valid candidates", len(routes))
+	}
+	if routes[0].Name != "z-first-rule" || routes[0].GetDirectResponse().GetStatus() != 500 || routes[0].GetRoute() != nil {
+		t.Errorf("first rule = %v, want 500 without forwarding", routes[0])
+	}
+	if routes[0].Match.GetPathSeparatedPrefix() != "/api" {
+		t.Errorf("invalid match lost segment boundary: %v", routes[0].Match)
+	}
+	if routes[1].Name != "a-second-rule" || routes[1].GetRoute().GetCluster() != "backend/valid" || routes[2].Name != "fallback" {
+		t.Errorf("candidate ordering = %v", routes)
+	}
+	listener.Hosts[0].Routes[1].BackendName = "restored"
+	restored, err := newRouteConfiguration(listener)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first := restored.VirtualHosts[0].Routes[0]; first.GetDirectResponse() != nil || first.GetRoute().GetCluster() != "backend/restored" {
+		t.Errorf("restored target = %v", first)
+	}
+	if listener.Hosts[0].Routes[0].Name != "fallback" {
+		t.Error("adapter mutated input order")
+	}
+}
+
 func TestBuildResources(t *testing.T) {
 	config := dataplane.Config{
 		Listeners: []dataplane.Listener{{
@@ -122,14 +158,14 @@ func TestBuildResources(t *testing.T) {
 			Hosts: []dataplane.Host{{
 				Name: "gateway/main/listener/http", Hostname: "example.com",
 				Routes: []dataplane.Route{
-					{Name: "root", PathType: dataplane.PathMatchPrefix, Path: "/", UpstreamName: "ip"},
-					{Name: "prefix", PathType: dataplane.PathMatchPrefix, Path: "/api", UpstreamName: "dns"},
-					{Name: "exact", PathType: dataplane.PathMatchExact, Path: "/api", UpstreamName: "ip"},
-					{Name: "docs", PathType: dataplane.PathMatchPrefix, Path: "/docs", UpstreamName: "ip"},
+					{Name: "root", PathType: dataplane.PathMatchPrefix, Path: "/", BackendName: "ip"},
+					{Name: "prefix", PathType: dataplane.PathMatchPrefix, Path: "/api", BackendName: "dns"},
+					{Name: "exact", PathType: dataplane.PathMatchExact, Path: "/api", BackendName: "ip"},
+					{Name: "docs", PathType: dataplane.PathMatchPrefix, Path: "/docs", BackendName: "ip"},
 				},
 			}},
 		}},
-		Upstreams: []dataplane.Upstream{
+		Backends: []dataplane.Backend{
 			{Name: "ip", Endpoints: []dataplane.Endpoint{{Address: "192.0.2.1", Port: 9000, Weight: 3}}},
 			{Name: "dns", Endpoints: []dataplane.Endpoint{{Address: "backend.example.com", Port: 9001, Weight: 2}}},
 		},
@@ -195,8 +231,8 @@ func TestBuildResources(t *testing.T) {
 	if got, want := len(snapshot.GetResources(resourcev3.ClusterType)), 2; got != want {
 		t.Errorf("newSnapshot(resources) clusters = %d, want %d", got, want)
 	}
-	if got := routes[0].GetRoute().GetCluster(); got != "upstream/ip" {
-		t.Errorf("buildResources(config) exact route cluster = %q, want upstream/ip", got)
+	if got := routes[0].GetRoute().GetCluster(); got != "backend/ip" {
+		t.Errorf("buildResources(config) exact route cluster = %q, want backend/ip", got)
 	}
 	if got := snapshot.GetResources(resourcev3.RouteType)["route/8080"].(*routev3.RouteConfiguration).VirtualHosts[0].Domains[0]; got != "example.com" {
 		t.Errorf("newSnapshot(resources) virtual host domain = %q, want example.com", got)
@@ -204,7 +240,7 @@ func TestBuildResources(t *testing.T) {
 }
 
 func TestNewSnapshotRejectsMissingEDSAssignment(t *testing.T) {
-	cluster, _, err := newCluster(dataplane.Upstream{
+	cluster, _, err := newCluster(dataplane.Backend{
 		Name: "backend", Endpoints: []dataplane.Endpoint{{Address: "192.0.2.1", Port: 9000, Weight: 1}},
 	})
 	if err != nil {

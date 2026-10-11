@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 900" role="img" aria-labelledby="title desc">
+  <title id="title">HTTP 与 AI 请求处理流程</title>
+  <desc id="desc">普通 HTTP 经 Envoy 直达后端；AI 请求进入统一 Go Proxy，模型和 MCP 分开处理，经候选 Envoy 出站路径访问后端并返回。具体协议能力待选定。</desc>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#5B8A72"/></marker><marker id="purple" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#8B6F8A"/></marker></defs>
+  <style>text{font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif;fill:#252525;font-size:17px;text-anchor:middle}.note{font-size:14px;fill:#666}.edge{fill:none;stroke:#5B8A72;stroke-width:2;marker-end:url(#arrow)}.newedge{fill:none;stroke:#8B6F8A;stroke-width:2;stroke-dasharray:6 4;marker-end:url(#purple)}.box{fill:#F5F8F6;stroke:#5B8A72;stroke-width:1.5}.new{fill:#F5F3F8;stroke:#8B6F8A;stroke-width:1.5}</style>
+  <rect width="100%" height="100%" fill="#FAF9F6"/>
+  <g class="edge">
+    <path marker-end="url(#arrow)" d="M560 90 V130"/>
+    <path marker-end="url(#arrow)" d="M560 190 V230"/>
+    <path marker-end="url(#arrow)" d="M470 275 H140 V380"/>
+    <path marker-end="url(#arrow)" d="M140 450 V510"/>
+    <path marker-end="url(#arrow)" d="M140 580 V830 H410"/>
+  </g>
+  <g class="newedge">
+    <path marker-end="url(#purple)" d="M560 320 V380"/>
+    <path marker-end="url(#purple)" d="M560 450 V510"/>
+    <path marker-end="url(#purple)" d="M690 415 H920 V510"/>
+    <path marker-end="url(#purple)" d="M560 580 V640"/>
+    <path marker-end="url(#purple)" d="M920 580 V610 H670 V640"/>
+    <path marker-end="url(#purple)" d="M690 675 H790"/>
+    <path marker-end="url(#purple)" d="M920 710 V830 H710"/>
+  </g>
+  <g>
+    <text x="310" y="262" class="note">普通 HTTP</text>
+    <text x="605" y="355" class="note">AI 路由</text>
+    <text x="835" y="402" class="note">MCP</text>
+    <text x="610" y="490" class="note">模型</text>
+    <text x="740" y="662" class="note">请求</text>
+    <text x="964" y="772" class="note">响应</text>
+    <rect class="box" x="440" y="30" width="240" height="60" rx="25"/>
+    <text x="560" y="67">客户端请求</text>
+    <rect class="box" x="440" y="130" width="240" height="60" rx="10"/>
+    <text x="560" y="167">Envoy 入口路由</text>
+    <polygon points="560,230 650,275 560,320 470,275" fill="#FFF5F0" stroke="#D97757" stroke-width="1.5"/>
+    <text x="560" y="281">路由类型</text>
+    <rect class="box" x="30" y="380" width="220" height="70" rx="10"/>
+    <text x="140" y="410">Envoy 直接转发</text><text x="140" y="435" class="note">不进入 Go Proxy</text>
+    <rect class="box" x="30" y="510" width="220" height="70" rx="10"/>
+    <text x="140" y="550">HTTP 后端</text>
+    <rect class="new" x="450" y="380" width="240" height="70" rx="10"/>
+    <text x="570" y="410">统一 Go AI Proxy</text><text x="570" y="435" class="note">可信标识 + 捕获配置视图</text>
+    <rect class="new" x="450" y="510" width="220" height="70" rx="10"/>
+    <text x="560" y="540">模型模块</text><text x="560" y="565" class="note">选择 · 转换 · 后端认证</text>
+    <rect class="new" x="800" y="510" width="240" height="70" rx="10"/>
+    <text x="920" y="540">MCP 模块</text><text x="920" y="565" class="note">传输 / 会话范围待定</text>
+    <rect class="new" x="450" y="640" width="240" height="70" rx="10"/>
+    <text x="570" y="670">Envoy 内部出站</text><text x="570" y="695" class="note">候选拓扑 · 不叠加业务重试</text>
+    <rect class="new" x="790" y="640" width="250" height="70" rx="10"/>
+    <text x="915" y="680">模型 / MCP 后端</text>
+    <rect class="box" x="410" y="790" width="300" height="80" rx="10"/>
+    <text x="560" y="823">响应返回客户端</text><text x="560" y="847" class="note">AI：后端 → Go 协议模块 → 入口 Envoy</text>
+    <text x="560" y="890" class="note">右侧为设计流程；实际协议、错误、取消、SSE 与重试契约需评审。普通 HTTP 响应只经过 Envoy。</text>
+  </g>
+</svg>

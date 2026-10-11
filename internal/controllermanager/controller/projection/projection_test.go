@@ -64,9 +64,13 @@ func TestReconcileProjectsVersionAfterStatusOnlyUpdate(t *testing.T) {
 			switch object := current.(type) {
 			case *gatewayv1alpha1.Gateway:
 				object.Status.Conditions = []metav1.Condition{condition}
-			case *gatewayv1alpha1.Route:
-				object.Status.Conditions = []metav1.Condition{condition}
-			case *gatewayv1alpha1.Upstream:
+			case *gatewayv1alpha1.HTTPRoute:
+				object.Status.Parents = []gatewayv1alpha1.RouteParentStatus{{
+					ParentRef:      gatewayv1alpha1.ParentReference{Name: "edge"},
+					ControllerName: "gateway.ingate.io/test",
+					Conditions:     []metav1.Condition{condition},
+				}}
+			case *gatewayv1alpha1.Backend:
 				object.Status.Conditions = []metav1.Condition{condition}
 			}
 			if err := apiClient.Status().Update(t.Context(), current); err != nil {
@@ -231,6 +235,8 @@ func TestInitialSyncCleanupFailureCanRetryAfterPartialProgress(t *testing.T) {
 func projectionTestCases() []projectionTestCase {
 	createdAt := time.Date(2026, 9, 26, 1, 2, 3, 0, time.UTC)
 	metadata := metav1.ObjectMeta{Name: "current", ResourceVersion: "8", Generation: 1, CreationTimestamp: metav1.NewTime(createdAt)}
+	parentsJSON := `[{"name":"edge","sectionName":"http"}]`
+	rulesJSON := `[{"matches":[{"pathType":"PathPrefix","pathValue":"/api"}],"backendRefs":[{"name":"backend"}]}]`
 	return []projectionTestCase{
 		{
 			name: "Gateway", table: "gateways", initialSyncName: gatewayInitialSyncName,
@@ -246,14 +252,14 @@ func projectionTestCases() []projectionTestCase {
 			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewGateway(c, s) },
 			expectCreate: func(mock sqlmock.Sqlmock, name, version string) {
 				expectProjectionLookup(mock, "gateways", name, false)
-				mock.ExpectExec("INSERT INTO `gateways` (`name`,`display_name`,`resource_version`,`created_at`,`updated_at`) VALUES (?,?,?,?,?)").
+				mock.ExpectExec("INSERT INTO `gateways` (`name`,`display_name`,`version`,`created_at`,`updated_at`) VALUES (?,?,?,?,?)").
 					WithArgs(name, "Edge", version, createdAt, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(41, 1))
 				expectGatewayListeners(mock)
 				mock.ExpectCommit()
 			},
 			expectUpdate: func(mock sqlmock.Sqlmock, name, version string) {
 				expectProjectionLookup(mock, "gateways", name, true)
-				mock.ExpectExec("UPDATE `gateways` SET `created_at`=?,`display_name`=?,`resource_version`=?,`updated_at`=? WHERE `id` = ?").
+				mock.ExpectExec("UPDATE `gateways` SET `created_at`=?,`display_name`=?,`version`=?,`updated_at`=? WHERE `id` = ?").
 					WithArgs(createdAt, "Edge", version, sqlmock.AnyArg(), 41).WillReturnResult(sqlmock.NewResult(0, 1))
 				expectGatewayListeners(mock)
 				mock.ExpectCommit()
@@ -269,69 +275,77 @@ func projectionTestCases() []projectionTestCase {
 			},
 		},
 		{
-			name: "Route", table: "routes", initialSyncName: routeInitialSyncName,
-			object: &gatewayv1alpha1.Route{
+			name: "HTTPRoute", table: "httproutes", initialSyncName: routeInitialSyncName,
+			object: &gatewayv1alpha1.HTTPRoute{
 				ObjectMeta: metadata,
-				Spec: gatewayv1alpha1.RouteSpec{
-					GatewayName: "edge", ListenerName: "http", UpstreamName: "backend",
-					Path: gatewayv1alpha1.PathMatch{Type: gatewayv1alpha1.PathMatchPrefix, Value: "/api"},
+				Spec: gatewayv1alpha1.HTTPRouteSpec{
+					DisplayName: "订单路由",
+					ParentRefs:  []gatewayv1alpha1.ParentReference{{Name: "edge", SectionName: "http"}},
+					Rules: []gatewayv1alpha1.HTTPRouteRule{{
+						Matches: []gatewayv1alpha1.HTTPRouteMatch{{
+							Path: &gatewayv1alpha1.PathMatch{Type: gatewayv1alpha1.PathMatchPrefix, Value: "/api"},
+						}},
+						BackendRefs: []gatewayv1alpha1.BackendReference{{Name: "backend"}},
+					}},
 				},
 			},
-			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewRoute(c, s) },
+			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewHTTPRoute(c, s) },
 			expectCreate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "routes", name, false)
-				mock.ExpectExec("INSERT INTO `routes` (`name`,`gateway_name`,`listener_name`,`path_type`,`path_value`,`upstream_name`,`resource_version`,`created_at`,`updated_at`) VALUES (?,?,?,?,?,?,?,?,?)").
-					WithArgs(name, "edge", "http", "PathPrefix", "/api", "backend", version, createdAt, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(41, 1))
+				expectProjectionLookup(mock, "httproutes", name, false)
+				mock.ExpectExec("INSERT INTO `httproutes` (`name`,`display_name`,`version`,`created_at`,`updated_at`,`parents`,`rules`) VALUES (?,?,?,?,?,?,?)").
+					WithArgs(name, "订单路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, rulesJSON).
+					WillReturnResult(sqlmock.NewResult(41, 1))
 				mock.ExpectCommit()
 			},
 			expectUpdate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "routes", name, true)
-				mock.ExpectExec("UPDATE `routes` SET `created_at`=?,`gateway_name`=?,`listener_name`=?,`path_type`=?,`path_value`=?,`resource_version`=?,`upstream_name`=?,`updated_at`=? WHERE `id` = ?").
-					WithArgs(createdAt, "edge", "http", "PathPrefix", "/api", version, "backend", sqlmock.AnyArg(), 41).WillReturnResult(sqlmock.NewResult(0, 1))
+				expectProjectionLookup(mock, "httproutes", name, true)
+				mock.ExpectExec("UPDATE `httproutes` SET `display_name`=?,`version`=?,`created_at`=?,`updated_at`=?,`parents`=?,`rules`=? WHERE `id` = ?").
+					WithArgs("订单路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, rulesJSON, 41).
+					WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			},
 			expectDelete: func(mock sqlmock.Sqlmock, name string) {
 				mock.ExpectBegin()
-				mock.ExpectExec("DELETE FROM `routes` WHERE name = ?").WithArgs(name).WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec("DELETE FROM `httproutes` WHERE name = ?").WithArgs(name).WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			},
 			expectDeleteErr: func(mock sqlmock.Sqlmock, name string, err error) {
 				mock.ExpectBegin()
-				mock.ExpectExec("DELETE FROM `routes` WHERE name = ?").WithArgs(name).WillReturnError(err)
+				mock.ExpectExec("DELETE FROM `httproutes` WHERE name = ?").WithArgs(name).WillReturnError(err)
 				mock.ExpectRollback()
 			},
 		},
 		{
-			name: "Upstream", table: "upstreams", initialSyncName: upstreamInitialSyncName,
-			object: &gatewayv1alpha1.Upstream{
+			name: "Backend", table: "backends", initialSyncName: backendInitialSyncName,
+			object: &gatewayv1alpha1.Backend{
 				ObjectMeta: metadata,
-				Spec: gatewayv1alpha1.UpstreamSpec{Endpoints: []gatewayv1alpha1.Endpoint{
+				Spec: gatewayv1alpha1.BackendSpec{DisplayName: "订单后端", Endpoints: []gatewayv1alpha1.Endpoint{
 					{Address: "127.0.0.1", Port: 9090, Weight: 3},
 				}},
 			},
-			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewUpstream(c, s) },
+			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewBackend(c, s) },
 			expectCreate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "upstreams", name, false)
-				mock.ExpectExec("INSERT INTO `upstreams` (`name`,`resource_version`,`created_at`,`updated_at`) VALUES (?,?,?,?)").
-					WithArgs(name, version, createdAt, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(41, 1))
-				expectUpstreamEndpoints(mock)
+				expectProjectionLookup(mock, "backends", name, false)
+				mock.ExpectExec("INSERT INTO `backends` (`name`,`display_name`,`version`,`created_at`,`updated_at`) VALUES (?,?,?,?,?)").
+					WithArgs(name, "订单后端", version, createdAt, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(41, 1))
+				expectBackendEndpoints(mock)
 				mock.ExpectCommit()
 			},
 			expectUpdate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "upstreams", name, true)
-				mock.ExpectExec("UPDATE `upstreams` SET `created_at`=?,`resource_version`=?,`updated_at`=? WHERE `id` = ?").
-					WithArgs(createdAt, version, sqlmock.AnyArg(), 41).WillReturnResult(sqlmock.NewResult(0, 1))
-				expectUpstreamEndpoints(mock)
+				expectProjectionLookup(mock, "backends", name, true)
+				mock.ExpectExec("UPDATE `backends` SET `created_at`=?,`display_name`=?,`version`=?,`updated_at`=? WHERE `id` = ?").
+					WithArgs(createdAt, "订单后端", version, sqlmock.AnyArg(), 41).WillReturnResult(sqlmock.NewResult(0, 1))
+				expectBackendEndpoints(mock)
 				mock.ExpectCommit()
 			},
 			expectDelete: func(mock sqlmock.Sqlmock, name string) {
-				expectProjectionLookup(mock, "upstreams", name, true)
-				mock.ExpectExec("DELETE FROM `upstream_endpoints` WHERE upstream_id = ?").WithArgs(41).WillReturnResult(sqlmock.NewResult(0, 1))
-				mock.ExpectExec("DELETE FROM `upstreams` WHERE `upstreams`.`id` = ?").WithArgs(41).WillReturnResult(sqlmock.NewResult(0, 1))
+				expectProjectionLookup(mock, "backends", name, true)
+				mock.ExpectExec("DELETE FROM `backend_endpoints` WHERE backend_id = ?").WithArgs(41).WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec("DELETE FROM `backends` WHERE `backends`.`id` = ?").WithArgs(41).WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			},
 			expectDeleteErr: func(mock sqlmock.Sqlmock, name string, err error) {
-				expectProjectionLookupFailure(mock, "upstreams", name, err)
+				expectProjectionLookupFailure(mock, "backends", name, err)
 			},
 		},
 	}
@@ -369,7 +383,7 @@ func newProjectionTestClient(t *testing.T, objects ...client.Object) client.With
 		t.Fatalf("AddToScheme() error = %v, want nil", err)
 	}
 	return fake.NewClientBuilder().WithScheme(scheme).
-		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.Route{}, &gatewayv1alpha1.Upstream{}).
+		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.HTTPRoute{}, &gatewayv1alpha1.Backend{}).
 		WithObjects(objects...).Build()
 }
 
@@ -406,8 +420,8 @@ func expectGatewayListeners(mock sqlmock.Sqlmock) {
 		WithArgs(41, "http", "HTTP", 8080, "example.com").WillReturnResult(sqlmock.NewResult(51, 1))
 }
 
-func expectUpstreamEndpoints(mock sqlmock.Sqlmock) {
-	mock.ExpectExec("DELETE FROM `upstream_endpoints` WHERE upstream_id = ?").WithArgs(41).WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec("INSERT INTO `upstream_endpoints` (`upstream_id`,`address`,`port`,`weight`) VALUES (?,?,?,?)").
+func expectBackendEndpoints(mock sqlmock.Sqlmock) {
+	mock.ExpectExec("DELETE FROM `backend_endpoints` WHERE backend_id = ?").WithArgs(41).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO `backend_endpoints` (`backend_id`,`address`,`port`,`weight`) VALUES (?,?,?,?)").
 		WithArgs(41, "127.0.0.1", 9090, 3).WillReturnResult(sqlmock.NewResult(51, 1))
 }

@@ -29,30 +29,42 @@ func TestResourceHTTPContract(t *testing.T) {
 	}{
 		{
 			name: "edge", kind: "Gateway", resource: "gateways",
-			spec: map[string]any{"listeners": []any{
+			spec: map[string]any{"displayName": "重复展示名称", "listeners": []any{
 				map[string]any{"name": "http", "protocol": "HTTP", "port": int64(8080)},
 			}},
-			updatedSpec: map[string]any{"listeners": []any{
+			updatedSpec: map[string]any{"displayName": "更新展示名称", "listeners": []any{
 				map[string]any{"name": "http", "protocol": "HTTP", "port": int64(8081)},
 			}},
 		},
 		{
-			name: "api", kind: "Route", resource: "routes",
+			name: "api", kind: "HTTPRoute", resource: "httproutes",
 			spec: map[string]any{
-				"gatewayName": "edge", "listenerName": "http", "upstreamName": "backend",
-				"path": map[string]any{"type": "PathPrefix", "value": "/api"},
+				"displayName": "重复展示名称",
+				"parentRefs":  []any{map[string]any{"name": "edge", "sectionName": "http"}},
+				"rules": []any{map[string]any{
+					"matches": []any{map[string]any{
+						"path": map[string]any{"type": "PathPrefix", "value": "/api"},
+					}},
+					"backendRefs": []any{map[string]any{"name": "backend"}},
+				}},
 			},
 			updatedSpec: map[string]any{
-				"gatewayName": "edge", "listenerName": "http", "upstreamName": "backend",
-				"path": map[string]any{"type": "PathPrefix", "value": "/v1"},
+				"displayName": "更新展示名称",
+				"parentRefs":  []any{map[string]any{"name": "edge", "sectionName": "http"}},
+				"rules": []any{map[string]any{
+					"matches": []any{map[string]any{
+						"path": map[string]any{"type": "PathPrefix", "value": "/v1"},
+					}},
+					"backendRefs": []any{map[string]any{"name": "backend"}},
+				}},
 			},
 		},
 		{
-			name: "backend", kind: "Upstream", resource: "upstreams",
-			spec: map[string]any{"endpoints": []any{
+			name: "backend", kind: "Backend", resource: "backends",
+			spec: map[string]any{"displayName": "重复展示名称", "endpoints": []any{
 				map[string]any{"address": "127.0.0.1", "port": int64(8080), "weight": int64(1)},
 			}},
-			updatedSpec: map[string]any{"endpoints": []any{
+			updatedSpec: map[string]any{"displayName": "更新展示名称", "endpoints": []any{
 				map[string]any{"address": "127.0.0.1", "port": int64(8081), "weight": int64(1)},
 			}},
 		},
@@ -64,6 +76,47 @@ func TestResourceHTTPContract(t *testing.T) {
 			resource := gatewayv1alpha1.SchemeGroupVersion.WithResource(tt.resource)
 			testResourceHTTPContract(t, client.Resource(resource), tt.kind, tt.name, tt.spec, tt.updatedSpec)
 		})
+	}
+}
+
+func TestHTTPRouteDefaultingAndValidation(t *testing.T) {
+	client := startGatewayAPI(t)
+	resources := client.Resource(gatewayv1alpha1.SchemeGroupVersion.WithResource("httproutes"))
+	route := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": gatewayv1alpha1.SchemeGroupVersion.String(), "kind": "HTTPRoute",
+		"metadata": map[string]any{"name": "defaulted"},
+		"spec": map[string]any{
+			"parentRefs": []any{map[string]any{"name": "edge"}},
+			"rules":      []any{map[string]any{"backendRefs": []any{map[string]any{"name": "backend"}}}},
+		},
+	}}
+	created, err := resources.Create(t.Context(), route, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Create(defaulted): %v", err)
+	}
+	rules, found, err := unstructured.NestedSlice(created.Object, "spec", "rules")
+	if err != nil || !found || len(rules) != 1 {
+		t.Fatalf("rules = %v, found %v, err %v", rules, found, err)
+	}
+	matches := rules[0].(map[string]any)["matches"].([]any)
+	path := matches[0].(map[string]any)["path"].(map[string]any)
+	if path["type"] != "PathPrefix" || path["value"] != "/" {
+		t.Errorf("default path = %v, want PathPrefix /", path)
+	}
+	invalid := route.DeepCopy()
+	invalid.SetName("invalid")
+	invalid.Object["spec"].(map[string]any)["parentRefs"] = []any{map[string]any{"name": "edge"}, map[string]any{"name": "edge", "sectionName": "http"}}
+	if _, err := resources.Create(t.Context(), invalid, metav1.CreateOptions{}); !apierrors.IsInvalid(err) {
+		t.Errorf("overlapping parents error = %v, want Invalid", err)
+	}
+	unknown := route.DeepCopy()
+	unknown.SetName("unsupported")
+	unknown.Object["spec"].(map[string]any)["rules"] = []any{map[string]any{
+		"matches":     []any{map[string]any{"method": "POST"}},
+		"backendRefs": []any{map[string]any{"name": "backend"}},
+	}}
+	if _, err := resources.Create(t.Context(), unknown, metav1.CreateOptions{FieldValidation: metav1.FieldValidationStrict}); !apierrors.IsBadRequest(err) {
+		t.Errorf("strict Create(unsupported method) error = %v, want BadRequest", err)
 	}
 }
 
@@ -82,10 +135,8 @@ func testResourceHTTPContract(
 		"metadata": map[string]any{
 			"name": name, "labels": map[string]any{"environment": "test"},
 		},
-		"spec": spec,
-		"status": map[string]any{"conditions": []any{
-			map[string]any{"type": "Accepted", "status": "True"},
-		}},
+		"spec":   spec,
+		"status": statusForKind(kind, []any{map[string]any{"type": "Accepted", "status": "True"}}),
 	}}, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("Create(%s) error = %v", kind, err)
@@ -94,6 +145,20 @@ func testResourceHTTPContract(
 		t.Fatalf("Create(%s) metadata = %#v, want generation 1 and resourceVersion", kind, created.Object["metadata"])
 	}
 	assertConditions(t, created, 0)
+	duplicate := created.DeepCopy()
+	duplicate.SetName(name + "-duplicate")
+	duplicate.SetResourceVersion("")
+	duplicate.SetUID("")
+	duplicate, err = resources.Create(ctx, duplicate, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Create(%s, duplicate display name) error = %v, want nil", kind, err)
+	}
+	if duplicate.GetUID() == created.GetUID() || duplicate.GetUID() == "" {
+		t.Errorf("Create(%s, duplicate display name) UID = %q, want distinct nonempty UID", kind, duplicate.GetUID())
+	}
+	if err := resources.Delete(ctx, duplicate.GetName(), metav1.DeleteOptions{}); err != nil {
+		t.Fatalf("Delete(%s duplicate) error = %v, want nil", kind, err)
+	}
 
 	got, err := resources.Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
@@ -128,7 +193,9 @@ func testResourceHTTPContract(
 		}
 	}
 
-	stream, err := resources.Watch(ctx, metav1.ListOptions{ResourceVersion: created.GetResourceVersion()})
+	stream, err := resources.Watch(ctx, metav1.ListOptions{
+		ResourceVersion: created.GetResourceVersion(), FieldSelector: "metadata.name=" + name,
+	})
 	if err != nil {
 		t.Fatalf("Watch(%s) error = %v", kind, err)
 	}
@@ -136,9 +203,7 @@ func testResourceHTTPContract(
 
 	updated := created.DeepCopy()
 	updated.Object["spec"] = updatedSpec
-	updated.Object["status"] = map[string]any{"conditions": []any{
-		map[string]any{"type": "Accepted", "status": "True"},
-	}}
+	updated.Object["status"] = statusForKind(kind, []any{map[string]any{"type": "Accepted", "status": "True"}})
 	updated, err = resources.Update(ctx, updated, metav1.UpdateOptions{})
 	if err != nil {
 		t.Fatalf("Update(%s spec) error = %v", kind, err)
@@ -148,6 +213,9 @@ func testResourceHTTPContract(
 			kind, updated.Object["metadata"])
 	}
 	assertSpec(t, updated, updatedSpec)
+	if updated.GetName() != created.GetName() || updated.GetUID() != created.GetUID() {
+		t.Errorf("Update(%s rename) name/UID = %q/%q, want %q/%q", kind, updated.GetName(), updated.GetUID(), created.GetName(), created.GetUID())
+	}
 	assertConditions(t, updated, 0)
 	expectResourceEvent(t, stream, watch.Modified, name, updated.GetResourceVersion())
 
@@ -157,13 +225,13 @@ func testResourceHTTPContract(
 
 	status := updated.DeepCopy()
 	status.Object["spec"] = spec
-	status.Object["status"] = map[string]any{"conditions": []any{
+	status.Object["status"] = statusForKind(kind, []any{
 		map[string]any{
 			"type": "Accepted", "status": "True", "reason": "Configured",
 			"message": "ready", "observedGeneration": int64(2),
 			"lastTransitionTime": metav1.Now().Format(time.RFC3339),
 		},
-	}}
+	})
 	status, err = resources.UpdateStatus(ctx, status, metav1.UpdateOptions{})
 	if err != nil {
 		t.Fatalf("UpdateStatus(%s) error = %v", kind, err)
@@ -327,10 +395,31 @@ func assertConditions(t *testing.T, resource *unstructured.Unstructured, want in
 	t.Helper()
 
 	conditions, found, err := unstructured.NestedSlice(resource.Object, "status", "conditions")
+	if resource.GetKind() == "HTTPRoute" {
+		parents, exists, parentErr := unstructured.NestedSlice(resource.Object, "status", "parents")
+		if parentErr != nil {
+			t.Fatalf("read status.parents: %v", parentErr)
+		}
+		found = exists && len(parents) > 0
+		if found {
+			conditions, _, err = unstructured.NestedSlice(parents[0].(map[string]any), "conditions")
+		}
+	}
 	if err != nil {
 		t.Fatalf("read resource status.conditions: %v", err)
 	}
 	if len(conditions) != want || (!found && want > 0) {
 		t.Errorf("resource status.conditions = %#v, want %d item(s)", conditions, want)
 	}
+}
+
+func statusForKind(kind string, conditions []any) map[string]any {
+	if kind == "HTTPRoute" {
+		return map[string]any{"parents": []any{map[string]any{
+			"parentRef":      map[string]any{"name": "edge", "sectionName": "http"},
+			"controllerName": "gateway.ingate.io/test",
+			"conditions":     conditions,
+		}}}
+	}
+	return map[string]any{"conditions": conditions}
 }

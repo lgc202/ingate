@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -25,8 +27,8 @@ func TestReconcileWritesAcceptedStatuses(t *testing.T) {
 	conflicting.Generation = 4
 	valid.Generation = 5
 	rejected.Generation = 6
-	upstream := upstreamResource("backend")
-	apiClient := newFakeClient(t, &first, &conflicting, &valid, &rejected, &upstream)
+	backend := backendResource("backend")
+	apiClient := newFakeClient(t, &first, &conflicting, &valid, &rejected, &backend)
 	r := New(apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }))
 
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
@@ -35,15 +37,15 @@ func TestReconcileWritesAcceptedStatuses(t *testing.T) {
 
 	assertGatewayCondition(t, apiClient, "first", metav1.ConditionTrue, "Accepted", 3)
 	assertGatewayCondition(t, apiClient, "conflicting", metav1.ConditionFalse, "ListenerConflict", 4)
-	assertRouteCondition(t, apiClient, "valid", metav1.ConditionTrue, "Accepted", 5)
-	assertRouteCondition(t, apiClient, "rejected", metav1.ConditionFalse, "GatewayRejected", 6)
+	assertHTTPRouteCondition(t, apiClient, "valid", metav1.ConditionTrue, "Accepted", 5)
+	assertHTTPRouteCondition(t, apiClient, "rejected", metav1.ConditionFalse, "NoMatchingParent", 6)
 
-	var stored gatewayv1alpha1.Upstream
+	var stored gatewayv1alpha1.Backend
 	if err := apiClient.Get(t.Context(), types.NamespacedName{Name: "backend"}, &stored); err != nil {
-		t.Fatalf("Get(Upstream) error = %v", err)
+		t.Fatalf("Get(Backend) error = %v", err)
 	}
 	if len(stored.Status.Conditions) != 0 {
-		t.Errorf("Upstream conditions = %v, want none", stored.Status.Conditions)
+		t.Errorf("Backend conditions = %v, want none", stored.Status.Conditions)
 	}
 }
 
@@ -56,9 +58,15 @@ func TestReconcileUpdatesStatusOnlyWhenAcceptanceChanges(t *testing.T) {
 	apiClient := fake.NewClientBuilder().
 		WithScheme(newTestScheme(t)).
 		WithObjects(&gateway, &route).
-		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.Route{}).
+		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.HTTPRoute{}).
 		WithInterceptorFuncs(interceptor.Funcs{
-			SubResourceUpdate: func(ctx context.Context, writer client.Client, name string, object client.Object, options ...client.SubResourceUpdateOption) error {
+			SubResourceUpdate: func(
+				ctx context.Context,
+				writer client.Client,
+				name string,
+				object client.Object,
+				options ...client.SubResourceUpdateOption,
+			) error {
 				updates++
 				return writer.SubResource(name).Update(ctx, object, options...)
 			},
@@ -68,25 +76,27 @@ func TestReconcileUpdatesStatusOnlyWhenAcceptanceChanges(t *testing.T) {
 
 	for range 2 {
 		if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
-			t.Fatalf("Reconcile(missing Upstream) error = %v", err)
+			t.Fatalf("Reconcile(missing Backend) error = %v", err)
 		}
 	}
 	if updates != 2 {
-		t.Errorf("status updates before Upstream exists = %d, want 2", updates)
+		t.Errorf("status updates before Backend exists = %d, want 2", updates)
 	}
-	assertRouteCondition(t, apiClient, "route", metav1.ConditionFalse, "UpstreamMissing", 7)
+	assertHTTPRouteCondition(t, apiClient, "route", metav1.ConditionTrue, "Accepted", 7)
+	assertHTTPRouteResolvedRefs(t, apiClient, "route", metav1.ConditionFalse, "BackendNotFound")
 
-	upstream := upstreamResource("backend")
-	if err := apiClient.Create(t.Context(), &upstream); err != nil {
-		t.Fatalf("Create(Upstream) error = %v", err)
+	backend := backendResource("backend")
+	if err := apiClient.Create(t.Context(), &backend); err != nil {
+		t.Fatalf("Create(Backend) error = %v", err)
 	}
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
-		t.Fatalf("Reconcile(available Upstream) error = %v", err)
+		t.Fatalf("Reconcile(available Backend) error = %v", err)
 	}
 	if updates != 3 {
-		t.Errorf("status updates after Upstream appears = %d, want 3", updates)
+		t.Errorf("status updates after Backend appears = %d, want 3", updates)
 	}
-	assertRouteCondition(t, apiClient, "route", metav1.ConditionTrue, "Accepted", 7)
+	assertHTTPRouteCondition(t, apiClient, "route", metav1.ConditionTrue, "Accepted", 7)
+	assertHTTPRouteResolvedRefs(t, apiClient, "route", metav1.ConditionTrue, "ResolvedRefs")
 }
 
 func TestReconcileDoesNotWriteStatusAfterPublishFailure(t *testing.T) {
@@ -135,26 +145,100 @@ func TestReconcileReturnsStatusUpdateFailure(t *testing.T) {
 	}
 }
 
-func TestRejectionMessage(t *testing.T) {
-	tests := []struct {
-		name   string
-		reason routeRejectionReason
-		want   string
-	}{
-		{name: "missing Gateway", reason: gatewayMissing, want: `Gateway "example" does not exist`},
-		{name: "rejected Gateway", reason: gatewayRejected, want: `Gateway "example" is not accepted`},
-		{name: "missing listener", reason: listenerMissing, want: `listener "example" does not exist on the Gateway`},
-		{name: "missing Upstream", reason: upstreamMissing, want: `Upstream "example" does not exist`},
-		{name: "conflicting match", reason: matchConflict, want: `path match conflicts with Route "example"`},
-		{name: "unrecognized reason", reason: "Other", want: "Route was not accepted"},
+func TestHTTPRouteParentStatusesPreserveOwnershipAndTransitionTime(t *testing.T) {
+	route := routeResource("route", 1, "edge", "http", "backend", gatewayv1alpha1.PathMatchPrefix)
+	route.Generation = 7
+	missing := gatewayv1alpha1.ParentReference{Name: "missing", SectionName: "http"}
+	route.Spec.ParentRefs = append(route.Spec.ParentRefs, missing)
+	transition := metav1.NewTime(time.Unix(100, 0))
+	foreign := gatewayv1alpha1.RouteParentStatus{
+		ParentRef:      route.Spec.ParentRefs[0],
+		ControllerName: "other.example/controller",
+		Conditions: []metav1.Condition{{
+			Type:               "Accepted",
+			Status:             metav1.ConditionFalse,
+			Reason:             "Pending",
+			LastTransitionTime: transition,
+			ObservedGeneration: 6,
+		}},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rejection := routeRejection{reason: tt.reason, relatedName: "example"}
-			if got := rejectionMessage(rejection); got != tt.want {
-				t.Errorf("rejectionMessage(%q) = %q, want %q", tt.reason, got, tt.want)
-			}
-		})
+	route.Status.Parents = []gatewayv1alpha1.RouteParentStatus{
+		{
+			ParentRef:      route.Spec.ParentRefs[0],
+			ControllerName: controllerName,
+			Conditions: []metav1.Condition{
+				{
+					Type:               "Accepted",
+					Status:             metav1.ConditionTrue,
+					Reason:             "Accepted",
+					Message:            "attached",
+					LastTransitionTime: transition,
+					ObservedGeneration: 6,
+				},
+				{
+					Type:               "ResolvedRefs",
+					Status:             metav1.ConditionTrue,
+					Reason:             "ResolvedRefs",
+					Message:            "all Backend references resolve",
+					LastTransitionTime: transition,
+					ObservedGeneration: 6,
+				},
+			},
+		},
+		{ParentRef: gatewayv1alpha1.ParentReference{Name: "removed"}, ControllerName: controllerName},
+		foreign,
+	}
+	apiClient := newFakeClient(t, &route)
+	before := route.DeepCopy()
+	r := New(apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }))
+	parents := []parentResolution{
+		{routeName: route.Name, parentRef: route.Spec.ParentRefs[0], accepted: true, reason: "Accepted", message: "attached"},
+		{routeName: route.Name, parentRef: missing, reason: "NoMatchingParent", message: "missing Gateway"},
+	}
+	if err := r.updateHTTPRouteStatuses(t.Context(), []gatewayv1alpha1.HTTPRoute{route}, parents); err != nil {
+		t.Fatalf("updateHTTPRouteStatuses(route) error = %v, want nil", err)
+	}
+	var stored gatewayv1alpha1.HTTPRoute
+	if err := apiClient.Get(t.Context(), types.NamespacedName{Name: route.Name}, &stored); err != nil {
+		t.Fatalf("Get(HTTPRoute route) error = %v, want nil", err)
+	}
+	if len(stored.Status.Parents) != 3 {
+		t.Fatalf("status parents = %+v, want two managed parents and one foreign parent", stored.Status.Parents)
+	}
+	for i, want := range []gatewayv1alpha1.ParentReference{route.Spec.ParentRefs[0], missing} {
+		if stored.Status.Parents[i].ParentRef != want || stored.Status.Parents[i].ControllerName != controllerName {
+			t.Errorf("managed parent = %+v, want %v owned by %s", stored.Status.Parents[i], want, controllerName)
+		}
+	}
+	if len(stored.Status.Parents[0].Conditions) != 2 {
+		t.Fatalf("accepted parent conditions = %+v, want Accepted and ResolvedRefs", stored.Status.Parents[0].Conditions)
+	}
+	assertCondition(t, stored.Status.Parents[0].Conditions, metav1.ConditionTrue, "Accepted", 7)
+	resolved := meta.FindStatusCondition(stored.Status.Parents[0].Conditions, "ResolvedRefs")
+	if resolved == nil || resolved.Status != metav1.ConditionTrue {
+		t.Errorf("accepted parent ResolvedRefs = %+v, want True", resolved)
+	}
+	for _, condition := range stored.Status.Parents[0].Conditions {
+		if condition.ObservedGeneration != 7 || !condition.LastTransitionTime.Equal(&transition) {
+			t.Errorf("unchanged condition = %+v, want generation 7 and transition %v", condition, transition)
+		}
+	}
+	assertCondition(t, stored.Status.Parents[1].Conditions, metav1.ConditionFalse, "NoMatchingParent", 7)
+	if diff := cmp.Diff(foreign, stored.Status.Parents[2]); diff != "" {
+		t.Errorf("foreign parent changed (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(before, &route); diff != "" {
+		t.Errorf("input route changed (-want +got):\n%s", diff)
+	}
+	if err := r.updateHTTPRouteStatuses(t.Context(), []gatewayv1alpha1.HTTPRoute{stored}, parents); err != nil {
+		t.Fatalf("repeat updateHTTPRouteStatuses(route) error = %v, want nil", err)
+	}
+	var repeated gatewayv1alpha1.HTTPRoute
+	if err := apiClient.Get(t.Context(), types.NamespacedName{Name: route.Name}, &repeated); err != nil {
+		t.Fatalf("Get(repeated HTTPRoute route) error = %v, want nil", err)
+	}
+	if repeated.ResourceVersion != stored.ResourceVersion {
+		t.Errorf("idempotent status changed resourceVersion = %s, want %s", repeated.ResourceVersion, stored.ResourceVersion)
 	}
 }
 
@@ -174,7 +258,7 @@ func assertGatewayCondition(
 	assertCondition(t, gateway.Status.Conditions, status, reason, generation)
 }
 
-func assertRouteCondition(
+func assertHTTPRouteCondition(
 	t *testing.T,
 	apiClient client.Client,
 	name string,
@@ -183,11 +267,14 @@ func assertRouteCondition(
 	generation int64,
 ) {
 	t.Helper()
-	var route gatewayv1alpha1.Route
+	var route gatewayv1alpha1.HTTPRoute
 	if err := apiClient.Get(t.Context(), types.NamespacedName{Name: name}, &route); err != nil {
-		t.Fatalf("Get(Route %q) error = %v", name, err)
+		t.Fatalf("Get(HTTPRoute %q) error = %v", name, err)
 	}
-	assertCondition(t, route.Status.Conditions, status, reason, generation)
+	if len(route.Status.Parents) != 1 {
+		t.Fatalf("parents = %+v, want one", route.Status.Parents)
+	}
+	assertCondition(t, route.Status.Parents[0].Conditions, status, reason, generation)
 }
 
 func assertCondition(
@@ -204,5 +291,20 @@ func assertCondition(
 	}
 	if condition.Status != status || condition.Reason != reason || condition.ObservedGeneration != generation {
 		t.Errorf("Accepted condition = %+v, want status %q, reason %q, generation %d", condition, status, reason, generation)
+	}
+}
+
+func assertHTTPRouteResolvedRefs(t *testing.T, apiClient client.Client, name string, status metav1.ConditionStatus, reason string) {
+	t.Helper()
+	var route gatewayv1alpha1.HTTPRoute
+	if err := apiClient.Get(t.Context(), types.NamespacedName{Name: name}, &route); err != nil {
+		t.Fatal(err)
+	}
+	if len(route.Status.Parents) != 1 {
+		t.Fatalf("parents = %+v, want one", route.Status.Parents)
+	}
+	condition := meta.FindStatusCondition(route.Status.Parents[0].Conditions, "ResolvedRefs")
+	if condition == nil || condition.Status != status || condition.Reason != reason {
+		t.Errorf("ResolvedRefs = %+v, want %s/%s", condition, status, reason)
 	}
 }

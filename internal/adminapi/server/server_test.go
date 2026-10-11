@@ -16,15 +16,15 @@ import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	accounthandler "github.com/lgc202/ingate/internal/adminapi/handler/account"
+	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
-	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/route"
-	upstreamhandler "github.com/lgc202/ingate/internal/adminapi/handler/upstream"
+	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
 	mysqlstore "github.com/lgc202/ingate/internal/adminapi/repository/mysql"
 	"github.com/lgc202/ingate/internal/adminapi/server"
+	backendservice "github.com/lgc202/ingate/internal/adminapi/service/backend"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
-	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
-	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
+	routeservice "github.com/lgc202/ingate/internal/adminapi/service/httproute"
 	clientfake "github.com/lgc202/ingate/pkg/generated/clientset/versioned/fake"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -32,7 +32,7 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 )
 
-const createGatewayBody = `{"name":"public-gateway","listeners":[{"name":"http","protocol":"LISTENER_PROTOCOL_HTTP","port":8080}]}`
+const createGatewayBody = `{"displayName":"订单网关","listeners":[{"name":"http","protocol":"LISTENER_PROTOCOL_HTTP","port":8080}]}`
 
 func TestCreateGatewayHTTP(t *testing.T) {
 	httpServer, _, _ := newTestServers()
@@ -46,13 +46,13 @@ func TestCreateGatewayHTTP(t *testing.T) {
 	if err := protojson.Unmarshal(response.Body.Bytes(), &reply); err != nil {
 		t.Fatalf("decode CreateGatewayReply: %v; body = %s", err, response.Body.String())
 	}
-	if name := reply.GetGateway().GetName(); name != "public-gateway" {
-		t.Errorf("created Gateway name = %q, want public-gateway", name)
+	if name := reply.GetGateway().GetName(); !strings.HasPrefix(name, "gateway-") {
+		t.Errorf("created Gateway name = %q, want generated gateway ID", name)
 	}
 
 	response = postGateway(httpServer, createGatewayBody, "application/json")
-	if response.Code != http.StatusConflict {
-		t.Errorf("POST duplicate Gateway status = %d, want 409; body = %s", response.Code, response.Body.String())
+	if response.Code != http.StatusOK {
+		t.Errorf("POST duplicate Gateway status = %d, want 200; body = %s", response.Code, response.Body.String())
 	}
 }
 
@@ -68,13 +68,13 @@ func TestCreateGatewayHTTPProtoJSON(t *testing.T) {
 	if err := protojson.Unmarshal(response.Body.Bytes(), &reply); err != nil {
 		t.Fatalf("decode ProtoJSON CreateGatewayReply: %v", err)
 	}
-	if name := reply.GetGateway().GetName(); name != "public-gateway" {
-		t.Errorf("created Gateway name = %q, want public-gateway", name)
+	if name := reply.GetGateway().GetName(); !strings.HasPrefix(name, "gateway-") {
+		t.Errorf("created Gateway name = %q, want generated gateway ID", name)
 	}
 
 	response = postGateway(httpServer, createGatewayBody, "application/protojson")
-	if response.Code != http.StatusConflict {
-		t.Errorf("POST duplicate Gateway with ProtoJSON status = %d, want 409; body = %s", response.Code, response.Body.String())
+	if response.Code != http.StatusOK {
+		t.Errorf("POST duplicate Gateway with ProtoJSON status = %d, want 200; body = %s", response.Code, response.Body.String())
 	}
 }
 
@@ -84,6 +84,7 @@ func TestCreateGatewayHTTPRejectsInvalidRequests(t *testing.T) {
 		body string
 	}{
 		{name: "invalid contract", body: `{}`},
+		{name: "obsolete name field", body: `{"name":"manual-id","listeners":[{"name":"http","protocol":"LISTENER_PROTOCOL_HTTP","port":8080}]}`},
 		{name: "malformed JSON", body: `{"name":`},
 	}
 
@@ -149,7 +150,7 @@ func TestAdminAPIAuthenticationSelection(t *testing.T) {
 	if actions := client.Actions(); len(actions) != 0 {
 		t.Errorf("POST Gateway without Session caused %d API Server calls, want 0", len(actions))
 	}
-	for _, path := range []string{"/api/admin/v1/routes", "/api/admin/v1/upstreams"} {
+	for _, path := range []string{"/api/admin/v1/http-routes", "/api/admin/v1/backends"} {
 		response = requestResource(httpServer, http.MethodPost, path, `{}`)
 		if response.Code != http.StatusUnauthorized {
 			t.Errorf("POST %s without Session status = %d, want 401", path, response.Code)
@@ -199,12 +200,12 @@ func newTestServersWithStore(
 ) (*kratoshttp.Server, *kratosgrpc.Server, *clientfake.Clientset) {
 	client := clientfake.NewSimpleClientset()
 	gateways := repository.NewGateway(client.GatewayV1alpha1().Gateways(), store)
-	routes := repository.NewRoute(client.GatewayV1alpha1().Routes(), store)
-	upstreams := repository.NewUpstream(client.GatewayV1alpha1().Upstreams(), store)
+	routes := repository.NewHTTPRoute(client.GatewayV1alpha1().HTTPRoutes(), store)
+	backends := repository.NewBackend(client.GatewayV1alpha1().Backends(), store)
 
 	gatewayHandler := gatewayhandler.New(gatewayservice.New(gateways))
 	routeHandler := routehandler.New(routeservice.New(routes))
-	upstreamHandler := upstreamhandler.New(upstreamservice.New(upstreams))
+	backendHandler := backendhandler.New(backendservice.New(backends))
 
 	config := &conf.Server{
 		Http: &conf.Server_HTTP{
@@ -218,10 +219,10 @@ func newTestServersWithStore(
 	}
 
 	handlers := server.Handlers{
-		Gateway:  gatewayHandler,
-		Route:    routeHandler,
-		Upstream: upstreamHandler,
-		Account:  accounthandler.New(nil),
+		Gateway:   gatewayHandler,
+		HTTPRoute: routeHandler,
+		Backend:   backendHandler,
+		Account:   accounthandler.New(nil),
 	}
 	chain := server.NewMiddlewareChain(authentication)
 	httpServer, grpcServer := server.New(config, handlers, chain)

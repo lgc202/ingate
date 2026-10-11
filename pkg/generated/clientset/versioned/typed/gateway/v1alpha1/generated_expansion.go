@@ -2,8 +2,8 @@
 
 package v1alpha1
 
+type BackendExpansion interface{}
+
 type GatewayExpansion interface{}
 
-type RouteExpansion interface{}
-
-type UpstreamExpansion interface{}
+type HTTPRouteExpansion interface{}

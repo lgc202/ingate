@@ -1,4 +1,4 @@
-// Package gateway 将 Gateway、Route 和 Upstream 注册到 Generic API Server 的 API Group。
+// Package gateway 将 Gateway、HTTPRoute 和 Backend 注册到 Generic API Server 的 API Group。
 package gateway
 
 import (
@@ -8,9 +8,9 @@ import (
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/rest"
 
+	backendstorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/backend"
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/gateway"
-	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/route"
-	upstreamstorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/upstream"
+	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/httproute"
 )
 
 // NewStorage 创建 gateway.ingate.io API Group 中已实现资源的存储映射。
@@ -26,22 +26,22 @@ func NewStorage(
 	routeREST, routeStatusREST, err := routestorage.NewREST(scheme, optionsGetter)
 	if err != nil {
 		gatewayREST.Destroy()
-		return nil, fmt.Errorf("create Route REST storage: %w", err)
+		return nil, fmt.Errorf("create HTTPRoute REST storage: %w", err)
 	}
 
-	upstreamREST, upstreamStatusREST, err := upstreamstorage.NewREST(scheme, optionsGetter)
+	backendREST, backendStatusREST, err := backendstorage.NewREST(scheme, optionsGetter)
 	if err != nil {
 		routeREST.Destroy()
 		gatewayREST.Destroy()
-		return nil, fmt.Errorf("create Upstream REST storage: %w", err)
+		return nil, fmt.Errorf("create Backend REST storage: %w", err)
 	}
 
 	return map[string]rest.Storage{
-		"gateways":         gatewayREST,
-		"gateways/status":  statusREST,
-		"routes":           routeREST,
-		"routes/status":    routeStatusREST,
-		"upstreams":        upstreamREST,
-		"upstreams/status": upstreamStatusREST,
+		"gateways":          gatewayREST,
+		"gateways/status":   statusREST,
+		"httproutes":        routeREST,
+		"httproutes/status": routeStatusREST,
+		"backends":          backendREST,
+		"backends/status":   backendStatusREST,
 	}, nil
 }

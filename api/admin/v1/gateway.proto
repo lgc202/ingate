@@ -44,11 +44,8 @@ service GatewayService {
 
 // CreateGatewayRequest 表示创建网关的请求。
 message CreateGatewayRequest {
-  // name 是资源的稳定名称，供资源引用使用。
-  string name = 1 [(buf.validate.field).string = {
-    max_len: 253
-    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-  }];
+  reserved 1;
+  reserved "name";
   // display_name 是供人阅读的名称，不参与资源引用或流量匹配。
   string display_name = 2;
   // listeners 是网关对外暴露的监听入口。
@@ -79,6 +76,8 @@ message ListGatewaysRequest {
   int32 page_size = 1 [(buf.validate.field).int32 = {gte: 0, lte: 200}];
   // page_num 是从 1 开始的页码；为零时使用第一页。
   int32 page_num = 2 [(buf.validate.field).int32.gte = 0];
+  // display_name 按展示名称文字包含匹配筛选，空值表示不筛选。
+  string display_name = 3;
 }
 
 // ListGatewaysReply 表示一页网关。

@@ -110,6 +110,11 @@ func checkClusterReferences(resources resourceSet) error {
 	for _, routeConfig := range resources.routes {
 		for _, host := range routeConfig.VirtualHosts {
 			for _, route := range host.Routes {
+				// 直返动作不引用 Cluster；只校验转发动作的后端。
+				if route.GetRoute() == nil {
+					continue
+				}
+
 				name := route.GetRoute().GetCluster()
 				if !clusters[name] {
 					return fmt.Errorf("route %q references missing cluster %q", route.Name, name)

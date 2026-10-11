@@ -17,13 +17,15 @@ import (
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
+type publisherFunc func(context.Context, dataplane.Config) error
+
 func TestReconcilePublishesAcceptedResources(t *testing.T) {
 	first := gatewayResource("first", 1, listener("http", 8080, ""))
 	conflicting := gatewayResource("conflicting", 2, listener("http", 8080, ""))
 	valid := routeResource("valid", 1, "first", "http", "backend", gatewayv1alpha1.PathMatchPrefix)
 	rejected := routeResource("rejected", 2, "conflicting", "http", "backend", gatewayv1alpha1.PathMatchPrefix)
-	upstream := upstreamResource("backend")
-	apiClient := newFakeClient(t, &conflicting, &first, &rejected, &valid, &upstream)
+	backend := backendResource("backend")
+	apiClient := newFakeClient(t, &conflicting, &first, &rejected, &valid, &backend)
 
 	var published dataplane.Config
 	var calls int
@@ -42,12 +44,12 @@ func TestReconcilePublishesAcceptedResources(t *testing.T) {
 			Hosts: []dataplane.Host{{
 				Name: "gateway/first/listener/http",
 				Routes: []dataplane.Route{{
-					Name: "valid", PathType: dataplane.PathMatchPrefix,
-					Path: "/api", UpstreamName: "backend",
+					Name: "valid/rule/0/match/0", PathType: dataplane.PathMatchPrefix,
+					Path: "/api", BackendName: "backend",
 				}},
 			}},
 		}},
-		Upstreams: []dataplane.Upstream{{
+		Backends: []dataplane.Backend{{
 			Name: "backend",
 			Endpoints: []dataplane.Endpoint{{
 				Address: "127.0.0.1", Port: 8081, Weight: 1,
@@ -126,8 +128,8 @@ func TestSharedRequestSources(t *testing.T) {
 	want := []reconcile.Request{sharedRequest()}
 	for _, object := range []client.Object{
 		&gatewayv1alpha1.Gateway{},
-		&gatewayv1alpha1.Route{},
-		&gatewayv1alpha1.Upstream{},
+		&gatewayv1alpha1.HTTPRoute{},
+		&gatewayv1alpha1.Backend{},
 	} {
 		if diff := cmp.Diff(want, sharedRequests(t.Context(), object)); diff != "" {
 			t.Errorf("sharedRequests(%T) mismatch (-want +got):\n%s", object, diff)
@@ -152,8 +154,6 @@ func TestSharedRequestSources(t *testing.T) {
 	}
 }
 
-type publisherFunc func(context.Context, dataplane.Config) error
-
 func (f publisherFunc) Publish(ctx context.Context, config dataplane.Config) error {
 	return f(ctx, config)
 }
@@ -163,7 +163,7 @@ func newFakeClient(t *testing.T, objects ...client.Object) client.Client {
 	return fake.NewClientBuilder().
 		WithScheme(newTestScheme(t)).
 		WithObjects(objects...).
-		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.Route{}).
+		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.HTTPRoute{}).
 		Build()
 }
 

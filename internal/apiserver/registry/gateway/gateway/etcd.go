@@ -29,6 +29,11 @@ type REST struct {
 	*genericregistry.Store
 }
 
+// StatusREST 仅提供 Gateway Status 的读取、更新和 Patch。
+type StatusREST struct {
+	store *genericregistry.Store
+}
+
 // NewREST 创建 Gateway 主资源及 Status 子资源的存储入口。
 func NewREST(
 	scheme *runtime.Scheme,
@@ -66,11 +71,6 @@ func NewREST(
 	statusStore.ResetFieldsStrategy = statusStrategy
 
 	return &REST{Store: store}, &StatusREST{store: &statusStore}, nil
-}
-
-// StatusREST 仅提供 Gateway Status 的读取、更新和 Patch。
-type StatusREST struct {
-	store *genericregistry.Store
 }
 
 // New 返回用于解码 Status 更新请求的空 Gateway。

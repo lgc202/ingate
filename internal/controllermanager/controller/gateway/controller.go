@@ -27,7 +27,7 @@ type Publisher interface {
 	Publish(context.Context, dataplane.Config) error
 }
 
-// Reconciler 协调全部 Gateway、Route 和 Upstream，共同更新共享数据面。
+// Reconciler 协调全部 Gateway、HTTPRoute 和 Backend，共同更新共享数据面。
 type Reconciler struct {
 	client    client.Client
 	publisher Publisher
@@ -48,11 +48,11 @@ func (r *Reconciler) SetupWithManager(manager ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(sharedRequests),
 		).
 		Watches(
-			&gatewayv1alpha1.Route{},
+			&gatewayv1alpha1.HTTPRoute{},
 			handler.EnqueueRequestsFromMapFunc(sharedRequests),
 		).
 		Watches(
-			&gatewayv1alpha1.Upstream{},
+			&gatewayv1alpha1.Backend{},
 			handler.EnqueueRequestsFromMapFunc(sharedRequests),
 		).
 		WatchesRawSource(source.Func(enqueueInitialReconcile)).
@@ -68,17 +68,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result
 		return ctrl.Result{}, fmt.Errorf("list Gateways: %w", err)
 	}
 
-	var routes gatewayv1alpha1.RouteList
+	var routes gatewayv1alpha1.HTTPRouteList
 	if err := r.client.List(ctx, &routes); err != nil {
-		return ctrl.Result{}, fmt.Errorf("list Routes: %w", err)
+		return ctrl.Result{}, fmt.Errorf("list HTTPRoutes: %w", err)
 	}
 
-	var upstreams gatewayv1alpha1.UpstreamList
-	if err := r.client.List(ctx, &upstreams); err != nil {
-		return ctrl.Result{}, fmt.Errorf("list Upstreams: %w", err)
+	var backends gatewayv1alpha1.BackendList
+	if err := r.client.List(ctx, &backends); err != nil {
+		return ctrl.Result{}, fmt.Errorf("list Backends: %w", err)
 	}
 
-	result := resolve(gateways.Items, routes.Items, upstreams.Items)
+	result := resolve(gateways.Items, routes.Items, backends.Items)
 	config := compile(result)
 
 	if err := r.publisher.Publish(ctx, config); err != nil {
@@ -88,7 +88,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result
 	if err := r.updateGatewayStatuses(ctx, gateways.Items, result.gatewayConflicts); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.updateRouteStatuses(ctx, routes.Items, result.routeRejections); err != nil {
+	if err := r.updateHTTPRouteStatuses(ctx, routes.Items, result.parents); err != nil {
 		return ctrl.Result{}, err
 	}
 

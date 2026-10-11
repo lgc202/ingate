@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 1000" role="img" aria-labelledby="title desc">
+  <title id="title">运行时快照与 xDS 协调激活候选流程</title>
+  <desc id="desc">Controller 编译后持久化候选快照，Proxy 加载确认后准备并激活相关 xDS。加载失败或 NACK 不认定已生效。版本不匹配拒绝，旧流排空后回收。</desc>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#8B6F8A"/></marker><marker id="error" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#C96464"/></marker></defs>
+  <style>text{font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif;fill:#252525;font-size:17px;text-anchor:middle}.note{font-size:14px;fill:#666}.edge{fill:none;stroke:#8B6F8A;stroke-width:2;marker-end:url(#arrow)}.fail{fill:none;stroke:#C96464;stroke-width:2;stroke-dasharray:6 4;marker-end:url(#error)}.box{fill:#F5F3F8;stroke:#8B6F8A;stroke-width:1.5}.errorbox{fill:#FFF5F5;stroke:#C96464;stroke-width:1.5}</style>
+  <rect width="100%" height="100%" fill="#FAF9F6"/>
+  <g class="edge">
+    <path marker-end="url(#arrow)" d="M435 90 V130"/>
+    <path marker-end="url(#arrow)" d="M435 200 V240"/>
+    <path marker-end="url(#arrow)" d="M435 310 V350"/>
+    <path marker-end="url(#arrow)" d="M435 420 V460"/>
+    <path marker-end="url(#arrow)" d="M435 550 V600"/>
+    <path marker-end="url(#arrow)" d="M435 670 V710"/>
+    <path marker-end="url(#arrow)" d="M435 800 V840"/>
+  </g>
+  <g class="fail">
+    <path marker-end="url(#error)" d="M580 505 H780"/>
+    <path marker-end="url(#error)" d="M580 755 H780"/>
+    <path marker-end="url(#error)" d="M920 600 V710"/>
+  </g>
+  <g>
+    <text x="483" y="579" class="note">是</text>
+    <text x="483" y="829" class="note">是</text>
+    <text x="680" y="492" class="note">否 / 超时</text>
+    <text x="680" y="742" class="note">NACK / 超时</text>
+    <text x="966" y="658" class="note">对账 / 重试</text>
+    <rect class="box" x="300" y="30" width="270" height="60" rx="25"/>
+    <text x="435" y="67">原始资源变化 / 启动对账</text>
+    <rect class="box" x="260" y="130" width="350" height="70" rx="10"/>
+    <text x="435" y="160">Controller 解析、裁决与编译</text><text x="435" y="185" class="note">三次 List 仍非跨资源事务</text>
+    <rect class="box" x="260" y="240" width="350" height="70" rx="10"/>
+    <text x="435" y="270">持久化候选快照 + 发布关联</text><text x="435" y="295" class="note">API Server / etcd · 对象契约待定</text>
+    <rect class="box" x="260" y="350" width="350" height="70" rx="10"/>
+    <text x="435" y="380">Proxy List / Watch，校验并准备</text><text x="435" y="405" class="note">完整不可变视图 · 凭据准备</text>
+    <polygon points="435,460 580,505 435,550 290,505" fill="#FFF5F0" stroke="#D97757" stroke-width="1.5"/>
+    <text x="435" y="511">目标实例已加载？</text>
+    <rect class="box" x="260" y="600" width="350" height="70" rx="10"/>
+    <text x="435" y="630">准备出站资源 → 激活入口 xDS</text><text x="435" y="655" class="note">先准备后切换 · 保留旧版本</text>
+    <polygon points="435,710 580,755 435,800 290,755" fill="#FFF5F0" stroke="#D97757" stroke-width="1.5"/>
+    <text x="435" y="761">相关 Envoy 已 ACK？</text>
+    <rect class="box" x="260" y="840" width="350" height="100" rx="10"/>
+    <text x="435" y="871">关联版本服务新请求，验证实际流量</text><text x="435" y="897" class="note">不匹配拒绝 · 不自动使用最新配置</text><text x="435" y="923" class="note">旧流排空后有界回收快照与出站资源</text>
+    <rect class="errorbox" x="780" y="470" width="280" height="130" rx="10"/>
+    <text x="920" y="503">新版本不激活</text><text x="920" y="529" class="note">旧版本在允许期限内继续服务</text><text x="920" y="555" class="note">不得越过权限 / 凭据撤销边界</text><text x="920" y="581" class="note">没有旧版时拒绝 AI 请求</text>
+    <rect class="errorbox" x="780" y="710" width="280" height="100" rx="10"/>
+    <text x="920" y="742">失败状态按实例与版本记录</text><text x="920" y="768" class="note">隔离、重试或回滚策略待定</text><text x="920" y="795" class="note">不能声明全局已生效</text>
+    <text x="560" y="975" class="note">整张图为待评审发布协议，不是现有功能。Cache 更新 ≠ Proxy 加载 ≠ Envoy ACK ≠ 请求成功；流程不具分布式原子性。</text>
+  </g>
+</svg>

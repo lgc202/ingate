@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ingate API 网关现状与 AI 网关设计图</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 28px; background: #FAF9F6; color: #252525; font: 16px/1.7 Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    main { max-width: 1280px; margin: auto; }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    h2 { font-size: 22px; margin: 0 0 8px; }
+    p { margin: 8px 0 18px; }
+    a { color: #8B6F8A; text-underline-offset: 3px; }
+    nav { display: flex; flex-wrap: wrap; gap: 20px; margin: 24px 0; }
+    section { margin: 24px 0; padding: 24px; background: white; border: 1px solid #E8E4DE; border-radius: 12px; }
+    img { display: block; width: 100%; height: auto; }
+    .status { color: #666; font-size: 14px; }
+    .decision { border-left: 4px solid #8B6F8A; padding-left: 16px; }
+    @media (max-width: 640px) { body { padding: 12px; } section { padding: 12px; } h1 { font-size: 24px; } }
+    @media print { body { padding: 0; } section { break-inside: avoid; } nav { display: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Ingate API 网关现状与 AI 网关设计图</h1>
+    <p class="status">2026-10-10 · 当前源码 56205b84321c · 方向已确认，AI 契约与实现尚未完成</p>
+    <p class="decision">已确认：模型与 MCP 使用统一 Go AI Proxy；Controller 编译后通过 API Server 向 Go 下发配置，Envoy 继续使用 xDS。资源分为 Gateway、HTTPRoute、ModelRoute、AIBackend、MCPRoute、Backend；普通 HTTP 不进入 Go。</p>
+    <p>文字依据与评审边界见 <a href="../decisions/0010-unified-ai-proxy-config-delivery.md">0010 决策</a>；当前完成度与测试证据见 <a href="../api-gateway-readiness.md">API 网关评估</a>。以下 SVG 为独立源文件，无脚本、在线字体或外部渲染服务，可离线查看。</p>
+    <nav aria-label="图示导航"><a href="#current">当前架构</a><a href="#resources">资源关系</a><a href="#target">目标架构</a><a href="#request">请求流程</a><a href="#config">配置发布</a></nav>
+    <section id="current">
+      <h2>当前 HTTP 主路径已实现，真实整链路仍待验收</h2>
+      <p>API Server 保存三种资源；Controller 裁决后发布完整 xDS，同时异步维护 MySQL 查询投影。管理端账户数据库和 Redis Session 未在此展开。</p>
+      <img src="api-current-architecture.svg" alt="当前 Ingate API 网关架构">
+    </section>
+    <section id="resources">
+      <h2>三种路由共享网络 Backend，模型服务契约独立定义</h2>
+      <p>资源关系已确认，字段与实现尚未完成。箭头表示引用，不是请求转发：三种路由通过 parentRefs 引用 Gateway；ModelRoute 经 AIBackend 引用 Backend，HTTPRoute 和 MCPRoute 直接引用 Backend。图中的 Backend 表示统一资源类型，不要求所有业务共用同一个实例。</p>
+      <img src="ai-resource-model.svg" alt="已确认的 Gateway、三种路由、AIBackend 与 Backend 资源引用关系">
+    </section>
+    <section id="target">
+      <h2>Go 订阅协议配置，Envoy 接收网络配置</h2>
+      <p>紫色虚线为新增设计。Go 经 Envoy 内部出站访问后端是候选拓扑，部署形态、可信标识和资源字段仍待评审；图中的两个 Envoy 角色可以属于同一进程。</p>
+      <img src="ai-target-architecture.svg" alt="统一 Go AI Proxy 的目标架构">
+    </section>
+    <section id="request">
+      <h2>模型与 MCP 共用运行组件，分别处理协议</h2>
+      <p>普通 HTTP 保持原路径。AI 请求捕获配置视图，进入独立协议模块；响应经该模块和入口 Envoy 返回，取消与背压需要全程传播。协议范围尚未选定。</p>
+      <img src="ai-request-flow.svg" alt="普通 HTTP 与 AI 请求及响应流程">
+    </section>
+    <section id="config">
+      <h2>候选发布流程先准备，再切换，最后排空回收</h2>
+      <p>整张图均是待评审发布协议。初次配置缺失时拒绝 AI 请求；加载失败、NACK 或超时不能标记全局已生效。Watch 恢复、撤销、实例准入与回滚详见决策文档。</p>
+      <img src="ai-config-flow.svg" alt="运行时配置与 xDS 协调激活候选流程">
+    </section>
+  </main>
+</body>
+</html>

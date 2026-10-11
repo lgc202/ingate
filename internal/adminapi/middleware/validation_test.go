@@ -32,7 +32,7 @@ func TestValidateRequestsAllowsValidGateway(t *testing.T) {
 		return nil, nil
 	})
 	request := &adminv1.CreateGatewayRequest{
-		Name: "public-gateway",
+		DisplayName: "Public Gateway",
 		Listeners: []*adminv1.Listener{{
 			Name:     "http",
 			Protocol: adminv1.ListenerProtocol_LISTENER_PROTOCOL_HTTP,

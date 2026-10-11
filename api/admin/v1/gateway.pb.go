@@ -76,8 +76,6 @@ func (ListenerProtocol) EnumDescriptor() ([]byte, []int) {
 // CreateGatewayRequest 表示创建网关的请求。
 type CreateGatewayRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称，供资源引用使用。
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// display_name 是供人阅读的名称，不参与资源引用或流量匹配。
 	DisplayName string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// listeners 是网关对外暴露的监听入口。
@@ -114,13 +112,6 @@ func (x *CreateGatewayRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CreateGatewayRequest.ProtoReflect.Descriptor instead.
 func (*CreateGatewayRequest) Descriptor() ([]byte, []int) {
 	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *CreateGatewayRequest) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
 }
 
 func (x *CreateGatewayRequest) GetDisplayName() string {
@@ -281,7 +272,9 @@ type ListGatewaysRequest struct {
 	// page_size 是单页最大数量；为零时使用服务端默认值。
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// page_num 是从 1 开始的页码；为零时使用第一页。
-	PageNum       int32 `protobuf:"varint,2,opt,name=page_num,json=pageNum,proto3" json:"page_num,omitempty"`
+	PageNum int32 `protobuf:"varint,2,opt,name=page_num,json=pageNum,proto3" json:"page_num,omitempty"`
+	// display_name 按展示名称文字包含匹配筛选，空值表示不筛选。
+	DisplayName   string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -328,6 +321,13 @@ func (x *ListGatewaysRequest) GetPageNum() int32 {
 		return x.PageNum
 	}
 	return 0
+}
+
+func (x *ListGatewaysRequest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
 }
 
 // ListGatewaysReply 表示一页网关。
@@ -746,21 +746,21 @@ var File_admin_v1_gateway_proto protoreflect.FileDescriptor
 
 const file_admin_v1_gateway_proto_rawDesc = "" +
 	"\n" +
-	"\x16admin/v1/gateway.proto\x12\badmin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd6\x01\n" +
-	"\x14CreateGatewayRequest\x12_\n" +
-	"\x04name\x18\x01 \x01(\tBK\xbaHHrF\x18\xfd\x012A^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$R\x04name\x12!\n" +
+	"\x16admin/v1/gateway.proto\x12\badmin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x81\x01\n" +
+	"\x14CreateGatewayRequest\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12:\n" +
-	"\tlisteners\x18\x03 \x03(\v2\x12.admin.v1.ListenerB\b\xbaH\x05\x92\x01\x02\b\x01R\tlisteners\"A\n" +
+	"\tlisteners\x18\x03 \x03(\v2\x12.admin.v1.ListenerB\b\xbaH\x05\x92\x01\x02\b\x01R\tlistenersJ\x04\b\x01\x10\x02R\x04name\"A\n" +
 	"\x12CreateGatewayReply\x12+\n" +
 	"\agateway\x18\x01 \x01(\v2\x11.admin.v1.GatewayR\agateway\"0\n" +
 	"\x11GetGatewayRequest\x12\x1b\n" +
 	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\">\n" +
 	"\x0fGetGatewayReply\x12+\n" +
-	"\agateway\x18\x01 \x01(\v2\x11.admin.v1.GatewayR\agateway\"b\n" +
+	"\agateway\x18\x01 \x01(\v2\x11.admin.v1.GatewayR\agateway\"\x85\x01\n" +
 	"\x13ListGatewaysRequest\x12'\n" +
 	"\tpage_size\x18\x01 \x01(\x05B\n" +
 	"\xbaH\a\x1a\x05\x18\xc8\x01(\x00R\bpageSize\x12\"\n" +
-	"\bpage_num\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\apageNum\"c\n" +
+	"\bpage_num\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\apageNum\x12!\n" +
+	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\"c\n" +
 	"\x11ListGatewaysReply\x12-\n" +
 	"\bgateways\x18\x01 \x03(\v2\x11.admin.v1.GatewayR\bgateways\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x03R\n" +

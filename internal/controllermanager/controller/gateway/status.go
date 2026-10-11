@@ -3,12 +3,16 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"slices"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
+
+const controllerName = "gateway.ingate.io/gateway-controller"
 
 func (r *Reconciler) updateGatewayStatuses(
 	ctx context.Context,
@@ -43,30 +47,68 @@ func (r *Reconciler) updateGatewayStatuses(
 	return nil
 }
 
-func (r *Reconciler) updateRouteStatuses(
+func (r *Reconciler) updateHTTPRouteStatuses(
 	ctx context.Context,
-	routes []gatewayv1alpha1.Route,
-	rejections []routeRejection,
+	routes []gatewayv1alpha1.HTTPRoute,
+	parents []parentResolution,
 ) error {
-	byName := make(map[string]routeRejection, len(rejections))
-	for _, rejection := range rejections {
-		byName[rejection.route.Name] = rejection
+	byName := make(map[string][]parentResolution)
+	for _, parent := range parents {
+		byName[parent.routeName] = append(byName[parent.routeName], parent)
 	}
 
 	for i := range routes {
 		route := routes[i].DeepCopy()
-		condition := acceptedCondition(route.Generation)
-		if rejection, found := byName[route.Name]; found {
-			condition.Status = metav1.ConditionFalse
-			condition.Reason = string(rejection.reason)
-			condition.Message = rejectionMessage(rejection)
+		desired := make([]gatewayv1alpha1.RouteParentStatus, 0, len(byName[route.Name]))
+		for _, state := range byName[route.Name] {
+			parent := gatewayv1alpha1.RouteParentStatus{
+				ParentRef:      state.parentRef,
+				ControllerName: controllerName,
+			}
+			for _, previous := range route.Status.Parents {
+				if previous.ParentRef == state.parentRef && previous.ControllerName == controllerName {
+					parent.Conditions = slices.Clone(previous.Conditions)
+					break
+				}
+			}
+
+			accepted := acceptedCondition(route.Generation)
+			accepted.Reason = state.reason
+			accepted.Message = state.message
+			if !state.accepted {
+				accepted.Status = metav1.ConditionFalse
+			}
+			meta.SetStatusCondition(&parent.Conditions, accepted)
+
+			resolved := metav1.Condition{
+				Type:               "ResolvedRefs",
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: route.Generation,
+				Reason:             "ResolvedRefs",
+				Message:            "all Backend references resolve",
+			}
+			if state.missingBackend != "" {
+				resolved.Status = metav1.ConditionFalse
+				resolved.Reason = "BackendNotFound"
+				resolved.Message = fmt.Sprintf("Backend %q does not exist", state.missingBackend)
+			}
+			meta.SetStatusCondition(&parent.Conditions, resolved)
+			desired = append(desired, parent)
 		}
 
-		if !meta.SetStatusCondition(&route.Status.Conditions, condition) {
+		// 仅替换本控制器拥有的父状态，保留其他控制器的记录。
+		for _, parent := range route.Status.Parents {
+			if parent.ControllerName != controllerName {
+				desired = append(desired, parent)
+			}
+		}
+		if apiequality.Semantic.DeepEqual(route.Status.Parents, desired) {
 			continue
 		}
+
+		route.Status.Parents = desired
 		if err := r.client.Status().Update(ctx, route); err != nil {
-			return fmt.Errorf("update Route %q status: %w", route.Name, err)
+			return fmt.Errorf("update HTTPRoute %q status: %w", route.Name, err)
 		}
 	}
 
@@ -80,22 +122,5 @@ func acceptedCondition(generation int64) metav1.Condition {
 		ObservedGeneration: generation,
 		Reason:             "Accepted",
 		Message:            "accepted into the shared data plane configuration",
-	}
-}
-
-func rejectionMessage(rejection routeRejection) string {
-	switch rejection.reason {
-	case gatewayMissing:
-		return fmt.Sprintf("Gateway %q does not exist", rejection.relatedName)
-	case gatewayRejected:
-		return fmt.Sprintf("Gateway %q is not accepted", rejection.relatedName)
-	case listenerMissing:
-		return fmt.Sprintf("listener %q does not exist on the Gateway", rejection.relatedName)
-	case upstreamMissing:
-		return fmt.Sprintf("Upstream %q does not exist", rejection.relatedName)
-	case matchConflict:
-		return fmt.Sprintf("path match conflicts with Route %q", rejection.relatedName)
-	default:
-		return "Route was not accepted"
 	}
 }

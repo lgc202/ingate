@@ -6,17 +6,17 @@ import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	accounthandler "github.com/lgc202/ingate/internal/adminapi/handler/account"
+	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
-	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/route"
-	upstreamhandler "github.com/lgc202/ingate/internal/adminapi/handler/upstream"
+	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
 )
 
 // Handlers 保存 Admin API 需要注册的业务 Handler。
 type Handlers struct {
-	Gateway  *gatewayhandler.Handler
-	Route    *routehandler.Handler
-	Upstream *upstreamhandler.Handler
-	Account  *accounthandler.Handler
+	Gateway   *gatewayhandler.Handler
+	HTTPRoute *routehandler.Handler
+	Backend   *backendhandler.Handler
+	Account   *accounthandler.Handler
 }
 
 // New 构造并注册 Admin API 的入站服务，但不开始监听端口。
@@ -34,11 +34,11 @@ func New(
 	adminv1.RegisterGatewayServiceHTTPServer(httpServer, handlers.Gateway)
 	adminv1.RegisterGatewayServiceServer(grpcServer, handlers.Gateway)
 
-	adminv1.RegisterRouteServiceHTTPServer(httpServer, handlers.Route)
-	adminv1.RegisterRouteServiceServer(grpcServer, handlers.Route)
+	adminv1.RegisterHTTPRouteServiceHTTPServer(httpServer, handlers.HTTPRoute)
+	adminv1.RegisterHTTPRouteServiceServer(grpcServer, handlers.HTTPRoute)
 
-	adminv1.RegisterUpstreamServiceHTTPServer(httpServer, handlers.Upstream)
-	adminv1.RegisterUpstreamServiceServer(grpcServer, handlers.Upstream)
+	adminv1.RegisterBackendServiceHTTPServer(httpServer, handlers.Backend)
+	adminv1.RegisterBackendServiceServer(grpcServer, handlers.Backend)
 
 	return httpServer, grpcServer
 }

@@ -18,7 +18,7 @@ const (
 var (
 	// SchemeGroupVersion 标识代理网关资源的外部版本。
 	SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: Version}
-	localSchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
+	localSchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes, addDefaultingFuncs)
 	// AddToScheme 将代理网关外部类型及转换函数注册到 Scheme。
 	AddToScheme = localSchemeBuilder.AddToScheme
 )
@@ -27,8 +27,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(
 		SchemeGroupVersion,
 		&Gateway{}, &GatewayList{},
-		&Route{}, &RouteList{},
-		&Upstream{}, &UpstreamList{},
+		&HTTPRoute{}, &HTTPRouteList{},
+		&Backend{}, &BackendList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

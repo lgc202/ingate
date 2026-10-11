@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,7 +16,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stesting "k8s.io/client-go/testing"
 )
 
@@ -34,7 +37,7 @@ func TestCreateGatewayGRPC(t *testing.T) {
 	}
 
 	request := &adminv1.CreateGatewayRequest{
-		Name: "public-gateway",
+		DisplayName: "订单网关",
 		Listeners: []*adminv1.Listener{{
 			Name:     "http",
 			Protocol: adminv1.ListenerProtocol_LISTENER_PROTOCOL_HTTP,
@@ -45,23 +48,31 @@ func TestCreateGatewayGRPC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateGateway(public-gateway) error = %v, want nil", err)
 	}
-	if name := reply.GetGateway().GetName(); name != "public-gateway" {
-		t.Errorf("created Gateway name = %q, want public-gateway", name)
+	if name := reply.GetGateway().GetName(); !strings.HasPrefix(name, "gateway-") {
+		t.Errorf("created Gateway name = %q, want generated gateway ID", name)
 	}
 
-	// Kratos v3 把 HTTP 409 映射为 gRPC Aborted；业务原因仍由 ErrorInfo 保留。
-	_, err = client.CreateGateway(ctx, request)
-	if code := status.Code(err); code != codes.Aborted {
-		t.Errorf("CreateGateway(duplicate) code = %s, want Aborted; error = %v", code, err)
+	second, err := client.CreateGateway(ctx, request)
+	if err != nil {
+		t.Fatalf("CreateGateway(duplicate display name) error = %v, want nil", err)
 	}
-	if reason := kratoserrors.Reason(err); reason != "GATEWAY_ALREADY_EXISTS" {
-		t.Errorf("CreateGateway(duplicate) reason = %q, want GATEWAY_ALREADY_EXISTS", reason)
+	if second.GetGateway().GetName() == reply.GetGateway().GetName() || second.GetGateway().GetDisplayName() != "订单网关" {
+		t.Errorf("CreateGateway(duplicate display name) = %v, want same display name and distinct ID", second)
+	}
+
+	// 资源标识冲突仍保持公开错误语义，但展示名称重复不产生冲突。
+	backend.PrependReactor("create", "gateways", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, apierrors.NewAlreadyExists(schema.GroupResource{Group: "gateway.ingate.io", Resource: "gateways"}, "generated-id")
+	})
+	_, err = client.CreateGateway(ctx, request)
+	if status.Code(err) != codes.Aborted || kratoserrors.Reason(err) != "GATEWAY_ALREADY_EXISTS" {
+		t.Errorf("CreateGateway(identity conflict) error = %v, want Aborted/GATEWAY_ALREADY_EXISTS", err)
 	}
 
 	backend.PrependReactor("create", "gateways", func(k8stesting.Action) (bool, runtime.Object, error) {
 		return true, nil, errors.New("backend unavailable")
 	})
-	request.Name = "another-gateway"
+	request.DisplayName = "另一个网关"
 	_, err = client.CreateGateway(ctx, request)
 	if code := status.Code(err); code != codes.Internal {
 		t.Errorf("CreateGateway(backend failure) code = %s, want Internal; error = %v", code, err)
@@ -71,40 +82,40 @@ func TestCreateGatewayGRPC(t *testing.T) {
 	}
 }
 
-func TestRouteAndUpstreamGRPC(t *testing.T) {
+func TestHTTPRouteAndBackendGRPC(t *testing.T) {
 	connection, backend := newTestGRPCConnection(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	routes := adminv1.NewRouteServiceClient(connection)
-	_, err := routes.CreateRoute(ctx, &adminv1.CreateRouteRequest{})
+	routes := adminv1.NewHTTPRouteServiceClient(connection)
+	_, err := routes.CreateHTTPRoute(ctx, &adminv1.CreateHTTPRouteRequest{})
 	if code := status.Code(err); code != codes.InvalidArgument {
-		t.Errorf("CreateRoute(empty) code = %s, want InvalidArgument", code)
+		t.Errorf("CreateHTTPRoute(empty) code = %s, want InvalidArgument", code)
 	}
 	if actions := backend.Actions(); len(actions) != 0 {
-		t.Errorf("CreateRoute(empty) caused %d API Server calls, want 0", len(actions))
+		t.Errorf("CreateHTTPRoute(empty) caused %d API Server calls, want 0", len(actions))
 	}
 
-	route, err := routes.CreateRoute(ctx, &adminv1.CreateRouteRequest{
-		Name:         "public",
-		GatewayName:  "edge",
-		ListenerName: "http",
-		Path: &adminv1.PathMatch{
-			Type:  adminv1.PathMatchType_PATH_MATCH_TYPE_EXACT,
-			Value: "/",
-		},
-		UpstreamName: "backend",
+	route, err := routes.CreateHTTPRoute(ctx, &adminv1.CreateHTTPRouteRequest{
+		DisplayName: "订单路由",
+		ParentRefs:  []*adminv1.ParentReference{{Name: "edge", SectionName: "http"}},
+		Rules: []*adminv1.HTTPRouteRule{{
+			Matches: []*adminv1.HTTPRouteMatch{{
+				Path: &adminv1.PathMatch{Type: adminv1.PathMatchType_PATH_MATCH_TYPE_EXACT, Value: "/"},
+			}},
+			BackendRefs: []*adminv1.BackendReference{{Name: "backend"}},
+		}},
 	})
 	if err != nil {
-		t.Fatalf("CreateRoute(public) error = %v, want nil", err)
+		t.Fatalf("CreateHTTPRoute(public) error = %v, want nil", err)
 	}
-	if route.GetRoute().GetName() != "public" {
-		t.Errorf("CreateRoute(public) name = %q, want public", route.GetRoute().GetName())
+	if !strings.HasPrefix(route.GetRoute().GetName(), "httproute-") || route.GetRoute().GetDisplayName() != "订单路由" {
+		t.Errorf("CreateHTTPRoute() = %v, want generated name and 订单路由 display name", route.GetRoute())
 	}
 
-	upstreams := adminv1.NewUpstreamServiceClient(connection)
-	upstream, err := upstreams.CreateUpstream(ctx, &adminv1.CreateUpstreamRequest{
-		Name: "backend",
+	backends := adminv1.NewBackendServiceClient(connection)
+	createdBackend, err := backends.CreateBackend(ctx, &adminv1.CreateBackendRequest{
+		DisplayName: "订单后端",
 		Endpoints: []*adminv1.Endpoint{{
 			Address: "127.0.0.1",
 			Port:    8080,
@@ -112,10 +123,10 @@ func TestRouteAndUpstreamGRPC(t *testing.T) {
 		}},
 	})
 	if err != nil {
-		t.Fatalf("CreateUpstream(backend) error = %v, want nil", err)
+		t.Fatalf("CreateBackend(backend) error = %v, want nil", err)
 	}
-	if upstream.GetUpstream().GetName() != "backend" {
-		t.Errorf("CreateUpstream(backend) name = %q, want backend", upstream.GetUpstream().GetName())
+	if !strings.HasPrefix(createdBackend.GetBackend().GetName(), "backend-") || createdBackend.GetBackend().GetDisplayName() != "订单后端" {
+		t.Errorf("CreateBackend(backend) name = %q, want backend", createdBackend.GetBackend().GetName())
 	}
 }
 

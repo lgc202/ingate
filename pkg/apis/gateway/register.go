@@ -25,8 +25,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(
 		SchemeGroupVersion,
 		&Gateway{}, &GatewayList{},
-		&Route{}, &RouteList{},
-		&Upstream{}, &UpstreamList{},
+		&HTTPRoute{}, &HTTPRouteList{},
+		&Backend{}, &BackendList{},
 	)
 	return nil
 }
