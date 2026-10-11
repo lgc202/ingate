@@ -11,6 +11,7 @@ import (
 	discoveryv3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	resourcev3 "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	sotwv3 "github.com/envoyproxy/go-control-plane/pkg/server/sotw/v3"
+	"github.com/go-logr/logr"
 	"google.golang.org/grpc"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
@@ -36,13 +37,17 @@ type adsServer struct {
 }
 
 // NewServer 注册 ADS 服务，但不监听端口或启动 goroutine。
-func NewServer(address string, publisher *Publisher) *Server {
+func NewServer(address string, publisher *Publisher, logger logr.Logger) *Server {
 	grpcServer := grpc.NewServer()
 	// gRPC Server 持有 ADS 流；Manager 取消时 Stop 会结束流及其内部 goroutine。
 	discoveryv3.RegisterAggregatedDiscoveryServiceServer(grpcServer, &adsServer{
-		server: sotwv3.NewServer(context.Background(), publisher.cache, nil),
+		server: sotwv3.NewServer(context.Background(), publisher.cache, newCallbacks(logger)),
 	})
-	return &Server{address: address, publisher: publisher, grpcServer: grpcServer}
+	return &Server{
+		address:    address,
+		publisher:  publisher,
+		grpcServer: grpcServer,
+	}
 }
 
 // Start 提供 ADS 服务，直至 Manager 取消或服务异常退出。

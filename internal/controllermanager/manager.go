@@ -32,7 +32,7 @@ func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
 	}
 
 	publisher := envoy.NewPublisher()
-	xdsServer := envoy.NewServer(c.XDSBindAddress, publisher)
+	xdsServer := envoy.NewServer(c.XDSBindAddress, publisher, manager.GetLogger().WithName("xds"))
 	if err := manager.Add(xdsServer); err != nil {
 		return nil, fmt.Errorf("add xDS server: %w", err)
 	}
