@@ -370,11 +370,13 @@ PUT 带 `version`，不允许改资源名；Repository 获取当前对象、核�
 
 ## 实现计划：按完整消费者路径切分，阶段完成后等待 review
 
+2026-10-11 用户调整推进顺序：阶段 B 后继续阶段 D/E 的契约评审与已批准实现；阶段 C 的真实组件联动、ACK/NACK、实库及故障场景留到后续统一测试，不作为当前开发前置条件。下面阶段字母标识范围，不再表示必须顺序完成。TLS、认证和凭据的设计与必要实现仍随对应功能推进；实际密钥接入前的安全边界不因测试延期取消。备查清单见 [HTTP 主链路隔离验证方案](http-gateway-validation-plan.md)。
+
 | 阶段 | 范围与受影响路径 | 验收及停止条件 |
 | --- | --- | --- |
 | A 契约 review | 本稿的作用域、字段、裁决、状态、管理路径；另行完成凭据与首个协议选择 | 字段逐项确认后才编码；未解决部分不以示例补全 |
 | B HTTP 资源统一替换 | pkg/apis 内外类型、validation、Scheme；Registry；Controller 裁决/编译/状态；dataplane；Admin proto/Handler/Service/Repository 产品视图；删除重复的 Domain 资源类型；投影与迁移；测试及文档 | 所有生产消费者统一到 HTTPRoute/Backend；已实现 HTTP 功能正反例；生成代码可重复；审查全部手写改动后等用户 review |
-| C HTTP 真实主链路与 TLS | API Server、Manager、ADS、真实 Envoy、可控 HTTP/HTTPS 后端；明确认证环境 | 创建/更新/删除、Host/路径不匹配、DNS/IP、证书错名/不受信任、ACK/NACK/重连；TLS 失败不明文降级 |
+| C 后续统一测试：HTTP 主链路与 TLS | API Server、Manager、ADS、真实 Envoy、可控 HTTP/HTTPS 后端；明确认证环境 | 当前不搭建；统一测试时覆盖创建/更新/删除、Host/路径不匹配、DNS/IP、证书错名/不受信任、ACK/NACK/重连；TLS 失败不明文降级 |
 | D 模型契约与最小运行切片 | 已选 schema、AIBackend/ModelRoute、派生运行视图与 Go 模型模块；认证策略与凭据方案先通过独立 review | 同路径不同别名、未知模型、引用失效、非流/SSE、取消、可信入口标识、配置切换和轮转；不在此加入提供商业务重试 |
 | E MCP 契约与最小运行切片 | 已选协议版本、MCPRoute、单后端 Proxy；复用已验证加载与生命周期 | 该版本完整请求与流式交互、非法 Origin、版本不符、取消与后端失败；不默认加入聚合或 Redis 会话 |
 | F 部署与故障验证 | 实际入站/出站权限、凭据保护、撤销界限、长流排空、实例状态及容量 | 环境证据齐备后评估上线，不把静态检查和单测当作完成验收 |

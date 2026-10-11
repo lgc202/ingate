@@ -134,6 +134,7 @@ func (s *Store) ListHTTPRoutes(ctx context.Context, params HTTPRouteListParams) 
 		if err := query.Count(&result.TotalCount).Error; err != nil {
 			return fmt.Errorf("count HTTPRoutes: %w", err)
 		}
+
 		if err := page(query.Order("name"), params.PageSize, params.PageNum).Find(&result.Items).Error; err != nil {
 			return fmt.Errorf("list HTTPRoutes: %w", err)
 		}

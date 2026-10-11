@@ -2,6 +2,8 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -11,21 +13,39 @@ import (
 	"gorm.io/gorm"
 )
 
+// transactionRecorder 只记录测试实际传入 BeginTx 的选项，其他操作交给原连接池。
+type transactionRecorder struct {
+	*sql.DB
+	options []sql.TxOptions
+}
+
+// BeginTx 复制实际事务选项，并将事务创建交给原连接池。
+func (r *transactionRecorder) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
+	var options sql.TxOptions
+	if opts != nil {
+		options = *opts
+	}
+	r.options = append(r.options, options)
+
+	return r.DB.BeginTx(ctx, opts)
+}
+
 func TestGetGatewayReadsListenersInOneTransaction(t *testing.T) {
 	store, mock := newResourceTestStore(t)
+	recordReadOnlyTransaction(t, store)
 	createdAt := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
 	mock.ExpectBegin()
-	mock.ExpectQuery("FROM `gateways` WHERE name = ").WillReturnRows(
+	mock.ExpectQuery("FROM `gateways` WHERE name = ").WithArgs("edge", 1).WillReturnRows(
 		sqlmock.NewRows([]string{"id", "name", "display_name", "version", "created_at", "updated_at"}).
 			AddRow(1, "edge", "Edge", "7", createdAt, createdAt),
 	)
-	mock.ExpectQuery("FROM `gateway_listeners` WHERE gateway_id =").WillReturnRows(
+	mock.ExpectQuery("FROM `gateway_listeners` WHERE gateway_id =").WithArgs(1).WillReturnRows(
 		sqlmock.NewRows([]string{"id", "gateway_id", "name", "protocol", "port", "hostname"}).
 			AddRow(2, 1, "http", "HTTP", 8080, "example.com"),
 	)
 	mock.ExpectCommit()
 
-	gateway, err := store.GetGateway(context.Background(), "edge")
+	gateway, err := store.GetGateway(t.Context(), "edge")
 	if err != nil {
 		t.Fatalf("GetGateway(edge): %v", err)
 	}
@@ -38,68 +58,242 @@ func TestGetGatewayReadsListenersInOneTransaction(t *testing.T) {
 	}
 }
 
-func TestListBackendsOrdersEndpointsByAddressAndPort(t *testing.T) {
+func TestListGatewaysKeepsListenersWithTheirOwners(t *testing.T) {
 	store, mock := newResourceTestStore(t)
-	createdAt := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
+	recordReadOnlyTransaction(t, store)
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `backends`").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery("FROM `backends` ORDER BY name LIMIT").WillReturnRows(
-		sqlmock.NewRows([]string{"id", "name", "version", "created_at", "updated_at"}).
-			AddRow(1, "backend", "9", createdAt, createdAt),
-	)
-	mock.ExpectQuery("FROM `backend_endpoints` WHERE backend_id IN .*ORDER BY backend_id, address, port").WillReturnRows(
-		sqlmock.NewRows([]string{"id", "backend_id", "address", "port", "weight"}).
-			AddRow(2, 1, "10.0.0.1", 8080, 1).
-			AddRow(3, 1, "10.0.0.1", 9090, 2).
-			AddRow(4, 1, "10.0.0.2", 8080, 1),
-	)
+	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `gateways`").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(11))
+	mock.ExpectQuery("FROM `gateways` ORDER BY name LIMIT").WithArgs(4, 8).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "version"}).
+			AddRow(41, "alpha", "rev-7").
+			AddRow(7, "bravo", "rev-8").
+			AddRow(89, "charlie", "rev-9"))
+	// 子记录按父 ID 排序，不能按主对象在当前页的位置绑定。
+	mock.ExpectQuery("FROM `gateway_listeners` WHERE gateway_id IN .*ORDER BY gateway_id, name").
+		WithArgs(41, 7, 89).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "gateway_id", "name", "protocol", "port", "hostname"}).
+			AddRow(6, 7, "http", "HTTP", 9090, "bravo.example.com").
+			AddRow(4, 41, "http", "HTTP", 8080, "alpha.example.com").
+			AddRow(8, 41, "metrics", "HTTP", 8081, ""))
 	mock.ExpectCommit()
 
-	page, err := store.ListBackends(context.Background(), ResourceListParams{PageSize: 20, PageNum: 1})
+	got, err := store.ListGateways(t.Context(), ResourceListParams{PageSize: 4, PageNum: 3})
 	if err != nil {
-		t.Fatalf("ListBackends(): %v", err)
-	}
-	if page.TotalCount != 1 || len(page.Items) != 1 {
-		t.Fatalf("ListBackends() = %+v; want one backend", page)
+		t.Fatalf("ListGateways(page 3) error = %v, want nil", err)
 	}
 
-	want := []BackendEndpoint{
-		{ID: 2, BackendID: 1, Address: "10.0.0.1", Port: 8080, Weight: 1},
-		{ID: 3, BackendID: 1, Address: "10.0.0.1", Port: 9090, Weight: 2},
-		{ID: 4, BackendID: 1, Address: "10.0.0.2", Port: 8080, Weight: 1},
+	want := GatewayPage{
+		TotalCount: 11,
+		Items: []Gateway{
+			{
+				ID:      41,
+				Name:    "alpha",
+				Version: "rev-7",
+				Listeners: []GatewayListener{
+					{
+						ID:        4,
+						GatewayID: 41,
+						Name:      "http",
+						Protocol:  "HTTP",
+						Port:      8080,
+						Hostname:  "alpha.example.com",
+					},
+					{
+						ID:        8,
+						GatewayID: 41,
+						Name:      "metrics",
+						Protocol:  "HTTP",
+						Port:      8081,
+					},
+				},
+			},
+			{
+				ID:      7,
+				Name:    "bravo",
+				Version: "rev-8",
+				Listeners: []GatewayListener{
+					{
+						ID:        6,
+						GatewayID: 7,
+						Name:      "http",
+						Protocol:  "HTTP",
+						Port:      9090,
+						Hostname:  "bravo.example.com",
+					},
+				},
+			},
+			{
+				ID:      89,
+				Name:    "charlie",
+				Version: "rev-9",
+			},
+		},
 	}
-	if diff := cmp.Diff(want, page.Items[0].Endpoints); diff != "" {
-		t.Errorf("ListBackends() endpoints mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("ListGateways(page 3) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestListBackendsGroupsAndOrdersEndpoints(t *testing.T) {
+	store, mock := newResourceTestStore(t)
+	recordReadOnlyTransaction(t, store)
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `backends`").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(11))
+	mock.ExpectQuery("FROM `backends` ORDER BY name LIMIT").WithArgs(4, 8).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "version"}).
+			AddRow(41, "alpha", "rev-7").
+			AddRow(7, "bravo", "rev-8").
+			AddRow(89, "charlie", "rev-9"))
+	mock.ExpectQuery("FROM `backend_endpoints` WHERE backend_id IN .*ORDER BY backend_id, address, port").
+		WithArgs(41, 7, 89).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "backend_id", "address", "port", "weight"}).
+			AddRow(6, 7, "10.0.0.2", 8080, 5).
+			AddRow(4, 41, "10.0.0.1", 8080, 1).
+			AddRow(8, 41, "10.0.0.1", 9090, 2).
+			AddRow(9, 41, "10.0.0.2", 8080, 1))
+	mock.ExpectCommit()
+
+	got, err := store.ListBackends(t.Context(), ResourceListParams{PageSize: 4, PageNum: 3})
+	if err != nil {
+		t.Fatalf("ListBackends(page 3) error = %v, want nil", err)
+	}
+
+	want := BackendPage{
+		TotalCount: 11,
+		Items: []Backend{
+			{
+				ID:      41,
+				Name:    "alpha",
+				Version: "rev-7",
+				Endpoints: []BackendEndpoint{
+					{
+						ID:        4,
+						BackendID: 41,
+						Address:   "10.0.0.1",
+						Port:      8080,
+						Weight:    1,
+					},
+					{
+						ID:        8,
+						BackendID: 41,
+						Address:   "10.0.0.1",
+						Port:      9090,
+						Weight:    2,
+					},
+					{
+						ID:        9,
+						BackendID: 41,
+						Address:   "10.0.0.2",
+						Port:      8080,
+						Weight:    1,
+					},
+				},
+			},
+			{
+				ID:      7,
+				Name:    "bravo",
+				Version: "rev-8",
+				Endpoints: []BackendEndpoint{
+					{
+						ID:        6,
+						BackendID: 7,
+						Address:   "10.0.0.2",
+						Port:      8080,
+						Weight:    5,
+					},
+				},
+			},
+			{
+				ID:      89,
+				Name:    "charlie",
+				Version: "rev-9",
+			},
+		},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("ListBackends(page 3) mismatch (-want +got):\n%s", diff)
 	}
 }
 
 func TestGetBackendOrdersEndpointsByAddressAndPort(t *testing.T) {
 	store, mock := newResourceTestStore(t)
+	recordReadOnlyTransaction(t, store)
 	createdAt := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
 	mock.ExpectBegin()
-	mock.ExpectQuery("FROM `backends` WHERE name = ").WillReturnRows(
+	mock.ExpectQuery("FROM `backends` WHERE name = ").WithArgs("backend", 1).WillReturnRows(
 		sqlmock.NewRows([]string{"id", "name", "version", "created_at", "updated_at"}).
 			AddRow(1, "backend", "9", createdAt, createdAt),
 	)
-	mock.ExpectQuery("FROM `backend_endpoints` WHERE backend_id = .*ORDER BY address, port").WillReturnRows(
+	mock.ExpectQuery("FROM `backend_endpoints` WHERE backend_id = .*ORDER BY address, port").WithArgs(1).WillReturnRows(
 		sqlmock.NewRows([]string{"id", "backend_id", "address", "port", "weight"}).
 			AddRow(2, 1, "10.0.0.1", 8080, 1).
 			AddRow(3, 1, "10.0.0.2", 8080, 2),
 	)
 	mock.ExpectCommit()
 
-	backend, err := store.GetBackend(context.Background(), "backend")
+	backend, err := store.GetBackend(t.Context(), "backend")
 	if err != nil {
 		t.Fatalf("GetBackend(backend): %v", err)
 	}
 
 	want := []BackendEndpoint{
-		{ID: 2, BackendID: 1, Address: "10.0.0.1", Port: 8080, Weight: 1},
-		{ID: 3, BackendID: 1, Address: "10.0.0.2", Port: 8080, Weight: 2},
+		{
+			ID:        2,
+			BackendID: 1,
+			Address:   "10.0.0.1",
+			Port:      8080,
+			Weight:    1,
+		},
+		{
+			ID:        3,
+			BackendID: 1,
+			Address:   "10.0.0.2",
+			Port:      8080,
+			Weight:    2,
+		},
 	}
 	if diff := cmp.Diff(want, backend.Endpoints); diff != "" {
 		t.Errorf("GetBackend(backend) endpoints mismatch (-want +got):\n%s", diff)
 	}
+}
+
+func TestGetGatewayRollsBackListenerReadFailure(t *testing.T) {
+	store, mock := newResourceTestStore(t)
+	recordReadOnlyTransaction(t, store)
+	wantErr := errors.New("listener read failed")
+	mock.ExpectBegin()
+	mock.ExpectQuery("FROM `gateways` WHERE name = ").WithArgs("edge", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "version"}).AddRow(41, "edge", "rev-7"))
+	mock.ExpectQuery("FROM `gateway_listeners` WHERE gateway_id =").WithArgs(41).WillReturnError(wantErr)
+	mock.ExpectRollback()
+
+	got, err := store.GetGateway(t.Context(), "edge")
+	if !errors.Is(err, wantErr) {
+		t.Errorf("GetGateway(edge, listener failure) error = %v, want wrapped %v", err, wantErr)
+	}
+	if diff := cmp.Diff(Gateway{}, got); diff != "" {
+		t.Errorf("GetGateway(edge, listener failure) returned partial state (-want +got):\n%s", diff)
+	}
+}
+
+func recordReadOnlyTransaction(t *testing.T, store *Store) {
+	t.Helper()
+
+	db, err := store.db.DB()
+	if err != nil {
+		t.Fatalf("gorm.DB.DB() error = %v, want nil", err)
+	}
+	recorder := &transactionRecorder{DB: db}
+	// 只改本测试的 GORM 连接池入口，不改变 SQL、事务执行或清理责任。
+	store.db.Statement.ConnPool = recorder
+	t.Cleanup(func() {
+		want := []sql.TxOptions{{ReadOnly: true, Isolation: sql.LevelRepeatableRead}}
+		if diff := cmp.Diff(want, recorder.options); diff != "" {
+			t.Errorf("read transaction BeginTx options mismatch (-want +got):\n%s", diff)
+		}
+	})
 }
 
 func newResourceTestStore(t *testing.T) (*Store, sqlmock.Sqlmock) {

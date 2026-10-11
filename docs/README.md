@@ -3,6 +3,7 @@
 阅读顺序：先看当前能力和主链路，再看 AI 网关的已确认方向与待评审设计。
 
 - [API 网关完成度与 AI 网关开发条件](api-gateway-readiness.md)：2026-10-10 的源码与验证快照。
+- [HTTP 主链路隔离验证方案](design/http-gateway-validation-plan.md)：留待后续统一测试的实库、Manager/Envoy 转发和 ACK/NACK 清单；不作为当前开发前置条件。
 - [统一 Go AI Proxy 与配置下发](decisions/0010-unified-ai-proxy-config-delivery.md)：已确认运行组件、配置下发和资源关系，及待评审契约与实施建议。
 - [AI 网关上游设计对照](design/ai-gateway-upstream-alignment.md)：固定版本的契约、源码、反例测试，以及采用、裁剪和必要差异。
 - [AI 网关资源契约设计稿](design/ai-gateway-resource-contract.md)：六种主资源、策略附着建议、内部模型路由表、引用/冲突/删除语义与完整替换计划；HTTP 子集设计已通过，用户已授权提交阶段 B 当前实现，后续 AI/MCP 契约仍需确认。

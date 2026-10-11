@@ -13,33 +13,50 @@ import (
 
 func TestListHTTPRoutesPreservesJSONOrder(t *testing.T) {
 	store, mock := newResourceTestStore(t)
-	want := HTTPRoutePage{TotalCount: 2, Items: []HTTPRoute{{
-		ID: 1, Name: "first", DisplayName: "订单路由",
-		Parents: []HTTPRouteParent{{Name: "edge", SectionName: "z"}, {Name: "edge", SectionName: "a"}},
-		Rules: []HTTPRouteRule{
+	recordReadOnlyTransaction(t, store)
+	want := HTTPRoutePage{
+		TotalCount: 2,
+		Items: []HTTPRoute{
 			{
-				Name: "z-rule",
-				Matches: []HTTPRouteMatch{
-					{PathType: "Exact", PathValue: "/z"},
-					{PathType: "Exact", PathValue: "/a"},
+				ID:          1,
+				Name:        "first",
+				DisplayName: "订单路由",
+				Parents: []HTTPRouteParent{
+					{Name: "edge", SectionName: "z"},
+					{Name: "edge", SectionName: "a"},
 				},
-				BackendRefs: []HTTPRouteBackendRef{{Name: "z-backend"}},
+				Rules: []HTTPRouteRule{
+					{
+						Name: "z-rule",
+						Matches: []HTTPRouteMatch{
+							{PathType: "Exact", PathValue: "/z"},
+							{PathType: "Exact", PathValue: "/a"},
+						},
+						BackendRefs: []HTTPRouteBackendRef{{Name: "z-backend"}},
+					},
+					{
+						Name:        "a-rule",
+						Matches:     []HTTPRouteMatch{{PathType: "PathPrefix", PathValue: "/"}},
+						BackendRefs: []HTTPRouteBackendRef{{Name: "a-backend"}},
+					},
+				},
 			},
 			{
-				Name:        "a-rule",
-				Matches:     []HTTPRouteMatch{{PathType: "PathPrefix", PathValue: "/"}},
-				BackendRefs: []HTTPRouteBackendRef{{Name: "a-backend"}},
+				ID:          2,
+				Name:        "second",
+				DisplayName: "另一个路由",
+				Parents:     []HTTPRouteParent{{Name: "other", SectionName: "http"}},
+				Rules: []HTTPRouteRule{
+					{
+						Name:        "second-rule",
+						Matches:     []HTTPRouteMatch{{PathType: "Exact", PathValue: "/second"}},
+						BackendRefs: []HTTPRouteBackendRef{{Name: "second-backend"}},
+					},
+				},
 			},
 		},
-	}, {
-		ID: 2, Name: "second", DisplayName: "另一个路由",
-		Parents: []HTTPRouteParent{{Name: "other", SectionName: "http"}},
-		Rules: []HTTPRouteRule{{
-			Name:        "second-rule",
-			Matches:     []HTTPRouteMatch{{PathType: "Exact", PathValue: "/second"}},
-			BackendRefs: []HTTPRouteBackendRef{{Name: "second-backend"}},
-		}},
-	}}}
+	}
+
 	route := want.Items[0]
 	second := want.Items[1]
 	mock.ExpectBegin()
@@ -64,6 +81,7 @@ func TestGetHTTPRouteRejectsInvalidJSONWithoutPartialState(t *testing.T) {
 	mock.ExpectQuery("FROM `httproutes` WHERE name =").WithArgs("broken", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "parents", "rules"}).
 			AddRow(1, "broken", `[{"name":"edge"}]`, `[{"matches":`))
+
 	got, err := store.GetHTTPRoute(t.Context(), "broken")
 	if err == nil {
 		t.Fatal("GetHTTPRoute(broken) error = nil, want JSON decoding error")
@@ -76,10 +94,18 @@ func TestGetHTTPRouteRejectsInvalidJSONWithoutPartialState(t *testing.T) {
 func TestUpsertHTTPRouteReplacesJSONAndClearsDisplayName(t *testing.T) {
 	store, mock := newResourceTestStore(t)
 	route := HTTPRoute{
-		Name: "edge", Version: "9", CreatedAt: time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC),
-		Parents: []HTTPRouteParent{{Name: "gateway", SectionName: "http"}},
-		Rules:   []HTTPRouteRule{{Matches: []HTTPRouteMatch{{PathType: "PathPrefix", PathValue: "/"}}, BackendRefs: []HTTPRouteBackendRef{{Name: "backend"}}}},
+		Name:      "edge",
+		Version:   "9",
+		CreatedAt: time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC),
+		Parents:   []HTTPRouteParent{{Name: "gateway", SectionName: "http"}},
+		Rules: []HTTPRouteRule{
+			{
+				Matches:     []HTTPRouteMatch{{PathType: "PathPrefix", PathValue: "/"}},
+				BackendRefs: []HTTPRouteBackendRef{{Name: "backend"}},
+			},
+		},
 	}
+
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT `id` FROM `httproutes` WHERE name =").WithArgs("edge", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(41))
@@ -87,6 +113,7 @@ func TestUpsertHTTPRouteReplacesJSONAndClearsDisplayName(t *testing.T) {
 		WithArgs("", "9", route.CreatedAt, sqlmock.AnyArg(), projectionJSON(t, route.Parents), projectionJSON(t, route.Rules), 41).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
+
 	if err := store.UpsertHTTPRoute(t.Context(), route); err != nil {
 		t.Errorf("UpsertHTTPRoute(edge) error = %v, want nil", err)
 	}
@@ -100,6 +127,7 @@ func TestUpsertHTTPRouteRollsBackWriteFailure(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(41))
 	mock.ExpectExec("UPDATE `httproutes` SET").WillReturnError(wantErr)
 	mock.ExpectRollback()
+
 	err := store.UpsertHTTPRoute(t.Context(), HTTPRoute{Name: "edge"})
 	if !errors.Is(err, wantErr) {
 		t.Errorf("UpsertHTTPRoute(edge) error = %v, want wrapped %v", err, wantErr)
@@ -115,8 +143,12 @@ func TestListHTTPRoutesCombinesLiteralNameAndGatewayFilters(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `httproutes` WHERE "+condition+" ORDER BY name LIMIT ?")).
 		WithArgs("%订单!%!_!!%", "edge", 20).WillReturnRows(sqlmock.NewRows([]string{"id", "name"}))
 	mock.ExpectCommit()
+
 	got, err := store.ListHTTPRoutes(t.Context(), HTTPRouteListParams{
-		PageSize: 20, PageNum: 1, DisplayName: "订单%_!", GatewayName: "edge",
+		PageSize:    20,
+		PageNum:     1,
+		DisplayName: "订单%_!",
+		GatewayName: "edge",
 	})
 	if err != nil {
 		t.Fatalf("ListHTTPRoutes(filtered) error = %v, want nil", err)

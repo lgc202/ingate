@@ -7,13 +7,15 @@
 - AI 方向：[0010 决策](decisions/0010-unified-ai-proxy-config-delivery.md)
 - 图示：[架构与流程图](diagrams/ai-gateway.html)
 
-## 结论：可以开始 AI 设计，不能把 HTTP 基础当作已完成上线验收
+## 结论：可继续 AI 契约与开发，真实组件留待统一测试
 
 Ingate 已具备 HTTP 网关的控制面主结构和最小转发配置实现：声明式资源存储、全量裁决、ADS/xDS 服务、管理端 CRUD 与查询投影都已存在。AI 设计可以沿这些边界继续，不需要先重做 API Server、Controller 或管理端分层。
 
 但「能生成并提供 Envoy 配置」与「真实 Envoy 正确转发并能恢复」还不是同一层证据。当前没有完成 API Server → Manager → Envoy 的真实流量验收，也没有完成含 MySQL、Redis 和 Admin API 的整链路联动。安全、配置确认与长流控制仍有明确缺口。
 
-建议现在启动 AI 契约设计，同时先完成 HTTP 主链路验证。契约 review 通过后，可以进入受控环境的模型最小切片开发；不能直接据此推进生产部署、完整 MCP 聚合或多提供商重试。
+2026-10-11 补齐 MySQL 多资源子记录归属和五个事务读取入口的选项回归测试；错误归属、关闭只读和降低隔离级别的临时 overlay 均被测试捕获。这不证明真实 MySQL 隔离效果。用户随后明确当前开发阶段不安排这类实库与真实数据面测试，留到后续统一测试；[HTTP 主链路隔离验证方案](design/http-gateway-validation-plan.md) 仅保留清单与隔离边界，本轮没有启动真实组件。
+
+当前继续 AI 契约设计，契约 review 通过后进入对应最小切片开发，不以 HTTP 主链路实测作为开发前置条件。日常单元测试、静态检查和代码 review 继续执行；真实组件、整链路与故障场景在后续统一测试阶段验收。未完成的验证仍不能表述为已验收，也不能据此扩大到生产部署、完整 MCP 聚合或多提供商重试。
 
 ## 当前主路径与术语
 
@@ -50,9 +52,9 @@ ADS 是 Envoy 接收多个 xDS 资源类型的 gRPC 服务。当前使用 SotW�
 - [投影测试](../internal/controllermanager/controller/projection/projection_test.go)、[MySQL 资源测试](../internal/adminapi/repository/mysql/resource_test.go)、[管理 HTTP 测试](../internal/adminapi/server/server_test.go)、[管理鉴权实现](../internal/adminapi/middleware/authentication.go)。
 - [Makefile](../Makefile)、[CI](../.github/workflows/go.yml)、[历史审查记录](refactoring-review.md)。
 
-## AI 开发前需要处理的边界
+## 开发与后续验收需要保留的边界
 
-### 真实转发与 ACK 是第一项验收缺口
+### 后续统一测试需要覆盖真实转发与 ACK
 
 `Publisher.Publish` 只构建 Snapshot 并调用 `SetSnapshot`；ADS 用 `sotwv3.NewServer(..., nil)`，没有业务 ACK/NACK 回调和逐实例状态。`CheckReady` 只要求监听和首份 Snapshot，甚至空 Snapshot 也满足这一条件。`TestADSStreamsPublishedResources` 验证消息可发送，不能证明 Envoy 安装了 Listener 或后端可访问。
 
@@ -112,7 +114,7 @@ MySQL 投影不是配置源，但 Manager 启动会先打开 MySQL，因此数�
 
 现在可以确定 AI 资源的语义和关系，选择首个模型协议与 MCP 范围，并设计运行时快照、凭据及配置激活。现有 API Server 的资源机制、Controller 统一裁决、原生 ADS 和管理端分层均可复用。
 
-正式开发前先 review 契约，HTTP 主链路验收先于新 AI 路径的整链路验收；安全与凭据方案先于任何真实密钥接入。首个 AI 切片只做批准的模型后端、普通响应、SSE、取消和热更新，再推进 MCP，不同时扩展多提供商、聚合、分布式会话与计费。
+对应功能编码前先 review 契约；HTTP 与新 AI 路径的真实组件验收留到后续统一测试，不阻塞当前已批准范围的开发。安全与凭据方案仍先于任何真实密钥接入。首个 AI 切片只做批准的模型后端、普通响应、SSE、取消和热更新，再推进 MCP，不同时扩展多提供商、聚合、分布式会话与计费。
 
 不需要为了开始设计就先实现完整 Kubernetes、完整产品化 TLS、HA 或所有网关插件；这些按真实部署和产品需求分阶段推进。但未经验证的基础能力不能写成 AI 网关已拥有的功能。
 
