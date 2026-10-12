@@ -1,7 +1,7 @@
 # API 网关完成度与 AI 网关开发条件
 
 - 评估日期：2026-10-10；2026-10-11 同步 ADS 反馈；2026-10-12 同步声明式资源及 AIBackend、ModelRoute、MCPRoute 管理与投影
-- 源码基线：`53573124` 已提交 ModelRoute 管理与查询投影；当前 MCPRoute 管理与投影待用户 review，未提交；HTTP 替换前评估基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
+- 源码基线：`f054c54b` 已提交 MCPRoute 管理与查询投影；当前共享协调器组织调整待用户 review，未提交；HTTP 替换前评估基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
 - 分支：`codex/rebuild-from-zero`
 - 范围：现有三个组件、资源契约、控制面到数据面的调用关系与已有测试；HTTPRoute/Backend 替换已实现，用户于 2026-10-11 授权提交，真实组件验收仍未完成
 - AI 方向：[0010 决策](decisions/0010-unified-ai-proxy-config-delivery.md)
@@ -17,7 +17,7 @@ Ingate 已具备 HTTP 网关的控制面主结构和最小转发配置实现：�
 
 当前继续 AI 契约设计，契约 review 通过后进入对应最小切片开发，不以 HTTP 主链路实测作为开发前置条件。日常单元测试、静态检查和代码 review 继续执行；真实组件、整链路与故障场景在后续统一测试阶段验收。未完成的验证仍不能表述为已验收，也不能据此扩大到生产部署、完整 MCP 聚合或多提供商重试。
 
-2026-10-12 用户确认模型/MCP 基础字段后，先接入 AIBackend、ModelRoute，按“先提交一版然后继续”提交为 `3519b189`，未推送；随后接入 MCPRoute 声明与存储。这三种新资源具有 CRUD/List/Watch/status、默认值与单对象校验、标准生成客户端与 OpenAPI。D2 首步追加 AIBackend Admin HTTP/gRPC 管理、单行 MySQL 查询模型和 Manager 投影，随 `75ac86b8` 提交；随后 ModelRoute 管理与投影按用户指示提交为 `53573124`，均未推送。MCPRoute 管理与投影现已实现，待用户 review。六种资源的存储和管理消费者已具备，模型/MCP 的引用与 Conditions 尚未接入；没有 AI Proxy、TLS 或凭据，保存资源不表示模型或 MCP 接口可调用。
+2026-10-12 用户确认模型/MCP 基础字段后，先接入 AIBackend、ModelRoute，按“先提交一版然后继续”提交为 `3519b189`，未推送；随后接入 MCPRoute 声明与存储。这三种新资源具有 CRUD/List/Watch/status、默认值与单对象校验、标准生成客户端与 OpenAPI。D2 首步追加 AIBackend Admin HTTP/gRPC 管理、单行 MySQL 查询模型和 Manager 投影，随 `75ac86b8` 提交；随后 ModelRoute 管理与投影按用户指示提交为 `53573124`，均未推送。MCPRoute 管理与投影按用户指示提交为 `f054c54b`，未推送。六种资源的存储和管理消费者已具备，模型/MCP 的引用与 Conditions 尚未接入；没有 AI Proxy、TLS 或凭据，保存资源不表示模型或 MCP 接口可调用。
 
 ## 当前主路径与术语
 
@@ -49,7 +49,7 @@ ADS 是 Envoy 接收多个 xDS 资源类型的 gRPC 服务。当前使用 SotW�
 可审计入口：
 
 - [资源类型](../pkg/apis/gateway/v1alpha1/types.go)、[HTTPRoute](../pkg/apis/gateway/v1alpha1/httproute.go)、[Backend](../pkg/apis/gateway/v1alpha1/backend.go)、[AIBackend](../pkg/apis/gateway/v1alpha1/aibackend.go)、[ModelRoute](../pkg/apis/gateway/v1alpha1/modelroute.go)、[MCPRoute](../pkg/apis/gateway/v1alpha1/mcproute.go)、[存储注册](../internal/apiserver/registry/gateway/storage.go)。注册映射包含这六类资源及其 Status，没有 Secret、Pod、Lease 或运行时快照。
-- [Gateway Reconciler](../internal/controllermanager/controller/gateway/controller.go) 的 `Reconcile` 与 `SetupWithManager`；[裁决测试](../internal/controllermanager/controller/gateway/resolve_test.go)、[编译测试](../internal/controllermanager/controller/gateway/compile_test.go)、[Status 测试](../internal/controllermanager/controller/gateway/status_test.go)。
+- [Gateway Reconciler](../internal/controllermanager/controller/gateway/controller.go) 的 `Reconcile` 与 `SetupWithManager`；[Gateway 裁决测试](../internal/controllermanager/controller/gateway/gateway_test.go)、[编译测试](../internal/controllermanager/controller/gateway/compile_test.go)、[HTTPRoute 裁决及状态测试](../internal/controllermanager/controller/gateway/httproute_test.go)。
 - [Envoy 资源构建](../internal/controllermanager/dataplane/envoy/resources.go)、[发布器](../internal/controllermanager/dataplane/envoy/publisher.go)、[服务](../internal/controllermanager/dataplane/envoy/server.go)、[ADS 测试](../internal/controllermanager/dataplane/envoy/server_test.go)、[反馈回调](../internal/controllermanager/dataplane/envoy/callbacks.go)与[回调测试](../internal/controllermanager/dataplane/envoy/callbacks_test.go)。
 - [投影测试](../internal/controllermanager/controller/projection/projection_test.go)、[MySQL 资源测试](../internal/adminapi/repository/mysql/resource_test.go)、[管理 HTTP 测试](../internal/adminapi/server/server_test.go)、[管理鉴权实现](../internal/adminapi/middleware/authentication.go)。
 - [Makefile](../Makefile)、[CI](../.github/workflows/go.yml)、[历史审查记录](refactoring-review.md)。
@@ -116,7 +116,17 @@ MCPRoute 纳入既有投影恢复契约，覆盖创建/更新/删除、status-on
 
 开始时 MCP 不可用，使用本地规则源 `3d67061de40d5486ea5c1ae581e7a3930cfed9db`；收尾时 GoCanon MCP 恢复，重新查询实际版本为 `5684841-dirty`，规则 revision `5684841d220f954316529dac4e1876c7801844cb`、dirty=true，来源同一本地目录。MCP 是服务启动快照，不等于当前本地 HEAD。通过 MCP 完整读取 AGENTS、开发入口和规范索引，核对本次八份规范正文与此前完整读取的本地正文一致，按执行清单区分工具覆盖和人工判断；没有把草案当作已稳定规则。Ingate 缺少 gocanon.json 与生成器拥有的 Web 接线，未调用追加写工具或绕过保护，继续使用固定版本 Buf；不新增 manifest、默认业务或依赖。
 
-未执行真实 MySQL 迁移/SQL/事务、Manager Watch、完整部署认证、Envoy 或 MCP 协议互操作；单元检查不构成模板级或生产就绪认证。当前切片待用户 review，未提交；下一步为已确认 D3 的引用与标准 Conditions，不恢复新服务或新增协议依赖。
+未执行真实 MySQL 迁移/SQL/事务、Manager Watch、完整部署认证、Envoy 或 MCP 协议互操作；单元检查不构成模板级或生产就绪认证。用户授权后，本切片已提交为 `f054c54b`，未推送；在继续 D3 引用与标准 Conditions 前先按已确认范围整理共享协调器，不恢复新服务或新增协议依赖。
+
+### 共享协调器职责拆分的本轮证据
+
+2026-10-12 用户确认先整理代码组织再继续 D3。Gateway 裁决及状态写回移到 gateway.go，HTTPRoute 绑定及父状态写回移到 httproute.go；controller.go 抽出资源读取，resources.go 保存本轮输入和解析结果，compile.go 保持原实现。移除旧 resolve.go/status.go 及其集中测试文件，测试随职责迁移；没有新增 Controller、长期缓存、通用接口、依赖或模型/MCP 运行能力。
+
+Gateway 包原有 17 个测试均保留，新增 TestReadResources 核对三类输入，原 List 失败测试扩为 Gateway/HTTPRoute/Backend 三个失败位置，验证根因回传、传入 Context 和失败后不发布。全部新增、搬移、修改及删除的手写代码按 GO-FUNC-012/013/014 与 Controller 规范人工审查。格式、跟踪及未跟踪文件空白检查、lint（0 issues）、Vet、全仓单元测试和构建通过；构建曾报告沙箱禁止写 module stat cache，但命令退出码为 0。API 类型、生成产物和 API Server 存储契约未变，未重新生成或另跑存储 integration。
+
+GoCanon MCP 重新核对为 `5684841-dirty`，规则 revision `5684841d220f954316529dac4e1876c7801844cb`、dirty=true，来源 `/Users/lgc202/workspace/source/lgc202/gocanon`。开发入口和索引完整读取，复用当前任务已完整读过、来源未变的 Go 命名/函数、防御、错误、测试及 Controller 规范；草案仅作为审查依据，职责拆分来自用户已确认范围。按 refactor 工作流先完成行为不变的结构调整，不将未完成的 AIBackend 初稿混入本切片。technical-writing 用于更新当前/历史/未实现边界。
+
+未执行真实 Manager Watch、Envoy、MySQL/Redis 或协议联动验证，不把静态检查和单元测试当作模板级或生产就绪认证。本切片待用户 review，未提交；通过后继续 AIBackend → Backend 引用及 ResolvedRefs。
 
 ### 后续统一测试需要覆盖真实转发与 ACK
 

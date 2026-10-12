@@ -22,7 +22,7 @@ Gateway → HTTPRoute → Backend 构成当前 HTTP 主路径。HTTPRoute 用 pa
 | --- | --- |
 | 内外资源、默认值、校验 | [HTTPRoute](../../pkg/apis/gateway/v1alpha1/httproute.go)、[Backend](../../pkg/apis/gateway/v1alpha1/backend.go)、[defaults](../../pkg/apis/gateway/v1alpha1/defaults.go)、[validation](../../pkg/apis/gateway/validation/httproute.go) |
 | 原生存储 | [Registry](../../internal/apiserver/registry/gateway/storage.go)：gateways、httproutes、backends 及各自 status |
-| 裁决、编译和发布 | [Controller](../../internal/controllermanager/controller/gateway/controller.go)、[resolve](../../internal/controllermanager/controller/gateway/resolve.go)、[Envoy](../../internal/controllermanager/dataplane/envoy/resources.go) |
+| 裁决、编译和发布 | [Controller](../../internal/controllermanager/controller/gateway/controller.go)、[Gateway 裁决](../../internal/controllermanager/controller/gateway/gateway.go)、[HTTPRoute 绑定](../../internal/controllermanager/controller/gateway/httproute.go)、[Envoy](../../internal/controllermanager/dataplane/envoy/resources.go) |
 | Admin HTTP/gRPC | [HTTPRoute proto](../../api/admin/v1/httproute.proto)、[Backend proto](../../api/admin/v1/backend.proto)：/api/admin/v1/http-routes、/api/admin/v1/backends |
 | 读写分工 | [Repository](../../internal/adminapi/repository/httproute.go)：写 API Server，Get/List 只读 MySQL；Create/Update 返回权威保存结果 |
 | 异步投影 | [Reconciler](../../internal/controllermanager/controller/projection/httproute.go)、[查询模型](../../internal/adminapi/repository/mysql/httproute.go)：HTTPRoute 单行 JSON 保存有序父引用、规则、匹配和后端引用；Gateway/Backend 仍使用有对象内唯一键的子表 |

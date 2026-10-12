@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -19,8 +20,12 @@ import (
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
-// sharedRequestName 是所有资源事件共用的队列键，不对应真实 API 对象。
-const sharedRequestName = "shared-data-plane"
+const (
+	// sharedRequestName 是所有资源事件共用的队列键，不对应真实 API 对象。
+	sharedRequestName = "shared-data-plane"
+	// controllerName 标识本控制器拥有的父引用状态。
+	controllerName = "gateway.ingate.io/gateway-controller"
+)
 
 // Publisher 一次替换完整配置；成功不代表 Envoy 已接收或 ACK。
 type Publisher interface {
@@ -63,32 +68,22 @@ func (r *Reconciler) SetupWithManager(manager ctrl.Manager) error {
 // Reconcile 从当前 Cache 重建并发布完整配置，再写回资源的接纳状态。
 // 请求键只负责合并事件。
 func (r *Reconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
-	var gateways gatewayv1alpha1.GatewayList
-	if err := r.client.List(ctx, &gateways); err != nil {
-		return ctrl.Result{}, fmt.Errorf("list Gateways: %w", err)
+	input, err := r.readResources(ctx)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
-	var routes gatewayv1alpha1.HTTPRouteList
-	if err := r.client.List(ctx, &routes); err != nil {
-		return ctrl.Result{}, fmt.Errorf("list HTTPRoutes: %w", err)
-	}
-
-	var backends gatewayv1alpha1.BackendList
-	if err := r.client.List(ctx, &backends); err != nil {
-		return ctrl.Result{}, fmt.Errorf("list Backends: %w", err)
-	}
-
-	result := resolve(gateways.Items, routes.Items, backends.Items)
+	result := resolve(input.gateways.Items, input.httpRoutes.Items, input.backends.Items)
 	config := compile(result)
 
 	if err := r.publisher.Publish(ctx, config); err != nil {
 		return ctrl.Result{}, fmt.Errorf("publish data plane configuration: %w", err)
 	}
 
-	if err := r.updateGatewayStatuses(ctx, gateways.Items, result.gatewayConflicts); err != nil {
+	if err := r.updateGatewayStatuses(ctx, input.gateways.Items, result.gatewayConflicts); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.updateHTTPRouteStatuses(ctx, routes.Items, result.parents); err != nil {
+	if err := r.updateHTTPRouteStatuses(ctx, input.httpRoutes.Items, result.parents); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -110,4 +105,14 @@ func enqueueInitialReconcile(
 
 func sharedRequest() reconcile.Request {
 	return reconcile.Request{NamespacedName: types.NamespacedName{Name: sharedRequestName}}
+}
+
+func acceptedCondition(generation int64) metav1.Condition {
+	return metav1.Condition{
+		Type:               gatewayv1alpha1.ConditionAccepted,
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: generation,
+		Reason:             "Accepted",
+		Message:            "accepted into the shared data plane configuration",
+	}
 }

@@ -1,10 +1,10 @@
 # 三类路由复用 Backend，以 AIBackend 定义模型服务访问契约
 
-- 状态：六种声明式资源及 AIBackend、ModelRoute 管理与投影已提交；MCPRoute 管理与投影已实现，待用户 review，未提交；不新增数据面业务
+- 状态：六种声明式资源及三种新增资源的管理与投影均已提交；共享协调器组织调整待用户 review，未提交；不新增数据面业务
 - 作者：Ingate 开发协作
 - 更新日期：2026-10-12
 - 讨论入口：本仓库文档 review，依据 [0010 决策](../decisions/0010-unified-ai-proxy-config-delivery.md)及用户确认的资源关系
-- 当前源码基线：`53573124`（ModelRoute 管理与查询投影），分支 `codex/rebuild-from-zero`；HTTP 替换前基线为 `56205b84321c`
+- 当前源码基线：`f054c54b`（MCPRoute 管理与查询投影），分支 `codex/rebuild-from-zero`；HTTP 替换前基线为 `56205b84321c`
 - 范围：资源契约、裁决边界、管理接口影响、实施顺序及 D1/D2 进度；不新增数据面业务
 
 ## 摘要
@@ -21,9 +21,9 @@
 
 基线版本的 RouteSpec 只有 `gatewayName`、`listenerName`、`path`、`upstreamName`，UpstreamSpec 只有端点集合。它们没有客户端模型名、上游模型映射、协议 schema 或后端账号语义。阶段 B 已替换为 [HTTPRouteSpec](../../pkg/apis/gateway/v1alpha1/httproute.go)与 [BackendSpec](../../pkg/apis/gateway/v1alpha1/backend.go)；新增协议层尚未实现。
 
-基线裁决按 Gateway/Listener 和规范化路径判断冲突；阶段 B 的[裁决](../../internal/controllermanager/controller/gateway/resolve.go)已保留同路径候选，按父引用独立附着。[Envoy 适配层](../../internal/controllermanager/dataplane/envoy/resources.go)按 Exact 优先、长 PathPrefix 优先稳定排序，IP/DNS 后端采用 EDS/STRICT_DNS。后端连接超时仍为 5 秒，没有上游 TLS 配置。改名不能填补这些协议和安全缺口。
+基线裁决按 Gateway/Listener 和规范化路径判断冲突；阶段 B 的 [HTTPRoute 裁决](../../internal/controllermanager/controller/gateway/httproute.go)已保留同路径候选，按父引用独立附着。[Envoy 适配层](../../internal/controllermanager/dataplane/envoy/resources.go)按 Exact 优先、长 PathPrefix 优先稳定排序，IP/DNS 后端采用 EDS/STRICT_DNS。后端连接超时仍为 5 秒，没有上游 TLS 配置。改名不能填补这些协议和安全缺口。
 
-当前 Admin 接口保留 [0005](../decisions/0005-admin-resource-management.md)的 API Server 写入、MySQL 异步查询分工；[资源存储映射](../../internal/apiserver/registry/gateway/storage.go)已有六种资源及其 status。D2 已接入 AIBackend、ModelRoute、MCPRoute 管理与查询投影，最后一个切片尚待代码 review。没有 Namespace、Secret、运行时快照或租约资源。本文不假设完整 Kubernetes 已存在。
+当前 Admin 接口保留 [0005](../decisions/0005-admin-resource-management.md)的 API Server 写入、MySQL 异步查询分工；[资源存储映射](../../internal/apiserver/registry/gateway/storage.go)已有六种资源及其 status。D2 已接入 AIBackend、ModelRoute、MCPRoute 管理与查询投影，均已按用户指示提交，未推送。没有 Namespace、Secret、运行时快照或租约资源。本文不假设完整 Kubernetes 已存在。
 
 本稿输入是已确认讨论和现有代码，没有另建 PRD，也没有新增计费、配额、Agent、工具聚合、插件市场或多租户业务需求。
 
@@ -76,7 +76,7 @@ parentRefs:
 
 Gateway、HTTPRoute、Backend 的 Admin 创建请求不接收技术名称；后台生成不可修改的 `metadata.name`，供引用、查询和必要时展示“资源 ID”。三种资源均提供可修改且允许重复的 `spec.displayName`；列表参数 `display_name` 使用包含匹配，不限制为前缀。原生 API 保留 name / generateName 与 metadata.uid，MySQL 不额外投影 UID。详见 [名称契约](../decisions/0012-resource-names-and-query-schema.md)。
 
-新增三种资源沿用同一身份和展示名称契约：Admin 生成 name，用户编辑 displayName，引用仍使用 name。不新增 uid 字段、展示名称唯一约束或前缀索引字段；AIBackend、ModelRoute Admin 入口已实现，MCPRoute 仍待接入。
+新增三种资源沿用同一身份和展示名称契约：Admin 生成 name，用户编辑 displayName，引用仍使用 name。不新增 uid 字段、展示名称唯一约束或前缀索引字段；三种资源的 Admin 入口均已实现。
 
 跨 Gateway 的 Listener 冲突仍按 [0002](../decisions/0002-shared-data-plane-controller.md)的创建时间、名称稳定裁决。暂不引入 wildcard Host、GatewayClass、部署编排或流量管理策略资源。
 
@@ -404,6 +404,12 @@ PUT 带 `version`，不允许改资源名；Repository 获取当前对象、核�
 
 还需明确核对：缺省 Gateway 附着、缺省 `/` 匹配、规则列表顺序、重叠路由优先级、失效引用保留匹配、TLS/认证与跨种类冲突，以及 MySQL 投影。普通 HTTP 成功路径保留，不表示状态和错误路径保持不变；这些是向成熟契约对齐的显式行为变化，须先通过用户 review。历史 ADR 和完成度报告保留其源码快照，不改成尚未实施的事实。
 
+## 协调器组织调整（2026-10-12 已确认）
+
+用户确认在继续 D3 前先整理共享协调器。调整前 `resolve.go` 集中 Gateway 裁决和 HTTPRoute 绑定，`status.go` 集中两类资源的状态写回；直接追加模型/MCP 会让不同资源的变更持续落在同一组文件。此次按资源职责搬移到 `gateway.go`、`httproute.go`，对应测试跟随拆分并移除旧文件；`resources.go` 保存本轮输入、解析结果和资源读取，`controller.go` 保留 Watch、队列与协调流程，`compile.go` 保留配置汇总。
+
+这一步只调整组织，不增加 AIBackend Watch、引用解析或 Conditions，不预建 ModelRoute/MCPRoute 文件。现有单队列键、单 Worker、单一数据面发布者及读取失败/发布失败/状态写回失败的顺序保持不变；MySQL 投影仍独立。基线 HTTP 冲突、缺失引用、稳定排序、空配置、状态幂等及错误回传测试用于核对行为不变，不引入泛型 Controller、资源插件接口或新依赖。引用观测作为后续独立切片继续。
+
 ## 实现计划：按完整消费者路径切分，阶段完成后等待 review
 
 2026-10-12 用户要求先撤回未提交的新服务，先定资源模型并实现，再接数据面。当前没有 AI Proxy 代码；下一步按下表的 D1、D2、D3 小步推进，每步审查后等待用户 review。真实组件联动、ACK/NACK、实库及故障场景仍留到后续统一测试，不因延期宣称已验收。备查清单见 [HTTP 主链路隔离验证方案](http-gateway-validation-plan.md)。
@@ -457,7 +463,7 @@ ParentReference 出现第二个实际管理协议消费者，从 httproute.proto
 
 常用查询仍为稳定 name 读取、展示名称字面包含、Gateway 声明引用精确筛选及分页，默认 50、上限 200。mcproutes 表仅父引用使用 parents JSON；单个后端采用 backend_name、backend_path 普通列，入口为 path 列。两端 VARCHAR(1024) 使用 utf8mb4，与资源的 Unicode 字符上限一致，保留编码及尾斜杠。表只设置主键和 name 唯一索引，不增加 position、外键、展示名去重或未经消费者证明的索引。
 
-投影沿现有逐资源单 Worker、启动补齐后清理残留的恢复契约，处理 status-only 版本变化。API Server 保证单后端和默认后的两端路径，转换只读取已保存结果，不重复校验或补默认值；读取/写入失败交回框架，启动补齐失败时不继续清理残留。直接修正未发布迁移基线，不执行实库迁移或重建数据库。该切片待用户 review，未提交；D1/D2 的资源存储和管理消费者已具备，D3 的引用与 Conditions 仍未实现，不据此发布模型/MCP 入口或恢复新服务。
+投影沿现有逐资源单 Worker、启动补齐后清理残留的恢复契约，处理 status-only 版本变化。API Server 保证单后端和默认后的两端路径，转换只读取已保存结果，不重复校验或补默认值；读取/写入失败交回框架，启动补齐失败时不继续清理残留。直接修正未发布迁移基线，不执行实库迁移或重建数据库。用户授权后，该切片已提交为 `f054c54b`，未推送；D1/D2 的资源存储和管理消费者已具备，D3 的引用与 Conditions 仍未实现，不据此发布模型/MCP 入口或恢复新服务。
 
 ## 验证矩阵：每项能力都要有失效时会失败的断言
 

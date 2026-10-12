@@ -1,38 +1,20 @@
 package gateway
 
 import (
-	"cmp"
+	"context"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
-// resolution 是本轮配置及父引用状态，不修改输入，也不代表数据面已 ACK。
-type resolution struct {
-	gateways         []*gatewayv1alpha1.Gateway
-	backends         []*gatewayv1alpha1.Backend
-	bindings         []routeBinding
-	gatewayConflicts []gatewayConflict
-	parents          []parentResolution
-}
-
-type gatewayConflict struct {
-	gateway           *gatewayv1alpha1.Gateway
-	listenerName      string
-	owner             *gatewayv1alpha1.Gateway
-	ownerListenerName string
-}
-
-type listenerBinding struct {
-	gateway  *gatewayv1alpha1.Gateway
-	listener gatewayv1alpha1.Listener
-}
-
-type routeBinding struct {
+type httpRouteBinding struct {
 	route        *gatewayv1alpha1.HTTPRoute
 	gatewayName  string
 	listenerName string
@@ -42,7 +24,7 @@ type routeBinding struct {
 	backendName  string
 }
 
-type parentResolution struct {
+type httpRouteParentResolution struct {
 	routeName      string
 	parentRef      gatewayv1alpha1.ParentReference
 	accepted       bool
@@ -51,42 +33,10 @@ type parentResolution struct {
 	missingBackend string
 }
 
-// resolve 按创建时间和名称稳定排列候选；引用失效不移除路径匹配。
-func resolve(
-	gateways []gatewayv1alpha1.Gateway,
+func (r *resolution) selectHTTPRoutes(
 	routes []gatewayv1alpha1.HTTPRoute,
 	backends []gatewayv1alpha1.Backend,
-) resolution {
-	var result resolution
-	result.selectGateways(gateways)
-	result.selectRoutes(routes, backends)
-	return result
-}
-
-func (r *resolution) selectGateways(gateways []gatewayv1alpha1.Gateway) {
-	ordered := make([]*gatewayv1alpha1.Gateway, 0, len(gateways))
-	for i := range gateways {
-		ordered = append(ordered, &gateways[i])
-	}
-	slices.SortFunc(ordered, func(a, b *gatewayv1alpha1.Gateway) int {
-		return compareMeta(a.ObjectMeta, b.ObjectMeta)
-	})
-
-	var bindings []listenerBinding
-	for _, candidate := range ordered {
-		if conflict, found := findListenerConflict(candidate, bindings); found {
-			r.gatewayConflicts = append(r.gatewayConflicts, conflict)
-			continue
-		}
-
-		r.gateways = append(r.gateways, candidate)
-		for _, listener := range candidate.Spec.Listeners {
-			bindings = append(bindings, listenerBinding{gateway: candidate, listener: listener})
-		}
-	}
-}
-
-func (r *resolution) selectRoutes(routes []gatewayv1alpha1.HTTPRoute, backends []gatewayv1alpha1.Backend) {
+) {
 	gatewaysByName := make(map[string]*gatewayv1alpha1.Gateway, len(r.gateways))
 	for _, gateway := range r.gateways {
 		gatewaysByName[gateway.Name] = gateway
@@ -106,7 +56,7 @@ func (r *resolution) selectRoutes(routes []gatewayv1alpha1.HTTPRoute, backends [
 	used := make(map[string]bool)
 	for _, route := range ordered {
 		for _, parent := range route.Spec.ParentRefs {
-			state := r.attachParent(route, parent, gatewaysByName[parent.Name], backendsByName, used)
+			state := r.attachHTTPRouteParent(route, parent, gatewaysByName[parent.Name], backendsByName, used)
 			for _, rule := range route.Spec.Rules {
 				for _, ref := range rule.BackendRefs {
 					if backendsByName[ref.Name] == nil && state.missingBackend == "" {
@@ -123,14 +73,14 @@ func (r *resolution) selectRoutes(routes []gatewayv1alpha1.HTTPRoute, backends [
 	}
 }
 
-func (r *resolution) attachParent(
+func (r *resolution) attachHTTPRouteParent(
 	route *gatewayv1alpha1.HTTPRoute,
 	parent gatewayv1alpha1.ParentReference,
 	gateway *gatewayv1alpha1.Gateway,
 	backends map[string]*gatewayv1alpha1.Backend,
 	used map[string]bool,
-) parentResolution {
-	state := parentResolution{
+) httpRouteParentResolution {
+	state := httpRouteParentResolution{
 		routeName: route.Name,
 		parentRef: parent,
 		reason:    "NoMatchingParent",
@@ -151,13 +101,13 @@ func (r *resolution) attachParent(
 		state.accepted = true
 		state.reason = "Accepted"
 		state.message = "attached to at least one HTTP listener"
-		r.bindRules(route, gateway.Name, listener.Name, backends, used)
+		r.bindHTTPRouteRules(route, gateway.Name, listener.Name, backends, used)
 	}
 
 	return state
 }
 
-func (r *resolution) bindRules(
+func (r *resolution) bindHTTPRouteRules(
 	route *gatewayv1alpha1.HTTPRoute,
 	gatewayName, listenerName string,
 	backends map[string]*gatewayv1alpha1.Backend,
@@ -176,50 +126,88 @@ func (r *resolution) bindRules(
 			matches = []gatewayv1alpha1.HTTPRouteMatch{{}}
 		}
 		for j, match := range matches {
-			r.bindings = append(r.bindings, routeBinding{
+			r.bindings = append(r.bindings, httpRouteBinding{
 				route:        route,
 				gatewayName:  gatewayName,
 				listenerName: listenerName,
 				ruleIndex:    i,
 				matchIndex:   j,
-				path:         defaultPath(match.Path),
+				path:         defaultHTTPRoutePath(match.Path),
 				backendName:  backendName,
 			})
 		}
 	}
 }
 
-func compareMeta(a, b metav1.ObjectMeta) int {
-	if order := a.CreationTimestamp.Compare(b.CreationTimestamp.Time); order != 0 {
-		return order
+func (r *Reconciler) updateHTTPRouteStatuses(
+	ctx context.Context,
+	routes []gatewayv1alpha1.HTTPRoute,
+	parents []httpRouteParentResolution,
+) error {
+	byName := make(map[string][]httpRouteParentResolution)
+	for _, parent := range parents {
+		byName[parent.routeName] = append(byName[parent.routeName], parent)
 	}
 
-	return cmp.Compare(a.Name, b.Name)
-}
-
-func findListenerConflict(candidate *gatewayv1alpha1.Gateway, bindings []listenerBinding) (gatewayConflict, bool) {
-	for _, listener := range candidate.Spec.Listeners {
-		for _, binding := range bindings {
-			if listener.Port != binding.listener.Port {
-				continue
+	for i := range routes {
+		route := routes[i].DeepCopy()
+		desired := make([]gatewayv1alpha1.RouteParentStatus, 0, len(byName[route.Name]))
+		for _, state := range byName[route.Name] {
+			parent := gatewayv1alpha1.RouteParentStatus{
+				ParentRef:      state.parentRef,
+				ControllerName: controllerName,
 			}
-			if listener.Hostname != "" && binding.listener.Hostname != "" && listener.Hostname != binding.listener.Hostname {
-				continue
+			for _, previous := range route.Status.Parents {
+				if previous.ParentRef == state.parentRef && previous.ControllerName == controllerName {
+					parent.Conditions = slices.Clone(previous.Conditions)
+					break
+				}
 			}
 
-			return gatewayConflict{
-				gateway:           candidate,
-				listenerName:      listener.Name,
-				owner:             binding.gateway,
-				ownerListenerName: binding.listener.Name,
-			}, true
+			accepted := acceptedCondition(route.Generation)
+			accepted.Reason = state.reason
+			accepted.Message = state.message
+			if !state.accepted {
+				accepted.Status = metav1.ConditionFalse
+			}
+			meta.SetStatusCondition(&parent.Conditions, accepted)
+
+			resolved := metav1.Condition{
+				Type:               "ResolvedRefs",
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: route.Generation,
+				Reason:             "ResolvedRefs",
+				Message:            "all Backend references resolve",
+			}
+			if state.missingBackend != "" {
+				resolved.Status = metav1.ConditionFalse
+				resolved.Reason = "BackendNotFound"
+				resolved.Message = fmt.Sprintf("Backend %q does not exist", state.missingBackend)
+			}
+			meta.SetStatusCondition(&parent.Conditions, resolved)
+			desired = append(desired, parent)
+		}
+
+		// 仅替换本控制器拥有的父状态，保留其他控制器的记录。
+		for _, parent := range route.Status.Parents {
+			if parent.ControllerName != controllerName {
+				desired = append(desired, parent)
+			}
+		}
+		if apiequality.Semantic.DeepEqual(route.Status.Parents, desired) {
+			continue
+		}
+
+		route.Status.Parents = desired
+		if err := r.client.Status().Update(ctx, route); err != nil {
+			return fmt.Errorf("update HTTPRoute %q status: %w", route.Name, err)
 		}
 	}
 
-	return gatewayConflict{}, false
+	return nil
 }
 
-func defaultPath(path *gatewayv1alpha1.PathMatch) gatewayv1alpha1.PathMatch {
+func defaultHTTPRoutePath(path *gatewayv1alpha1.PathMatch) gatewayv1alpha1.PathMatch {
 	result := gatewayv1alpha1.PathMatch{Type: gatewayv1alpha1.PathMatchPrefix, Value: "/"}
 	if path != nil {
 		if path.Type != "" {

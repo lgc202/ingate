@@ -6,7 +6,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -86,29 +89,52 @@ func TestReconcilePublishesEmptyConfiguration(t *testing.T) {
 }
 
 func TestReconcileDoesNotPublishAfterListFailure(t *testing.T) {
-	wantErr := errors.New("list unavailable")
-	scheme := newTestScheme(t)
-	apiClient := fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithInterceptorFuncs(interceptor.Funcs{
-			List: func(context.Context, client.WithWatch, client.ObjectList, ...client.ListOption) error {
-				return wantErr
-			},
-		}).
-		Build()
-
-	var calls int
-	r := New(apiClient, publisherFunc(func(context.Context, dataplane.Config) error {
-		calls++
-		return nil
-	}))
-
-	_, err := r.Reconcile(t.Context(), sharedRequest())
-	if !errors.Is(err, wantErr) {
-		t.Errorf("Reconcile(list failure) error = %v, want wrapped %v", err, wantErr)
+	tests := []struct {
+		name       string
+		failedRead int
+	}{
+		{name: "Gateways", failedRead: 1},
+		{name: "HTTPRoutes", failedRead: 2},
+		{name: "Backends", failedRead: 3},
 	}
-	if calls != 0 {
-		t.Errorf("Reconcile(list failure) publish calls = %d, want 0", calls)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wantErr := errors.New("list unavailable")
+			ctx := t.Context()
+			var reads int
+			apiClient := fake.NewClientBuilder().
+				WithScheme(newTestScheme(t)).
+				WithInterceptorFuncs(interceptor.Funcs{
+					List: func(gotCtx context.Context, _ client.WithWatch, _ client.ObjectList, _ ...client.ListOption) error {
+						if gotCtx != ctx {
+							t.Error("List() did not receive the Reconcile context")
+						}
+						reads++
+						if reads == tt.failedRead {
+							return wantErr
+						}
+						return nil
+					},
+				}).
+				Build()
+
+			var publishes int
+			r := New(apiClient, publisherFunc(func(context.Context, dataplane.Config) error {
+				publishes++
+				return nil
+			}))
+
+			_, err := r.Reconcile(ctx, sharedRequest())
+			if !errors.Is(err, wantErr) {
+				t.Errorf("Reconcile(%s list failure) error = %v, want wrapped %v", tt.name, err, wantErr)
+			}
+			if reads != tt.failedRead {
+				t.Errorf("Reconcile(%s list failure) reads = %d, want %d", tt.name, reads, tt.failedRead)
+			}
+			if publishes != 0 {
+				t.Errorf("Reconcile(%s list failure) publishes = %d, want 0", tt.name, publishes)
+			}
+		})
 	}
 }
 
@@ -154,6 +180,83 @@ func TestSharedRequestSources(t *testing.T) {
 	}
 }
 
+func TestReconcileWritesAcceptedStatuses(t *testing.T) {
+	first := gatewayResource("first", 1, listener("http", 8080, ""))
+	conflicting := gatewayResource("conflicting", 2, listener("http", 8080, ""))
+	valid := routeResource("valid", 1, "first", "http", "backend", gatewayv1alpha1.PathMatchPrefix)
+	rejected := routeResource("rejected", 2, "conflicting", "http", "backend", gatewayv1alpha1.PathMatchPrefix)
+	first.Generation = 3
+	conflicting.Generation = 4
+	valid.Generation = 5
+	rejected.Generation = 6
+	backend := backendResource("backend")
+	apiClient := newFakeClient(t, &first, &conflicting, &valid, &rejected, &backend)
+	r := New(apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }))
+
+	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+
+	assertGatewayCondition(t, apiClient, "first", metav1.ConditionTrue, "Accepted", 3)
+	assertGatewayCondition(t, apiClient, "conflicting", metav1.ConditionFalse, "ListenerConflict", 4)
+	assertHTTPRouteCondition(t, apiClient, "valid", metav1.ConditionTrue, "Accepted", 5)
+	assertHTTPRouteCondition(t, apiClient, "rejected", metav1.ConditionFalse, "NoMatchingParent", 6)
+
+	var stored gatewayv1alpha1.Backend
+	if err := apiClient.Get(t.Context(), types.NamespacedName{Name: "backend"}, &stored); err != nil {
+		t.Fatalf("Get(Backend) error = %v", err)
+	}
+	if len(stored.Status.Conditions) != 0 {
+		t.Errorf("Backend conditions = %v, want none", stored.Status.Conditions)
+	}
+}
+
+func TestReconcileDoesNotWriteStatusAfterPublishFailure(t *testing.T) {
+	gateway := gatewayResource("gateway", 1, listener("http", 8080, ""))
+	apiClient := newFakeClient(t, &gateway)
+	wantErr := errors.New("publisher unavailable")
+	r := New(apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return wantErr }))
+
+	if _, err := r.Reconcile(t.Context(), sharedRequest()); !errors.Is(err, wantErr) {
+		t.Fatalf("Reconcile() error = %v, want wrapped %v", err, wantErr)
+	}
+
+	var stored gatewayv1alpha1.Gateway
+	if err := apiClient.Get(t.Context(), types.NamespacedName{Name: gateway.Name}, &stored); err != nil {
+		t.Fatalf("Get(Gateway) error = %v", err)
+	}
+	if len(stored.Status.Conditions) != 0 {
+		t.Errorf("Gateway conditions = %v, want none", stored.Status.Conditions)
+	}
+}
+
+func TestReconcileReturnsStatusUpdateFailure(t *testing.T) {
+	gateway := gatewayResource("gateway", 1, listener("http", 8080, ""))
+	wantErr := errors.New("status unavailable")
+	apiClient := fake.NewClientBuilder().
+		WithScheme(newTestScheme(t)).
+		WithObjects(&gateway).
+		WithStatusSubresource(&gatewayv1alpha1.Gateway{}).
+		WithInterceptorFuncs(interceptor.Funcs{
+			SubResourceUpdate: func(context.Context, client.Client, string, client.Object, ...client.SubResourceUpdateOption) error {
+				return wantErr
+			},
+		}).
+		Build()
+	var published bool
+	r := New(apiClient, publisherFunc(func(context.Context, dataplane.Config) error {
+		published = true
+		return nil
+	}))
+
+	if _, err := r.Reconcile(t.Context(), sharedRequest()); !errors.Is(err, wantErr) {
+		t.Errorf("Reconcile() error = %v, want wrapped %v", err, wantErr)
+	}
+	if !published {
+		t.Error("Reconcile() did not publish before updating Status")
+	}
+}
+
 func (f publisherFunc) Publish(ctx context.Context, config dataplane.Config) error {
 	return f(ctx, config)
 }
@@ -174,4 +277,21 @@ func newTestScheme(t *testing.T) *runtime.Scheme {
 		t.Fatalf("AddToScheme() error = %v", err)
 	}
 	return scheme
+}
+
+func assertAcceptedCondition(
+	t *testing.T,
+	conditions []metav1.Condition,
+	status metav1.ConditionStatus,
+	reason string,
+	generation int64,
+) {
+	t.Helper()
+	condition := meta.FindStatusCondition(conditions, gatewayv1alpha1.ConditionAccepted)
+	if condition == nil {
+		t.Fatal("Accepted condition not found")
+	}
+	if condition.Status != status || condition.Reason != reason || condition.ObservedGeneration != generation {
+		t.Errorf("Accepted condition = %+v, want status %q, reason %q, generation %d", condition, status, reason, generation)
+	}
 }
