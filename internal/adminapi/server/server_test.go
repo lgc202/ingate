@@ -20,6 +20,7 @@ import (
 	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
 	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
+	mcproutehandler "github.com/lgc202/ingate/internal/adminapi/handler/mcproute"
 	modelroutehandler "github.com/lgc202/ingate/internal/adminapi/handler/modelroute"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
 	mysqlstore "github.com/lgc202/ingate/internal/adminapi/repository/mysql"
@@ -28,6 +29,7 @@ import (
 	backendservice "github.com/lgc202/ingate/internal/adminapi/service/backend"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/httproute"
+	mcprouteservice "github.com/lgc202/ingate/internal/adminapi/service/mcproute"
 	modelrouteservice "github.com/lgc202/ingate/internal/adminapi/service/modelroute"
 	clientfake "github.com/lgc202/ingate/pkg/generated/clientset/versioned/fake"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -208,12 +210,14 @@ func newTestServersWithStore(
 	backends := repository.NewBackend(client.GatewayV1alpha1().Backends(), store)
 	aiBackends := repository.NewAIBackend(client.GatewayV1alpha1().AIBackends(), store)
 	modelRoutes := repository.NewModelRoute(client.GatewayV1alpha1().ModelRoutes(), store)
+	mcpRoutes := repository.NewMCPRoute(client.GatewayV1alpha1().MCPRoutes(), store)
 
 	gatewayHandler := gatewayhandler.New(gatewayservice.New(gateways))
 	routeHandler := routehandler.New(routeservice.New(routes))
 	backendHandler := backendhandler.New(backendservice.New(backends))
 	aiBackendHandler := aibackendhandler.New(aibackendservice.New(aiBackends))
 	modelRouteHandler := modelroutehandler.New(modelrouteservice.New(modelRoutes))
+	mcpRouteHandler := mcproutehandler.New(mcprouteservice.New(mcpRoutes))
 
 	config := &conf.Server{
 		Http: &conf.Server_HTTP{
@@ -232,6 +236,7 @@ func newTestServersWithStore(
 		Backend:    backendHandler,
 		AIBackend:  aiBackendHandler,
 		ModelRoute: modelRouteHandler,
+		MCPRoute:   mcpRouteHandler,
 		Account:    accounthandler.New(nil),
 	}
 	chain := server.NewMiddlewareChain(authentication)

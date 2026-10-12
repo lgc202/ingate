@@ -1,7 +1,7 @@
 # API 网关完成度与 AI 网关开发条件
 
-- 评估日期：2026-10-10；2026-10-11 同步 ADS 反馈；2026-10-12 同步声明式资源及 AIBackend、ModelRoute 管理与投影
-- 源码基线：`75ac86b8` 已提交 MCPRoute 资源与 AIBackend 管理查询；当前 ModelRoute 管理与投影待用户 review，未提交；HTTP 替换前评估基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
+- 评估日期：2026-10-10；2026-10-11 同步 ADS 反馈；2026-10-12 同步声明式资源及 AIBackend、ModelRoute、MCPRoute 管理与投影
+- 源码基线：`53573124` 已提交 ModelRoute 管理与查询投影；当前 MCPRoute 管理与投影待用户 review，未提交；HTTP 替换前评估基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
 - 分支：`codex/rebuild-from-zero`
 - 范围：现有三个组件、资源契约、控制面到数据面的调用关系与已有测试；HTTPRoute/Backend 替换已实现，用户于 2026-10-11 授权提交，真实组件验收仍未完成
 - AI 方向：[0010 决策](decisions/0010-unified-ai-proxy-config-delivery.md)
@@ -17,7 +17,7 @@ Ingate 已具备 HTTP 网关的控制面主结构和最小转发配置实现：�
 
 当前继续 AI 契约设计，契约 review 通过后进入对应最小切片开发，不以 HTTP 主链路实测作为开发前置条件。日常单元测试、静态检查和代码 review 继续执行；真实组件、整链路与故障场景在后续统一测试阶段验收。未完成的验证仍不能表述为已验收，也不能据此扩大到生产部署、完整 MCP 聚合或多提供商重试。
 
-2026-10-12 用户确认模型/MCP 基础字段后，先接入 AIBackend、ModelRoute，按“先提交一版然后继续”提交为 `3519b189`，未推送；随后接入 MCPRoute 声明与存储。这三种新资源具有 CRUD/List/Watch/status、默认值与单对象校验、标准生成客户端与 OpenAPI。D2 首步已追加 AIBackend Admin HTTP/gRPC 管理、单行 MySQL 查询模型和 Manager 投影；上述实现已提交为 `75ac86b8`，未推送。随后已接入 ModelRoute 管理与投影，待用户 review；MCPRoute 尚无管理端入口或投影。没有 AI Proxy、TLS 或凭据，保存资源不表示模型或 MCP 接口可调用。
+2026-10-12 用户确认模型/MCP 基础字段后，先接入 AIBackend、ModelRoute，按“先提交一版然后继续”提交为 `3519b189`，未推送；随后接入 MCPRoute 声明与存储。这三种新资源具有 CRUD/List/Watch/status、默认值与单对象校验、标准生成客户端与 OpenAPI。D2 首步追加 AIBackend Admin HTTP/gRPC 管理、单行 MySQL 查询模型和 Manager 投影，随 `75ac86b8` 提交；随后 ModelRoute 管理与投影按用户指示提交为 `53573124`，均未推送。MCPRoute 管理与投影现已实现，待用户 review。六种资源的存储和管理消费者已具备，模型/MCP 的引用与 Conditions 尚未接入；没有 AI Proxy、TLS 或凭据，保存资源不表示模型或 MCP 接口可调用。
 
 ## 当前主路径与术语
 
@@ -39,12 +39,12 @@ ADS 是 Envoy 接收多个 xDS 资源类型的 gRPC 服务。当前使用 SotW�
 | 资源裁决 | Listener 端口/Host 冲突、独立父引用接纳、缺省路径、重叠规则优先顺序及失效目标恢复 | 单元测试覆盖正反例、输入顺序变化及不修改输入；没有验证真实 Manager Watch 收敛 |
 | HTTP 配置 | Exact 优先、长 PathPrefix 优先；路径段匹配；IP 使用 EDS，含 DNS 使用 STRICT_DNS；端点权重与 ROUND_ROBIN | protobuf、失效后端的 500 directResponse、稳定排序、内容版本和空配置替换测试；尚非真实 Envoy 转发证据 |
 | ADS 服务 | 原生 gRPC，监听/取消生命周期，首次 Snapshot 就绪，按流/类型/nonce 关联 ACK/NACK 日志 | 本地监听和 bufconn ADS 收取/反馈接入测试；回调单元测试覆盖版本归属、过期反馈、隔离与清理；没有真实 Envoy ACK/NACK 验收 |
-| 管理端资源 | HTTP/gRPC 管理 Gateway、HTTPRoute、Backend、AIBackend、ModelRoute，完整 PUT、并发版本冲突、错误映射 | HTTP/bufconn gRPC、fake Kubernetes Client 与模拟查询模型合同测试；没有实库联合服务验收 |
-| MySQL 投影 | 启动补齐后清理残留、五类单 Worker、AIBackend 单行字段、HTTPRoute/ModelRoute 单行 JSON、Gateway/Backend 父子记录事务、Status 版本投影、失败重试 | fake Client + sqlmock；未证明真实 MySQL SQL、迁移与事务行为 |
+| 管理端资源 | HTTP/gRPC 管理 Gateway、HTTPRoute、Backend、AIBackend、ModelRoute、MCPRoute，完整 PUT、并发版本冲突、错误映射 | HTTP/bufconn gRPC、fake Kubernetes Client 与模拟查询模型合同测试；没有实库联合服务验收 |
+| MySQL 投影 | 启动补齐后清理残留、六类单 Worker、AIBackend 单行字段、HTTPRoute/ModelRoute 单行 JSON、MCPRoute 单后端列与父引用 JSON、Gateway/Backend 父子记录事务、Status 版本投影、失败重试 | fake Client + sqlmock；未证明真实 MySQL SQL、迁移与事务行为 |
 | 管理鉴权 | 账户、密码校验、Redis Bearer Session、改密后的会话版本校验 | Service、Session 存储及真实 RequireSession 有回归测试；中间件测试使用 sqlmock 与 miniredis，不代表实库或真实 Redis 故障转移已验证 |
 | 客户端与运行入口 | MySQL 原生客户端、Redis UniversalClient、版本、日志、组件装配与清理 | 普通测试；历史 Redis 拓扑结果见重构记录，本轮不将其当作全部重新验证 |
 | CI / 开发入口 | 格式、lint、Vet、测试、构建与生成代码校验 | 工作流存在；阶段 B 执行结果见 0011，后文仅保留历史验证，不代表远端 CI 已运行 |
-| AI / MCP | AIBackend、ModelRoute、MCPRoute 声明 API，AIBackend/ModelRoute 管理与查询投影；凭据、运行时快照及处理器仍未实现 | 资源的保存、默认值、校验及存储已验证；不能据此调用模型或 MCP |
+| AI / MCP | AIBackend、ModelRoute、MCPRoute 声明 API、管理与查询投影；引用协调、凭据、运行时快照及处理器仍未实现 | 资源的保存、默认值、校验及存储已验证；不能据此调用模型或 MCP |
 
 可审计入口：
 
@@ -102,7 +102,21 @@ ModelRoute 只追加已确认的父引用、rules/matches/headers、单个 AIBac
 
 ModelRoute 纳入既有投影恢复契约，覆盖创建/更新/删除、status-only 版本、启动补齐与残留清理、部分失败后的重复协调。单独的转换测试验证父引用和规则顺序、模型覆盖、空 match/空 matches 及不修改输入。本轮审查全部新增/修改手写文件，格式、空白检查、lint、Vet、全仓单元测试、构建及 protobuf lint 通过；重复生成的全仓 48 个生成 Go 文件内容一致。未变更 API Server 存储契约；隔离存储 integration 在提交前通过，不冒充本步真实组件联动验证。
 
-本轮重新查询 GoCanon 来源为本地 `3d67061de40d5486ea5c1ae581e7a3930cfed9db`，工作树仅两处 .gitignore 相关改动；开发入口重新完整读取，所选规范正文相对前次来源未变。GoCanon MCP 仍不可调用，现有 AddWebAPI 仍要求 manifest 与配套装配；本仓库继续使用固定版本 Buf 原生生成。规范草案与人工审查不提供模板级或生产就绪保证。本步未执行实库迁移、真实 Manager Watch、完整部署认证、Envoy 或模型转发验证；ModelRoute 管理与投影待用户 review，未提交。
+本轮重新查询 GoCanon 来源为本地 `3d67061de40d5486ea5c1ae581e7a3930cfed9db`，工作树仅两处 .gitignore 相关改动；开发入口重新完整读取，所选规范正文相对前次来源未变。GoCanon MCP 仍不可调用，现有 AddWebAPI 仍要求 manifest 与配套装配；本仓库继续使用固定版本 Buf 原生生成。规范草案与人工审查不提供模板级或生产就绪保证。本步未执行实库迁移、真实 Manager Watch、完整部署认证、Envoy 或模型转发验证；用户要求“提交并继续”，ModelRoute 管理与投影提交为 `53573124`，未推送。
+
+### MCPRoute 管理与查询投影的本轮证据
+
+[管理协议](../api/admin/v1/mcproute.proto)、现有认证链、Handler → Service → Repository、[单表查询模型](../internal/adminapi/repository/mysql/mcproute.go)与 [Manager 投影](../internal/controllermanager/controller/projection/mcproute.go)已实现。后台生成 name，展示名称可重复；完整 PUT 按 version 替换 spec，保留 metadata/status。protobuf optional 保留路径省略与显式空值的区别，默认值来自 API Server；完整 PUT 省略两端路径会重置 /mcp。查询只有稳定 name、展示名称字面包含、Gateway 声明引用及分页，Get/List 不回退 API Server。mcproutes 仅父引用用 JSON，单后端标识与路径用普通列；00002 当前共八张资源查询表，尚未运行实库迁移。
+
+[管理测试](../internal/adminapi/server/mcproute_test.go)使用本机 HTTP 往返及 bufconn gRPC，后端为 fake Client/sqlmock，覆盖两端独立默认、显式路径/编码/Unicode/尾斜杠、1024 字符上限及超限/显式空值、完整 PUT 重置、陈旧版本、重复展示名、参数拒绝、标准错误转换和内部错误脱敏。五个入口的拒绝中间件断言验证注册，真实 RequireSession 沿用既有独立回归测试。Repository 验证预读后的 API 更新竞争仍保留冲突原因链，返回数据不共享源对象的路径指针与引用切片。SQL 测试核对完整字段、坏 JSON 不返回部分结果、未找到原因、配置替换与清空、失败回滚、组合筛选 SQL 和不匹配分页；只读 Repeatable Read 事务选项有断言，但不证明实库筛选与隔离效果。
+
+MCPRoute 纳入既有投影恢复契约，覆盖创建/更新/删除、status-only 版本、启动补齐/清理残留、失败后的重复协调。转换测试验证原始路径、父引用顺序和 UTC 创建时间；转换相信 API Server 的单后端和路径默认成功契约，不重复校验或增加不可达的异常快照分支。投影不解析引用、不写成功状态、不发布 MCP 入口。
+
+本轮按 GO-FUNC-012/013/014、GO-DEF-001/010 及仓库 AGENTS 逐文件审查全部新增/修改的手写代码，生成文件不手改。格式、跟踪及未跟踪文件空白检查、lint、Vet、全仓单元测试、构建和 protobuf lint 通过；重复 protobuf 生成后，全仓 51 个生成 Go 文件内容一致。API 类型及 API Server 存储契约本步未变更，未另跑存储 integration。
+
+开始时 MCP 不可用，使用本地规则源 `3d67061de40d5486ea5c1ae581e7a3930cfed9db`；收尾时 GoCanon MCP 恢复，重新查询实际版本为 `5684841-dirty`，规则 revision `5684841d220f954316529dac4e1876c7801844cb`、dirty=true，来源同一本地目录。MCP 是服务启动快照，不等于当前本地 HEAD。通过 MCP 完整读取 AGENTS、开发入口和规范索引，核对本次八份规范正文与此前完整读取的本地正文一致，按执行清单区分工具覆盖和人工判断；没有把草案当作已稳定规则。Ingate 缺少 gocanon.json 与生成器拥有的 Web 接线，未调用追加写工具或绕过保护，继续使用固定版本 Buf；不新增 manifest、默认业务或依赖。
+
+未执行真实 MySQL 迁移/SQL/事务、Manager Watch、完整部署认证、Envoy 或 MCP 协议互操作；单元检查不构成模板级或生产就绪认证。当前切片待用户 review，未提交；下一步为已确认 D3 的引用与标准 Conditions，不恢复新服务或新增协议依赖。
 
 ### 后续统一测试需要覆盖真实转发与 ACK
 

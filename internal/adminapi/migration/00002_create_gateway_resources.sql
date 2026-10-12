@@ -82,7 +82,23 @@ CREATE TABLE modelroutes (
     UNIQUE KEY uk_modelroutes_name (name)
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '模型路由';
 
+CREATE TABLE mcproutes (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT 'MCP 路由唯一标识',
+    display_name LONGTEXT NOT NULL COMMENT 'MCP 路由名称',
+    parents JSON NOT NULL COMMENT '网关引用配置',
+    path VARCHAR(1024) NOT NULL COMMENT '入口 MCP 路径',
+    backend_name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '网络后端标识',
+    backend_path VARCHAR(1024) NOT NULL COMMENT '上游 MCP 路径',
+    version VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '对象版本，用于并发更新校验',
+    created_at DATETIME(6) NOT NULL COMMENT 'MCP 路由创建时间',
+    updated_at DATETIME(6) NOT NULL COMMENT '记录更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_mcproutes_name (name)
+) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = 'MCP 路由';
+
 -- +goose Down
+DROP TABLE mcproutes;
 DROP TABLE modelroutes;
 DROP TABLE aibackends;
 DROP TABLE backend_endpoints;

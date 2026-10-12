@@ -14,6 +14,7 @@ import (
 	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
 	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
+	mcproutehandler "github.com/lgc202/ingate/internal/adminapi/handler/mcproute"
 	modelroutehandler "github.com/lgc202/ingate/internal/adminapi/handler/modelroute"
 	"github.com/lgc202/ingate/internal/adminapi/middleware"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
@@ -26,6 +27,7 @@ import (
 	backendservice "github.com/lgc202/ingate/internal/adminapi/service/backend"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/httproute"
+	mcprouteservice "github.com/lgc202/ingate/internal/adminapi/service/mcproute"
 	modelrouteservice "github.com/lgc202/ingate/internal/adminapi/service/modelroute"
 	logconfig "github.com/lgc202/ingate/internal/pkg/log"
 	mysqlclient "github.com/lgc202/ingate/internal/pkg/mysql"
@@ -114,18 +116,21 @@ func newApp(
 	backends := repository.NewBackend(apiServerStore.Backends(), mysqlStore)
 	aiBackends := repository.NewAIBackend(apiServerStore.AIBackends(), mysqlStore)
 	modelRoutes := repository.NewModelRoute(apiServerStore.ModelRoutes(), mysqlStore)
+	mcpRoutes := repository.NewMCPRoute(apiServerStore.MCPRoutes(), mysqlStore)
 
 	gatewayService := gatewayservice.New(gateways)
 	routeService := routeservice.New(routes)
 	backendService := backendservice.New(backends)
 	aiBackendService := aibackendservice.New(aiBackends)
 	modelRouteService := modelrouteservice.New(modelRoutes)
+	mcpRouteService := mcprouteservice.New(mcpRoutes)
 
 	gatewayHandler := gatewayhandler.New(gatewayService)
 	routeHandler := routehandler.New(routeService)
 	backendHandler := backendhandler.New(backendService)
 	aiBackendHandler := aibackendhandler.New(aiBackendService)
 	modelRouteHandler := modelroutehandler.New(modelRouteService)
+	mcpRouteHandler := mcproutehandler.New(mcpRouteService)
 	accountHandler := accounthandler.New(accountService)
 
 	handlers := server.Handlers{
@@ -134,6 +139,7 @@ func newApp(
 		Backend:    backendHandler,
 		AIBackend:  aiBackendHandler,
 		ModelRoute: modelRouteHandler,
+		MCPRoute:   mcpRouteHandler,
 		Account:    accountHandler,
 	}
 	middlewareChain := server.NewMiddlewareChain(middleware.RequireSession(accountService))

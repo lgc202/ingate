@@ -1,10 +1,10 @@
 # 三类路由复用 Backend，以 AIBackend 定义模型服务访问契约
 
-- 状态：六种声明式资源及 AIBackend 管理与投影已提交；ModelRoute 管理与投影已实现，待用户 review，未提交；不新增数据面业务
+- 状态：六种声明式资源及 AIBackend、ModelRoute 管理与投影已提交；MCPRoute 管理与投影已实现，待用户 review，未提交；不新增数据面业务
 - 作者：Ingate 开发协作
 - 更新日期：2026-10-12
 - 讨论入口：本仓库文档 review，依据 [0010 决策](../decisions/0010-unified-ai-proxy-config-delivery.md)及用户确认的资源关系
-- 当前源码基线：`75ac86b8`（MCPRoute 资源与 AIBackend 管理查询），分支 `codex/rebuild-from-zero`；HTTP 替换前基线为 `56205b84321c`
+- 当前源码基线：`53573124`（ModelRoute 管理与查询投影），分支 `codex/rebuild-from-zero`；HTTP 替换前基线为 `56205b84321c`
 - 范围：资源契约、裁决边界、管理接口影响、实施顺序及 D1/D2 进度；不新增数据面业务
 
 ## 摘要
@@ -23,7 +23,7 @@
 
 基线裁决按 Gateway/Listener 和规范化路径判断冲突；阶段 B 的[裁决](../../internal/controllermanager/controller/gateway/resolve.go)已保留同路径候选，按父引用独立附着。[Envoy 适配层](../../internal/controllermanager/dataplane/envoy/resources.go)按 Exact 优先、长 PathPrefix 优先稳定排序，IP/DNS 后端采用 EDS/STRICT_DNS。后端连接超时仍为 5 秒，没有上游 TLS 配置。改名不能填补这些协议和安全缺口。
 
-当前 Admin 接口保留 [0005](../decisions/0005-admin-resource-management.md)的 API Server 写入、MySQL 异步查询分工；[资源存储映射](../../internal/apiserver/registry/gateway/storage.go)已有六种资源及其 status。D2 已接入 AIBackend、ModelRoute 管理与查询投影，MCPRoute 尚无 Admin 入口。没有 Namespace、Secret、运行时快照或租约资源。本文不假设完整 Kubernetes 已存在。
+当前 Admin 接口保留 [0005](../decisions/0005-admin-resource-management.md)的 API Server 写入、MySQL 异步查询分工；[资源存储映射](../../internal/apiserver/registry/gateway/storage.go)已有六种资源及其 status。D2 已接入 AIBackend、ModelRoute、MCPRoute 管理与查询投影，最后一个切片尚待代码 review。没有 Namespace、Secret、运行时快照或租约资源。本文不假设完整 Kubernetes 已存在。
 
 本稿输入是已确认讨论和现有代码，没有另建 PRD，也没有新增计费、配额、Agent、工具聚合、插件市场或多租户业务需求。
 
@@ -449,7 +449,15 @@ BackendReference 已有第二个真实协议消费者，从 httproute.proto 移�
 
 常用查询为稳定 name 读取、展示名称字面包含匹配、Gateway 引用精确筛选和分页；Gateway 条件只检查声明的 parentRefs，不承诺已经接纳。modelroutes 表用 parents/rules JSON 保存有序配置，记录 name、display_name、version 和创建/记录更新时间，只有主键及 name 唯一索引。没有规则名排序、position 子表、外键或猜测性的模型/后端索引；模型值、Header 名大小写、空 match 与空 matches 保留原义。完整 PUT 可清空展示名、规则名和模型覆盖，保留 metadata/status。
 
-ParentReference 出现第二个实际管理协议消费者，从 httproute.proto 移到 gateway.proto，消息名称和字段编号不变。新增投影只转换 API Server 的已保存配置，逐资源单 Worker 协调，含 status-only 版本变化及启动补齐/清理；不重新裁决引用、补造模型匹配条件或写成功状态。查询仍只读异步 MySQL 模型，不加权威存储回退。直接修正 00002 未发布基线，未运行实库迁移或删除已有数据。本切片待用户 review，未提交；下一步为 MCPRoute 管理与投影，不开发协议运行服务。
+ParentReference 出现第二个实际管理协议消费者，从 httproute.proto 移到 gateway.proto，消息名称和字段编号不变。新增投影只转换 API Server 的已保存配置，逐资源单 Worker 协调，含 status-only 版本变化及启动补齐/清理；不重新裁决引用、补造模型匹配条件或写成功状态。查询仍只读异步 MySQL 模型，不加权威存储回退。直接修正 00002 未发布基线，未运行实库迁移或删除已有数据。用户要求“提交并继续”，本切片提交为 `53573124`，未推送。
+
+### D2 第三步：MCPRoute 管理与查询
+
+[MCPRouteService](../../api/admin/v1/mcproute.proto) 接入现有 HTTP/gRPC 管理链。字段沿用 parentRefs、可选入口 path、单个 Backend 引用及其可选 path，不经过 AIBackend。两个路径在 protobuf 中保留 optional：省略值交给 API Server 默认 /mcp，显式空值在传输层拒绝；绝对路径及 URL 结构仍由权威资源校验负责。完整 PUT 中省略路径会重置为默认值，不保留旧路径。name 后台生成，displayName 允许重复和清空，version 用于并发更新校验；metadata/status 不由管理入口替换。
+
+常用查询仍为稳定 name 读取、展示名称字面包含、Gateway 声明引用精确筛选及分页，默认 50、上限 200。mcproutes 表仅父引用使用 parents JSON；单个后端采用 backend_name、backend_path 普通列，入口为 path 列。两端 VARCHAR(1024) 使用 utf8mb4，与资源的 Unicode 字符上限一致，保留编码及尾斜杠。表只设置主键和 name 唯一索引，不增加 position、外键、展示名去重或未经消费者证明的索引。
+
+投影沿现有逐资源单 Worker、启动补齐后清理残留的恢复契约，处理 status-only 版本变化。API Server 保证单后端和默认后的两端路径，转换只读取已保存结果，不重复校验或补默认值；读取/写入失败交回框架，启动补齐失败时不继续清理残留。直接修正未发布迁移基线，不执行实库迁移或重建数据库。该切片待用户 review，未提交；D1/D2 的资源存储和管理消费者已具备，D3 的引用与 Conditions 仍未实现，不据此发布模型/MCP 入口或恢复新服务。
 
 ## 验证矩阵：每项能力都要有失效时会失败的断言
 

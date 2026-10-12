@@ -10,6 +10,7 @@ import (
 	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
 	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
+	mcproutehandler "github.com/lgc202/ingate/internal/adminapi/handler/mcproute"
 	modelroutehandler "github.com/lgc202/ingate/internal/adminapi/handler/modelroute"
 )
 
@@ -20,6 +21,7 @@ type Handlers struct {
 	Backend    *backendhandler.Handler
 	AIBackend  *aibackendhandler.Handler
 	ModelRoute *modelroutehandler.Handler
+	MCPRoute   *mcproutehandler.Handler
 	Account    *accounthandler.Handler
 }
 
@@ -47,6 +49,8 @@ func New(
 	adminv1.RegisterAIBackendServiceServer(grpcServer, handlers.AIBackend)
 	adminv1.RegisterModelRouteServiceHTTPServer(httpServer, handlers.ModelRoute)
 	adminv1.RegisterModelRouteServiceServer(grpcServer, handlers.ModelRoute)
+	adminv1.RegisterMCPRouteServiceHTTPServer(httpServer, handlers.MCPRoute)
+	adminv1.RegisterMCPRouteServiceServer(grpcServer, handlers.MCPRoute)
 
 	return httpServer, grpcServer
 }

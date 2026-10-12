@@ -57,6 +57,11 @@ func (s *Store) ModelRoutes() gatewayclient.ModelRouteInterface {
 	return s.client.GatewayV1alpha1().ModelRoutes()
 }
 
+// MCPRoutes 返回 MCPRoute 资源客户端。
+func (s *Store) MCPRoutes() gatewayclient.MCPRouteInterface {
+	return s.client.GatewayV1alpha1().MCPRoutes()
+}
+
 func loadConfig(kubeconfig string) (*rest.Config, error) {
 	if kubeconfig == "" {
 		config, err := rest.InClusterConfig()

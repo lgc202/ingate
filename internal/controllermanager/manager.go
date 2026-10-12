@@ -57,6 +57,9 @@ func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
 	if err := projection.NewModelRoute(manager.GetClient(), store).SetupWithManager(manager); err != nil {
 		return nil, fmt.Errorf("setup ModelRoute projection controller: %w", err)
 	}
+	if err := projection.NewMCPRoute(manager.GetClient(), store).SetupWithManager(manager); err != nil {
+		return nil, fmt.Errorf("setup MCPRoute projection controller: %w", err)
+	}
 
 	if err := manager.AddReadyzCheck("xds", xdsServer.CheckReady); err != nil {
 		return nil, fmt.Errorf("add xDS readiness check: %w", err)

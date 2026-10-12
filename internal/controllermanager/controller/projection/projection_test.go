@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -75,6 +76,12 @@ func TestReconcileProjectsVersionAfterStatusOnlyUpdate(t *testing.T) {
 			case *gatewayv1alpha1.AIBackend:
 				object.Status.Conditions = []metav1.Condition{condition}
 			case *gatewayv1alpha1.ModelRoute:
+				object.Status.Parents = []gatewayv1alpha1.RouteParentStatus{{
+					ParentRef:      gatewayv1alpha1.ParentReference{Name: "edge", SectionName: "http"},
+					ControllerName: "gateway.ingate.io/test",
+					Conditions:     []metav1.Condition{condition},
+				}}
+			case *gatewayv1alpha1.MCPRoute:
 				object.Status.Parents = []gatewayv1alpha1.RouteParentStatus{{
 					ParentRef:      gatewayv1alpha1.ParentReference{Name: "edge", SectionName: "http"},
 					ControllerName: "gateway.ingate.io/test",
@@ -330,6 +337,43 @@ func projectionTestCases() []projectionTestCase {
 			},
 		},
 		{
+			name: "MCPRoute", table: "mcproutes", initialSyncName: mcpRouteInitialSyncName,
+			object: &gatewayv1alpha1.MCPRoute{
+				ObjectMeta: metadata,
+				Spec: gatewayv1alpha1.MCPRouteSpec{
+					DisplayName: "工具路由",
+					ParentRefs:  []gatewayv1alpha1.ParentReference{{Name: "edge", SectionName: "http"}},
+					Path:        ptr.To("/tools/mcp/"),
+					BackendRefs: []gatewayv1alpha1.MCPBackendReference{{Name: "network", Path: ptr.To("/upstream/mcp/")}},
+				},
+			},
+			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewMCPRoute(c, s) },
+			expectCreate: func(mock sqlmock.Sqlmock, name, version string) {
+				expectProjectionLookup(mock, "mcproutes", name, false)
+				mock.ExpectExec("INSERT INTO `mcproutes` (`name`,`display_name`,`version`,`created_at`,`updated_at`,`parents`,`path`,`backend_name`,`backend_path`) VALUES (?,?,?,?,?,?,?,?,?)").
+					WithArgs(name, "工具路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, "/tools/mcp/", "network", "/upstream/mcp/").
+					WillReturnResult(sqlmock.NewResult(41, 1))
+				mock.ExpectCommit()
+			},
+			expectUpdate: func(mock sqlmock.Sqlmock, name, version string) {
+				expectProjectionLookup(mock, "mcproutes", name, true)
+				mock.ExpectExec("UPDATE `mcproutes` SET `display_name`=?,`version`=?,`created_at`=?,`updated_at`=?,`parents`=?,`path`=?,`backend_name`=?,`backend_path`=? WHERE `id` = ?").
+					WithArgs("工具路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, "/tools/mcp/", "network", "/upstream/mcp/", 41).
+					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectCommit()
+			},
+			expectDelete: func(mock sqlmock.Sqlmock, name string) {
+				mock.ExpectBegin()
+				mock.ExpectExec("DELETE FROM `mcproutes` WHERE name = ?").WithArgs(name).WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectCommit()
+			},
+			expectDeleteErr: func(mock sqlmock.Sqlmock, name string, err error) {
+				mock.ExpectBegin()
+				mock.ExpectExec("DELETE FROM `mcproutes` WHERE name = ?").WithArgs(name).WillReturnError(err)
+				mock.ExpectRollback()
+			},
+		},
+		{
 			name: "Gateway", table: "gateways", initialSyncName: gatewayInitialSyncName,
 			object: &gatewayv1alpha1.Gateway{
 				ObjectMeta: metadata,
@@ -474,7 +518,7 @@ func newProjectionTestClient(t *testing.T, objects ...client.Object) client.With
 		t.Fatalf("AddToScheme() error = %v, want nil", err)
 	}
 	return fake.NewClientBuilder().WithScheme(scheme).
-		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.HTTPRoute{}, &gatewayv1alpha1.Backend{}, &gatewayv1alpha1.AIBackend{}, &gatewayv1alpha1.ModelRoute{}).
+		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.HTTPRoute{}, &gatewayv1alpha1.Backend{}, &gatewayv1alpha1.AIBackend{}, &gatewayv1alpha1.ModelRoute{}, &gatewayv1alpha1.MCPRoute{}).
 		WithObjects(objects...).Build()
 }
 
