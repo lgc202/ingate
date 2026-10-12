@@ -84,6 +84,29 @@ func TestNamespaceCodecRoundTrip(t *testing.T) {
 	}
 }
 
+func TestNamespaceCodecDefaults(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := install.Install(scheme); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	codec := serializer.NewCodecFactory(scheme).LegacyCodec(corev1.SchemeGroupVersion)
+	data := []byte(`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"team-b"}}`)
+	obj, _, err := codec.Decode(data, nil, nil)
+	if err != nil {
+		t.Fatalf("Decode(Namespace without defaults) error = %v", err)
+	}
+	namespace := obj.(*core.Namespace)
+	if namespace.Status.Phase != corev1.NamespaceActive {
+		t.Errorf("Decode() phase = %q, want Active", namespace.Status.Phase)
+	}
+	if namespace.Labels[corev1.LabelMetadataName] != namespace.Name {
+		t.Errorf("Decode() labels = %v, want name label team-b", namespace.Labels)
+	}
+	if len(namespace.Spec.Finalizers) != 0 {
+		t.Errorf("Decode() spec.finalizers = %v, want empty", namespace.Spec.Finalizers)
+	}
+}
+
 func TestNamespaceListConversionAndDeepCopy(t *testing.T) {
 	scheme := runtime.NewScheme()
 	if err := install.Install(scheme); err != nil {
@@ -121,7 +144,7 @@ func testNamespace() *corev1.Namespace {
 			Name:            "team-a",
 			UID:             "namespace-uid",
 			ResourceVersion: "17",
-			Labels:          map[string]string{"owner": "platform"},
+			Labels:          map[string]string{"owner": "platform", corev1.LabelMetadataName: "team-a"},
 			Annotations:     map[string]string{"note": "namespace"},
 			Finalizers:      []string{"example.com/metadata-cleanup"},
 		},

@@ -17,7 +17,7 @@ limitations under the License.
 // 来源：Kubernetes v1.37.0 pkg/registry/core/namespace/strategy.go。
 // 本地适配：构造器注入私有 Scheme；字段校验委托 Ingate 的核心 validation 包。
 //
-// Package namespace 定义标准 Namespace 的主资源、status 和 finalize 写入语义。
+// Package namespace 提供标准 Namespace 的存储、特殊删除和三类写入策略。
 package namespace
 
 import (

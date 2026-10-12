@@ -7,8 +7,8 @@ import (
 )
 
 var (
-	localSchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
-	// AddToScheme 注册标准 Namespace 和 NamespaceList。
+	localSchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes, addDefaultingFuncs, addFieldLabelConversions)
+	// AddToScheme 注册标准 Namespace/NamespaceList、默认值和字段转换。
 	AddToScheme = localSchemeBuilder.AddToScheme
 )
 

@@ -82,6 +82,31 @@ Strategy 沿用标准行为：创建时设置 Active 并确保 `kubernetes` fina
 
 `gofmt -l cmd internal pkg`、已跟踪及新增文件空白检查、`golangci-lint run ./...`（0 issues）、`go vet ./...`、`go test ./... -count=1`、`go build ./...` 均通过。生成脚本重跑后 `pkg/apis` 与 `pkg/generated` 的 77 个文件内容哈希一致，原有客户端和 OpenAPI 没有变化。构建仍有共享 module stat cache 写入受限的非致命提示。未修改 API Server 存储契约，本步不运行存储 integration；未验证完整 Namespace API、准入、删除控制器及真实组件联动。用户已 review 通过并授权提交此步。
 
+## 第二小步：Namespace 存储生命周期
+
+第一小步已提交为 `1785f754`。本步补入外部 Namespace 默认值、字段选择器和基于 Generic Store 的主资源/status/finalize 存储入口，暂不安装 `/api/v1`，不改变运行中的业务资源作用域、准入或 Controller Manager。
+
+DELETE 对当前对象补入 UID 前置条件，首次请求在同一次 etcd CAS 更新中设置 deletionTimestamp 和 Terminating；后续请求必须等待 spec.finalizers。更新导致物理删除时，同时沿用 Generic Store 对 metadata.finalizers 和删除时间的检查。主资源不嵌入完整 Store，不提供绕过特殊 DELETE 的 DeleteCollection；status 只提供读取、更新和 Patch，finalize 只提供 Update。
+
+| 本地文件 | Kubernetes v1.37.0 上游文件 | 本地适配 |
+| --- | --- | --- |
+| [默认值](../../pkg/apis/core/v1/defaults.go) | [pkg/apis/core/v1/defaults.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/v1/defaults.go) 的 Namespace/NamespaceStatus 默认值 | 在私有 Scheme 中按仓库现有方式仅注册 Namespace 和 NamespaceList；空 phase 默认为 Active；名称标签与 Strategy Canonicalize 一致，不在默认值中补入 spec.finalizers |
+| [字段转换](../../pkg/apis/core/v1/field_labels.go) | [pkg/apis/core/v1/conversion.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/v1/conversion.go) 的 Namespace 字段转换 | 只接纳 metadata.name/status.phase；不增加 namespace 字段或旧 name 别名 |
+| [选择器](../../internal/apiserver/registry/core/namespace/selection.go) | [pkg/registry/core/namespace/strategy.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/registry/core/namespace/strategy.go) 的 GetAttrs/MatchNamespace/NamespaceToSelectableFields | 改为包内 helper；不保留上游为历史错误兼容的 name 别名 |
+| [REST 存储](../../internal/apiserver/registry/core/namespace/etcd.go)、[特殊删除](../../internal/apiserver/registry/core/namespace/delete.go) | [pkg/registry/core/namespace/storage/storage.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/registry/core/namespace/storage/storage.go) | 注入私有 Scheme，去掉未使用的主 REST status 字段；使用已发布的默认 TableConvertor，不移植主仓库打印器；复制 DeleteOptions，保留原有 metadata finalizer 顺序；沿用标准 DeleteOptions 传播语义，包括公开结构尚保留的 OrphanDependents，不保留旧业务 API |
+
+存储构造器接收资源专属的 RESTOptionsGetter；集成测试只创建自有隔离 etcd，不复用运行数据。实际 API 安装仍需接入正确的核心组存储编码、OpenAPI 和本地 NamespaceLifecycle 数据源，删除控制器之后再接线。本步验证不能当作完整 Namespace HTTP API 或空间删除流程已可用。
+
+删除的存储错误由公开 storage/errors 转换，保留标准 API StatusError；用 errors.As 判断已包装的状态错误，其余转换为 InternalError。允许直接调用存储时省略删除校验回调，不在返回错误的路径重复打印。错误对象类型的删除判断沿用框架错误处理并拒绝物理删除，不另建日志机制。
+
+本步按相同 GoCanon 规则快照审查了 5 个修改和 9 个新增手写文件，包括存储委托方法、特殊 DELETE、默认值、字段转换、包注释、测试及本文；新增文件单独读取，不依赖 git diff。检查了声明分组、函数签名、错误邻接、字段保护、Options 深复制和标准传播语义。没有改变 API 类型字段、依赖或生成脚本，也没有新增或修改生成产物。
+
+最终 `gofmt -l cmd internal pkg`、已跟踪及全部新增文件空白检查、`golangci-lint run ./...`（0 issues）、`go vet ./...`、`go test ./... -count=1`、`go build ./...` 和 `go test -tags=integration ./internal/apiserver -count=1` 均通过。build 的共享 module stat cache 权限提示仍非致命，退出码为 0。标准弃用字段的两项单元用例采用局部 staticcheck 排除，只验证公开 DeleteOptions 的已有语义，没有放宽整个仓库检查。
+
+Namespace 存储集成用例验证三类写入的字段保护、不匹配选择器、禁止子资源创建、UID/resourceVersion 冲突、dry-run 不落库、删除校验拒绝、Terminating 持久化、重复 DELETE、两类 finalizer 等待、最终物理删除及同名重建后的旧 UID 防护。首轮直接调用 Store 的测试缺少框架要求的空 Namespace 请求上下文而失败，补入标准 request.WithNamespace 后重跑通过；没有通过修改业务策略来回避测试要求。
+
+临时源码 overlay 移除 spec.finalizers 删除保护、忽略标签选择器后，TestShouldDeleteDuringUpdate/spec_finalizer 和 TestMatcher/different_label 分别失败；初次 overlay 构建失败不算断言验证，修正临时错误实现后才得到上述反例结果。错误实现未写入仓库。本步尚未验证原生 Namespace HTTP API、准入数据源、删除控制器或真实组件联动；用户已 review 通过并授权提交本步，提交前复核上述检查均通过。
+
 ## 已提交编译身份改造的审查和验证边界
 
 使用 GoCanon MCP，规则源 `/Users/lgc202/workspace/source/lgc202/gocanon`，快照 `f478423-dirty`，revision `f4784239c945ba61e90bdfa588ce01f69b9403f5`。完整读取开发入口与规范索引，按 Controller Manager、命名、函数、错误、防御和测试规范审查；草案只作为审查依据，不当作已发布能力。
