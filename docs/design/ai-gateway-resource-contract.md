@@ -1,11 +1,11 @@
 # 三类路由复用 Backend，以 AIBackend 定义模型服务访问契约
 
-- 状态：用户于 2026-10-12 确认模型/MCP 基础字段并授权实施；六种资源关系及 HTTP 子集已确认。AIBackend、ModelRoute 声明与存储切片已实现，用户于同日授权提交，MCPRoute 未实现
+- 状态：用户于 2026-10-12 确认模型/MCP 基础字段并授权实施；六种资源关系及 HTTP 子集已确认。AIBackend、ModelRoute 声明已提交；MCPRoute 声明与存储、AIBackend 管理与投影已实现，待用户 review，未提交
 - 作者：Ingate 开发协作
 - 更新日期：2026-10-12
 - 讨论入口：本仓库文档 review，依据 [0010 决策](../decisions/0010-unified-ai-proxy-config-delivery.md)及用户确认的资源关系
-- 当前源码基线：`bd45a499`，分支 `codex/rebuild-from-zero`；HTTP 替换前基线为 `56205b84321c`
-- 范围：资源契约、裁决边界、管理接口影响、实施顺序及 D1 进度；不新增数据面业务
+- 当前源码基线：`3519b189`（AIBackend、ModelRoute），分支 `codex/rebuild-from-zero`；HTTP 替换前基线为 `56205b84321c`
+- 范围：资源契约、裁决边界、管理接口影响、实施顺序及 D1/D2 进度；不新增数据面业务
 
 ## 摘要
 
@@ -23,7 +23,7 @@
 
 基线裁决按 Gateway/Listener 和规范化路径判断冲突；阶段 B 的[裁决](../../internal/controllermanager/controller/gateway/resolve.go)已保留同路径候选，按父引用独立附着。[Envoy 适配层](../../internal/controllermanager/dataplane/envoy/resources.go)按 Exact 优先、长 PathPrefix 优先稳定排序，IP/DNS 后端采用 EDS/STRICT_DNS。后端连接超时仍为 5 秒，没有上游 TLS 配置。改名不能填补这些协议和安全缺口。
 
-当前 Admin 接口保留 [0005](../decisions/0005-admin-resource-management.md)的 API Server 写入、MySQL 异步查询分工；[资源存储映射](../../internal/apiserver/registry/gateway/storage.go)已有 Gateway、HTTPRoute、Backend，并在 D1 新增 AIBackend、ModelRoute 及其 status。两种新资源尚无 Admin 入口。没有 Namespace、Secret、运行时快照或租约资源。本文不假设完整 Kubernetes 已存在。
+当前 Admin 接口保留 [0005](../decisions/0005-admin-resource-management.md)的 API Server 写入、MySQL 异步查询分工；[资源存储映射](../../internal/apiserver/registry/gateway/storage.go)已有 Gateway、HTTPRoute、Backend，并在 D1 新增 AIBackend、ModelRoute、MCPRoute 及其 status。D2 首步已接入 AIBackend 管理与查询投影，ModelRoute、MCPRoute 尚无 Admin 入口。没有 Namespace、Secret、运行时快照或租约资源。本文不假设完整 Kubernetes 已存在。
 
 本稿输入是已确认讨论和现有代码，没有另建 PRD，也没有新增计费、配额、Agent、工具聚合、插件市场或多租户业务需求。
 
@@ -76,7 +76,7 @@ parentRefs:
 
 Gateway、HTTPRoute、Backend 的 Admin 创建请求不接收技术名称；后台生成不可修改的 `metadata.name`，供引用、查询和必要时展示“资源 ID”。三种资源均提供可修改且允许重复的 `spec.displayName`；列表参数 `display_name` 使用包含匹配，不限制为前缀。原生 API 保留 name / generateName 与 metadata.uid，MySQL 不额外投影 UID。详见 [名称契约](../decisions/0012-resource-names-and-query-schema.md)。
 
-新增三种资源沿用同一身份和展示名称契约：Admin 生成 name，用户编辑 displayName，引用仍使用 name。不新增 uid 字段、展示名称唯一约束或前缀索引字段；新增资源的 Admin 入口尚未实现。
+新增三种资源沿用同一身份和展示名称契约：Admin 生成 name，用户编辑 displayName，引用仍使用 name。不新增 uid 字段、展示名称唯一约束或前缀索引字段；AIBackend Admin 入口已实现，ModelRoute、MCPRoute 仍待接入。
 
 跨 Gateway 的 Listener 冲突仍按 [0002](../decisions/0002-shared-data-plane-controller.md)的创建时间、名称稳定裁决。暂不引入 wildcard Host、GatewayClass、部署编排或流量管理策略资源。
 
@@ -427,9 +427,21 @@ PUT 带 `version`，不允许改资源名；Repository 获取当前对象、核�
 
 同日用户要求继续，D1 第二步接入 ModelRoute：复用 ParentReference/RouteParentStatus，沿用 headers 与 modelNameOverride 字段形状，只支持模型 Exact 条件和每规则单个 AIBackend。ParentRefs/rules/matches 上界分别为 16/15/128；省略或空 matches、空 match 可保存为 catch-all。HTTPRoute 和 ModelRoute 共同调用从原 HTTPRoute 提取的父状态校验，保持旧校验集合。完成 Scheme、默认值、CRUD/List/Watch/status 及标准生成，尚无 Admin、协调器或模型请求处理。规则优先级、Header 提取与防伪不因字段已保存就成为运行能力。用户于同日授权提交该切片。
 
+用户要求“先提交一版然后继续”，前两步已提交为 `3519b189`，未推送。D1 第三步接入 [MCPRoute](../../pkg/apis/gateway/v1alpha1/mcproute.go)：复用父引用及父状态，path 与 backendRefs[].path 使用可选指针，只为省略值默认 /mcp；显式空值拒绝。路径最大 1024 字符，采用标准 URL 解析校验绝对路径并拒绝 authority/query/fragment，保留合法路径及尾斜杠；backendRefs 恰好一个 Backend，不经过 AIBackend。已实现默认值、单对象校验、CRUD/List/Watch/status 和标准生成；不新增 securityPolicy、协议版本配置、SDK、Admin、投影、Controller 或 MCP 转发。存储验证见[完成度报告](../api-gateway-readiness.md#mcproute-资源切片的本轮证据)。该切片待用户 review，未提交。
+
 当前生成脚本会清理带 client-gen 标记的旧文件，但其他生成产物是否残留、发现接口是否仍暴露旧资源，需要单独核对。工作区旧 API 数据、MySQL 数据和迁移版本先只读盘点；需要重建、迁移或删除时，列出确切目标并取得授权，不借契约替换自动清理用户数据。
 
 这一计划不授权安装 Envoy、启动容器、改变外部服务或接入真实模型密钥。新二进制、HTTP/SSE 运行参数、双输出发布及激活状态的详细设计属于后续稿。
+
+### D2 首步：AIBackend 管理与查询
+
+按用户“继续”先接入 AIBackend 的 Admin Create/Get/List/完整 PUT/Delete。复用现有 Session 中间件、Handler → Service → Repository 分层；写入返回 API Server 保存结果，查询仅使用异步 MySQL 投影，不新增读后立即一致回退。服务端生成 aibackend- 随机标识，展示名称可修改且允许重复；PUT 带 version，保留当前 metadata/status，仅替换 spec。
+
+查询先限定按稳定名称读取、展示名称文字包含匹配及页码分页，默认 50、上限 200，按 name 排序。aibackends 表单行保存 name、display_name、backend_name、schema_name、schema_prefix、version 和创建/记录更新时间；只有内部主键及 name 唯一索引。引用允许悬空且投影异步，不加数据库外键；没有后端筛选需求，不预建引用索引。display_name 与 schema_prefix 沿资源无长度上限契约使用 LONGTEXT，不增加前缀索引字段、position 或空子表。
+
+BackendReference 已有第二个真实协议消费者，从 httproute.proto 移到 backend.proto，消息名称及字段编号保持不变。新协议及类型转换不增加 Domain 镜像。投影沿现有逐资源单 Worker、启动补齐后清理残留的模式，处理 status 更新以同步版本，不解析引用或发布数据面；失败交回框架重试。直接修正未发布的迁移基线，不执行实库迁移或删除已有数据。本步不接入 ModelRoute/MCPRoute 管理、不开发协议服务或新增依赖。
+
+本步已接通 [Admin 协议](../../api/admin/v1/aibackend.proto)、管理端装配、[查询模型](../../internal/adminapi/repository/mysql/aibackend.go)和 [Manager 投影](../../internal/controllermanager/controller/projection/aibackend.go)。字段仍只有 displayName、backendRef.name 和 schema.name/prefix；查询结果包含稳定 name、version、创建时间，不开放状态编辑。单测和隔离存储检查的证据及未验证边界见[完成度报告](../api-gateway-readiness.md#aibackend-管理与查询投影的本轮证据)。当前工作区待用户 review，未提交。
 
 ## 验证矩阵：每项能力都要有失效时会失败的断言
 

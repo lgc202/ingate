@@ -29,6 +29,7 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&Backend{}, &BackendList{},
 		&AIBackend{}, &AIBackendList{},
 		&ModelRoute{}, &ModelRouteList{},
+		&MCPRoute{}, &MCPRouteList{},
 	)
 	return nil
 }

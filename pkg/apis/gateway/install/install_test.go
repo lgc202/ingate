@@ -18,7 +18,7 @@ func TestInstall(t *testing.T) {
 	}
 
 	for _, version := range []schema.GroupVersion{gateway.SchemeGroupVersion, v1alpha1.SchemeGroupVersion} {
-		for _, kind := range []string{"Gateway", "HTTPRoute", "Backend", "AIBackend", "AIBackendList", "ModelRoute", "ModelRouteList"} {
+		for _, kind := range []string{"Gateway", "HTTPRoute", "Backend", "AIBackend", "AIBackendList", "ModelRoute", "ModelRouteList", "MCPRoute", "MCPRouteList"} {
 			gvk := version.WithKind(kind)
 			if _, err := scheme.New(gvk); err != nil {
 				t.Errorf("Scheme.New(%s) error = %v, want nil", gvk, err)

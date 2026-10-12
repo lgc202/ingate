@@ -47,6 +47,11 @@ func (s *Store) Backends() gatewayclient.BackendInterface {
 	return s.client.GatewayV1alpha1().Backends()
 }
 
+// AIBackends 返回 AIBackend 资源客户端。
+func (s *Store) AIBackends() gatewayclient.AIBackendInterface {
+	return s.client.GatewayV1alpha1().AIBackends()
+}
+
 func loadConfig(kubeconfig string) (*rest.Config, error) {
 	if kubeconfig == "" {
 		config, err := rest.InClusterConfig()

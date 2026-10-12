@@ -10,4 +10,6 @@ type GatewayExpansion interface{}
 
 type HTTPRouteExpansion interface{}
 
+type MCPRouteExpansion interface{}
+
 type ModelRouteExpansion interface{}

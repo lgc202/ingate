@@ -1,6 +1,9 @@
 package v1alpha1
 
-import "k8s.io/apimachinery/pkg/runtime"
+import (
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
+)
 
 // SetDefaultsAIBackend 应用 OpenAI 上游路径前缀，不推断 API 格式或网络目标。
 func SetDefaultsAIBackend(backend *AIBackend) {
@@ -47,7 +50,28 @@ func SetDefaultsModelRoute(route *ModelRoute) {
 	}
 }
 
+// SetDefaultsMCPRoute 仅为省略的入口和上游路径设置 /mcp，不覆盖显式空值或路径。
+func SetDefaultsMCPRoute(route *MCPRoute) {
+	if route.Spec.Path == nil {
+		route.Spec.Path = ptr.To("/mcp")
+	}
+	for i := range route.Spec.BackendRefs {
+		if route.Spec.BackendRefs[i].Path == nil {
+			route.Spec.BackendRefs[i].Path = ptr.To("/mcp")
+		}
+	}
+}
+
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
+	scheme.AddTypeDefaultingFunc(&MCPRoute{}, func(obj any) {
+		SetDefaultsMCPRoute(obj.(*MCPRoute))
+	})
+	scheme.AddTypeDefaultingFunc(&MCPRouteList{}, func(obj any) {
+		list := obj.(*MCPRouteList)
+		for i := range list.Items {
+			SetDefaultsMCPRoute(&list.Items[i])
+		}
+	})
 	scheme.AddTypeDefaultingFunc(&ModelRoute{}, func(obj any) {
 		SetDefaultsModelRoute(obj.(*ModelRoute))
 	})

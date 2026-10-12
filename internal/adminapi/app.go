@@ -10,6 +10,7 @@ import (
 	"github.com/go-kratos/kratos/v3"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	accounthandler "github.com/lgc202/ingate/internal/adminapi/handler/account"
+	aibackendhandler "github.com/lgc202/ingate/internal/adminapi/handler/aibackend"
 	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
 	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
@@ -20,6 +21,7 @@ import (
 	redisstore "github.com/lgc202/ingate/internal/adminapi/repository/redis"
 	"github.com/lgc202/ingate/internal/adminapi/server"
 	accountservice "github.com/lgc202/ingate/internal/adminapi/service/account"
+	aibackendservice "github.com/lgc202/ingate/internal/adminapi/service/aibackend"
 	backendservice "github.com/lgc202/ingate/internal/adminapi/service/backend"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/httproute"
@@ -108,20 +110,24 @@ func newApp(
 	gateways := repository.NewGateway(apiServerStore.Gateways(), mysqlStore)
 	routes := repository.NewHTTPRoute(apiServerStore.HTTPRoutes(), mysqlStore)
 	backends := repository.NewBackend(apiServerStore.Backends(), mysqlStore)
+	aiBackends := repository.NewAIBackend(apiServerStore.AIBackends(), mysqlStore)
 
 	gatewayService := gatewayservice.New(gateways)
 	routeService := routeservice.New(routes)
 	backendService := backendservice.New(backends)
+	aiBackendService := aibackendservice.New(aiBackends)
 
 	gatewayHandler := gatewayhandler.New(gatewayService)
 	routeHandler := routehandler.New(routeService)
 	backendHandler := backendhandler.New(backendService)
+	aiBackendHandler := aibackendhandler.New(aiBackendService)
 	accountHandler := accounthandler.New(accountService)
 
 	handlers := server.Handlers{
 		Gateway:   gatewayHandler,
 		HTTPRoute: routeHandler,
 		Backend:   backendHandler,
+		AIBackend: aiBackendHandler,
 		Account:   accountHandler,
 	}
 	middlewareChain := server.NewMiddlewareChain(middleware.RequireSession(accountService))

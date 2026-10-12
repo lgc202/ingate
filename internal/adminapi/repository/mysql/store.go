@@ -19,7 +19,7 @@ type Store struct {
 	db *gorm.DB
 }
 
-// ResourceListParams 保存网关或后端列表的分页与展示名称筛选。
+// ResourceListParams 保存资源列表的分页与展示名称筛选。
 type ResourceListParams struct {
 	PageSize    int32
 	PageNum     int32

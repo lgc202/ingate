@@ -8,6 +8,7 @@ import (
 	aibackendstorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/aibackend"
 	backendstorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/backend"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/httproute"
+	mcproutestorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/mcproute"
 	modelroutestorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/modelroute"
 )
 
@@ -20,6 +21,7 @@ func TestStatusRESTOnlyExposesStatusOperations(t *testing.T) {
 		{name: "Backend", storage: &backendstorage.StatusREST{}},
 		{name: "AIBackend", storage: &aibackendstorage.StatusREST{}},
 		{name: "ModelRoute", storage: &modelroutestorage.StatusREST{}},
+		{name: "MCPRoute", storage: &mcproutestorage.StatusREST{}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, ok := tt.storage.(rest.Creater); ok {

@@ -51,6 +51,9 @@ func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
 	if err := projection.NewBackend(manager.GetClient(), store).SetupWithManager(manager); err != nil {
 		return nil, fmt.Errorf("setup Backend projection controller: %w", err)
 	}
+	if err := projection.NewAIBackend(manager.GetClient(), store).SetupWithManager(manager); err != nil {
+		return nil, fmt.Errorf("setup AIBackend projection controller: %w", err)
+	}
 
 	if err := manager.AddReadyzCheck("xds", xdsServer.CheckReady); err != nil {
 		return nil, fmt.Errorf("add xDS readiness check: %w", err)

@@ -41,6 +41,11 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		v1alpha1.HTTPRouteSpec{}.OpenAPIModelName():       schema_pkg_apis_gateway_v1alpha1_HTTPRouteSpec(ref),
 		v1alpha1.HTTPRouteStatus{}.OpenAPIModelName():     schema_pkg_apis_gateway_v1alpha1_HTTPRouteStatus(ref),
 		v1alpha1.Listener{}.OpenAPIModelName():            schema_pkg_apis_gateway_v1alpha1_Listener(ref),
+		v1alpha1.MCPBackendReference{}.OpenAPIModelName(): schema_pkg_apis_gateway_v1alpha1_MCPBackendReference(ref),
+		v1alpha1.MCPRoute{}.OpenAPIModelName():            schema_pkg_apis_gateway_v1alpha1_MCPRoute(ref),
+		v1alpha1.MCPRouteList{}.OpenAPIModelName():        schema_pkg_apis_gateway_v1alpha1_MCPRouteList(ref),
+		v1alpha1.MCPRouteSpec{}.OpenAPIModelName():        schema_pkg_apis_gateway_v1alpha1_MCPRouteSpec(ref),
+		v1alpha1.MCPRouteStatus{}.OpenAPIModelName():      schema_pkg_apis_gateway_v1alpha1_MCPRouteStatus(ref),
 		v1alpha1.ModelRoute{}.OpenAPIModelName():          schema_pkg_apis_gateway_v1alpha1_ModelRoute(ref),
 		v1alpha1.ModelRouteList{}.OpenAPIModelName():      schema_pkg_apis_gateway_v1alpha1_ModelRouteList(ref),
 		v1alpha1.ModelRouteMatch{}.OpenAPIModelName():     schema_pkg_apis_gateway_v1alpha1_ModelRouteMatch(ref),
@@ -1071,6 +1076,226 @@ func schema_pkg_apis_gateway_v1alpha1_Listener(ref common.ReferenceCallback) com
 				Required: []string{"name", "protocol", "port"},
 			},
 		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_MCPBackendReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MCPBackendReference 引用集群级 Backend，并声明上游 MCP 路径。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Path 是上游绝对路径；省略时默认 /mcp，保留显式路径和尾斜杠。",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_MCPRoute(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MCPRoute 将 Gateway 的 MCP 入口映射到单个 Backend，不声明认证或聚合策略。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1.ObjectMeta{}.OpenAPIModelName()),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.MCPRouteSpec{}.OpenAPIModelName()),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1alpha1.MCPRouteStatus{}.OpenAPIModelName()),
+						},
+					},
+				},
+				Required: []string{"spec"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.MCPRouteSpec{}.OpenAPIModelName(), v1alpha1.MCPRouteStatus{}.OpenAPIModelName(), v1.ObjectMeta{}.OpenAPIModelName()},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_MCPRouteList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MCPRouteList 表示 MCPRoute 集合。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref(v1.ListMeta{}.OpenAPIModelName()),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref(v1alpha1.MCPRoute{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.MCPRoute{}.OpenAPIModelName(), v1.ListMeta{}.OpenAPIModelName()},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_MCPRouteSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MCPRouteSpec 定义 MCP 入口的父引用、路径和单个后端。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 是可修改且允许重复的展示名称，不作为资源引用依据。",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"parentRefs": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref(v1alpha1.ParentReference{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Path 是入口绝对路径；省略时默认 /mcp，显式空值无效。",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"backendRefs": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref(v1alpha1.MCPBackendReference{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"parentRefs", "backendRefs"},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.MCPBackendReference{}.OpenAPIModelName(), v1alpha1.ParentReference{}.OpenAPIModelName()},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_MCPRouteStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MCPRouteStatus 保存协调器的父级观测结果，不由资源写入操作填充。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"parents": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref(v1alpha1.RouteParentStatus{}.OpenAPIModelName()),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			v1alpha1.RouteParentStatus{}.OpenAPIModelName()},
 	}
 }
 

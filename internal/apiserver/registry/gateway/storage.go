@@ -1,4 +1,4 @@
-// Package gateway 将已实现的网关和模型服务资源注册到 Generic API Server 的 API Group。
+// Package gateway 将已实现的网关、模型和 MCP 资源注册到 Generic API Server 的 API Group。
 package gateway
 
 import (
@@ -12,6 +12,7 @@ import (
 	backendstorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/backend"
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/gateway"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/httproute"
+	mcproutestorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/mcproute"
 	modelroutestorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/modelroute"
 )
 
@@ -55,6 +56,16 @@ func NewStorage(
 		return nil, fmt.Errorf("create ModelRoute REST storage: %w", err)
 	}
 
+	mcpRouteREST, mcpRouteStatusREST, err := mcproutestorage.NewREST(scheme, optionsGetter)
+	if err != nil {
+		modelRouteREST.Destroy()
+		aiBackendREST.Destroy()
+		backendREST.Destroy()
+		routeREST.Destroy()
+		gatewayREST.Destroy()
+		return nil, fmt.Errorf("create MCPRoute REST storage: %w", err)
+	}
+
 	return map[string]rest.Storage{
 		"gateways":           gatewayREST,
 		"gateways/status":    statusREST,
@@ -66,5 +77,7 @@ func NewStorage(
 		"aibackends/status":  aiBackendStatusREST,
 		"modelroutes":        modelRouteREST,
 		"modelroutes/status": modelRouteStatusREST,
+		"mcproutes":          mcpRouteREST,
+		"mcproutes/status":   mcpRouteStatusREST,
 	}, nil
 }

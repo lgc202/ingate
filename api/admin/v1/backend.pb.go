@@ -620,6 +620,52 @@ func (x *Backend) GetDisplayName() string {
 	return ""
 }
 
+// BackendReference 引用网络后端。
+type BackendReference struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name 是 Backend 的稳定名称。
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BackendReference) Reset() {
+	*x = BackendReference{}
+	mi := &file_admin_v1_backend_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BackendReference) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BackendReference) ProtoMessage() {}
+
+func (x *BackendReference) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_backend_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BackendReference.ProtoReflect.Descriptor instead.
+func (*BackendReference) Descriptor() ([]byte, []int) {
+	return file_admin_v1_backend_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *BackendReference) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 // Endpoint 表示一个后端地址及其相对流量权重。
 type Endpoint struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -635,7 +681,7 @@ type Endpoint struct {
 
 func (x *Endpoint) Reset() {
 	*x = Endpoint{}
-	mi := &file_admin_v1_backend_proto_msgTypes[11]
+	mi := &file_admin_v1_backend_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -647,7 +693,7 @@ func (x *Endpoint) String() string {
 func (*Endpoint) ProtoMessage() {}
 
 func (x *Endpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_backend_proto_msgTypes[11]
+	mi := &file_admin_v1_backend_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -660,7 +706,7 @@ func (x *Endpoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Endpoint.ProtoReflect.Descriptor instead.
 func (*Endpoint) Descriptor() ([]byte, []int) {
-	return file_admin_v1_backend_proto_rawDescGZIP(), []int{11}
+	return file_admin_v1_backend_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Endpoint) GetAddress() string {
@@ -723,7 +769,9 @@ const file_admin_v1_backend_proto_rawDesc = "" +
 	"\vcreate_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createTime\x12\x18\n" +
 	"\aversion\x18\x04 \x01(\tR\aversion\x12!\n" +
-	"\fdisplay_name\x18\x05 \x01(\tR\vdisplayName\"o\n" +
+	"\fdisplay_name\x18\x05 \x01(\tR\vdisplayName\"/\n" +
+	"\x10BackendReference\x12\x1b\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\"o\n" +
 	"\bEndpoint\x12!\n" +
 	"\aaddress\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aaddress\x12\x1f\n" +
 	"\x04port\x18\x02 \x01(\x05B\v\xbaH\b\x1a\x06\x18\xff\xff\x03(\x01R\x04port\x12\x1f\n" +
@@ -748,7 +796,7 @@ func file_admin_v1_backend_proto_rawDescGZIP() []byte {
 	return file_admin_v1_backend_proto_rawDescData
 }
 
-var file_admin_v1_backend_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_admin_v1_backend_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_admin_v1_backend_proto_goTypes = []any{
 	(*CreateBackendRequest)(nil),  // 0: admin.v1.CreateBackendRequest
 	(*CreateBackendReply)(nil),    // 1: admin.v1.CreateBackendReply
@@ -761,18 +809,19 @@ var file_admin_v1_backend_proto_goTypes = []any{
 	(*DeleteBackendRequest)(nil),  // 8: admin.v1.DeleteBackendRequest
 	(*DeleteBackendReply)(nil),    // 9: admin.v1.DeleteBackendReply
 	(*Backend)(nil),               // 10: admin.v1.Backend
-	(*Endpoint)(nil),              // 11: admin.v1.Endpoint
-	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
+	(*BackendReference)(nil),      // 11: admin.v1.BackendReference
+	(*Endpoint)(nil),              // 12: admin.v1.Endpoint
+	(*timestamppb.Timestamp)(nil), // 13: google.protobuf.Timestamp
 }
 var file_admin_v1_backend_proto_depIdxs = []int32{
-	11, // 0: admin.v1.CreateBackendRequest.endpoints:type_name -> admin.v1.Endpoint
+	12, // 0: admin.v1.CreateBackendRequest.endpoints:type_name -> admin.v1.Endpoint
 	10, // 1: admin.v1.CreateBackendReply.backend:type_name -> admin.v1.Backend
 	10, // 2: admin.v1.GetBackendReply.backend:type_name -> admin.v1.Backend
 	10, // 3: admin.v1.ListBackendsReply.backends:type_name -> admin.v1.Backend
-	11, // 4: admin.v1.UpdateBackendRequest.endpoints:type_name -> admin.v1.Endpoint
+	12, // 4: admin.v1.UpdateBackendRequest.endpoints:type_name -> admin.v1.Endpoint
 	10, // 5: admin.v1.UpdateBackendReply.backend:type_name -> admin.v1.Backend
-	11, // 6: admin.v1.Backend.endpoints:type_name -> admin.v1.Endpoint
-	12, // 7: admin.v1.Backend.create_time:type_name -> google.protobuf.Timestamp
+	12, // 6: admin.v1.Backend.endpoints:type_name -> admin.v1.Endpoint
+	13, // 7: admin.v1.Backend.create_time:type_name -> google.protobuf.Timestamp
 	0,  // 8: admin.v1.BackendService.CreateBackend:input_type -> admin.v1.CreateBackendRequest
 	2,  // 9: admin.v1.BackendService.GetBackend:input_type -> admin.v1.GetBackendRequest
 	4,  // 10: admin.v1.BackendService.ListBackends:input_type -> admin.v1.ListBackendsRequest
@@ -801,7 +850,7 @@ func file_admin_v1_backend_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_backend_proto_rawDesc), len(file_admin_v1_backend_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

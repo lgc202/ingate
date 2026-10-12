@@ -28,6 +28,10 @@ func (c *FakeGatewayV1alpha1) HTTPRoutes() v1alpha1.HTTPRouteInterface {
 	return newFakeHTTPRoutes(c)
 }
 
+func (c *FakeGatewayV1alpha1) MCPRoutes() v1alpha1.MCPRouteInterface {
+	return newFakeMCPRoutes(c)
+}
+
 func (c *FakeGatewayV1alpha1) ModelRoutes() v1alpha1.ModelRouteInterface {
 	return newFakeModelRoutes(c)
 }

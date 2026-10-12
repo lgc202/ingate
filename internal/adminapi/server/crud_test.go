@@ -402,6 +402,8 @@ func crudTestServer(t *testing.T, seed any) (*kratoshttp.Server, *clientfake.Cli
 		_, err = client.GatewayV1alpha1().HTTPRoutes().Create(ctx, resource, metav1.CreateOptions{})
 	case *gatewayv1alpha1.Backend:
 		_, err = client.GatewayV1alpha1().Backends().Create(ctx, resource, metav1.CreateOptions{})
+	case *gatewayv1alpha1.AIBackend:
+		_, err = client.GatewayV1alpha1().AIBackends().Create(ctx, resource, metav1.CreateOptions{})
 	default:
 		t.Fatalf("unsupported seed type %T", seed)
 	}

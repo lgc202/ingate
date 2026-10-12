@@ -290,6 +290,15 @@ func TestRouteParentStatusValidationContract(t *testing.T) {
 			if diff := cmp.Diff(httpErrs, errs); diff != "" {
 				t.Errorf("route status validation(%s) differs (-HTTPRoute +ModelRoute):\n%s", tt.name, diff)
 			}
+			mcpPrevious := &gateway.MCPRoute{ObjectMeta: previous.ObjectMeta}
+			mcpNext := &gateway.MCPRoute{
+				ObjectMeta: next.ObjectMeta,
+				Status:     gateway.MCPRouteStatus{Parents: next.Status.Parents},
+			}
+			mcpErrs := ValidateMCPRouteStatusUpdate(mcpNext, mcpPrevious)
+			if diff := cmp.Diff(errs, mcpErrs); diff != "" {
+				t.Errorf("route status validation(%s) differs (-ModelRoute +MCPRoute):\n%s", tt.name, diff)
+			}
 		})
 	}
 }

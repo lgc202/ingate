@@ -6,6 +6,7 @@ import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	accounthandler "github.com/lgc202/ingate/internal/adminapi/handler/account"
+	aibackendhandler "github.com/lgc202/ingate/internal/adminapi/handler/aibackend"
 	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
 	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
@@ -16,6 +17,7 @@ type Handlers struct {
 	Gateway   *gatewayhandler.Handler
 	HTTPRoute *routehandler.Handler
 	Backend   *backendhandler.Handler
+	AIBackend *aibackendhandler.Handler
 	Account   *accounthandler.Handler
 }
 
@@ -39,6 +41,8 @@ func New(
 
 	adminv1.RegisterBackendServiceHTTPServer(httpServer, handlers.Backend)
 	adminv1.RegisterBackendServiceServer(grpcServer, handlers.Backend)
+	adminv1.RegisterAIBackendServiceHTTPServer(httpServer, handlers.AIBackend)
+	adminv1.RegisterAIBackendServiceServer(grpcServer, handlers.AIBackend)
 
 	return httpServer, grpcServer
 }

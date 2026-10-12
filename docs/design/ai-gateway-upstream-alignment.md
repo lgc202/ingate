@@ -1,8 +1,8 @@
 # AI 网关上游设计对照：采用、裁剪与必要差异
 
-- 状态：六种资源关系、HTTP 子集及 2026-10-12 模型/MCP 基础字段已确认；AIBackend、ModelRoute 声明与存储已实现并获用户提交授权，不授权新服务、安装组件或新增依赖
+- 状态：六种资源关系、HTTP 子集及 2026-10-12 模型/MCP 基础字段已确认；AIBackend、ModelRoute 声明已提交，MCPRoute 声明与存储、AIBackend 管理与投影待用户 review；不授权新服务、安装组件或新增依赖
 - 最近核对日期：2026-10-12；通用 HTTP/TLS 与 MCP 运行行为的此前核对日期为 2026-10-10
-- 当前 Ingate 基线：`bd45a499`；HTTP 替换前基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
+- 当前 Ingate 基线：`3519b189`（AIBackend、ModelRoute）；HTTP 替换前基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
 - 对应设计：[资源契约与替换计划](ai-gateway-resource-contract.md)
 
 ## 结论与来源选择
@@ -119,4 +119,4 @@ Agent Router [MCPRouteSpec](https://github.com/theagentrouter/agent-router/blob/
 
 此前上游对照阶段仅修改文档。已核对固定版本资源契约、关键协调/翻译路径和指定反例测试定义，不代表审查了上游全部代码，也未运行上游测试、SDK 互操作、真实 Envoy/提供商/MCP/凭据/实库验证。纯文档检查不替代这些证据。上表中的自有 Group、cluster scope 及 HTTP 管理/投影替换已随阶段 B 确认；模型、MCP、安全和跨协议裁决仍保留各自待确认边界。
 
-[契约稿](ai-gateway-resource-contract.md)的六种资源关系、HTTP 子集及本次模型/MCP 基础字段已通过 review，HTTP 实现及验证见 [0011](../decisions/0011-http-resource-contract.md)。当前完成 AIBackend、ModelRoute 声明与存储，用户已授权提交这两步；下一资源是 MCPRoute，随后做 Admin/投影，不在此开发新服务。每阶段审查全部手写改动；提交前仍等用户 review。
+[契约稿](ai-gateway-resource-contract.md)的六种资源关系、HTTP 子集及本次模型/MCP 基础字段已通过 review，HTTP 实现及验证见 [0011](../decisions/0011-http-resource-contract.md)。AIBackend、ModelRoute 声明已提交为 `3519b189`；MCPRoute 声明与存储、AIBackend Admin/查询投影已实现，待用户 review。后续按已确认计划继续 ModelRoute、MCPRoute 管理与投影，不在此开发新服务。MCPRoute 采用已确认的单 Backend、可选路径及默认值子集；这不表示已实现官方聚合器或协议转发。每阶段审查全部手写改动；提交前仍等用户 review。

@@ -1,0 +1,143 @@
+syntax = "proto3";
+
+package admin.v1;
+
+import "admin/v1/backend.proto";
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// AIBackendService 提供模型服务管理接口。
+service AIBackendService {
+  // CreateAIBackend 创建模型服务。
+  rpc CreateAIBackend(CreateAIBackendRequest) returns (CreateAIBackendReply) {
+    option (google.api.http) = {
+      post: "/api/admin/v1/ai-backends"
+      body: "*"
+    };
+  }
+
+  // GetAIBackend 读取指定模型服务。
+  rpc GetAIBackend(GetAIBackendRequest) returns (GetAIBackendReply) {
+    option (google.api.http) = {get: "/api/admin/v1/ai-backends/{name}"};
+  }
+
+  // ListAIBackends 分页列出模型服务。
+  rpc ListAIBackends(ListAIBackendsRequest) returns (ListAIBackendsReply) {
+    option (google.api.http) = {get: "/api/admin/v1/ai-backends"};
+  }
+
+  // UpdateAIBackend 完整替换模型服务的可编辑配置。
+  rpc UpdateAIBackend(UpdateAIBackendRequest) returns (UpdateAIBackendReply) {
+    option (google.api.http) = {
+      put: "/api/admin/v1/ai-backends/{name}"
+      body: "*"
+    };
+  }
+
+  // DeleteAIBackend 删除指定模型服务。
+  rpc DeleteAIBackend(DeleteAIBackendRequest) returns (DeleteAIBackendReply) {
+    option (google.api.http) = {delete: "/api/admin/v1/ai-backends/{name}"};
+  }
+}
+
+// CreateAIBackendRequest 表示创建模型服务的请求。
+message CreateAIBackendRequest {
+  // display_name 是可修改且允许重复的展示名称；技术标识由服务端生成。
+  string display_name = 1;
+  // backend_ref 引用网络后端，不在写入时检查引用存在性。
+  BackendReference backend_ref = 2 [(buf.validate.field).required = true];
+  // schema 声明上游 API 格式与路径前缀。
+  APISchema schema = 3 [(buf.validate.field).required = true];
+}
+
+// CreateAIBackendReply 表示创建后的模型服务。
+message CreateAIBackendReply {
+  // backend 是 API Server 保存后的资源。
+  AIBackend backend = 1;
+}
+
+// GetAIBackendRequest 表示读取模型服务的请求。
+message GetAIBackendRequest {
+  // name 是资源的稳定名称。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+// GetAIBackendReply 表示读取到的模型服务。
+message GetAIBackendReply {
+  // backend 是 MySQL 查询模型中最近同步的资源。
+  AIBackend backend = 1;
+}
+
+// ListAIBackendsRequest 表示分页列出模型服务的请求。
+message ListAIBackendsRequest {
+  // page_size 是单页最大数量；为零时使用服务端默认值。
+  int32 page_size = 1 [(buf.validate.field).int32 = {gte: 0, lte: 200}];
+  // page_num 是从 1 开始的页码；为零时使用第一页。
+  int32 page_num = 2 [(buf.validate.field).int32.gte = 0];
+  // display_name 按展示名称文字包含匹配筛选。
+  string display_name = 3;
+}
+
+// ListAIBackendsReply 表示一页模型服务。
+message ListAIBackendsReply {
+  // backends 是 MySQL 查询模型中当前页的资源。
+  repeated AIBackend backends = 1;
+  // total_count 是查询模型中的资源总数。
+  int64 total_count = 2;
+}
+
+// UpdateAIBackendRequest 表示完整替换模型服务的可编辑配置。
+message UpdateAIBackendRequest {
+  // name 是资源的稳定名称，不允许通过更新修改。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  // version 是读取模型服务时获得的版本，用于并发更新检查。
+  string version = 2 [(buf.validate.field).string.min_len = 1];
+  // display_name 是可修改且允许重复的展示名称，不改变资源引用。
+  string display_name = 3;
+  // backend_ref 引用网络后端，不在写入时检查引用存在性。
+  BackendReference backend_ref = 4 [(buf.validate.field).required = true];
+  // schema 声明上游 API 格式与路径前缀。
+  APISchema schema = 5 [(buf.validate.field).required = true];
+}
+
+// UpdateAIBackendReply 表示更新后的模型服务。
+message UpdateAIBackendReply {
+  // backend 是 API Server 保存后的资源。
+  AIBackend backend = 1;
+}
+
+// DeleteAIBackendRequest 表示删除模型服务的请求。
+message DeleteAIBackendRequest {
+  // name 是资源的稳定名称。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+// DeleteAIBackendReply 表示 API Server 已接受删除请求。
+message DeleteAIBackendReply {}
+
+// AIBackend 表示面向产品调用方的模型服务。
+message AIBackend {
+  // name 是资源的稳定名称。
+  string name = 1;
+  // display_name 是供人阅读的名称，不用于资源引用。
+  string display_name = 2;
+  // backend_ref 引用网络后端。
+  BackendReference backend_ref = 3;
+  // schema 声明上游 API 格式与路径前缀。
+  APISchema schema = 4;
+  // create_time 是资源的创建时间。
+  google.protobuf.Timestamp create_time = 5;
+  // version 是更新时必须提交的资源版本。
+  string version = 6;
+}
+
+// APISchema 表示上游模型 API 格式，不是具体操作名称。
+message APISchema {
+  // name 首版只接受 OpenAI，不承诺支持其全部操作。
+  string name = 1 [(buf.validate.field).string.const = "OpenAI"];
+  // prefix 是可带或不带前导斜杠的路径前缀；省略或空值由 API Server 默认 /v1。
+  string prefix = 2;
+}

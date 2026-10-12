@@ -55,7 +55,22 @@ CREATE TABLE backend_endpoints (
     UNIQUE KEY uk_backend_endpoints_address_port (backend_id, address, port)
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '后端节点';
 
+CREATE TABLE aibackends (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '模型服务唯一标识',
+    display_name LONGTEXT NOT NULL COMMENT '模型服务名称',
+    backend_name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '网络后端标识',
+    schema_name VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '上游 API 格式',
+    schema_prefix LONGTEXT NOT NULL COMMENT '上游 API 路径前缀',
+    version VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '对象版本，用于并发更新校验',
+    created_at DATETIME(6) NOT NULL COMMENT '模型服务创建时间',
+    updated_at DATETIME(6) NOT NULL COMMENT '记录更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_aibackends_name (name)
+) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '模型服务';
+
 -- +goose Down
+DROP TABLE aibackends;
 DROP TABLE backend_endpoints;
 DROP TABLE backends;
 DROP TABLE httproutes;

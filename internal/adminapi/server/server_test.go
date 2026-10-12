@@ -16,12 +16,14 @@ import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	accounthandler "github.com/lgc202/ingate/internal/adminapi/handler/account"
+	aibackendhandler "github.com/lgc202/ingate/internal/adminapi/handler/aibackend"
 	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
 	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
 	mysqlstore "github.com/lgc202/ingate/internal/adminapi/repository/mysql"
 	"github.com/lgc202/ingate/internal/adminapi/server"
+	aibackendservice "github.com/lgc202/ingate/internal/adminapi/service/aibackend"
 	backendservice "github.com/lgc202/ingate/internal/adminapi/service/backend"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/httproute"
@@ -202,10 +204,12 @@ func newTestServersWithStore(
 	gateways := repository.NewGateway(client.GatewayV1alpha1().Gateways(), store)
 	routes := repository.NewHTTPRoute(client.GatewayV1alpha1().HTTPRoutes(), store)
 	backends := repository.NewBackend(client.GatewayV1alpha1().Backends(), store)
+	aiBackends := repository.NewAIBackend(client.GatewayV1alpha1().AIBackends(), store)
 
 	gatewayHandler := gatewayhandler.New(gatewayservice.New(gateways))
 	routeHandler := routehandler.New(routeservice.New(routes))
 	backendHandler := backendhandler.New(backendservice.New(backends))
+	aiBackendHandler := aibackendhandler.New(aibackendservice.New(aiBackends))
 
 	config := &conf.Server{
 		Http: &conf.Server_HTTP{
@@ -222,6 +226,7 @@ func newTestServersWithStore(
 		Gateway:   gatewayHandler,
 		HTTPRoute: routeHandler,
 		Backend:   backendHandler,
+		AIBackend: aiBackendHandler,
 		Account:   accounthandler.New(nil),
 	}
 	chain := server.NewMiddlewareChain(authentication)

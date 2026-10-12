@@ -24,7 +24,7 @@ import (
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
-// 三种投影共享恢复契约；SQL 期望分别固定各自的字段与子记录。
+// 已实现投影共享恢复契约；SQL 期望分别固定各自的字段与子记录。
 type projectionTestCase struct {
 	name            string
 	table           string
@@ -71,6 +71,8 @@ func TestReconcileProjectsVersionAfterStatusOnlyUpdate(t *testing.T) {
 					Conditions:     []metav1.Condition{condition},
 				}}
 			case *gatewayv1alpha1.Backend:
+				object.Status.Conditions = []metav1.Condition{condition}
+			case *gatewayv1alpha1.AIBackend:
 				object.Status.Conditions = []metav1.Condition{condition}
 			}
 			if err := apiClient.Status().Update(t.Context(), current); err != nil {
@@ -239,6 +241,43 @@ func projectionTestCases() []projectionTestCase {
 	rulesJSON := `[{"matches":[{"pathType":"PathPrefix","pathValue":"/api"}],"backendRefs":[{"name":"backend"}]}]`
 	return []projectionTestCase{
 		{
+			name: "AIBackend", table: "aibackends", initialSyncName: aiBackendInitialSyncName,
+			object: &gatewayv1alpha1.AIBackend{
+				ObjectMeta: metadata,
+				Spec: gatewayv1alpha1.AIBackendSpec{
+					DisplayName: "模型服务",
+					BackendRef:  gatewayv1alpha1.BackendReference{Name: "network"},
+					Schema:      gatewayv1alpha1.APISchema{Name: gatewayv1alpha1.APISchemaOpenAI, Prefix: "/v1"},
+				},
+			},
+			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewAIBackend(c, s) },
+			expectCreate: func(mock sqlmock.Sqlmock, name, version string) {
+				expectProjectionLookup(mock, "aibackends", name, false)
+				mock.ExpectExec("INSERT INTO `aibackends` (`name`,`display_name`,`backend_name`,`schema_name`,`schema_prefix`,`version`,`created_at`,`updated_at`) VALUES (?,?,?,?,?,?,?,?)").
+					WithArgs(name, "模型服务", "network", "OpenAI", "/v1", version, createdAt, sqlmock.AnyArg()).
+					WillReturnResult(sqlmock.NewResult(41, 1))
+				mock.ExpectCommit()
+			},
+			expectUpdate: func(mock sqlmock.Sqlmock, name, version string) {
+				expectProjectionLookup(mock, "aibackends", name, true)
+				mock.ExpectExec("UPDATE `aibackends` SET `display_name`=?,`backend_name`=?,`schema_name`=?,`schema_prefix`=?,`version`=?,`created_at`=?,`updated_at`=? WHERE `id` = ?").
+					WithArgs("模型服务", "network", "OpenAI", "/v1", version, createdAt, sqlmock.AnyArg(), 41).
+					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectCommit()
+			},
+			expectDelete: func(mock sqlmock.Sqlmock, name string) {
+				mock.ExpectBegin()
+				mock.ExpectExec("DELETE FROM `aibackends` WHERE name = ?").WithArgs(name).
+					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectCommit()
+			},
+			expectDeleteErr: func(mock sqlmock.Sqlmock, name string, err error) {
+				mock.ExpectBegin()
+				mock.ExpectExec("DELETE FROM `aibackends` WHERE name = ?").WithArgs(name).WillReturnError(err)
+				mock.ExpectRollback()
+			},
+		},
+		{
 			name: "Gateway", table: "gateways", initialSyncName: gatewayInitialSyncName,
 			object: &gatewayv1alpha1.Gateway{
 				ObjectMeta: metadata,
@@ -383,7 +422,7 @@ func newProjectionTestClient(t *testing.T, objects ...client.Object) client.With
 		t.Fatalf("AddToScheme() error = %v, want nil", err)
 	}
 	return fake.NewClientBuilder().WithScheme(scheme).
-		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.HTTPRoute{}, &gatewayv1alpha1.Backend{}).
+		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.HTTPRoute{}, &gatewayv1alpha1.Backend{}, &gatewayv1alpha1.AIBackend{}).
 		WithObjects(objects...).Build()
 }
 

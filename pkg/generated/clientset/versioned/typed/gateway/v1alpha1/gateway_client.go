@@ -16,6 +16,7 @@ type GatewayV1alpha1Interface interface {
 	BackendsGetter
 	GatewaysGetter
 	HTTPRoutesGetter
+	MCPRoutesGetter
 	ModelRoutesGetter
 }
 
@@ -38,6 +39,10 @@ func (c *GatewayV1alpha1Client) Gateways() GatewayInterface {
 
 func (c *GatewayV1alpha1Client) HTTPRoutes() HTTPRouteInterface {
 	return newHTTPRoutes(c)
+}
+
+func (c *GatewayV1alpha1Client) MCPRoutes() MCPRouteInterface {
+	return newMCPRoutes(c)
 }
 
 func (c *GatewayV1alpha1Client) ModelRoutes() ModelRouteInterface {

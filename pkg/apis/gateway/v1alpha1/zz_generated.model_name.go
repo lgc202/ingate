@@ -126,6 +126,31 @@ func (in Listener) OpenAPIModelName() string {
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
+func (in MCPBackendReference) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.MCPBackendReference"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in MCPRoute) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.MCPRoute"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in MCPRouteList) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.MCPRouteList"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in MCPRouteSpec) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.MCPRouteSpec"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in MCPRouteStatus) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.MCPRouteStatus"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
 func (in ModelRoute) OpenAPIModelName() string {
 	return "io.ingate.pkg.apis.gateway.v1alpha1.ModelRoute"
 }

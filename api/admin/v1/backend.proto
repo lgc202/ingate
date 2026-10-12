@@ -127,6 +127,12 @@ message Backend {
   string display_name = 5;
 }
 
+// BackendReference 引用网络后端。
+message BackendReference {
+  // name 是 Backend 的稳定名称。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+}
+
 // Endpoint 表示一个后端地址及其相对流量权重。
 message Endpoint {
   // address 是不含端口的主机名或 IP 地址。

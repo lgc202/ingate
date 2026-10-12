@@ -929,57 +929,11 @@ func (x *HTTPRouteMatch) GetPath() *PathMatch {
 	return nil
 }
 
-// BackendReference 引用网络后端。
-type BackendReference struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是 Backend 的稳定名称。
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *BackendReference) Reset() {
-	*x = BackendReference{}
-	mi := &file_admin_v1_httproute_proto_msgTypes[15]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BackendReference) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BackendReference) ProtoMessage() {}
-
-func (x *BackendReference) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_httproute_proto_msgTypes[15]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BackendReference.ProtoReflect.Descriptor instead.
-func (*BackendReference) Descriptor() ([]byte, []int) {
-	return file_admin_v1_httproute_proto_rawDescGZIP(), []int{15}
-}
-
-func (x *BackendReference) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
 var File_admin_v1_httproute_proto protoreflect.FileDescriptor
 
 const file_admin_v1_httproute_proto_rawDesc = "" +
 	"\n" +
-	"\x18admin/v1/httproute.proto\x12\badmin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xba\x01\n" +
+	"\x18admin/v1/httproute.proto\x12\badmin.v1\x1a\x16admin/v1/backend.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xba\x01\n" +
 	"\x16CreateHTTPRouteRequest\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12D\n" +
 	"\vparent_refs\x18\x02 \x03(\v2\x19.admin.v1.ParentReferenceB\b\xbaH\x05\x92\x01\x02\b\x01R\n" +
@@ -1034,9 +988,7 @@ const file_admin_v1_httproute_proto_rawDesc = "" +
 	"\fbackend_refs\x18\x03 \x03(\v2\x1a.admin.v1.BackendReferenceB\n" +
 	"\xbaH\a\x92\x01\x04\b\x01\x10\x01R\vbackendRefs\"9\n" +
 	"\x0eHTTPRouteMatch\x12'\n" +
-	"\x04path\x18\x01 \x01(\v2\x13.admin.v1.PathMatchR\x04path\"/\n" +
-	"\x10BackendReference\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name*g\n" +
+	"\x04path\x18\x01 \x01(\v2\x13.admin.v1.PathMatchR\x04path*g\n" +
 	"\rPathMatchType\x12\x1f\n" +
 	"\x1bPATH_MATCH_TYPE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15PATH_MATCH_TYPE_EXACT\x10\x01\x12\x1a\n" +
@@ -1061,7 +1013,7 @@ func file_admin_v1_httproute_proto_rawDescGZIP() []byte {
 }
 
 var file_admin_v1_httproute_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_admin_v1_httproute_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_admin_v1_httproute_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_admin_v1_httproute_proto_goTypes = []any{
 	(PathMatchType)(0),             // 0: admin.v1.PathMatchType
 	(*CreateHTTPRouteRequest)(nil), // 1: admin.v1.CreateHTTPRouteRequest
@@ -1079,8 +1031,8 @@ var file_admin_v1_httproute_proto_goTypes = []any{
 	(*ParentReference)(nil),        // 13: admin.v1.ParentReference
 	(*HTTPRouteRule)(nil),          // 14: admin.v1.HTTPRouteRule
 	(*HTTPRouteMatch)(nil),         // 15: admin.v1.HTTPRouteMatch
-	(*BackendReference)(nil),       // 16: admin.v1.BackendReference
-	(*timestamppb.Timestamp)(nil),  // 17: google.protobuf.Timestamp
+	(*timestamppb.Timestamp)(nil),  // 16: google.protobuf.Timestamp
+	(*BackendReference)(nil),       // 17: admin.v1.BackendReference
 }
 var file_admin_v1_httproute_proto_depIdxs = []int32{
 	13, // 0: admin.v1.CreateHTTPRouteRequest.parent_refs:type_name -> admin.v1.ParentReference
@@ -1093,10 +1045,10 @@ var file_admin_v1_httproute_proto_depIdxs = []int32{
 	11, // 7: admin.v1.UpdateHTTPRouteReply.route:type_name -> admin.v1.HTTPRoute
 	13, // 8: admin.v1.HTTPRoute.parent_refs:type_name -> admin.v1.ParentReference
 	14, // 9: admin.v1.HTTPRoute.rules:type_name -> admin.v1.HTTPRouteRule
-	17, // 10: admin.v1.HTTPRoute.create_time:type_name -> google.protobuf.Timestamp
+	16, // 10: admin.v1.HTTPRoute.create_time:type_name -> google.protobuf.Timestamp
 	0,  // 11: admin.v1.PathMatch.type:type_name -> admin.v1.PathMatchType
 	15, // 12: admin.v1.HTTPRouteRule.matches:type_name -> admin.v1.HTTPRouteMatch
-	16, // 13: admin.v1.HTTPRouteRule.backend_refs:type_name -> admin.v1.BackendReference
+	17, // 13: admin.v1.HTTPRouteRule.backend_refs:type_name -> admin.v1.BackendReference
 	12, // 14: admin.v1.HTTPRouteMatch.path:type_name -> admin.v1.PathMatch
 	1,  // 15: admin.v1.HTTPRouteService.CreateHTTPRoute:input_type -> admin.v1.CreateHTTPRouteRequest
 	3,  // 16: admin.v1.HTTPRouteService.GetHTTPRoute:input_type -> admin.v1.GetHTTPRouteRequest
@@ -1120,13 +1072,14 @@ func file_admin_v1_httproute_proto_init() {
 	if File_admin_v1_httproute_proto != nil {
 		return
 	}
+	file_admin_v1_backend_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_httproute_proto_rawDesc), len(file_admin_v1_httproute_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   16,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

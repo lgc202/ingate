@@ -29,6 +29,21 @@ func TestResourceHTTPContract(t *testing.T) {
 		spec, updatedSpec    map[string]any
 	}{
 		{
+			name: "tools", kind: "MCPRoute", resource: "mcproutes",
+			spec: map[string]any{
+				"displayName": "重复展示名称",
+				"parentRefs":  []any{map[string]any{"name": "missing-gateway"}},
+				"path":        "/tools/mcp",
+				"backendRefs": []any{map[string]any{"name": "missing-backend", "path": "/server/mcp"}},
+			},
+			updatedSpec: map[string]any{
+				"displayName": "更新展示名称",
+				"parentRefs":  []any{map[string]any{"name": "missing-gateway"}},
+				"path":        "/tools/mcp/",
+				"backendRefs": []any{map[string]any{"name": "another-missing-backend", "path": "/server/mcp/"}},
+			},
+		},
+		{
 			name: "models", kind: "ModelRoute", resource: "modelroutes",
 			spec: map[string]any{
 				"displayName": "重复展示名称",
@@ -110,6 +125,75 @@ func TestResourceHTTPContract(t *testing.T) {
 			resource := gatewayv1alpha1.SchemeGroupVersion.WithResource(tt.resource)
 			testResourceHTTPContract(t, client.Resource(resource), tt.kind, tt.name, tt.spec, tt.updatedSpec)
 		})
+	}
+}
+
+func TestMCPRouteDefaultingAndValidation(t *testing.T) {
+	client := startGatewayAPI(t)
+	resources := client.Resource(gatewayv1alpha1.SchemeGroupVersion.WithResource("mcproutes"))
+	route := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": gatewayv1alpha1.SchemeGroupVersion.String(),
+		"kind":       "MCPRoute",
+		"metadata":   map[string]any{"name": "tools"},
+		"spec": map[string]any{
+			"parentRefs":  []any{map[string]any{"name": "missing-gateway"}},
+			"backendRefs": []any{map[string]any{"name": "missing-backend"}},
+		},
+	}}
+	created, err := resources.Create(t.Context(), route, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Create(MCPRoute with unresolved references) error = %v, want nil", err)
+	}
+	var got gatewayv1alpha1.MCPRoute
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(created.Object, &got); err != nil {
+		t.Fatalf("decode created MCPRoute error = %v, want nil", err)
+	}
+	if got.Spec.Path == nil || *got.Spec.Path != "/mcp" {
+		t.Errorf("Create(MCPRoute).path = %v, want /mcp", got.Spec.Path)
+	}
+	if len(got.Spec.BackendRefs) != 1 {
+		t.Fatalf("Create(MCPRoute).backendRefs = %+v, want one Backend", got.Spec.BackendRefs)
+	}
+	if got.Spec.BackendRefs[0].Path == nil || *got.Spec.BackendRefs[0].Path != "/mcp" {
+		t.Errorf("Create(MCPRoute).backendRefs[0].path = %v, want /mcp", got.Spec.BackendRefs[0].Path)
+	}
+
+	for _, tt := range []struct {
+		name string
+		spec map[string]any
+	}{
+		{
+			name: "empty-entry-path",
+			spec: map[string]any{
+				"parentRefs":  []any{map[string]any{"name": "missing-gateway"}},
+				"path":        "",
+				"backendRefs": []any{map[string]any{"name": "missing-backend"}},
+			},
+		},
+		{
+			name: "empty-upstream-path",
+			spec: map[string]any{
+				"parentRefs":  []any{map[string]any{"name": "missing-gateway"}},
+				"backendRefs": []any{map[string]any{"name": "missing-backend", "path": ""}},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			invalid := route.DeepCopy()
+			invalid.SetName(tt.name)
+			invalid.Object["spec"] = tt.spec
+			if _, err := resources.Create(t.Context(), invalid, metav1.CreateOptions{}); !apierrors.IsInvalid(err) {
+				t.Errorf("Create(MCPRoute %s) error = %v, want Invalid", tt.name, err)
+			}
+		})
+	}
+	unknown := route.DeepCopy()
+	unknown.SetName("unsupported-security-policy")
+	unknown.Object["spec"].(map[string]any)["backendRefs"] = []any{map[string]any{
+		"name": "missing-backend", "securityPolicy": map[string]any{},
+	}}
+	if _, err := resources.Create(t.Context(), unknown, metav1.CreateOptions{FieldValidation: metav1.FieldValidationStrict}); !apierrors.IsBadRequest(err) {
+		t.Errorf("strict Create(MCPRoute securityPolicy) error = %v, want BadRequest", err)
 	}
 }
 
@@ -524,7 +608,7 @@ func assertConditions(t *testing.T, resource *unstructured.Unstructured, want in
 	t.Helper()
 
 	conditions, found, err := unstructured.NestedSlice(resource.Object, "status", "conditions")
-	if resource.GetKind() == "HTTPRoute" || resource.GetKind() == "ModelRoute" {
+	if resource.GetKind() == "HTTPRoute" || resource.GetKind() == "ModelRoute" || resource.GetKind() == "MCPRoute" {
 		parents, exists, parentErr := unstructured.NestedSlice(resource.Object, "status", "parents")
 		if parentErr != nil {
 			t.Fatalf("read status.parents: %v", parentErr)
@@ -543,7 +627,7 @@ func assertConditions(t *testing.T, resource *unstructured.Unstructured, want in
 }
 
 func statusForKind(kind string, conditions []any) map[string]any {
-	if kind == "HTTPRoute" || kind == "ModelRoute" {
+	if kind == "HTTPRoute" || kind == "ModelRoute" || kind == "MCPRoute" {
 		return map[string]any{"parents": []any{map[string]any{
 			"parentRef":      map[string]any{"name": "edge", "sectionName": "http"},
 			"controllerName": "gateway.ingate.io/test",
