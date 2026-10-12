@@ -69,7 +69,21 @@ CREATE TABLE aibackends (
     UNIQUE KEY uk_aibackends_name (name)
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '模型服务';
 
+CREATE TABLE modelroutes (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '模型路由唯一标识',
+    display_name LONGTEXT NOT NULL COMMENT '模型路由名称',
+    parents JSON NOT NULL COMMENT '网关引用配置',
+    rules JSON NOT NULL COMMENT '模型路由规则配置',
+    version VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '对象版本，用于并发更新校验',
+    created_at DATETIME(6) NOT NULL COMMENT '模型路由创建时间',
+    updated_at DATETIME(6) NOT NULL COMMENT '记录更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_modelroutes_name (name)
+) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '模型路由';
+
 -- +goose Down
+DROP TABLE modelroutes;
 DROP TABLE aibackends;
 DROP TABLE backend_endpoints;
 DROP TABLE backends;

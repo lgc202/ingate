@@ -1,7 +1,7 @@
 # API 网关完成度与 AI 网关开发条件
 
-- 评估日期：2026-10-10；2026-10-11 同步 ADS 反馈；2026-10-12 同步声明式资源及 AIBackend 管理与投影
-- 源码基线：`3519b189` 已提交 AIBackend、ModelRoute 声明；当前 MCPRoute 声明与存储、AIBackend 管理与投影待用户 review，未提交；HTTP 替换前评估基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
+- 评估日期：2026-10-10；2026-10-11 同步 ADS 反馈；2026-10-12 同步声明式资源及 AIBackend、ModelRoute 管理与投影
+- 源码基线：`75ac86b8` 已提交 MCPRoute 资源与 AIBackend 管理查询；当前 ModelRoute 管理与投影待用户 review，未提交；HTTP 替换前评估基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
 - 分支：`codex/rebuild-from-zero`
 - 范围：现有三个组件、资源契约、控制面到数据面的调用关系与已有测试；HTTPRoute/Backend 替换已实现，用户于 2026-10-11 授权提交，真实组件验收仍未完成
 - AI 方向：[0010 决策](decisions/0010-unified-ai-proxy-config-delivery.md)
@@ -17,7 +17,7 @@ Ingate 已具备 HTTP 网关的控制面主结构和最小转发配置实现：�
 
 当前继续 AI 契约设计，契约 review 通过后进入对应最小切片开发，不以 HTTP 主链路实测作为开发前置条件。日常单元测试、静态检查和代码 review 继续执行；真实组件、整链路与故障场景在后续统一测试阶段验收。未完成的验证仍不能表述为已验收，也不能据此扩大到生产部署、完整 MCP 聚合或多提供商重试。
 
-2026-10-12 用户确认模型/MCP 基础字段后，先接入 AIBackend、ModelRoute，按“先提交一版然后继续”提交为 `3519b189`，未推送；随后接入 MCPRoute 声明与存储。这三种新资源具有 CRUD/List/Watch/status、默认值与单对象校验、标准生成客户端与 OpenAPI。D2 首步已追加 AIBackend Admin HTTP/gRPC 管理、单行 MySQL 查询模型和 Manager 投影；ModelRoute、MCPRoute 尚无管理端入口或投影。当前新增切片待用户 review；没有 AI Proxy、TLS 或凭据，保存资源不表示模型或 MCP 接口可调用。
+2026-10-12 用户确认模型/MCP 基础字段后，先接入 AIBackend、ModelRoute，按“先提交一版然后继续”提交为 `3519b189`，未推送；随后接入 MCPRoute 声明与存储。这三种新资源具有 CRUD/List/Watch/status、默认值与单对象校验、标准生成客户端与 OpenAPI。D2 首步已追加 AIBackend Admin HTTP/gRPC 管理、单行 MySQL 查询模型和 Manager 投影；上述实现已提交为 `75ac86b8`，未推送。随后已接入 ModelRoute 管理与投影，待用户 review；MCPRoute 尚无管理端入口或投影。没有 AI Proxy、TLS 或凭据，保存资源不表示模型或 MCP 接口可调用。
 
 ## 当前主路径与术语
 
@@ -39,12 +39,12 @@ ADS 是 Envoy 接收多个 xDS 资源类型的 gRPC 服务。当前使用 SotW�
 | 资源裁决 | Listener 端口/Host 冲突、独立父引用接纳、缺省路径、重叠规则优先顺序及失效目标恢复 | 单元测试覆盖正反例、输入顺序变化及不修改输入；没有验证真实 Manager Watch 收敛 |
 | HTTP 配置 | Exact 优先、长 PathPrefix 优先；路径段匹配；IP 使用 EDS，含 DNS 使用 STRICT_DNS；端点权重与 ROUND_ROBIN | protobuf、失效后端的 500 directResponse、稳定排序、内容版本和空配置替换测试；尚非真实 Envoy 转发证据 |
 | ADS 服务 | 原生 gRPC，监听/取消生命周期，首次 Snapshot 就绪，按流/类型/nonce 关联 ACK/NACK 日志 | 本地监听和 bufconn ADS 收取/反馈接入测试；回调单元测试覆盖版本归属、过期反馈、隔离与清理；没有真实 Envoy ACK/NACK 验收 |
-| 管理端资源 | HTTP/gRPC 管理 Gateway、HTTPRoute、Backend、AIBackend，完整 PUT、并发版本冲突、错误映射 | HTTP/bufconn gRPC、fake Kubernetes Client 与模拟查询模型合同测试；没有实库联合服务验收 |
-| MySQL 投影 | 启动补齐后清理残留、四类单 Worker、AIBackend 单行字段、HTTPRoute 单行 JSON、Gateway/Backend 父子记录事务、Status 版本投影、失败重试 | fake Client + sqlmock；未证明真实 MySQL SQL、迁移与事务行为 |
+| 管理端资源 | HTTP/gRPC 管理 Gateway、HTTPRoute、Backend、AIBackend、ModelRoute，完整 PUT、并发版本冲突、错误映射 | HTTP/bufconn gRPC、fake Kubernetes Client 与模拟查询模型合同测试；没有实库联合服务验收 |
+| MySQL 投影 | 启动补齐后清理残留、五类单 Worker、AIBackend 单行字段、HTTPRoute/ModelRoute 单行 JSON、Gateway/Backend 父子记录事务、Status 版本投影、失败重试 | fake Client + sqlmock；未证明真实 MySQL SQL、迁移与事务行为 |
 | 管理鉴权 | 账户、密码校验、Redis Bearer Session、改密后的会话版本校验 | Service、Session 存储及真实 RequireSession 有回归测试；中间件测试使用 sqlmock 与 miniredis，不代表实库或真实 Redis 故障转移已验证 |
 | 客户端与运行入口 | MySQL 原生客户端、Redis UniversalClient、版本、日志、组件装配与清理 | 普通测试；历史 Redis 拓扑结果见重构记录，本轮不将其当作全部重新验证 |
 | CI / 开发入口 | 格式、lint、Vet、测试、构建与生成代码校验 | 工作流存在；阶段 B 执行结果见 0011，后文仅保留历史验证，不代表远端 CI 已运行 |
-| AI / MCP | AIBackend、ModelRoute、MCPRoute 声明 API，AIBackend 管理与查询投影；凭据、运行时快照及处理器仍未实现 | 资源的保存、默认值、校验及存储已验证；不能据此调用模型或 MCP |
+| AI / MCP | AIBackend、ModelRoute、MCPRoute 声明 API，AIBackend/ModelRoute 管理与查询投影；凭据、运行时快照及处理器仍未实现 | 资源的保存、默认值、校验及存储已验证；不能据此调用模型或 MCP |
 
 可审计入口：
 
@@ -80,7 +80,7 @@ ModelRoute 只追加已确认的父引用、rules/matches/headers、单个 AIBac
 
 字段单测覆盖父引用重复与重叠、16/17 项边界、后端数量及名称、入口和上游路径合法/非法值、ASCII/Unicode 长度边界和不可改名。默认值测试同时覆盖对象、列表、显式空值和入口/上游独立默认。三个路由共享父状态校验的正常/异常契约对照；MCPRoute 另验证重复父状态。存储测试新增 MCPRoute 的 CRUD/List/Watch/status、陈旧版本冲突、Spec/Status 隔离、重复展示名及不匹配筛选；真实 HTTPS 解码验证两个路径默认 /mcp、显式空值 Invalid、严格模式拒绝未开放 securityPolicy。
 
-本轮格式、跟踪及未跟踪文件空白检查、lint、Vet、全仓单元测试、构建及 API Server 隔离存储 integration 通过；连续两次 Kubernetes 生成的 28 个文件内容一致。全部新增和修改的手写代码另作人工审查，不把生成产物当手写代码修改。这些检查不验证 MCP 请求、SSE、取消、互操作、引用收敛、生产认证授权、真实 Envoy 或实库；资源不自动产生接纳或运行成功状态。本切片待用户 review，未提交。
+本轮格式、跟踪及未跟踪文件空白检查、lint、Vet、全仓单元测试、构建及 API Server 隔离存储 integration 通过；连续两次 Kubernetes 生成的 28 个文件内容一致。全部新增和修改的手写代码另作人工审查，不把生成产物当手写代码修改。这些检查不验证 MCP 请求、SSE、取消、互操作、引用收敛、生产认证授权、真实 Envoy 或实库；资源不自动产生接纳或运行成功状态。本切片已随 `75ac86b8` 提交，未推送。
 
 ### AIBackend 管理与查询投影的本轮证据
 
@@ -93,6 +93,16 @@ ModelRoute 只追加已确认的父引用、rules/matches/headers、单个 AIBac
 本轮逐文件人工审查覆盖当前全部新增/修改的手写代码，包括尚未提交的 MCPRoute；生成文件仅核对生成结果与可重复性。格式、已跟踪及未跟踪文件空白、lint、Vet、全仓单元测试、构建及 API Server 隔离存储 integration 通过；`make proto-lint` 通过，固定版本 protobuf 重复生成后，全仓 45 个生成 Go 文件内容一致。上述结果不等于模板级一致性或生产就绪认证。
 
 本轮 GoCanon MCP 不可调用，沿用并重新读取本地 `5684841d220f954316529dac4e1876c7801844cb` 工作树的开发入口、规范索引及服务分层/Repository/Controller Manager 规范；该规则源含未提交改动，不能宣称是 MCP 核验结果。GoCanon 的 AddWebAPI 入口要求项目 manifest 与配套装配，Ingate 不具备这一生成前提；因此复用仓库现有固定版本 Buf 生成协议代码，业务按当前分层实现，不手改生成文件或引入参考业务。
+
+### ModelRoute 管理与查询投影的本轮证据
+
+[管理协议](../api/admin/v1/modelroute.proto)、现有认证链、Handler → Service → Repository、[单表查询模型](../internal/adminapi/repository/mysql/modelroute.go)与 [Manager 投影](../internal/controllermanager/controller/projection/modelroute.go)已接通。后台生成 name，展示名称可重复，完整 PUT 按 version 更新 spec 并保留 metadata/status。查询支持展示名称字面包含、Gateway 声明引用和分页，默认 50、上限 200；Get/List 仅使用异步 MySQL 模型。parents/rules JSON 保留规则顺序、Header 原值、模型覆盖和 catch-all；没有运行时模型匹配或 Header 提取。
+
+管理测试使用真实本地 HTTP 往返和 bufconn gRPC，后端为 fake Client/sqlmock：覆盖 API 保存后的默认值与版本、完整 PUT 清空配置、陈旧版本、重复展示名、非法 Header/正则/空模型、拒绝认证及错误脱敏。Repository 另验证预读之后的 API 更新竞争仍返回冲突并保留原因链，读取视图不与源对象共享切片。SQL 测试覆盖 JSON 顺序、坏 JSON 不返回部分结果、更新清空、失败回滚、组合筛选与不匹配结果；只读 Repeatable Read 事务选项有断言。五个入口的拒绝中间件测试只证明注册到管理链，真实 RequireSession 沿用已有独立回归测试。
+
+ModelRoute 纳入既有投影恢复契约，覆盖创建/更新/删除、status-only 版本、启动补齐与残留清理、部分失败后的重复协调。单独的转换测试验证父引用和规则顺序、模型覆盖、空 match/空 matches 及不修改输入。本轮审查全部新增/修改手写文件，格式、空白检查、lint、Vet、全仓单元测试、构建及 protobuf lint 通过；重复生成的全仓 48 个生成 Go 文件内容一致。未变更 API Server 存储契约；隔离存储 integration 在提交前通过，不冒充本步真实组件联动验证。
+
+本轮重新查询 GoCanon 来源为本地 `3d67061de40d5486ea5c1ae581e7a3930cfed9db`，工作树仅两处 .gitignore 相关改动；开发入口重新完整读取，所选规范正文相对前次来源未变。GoCanon MCP 仍不可调用，现有 AddWebAPI 仍要求 manifest 与配套装配；本仓库继续使用固定版本 Buf 原生生成。规范草案与人工审查不提供模板级或生产就绪保证。本步未执行实库迁移、真实 Manager Watch、完整部署认证、Envoy 或模型转发验证；ModelRoute 管理与投影待用户 review，未提交。
 
 ### 后续统一测试需要覆盖真实转发与 ACK
 
@@ -174,4 +184,4 @@ MySQL 投影不是配置源，但 Manager 启动会先打开 MySQL，因此数�
 
 完全相同的路径保留所有候选，按 Exact、最长 PathPrefix、跨资源创建时间/名称和同资源规则列表顺序选择。缺失 Backend 的匹配生成 500 directResponse，不能让更具体的失效路径落到正常兜底。其父状态可同时为 Accepted=True 和 ResolvedRefs=False/BackendNotFound；发布成功仍不代表 Envoy ACK。
 
-[00002 资源表基线](../internal/adminapi/migration/00002_create_gateway_resources.sql)直接定义当前六张资源投影表，不再保留旧 Route/Upstream 表或 00003。HTTPRoute JSON 数组保留规则、匹配与引用顺序；四类受管资源的 `display_name` 可重复、可修改，Admin 创建时生成稳定 `name`，列表支持展示名称包含匹配。AIBackend 使用单行字段投影。未操作任何已有数据库或 etcd 数据；已经应用过 00002 的环境不会自动获得新表，需要另行授权重建。HTTP 修正与验证见 [0012](decisions/0012-resource-names-and-query-schema.md)，本轮 AIBackend 切片的证据见上文；凭据、TLS、AI/MCP 协议和运行时快照仍按独立切片推进。
+[00002 资源表基线](../internal/adminapi/migration/00002_create_gateway_resources.sql)直接定义当前七张资源投影表，不再保留旧 Route/Upstream 表或 00003。HTTPRoute JSON 数组保留规则、匹配与引用顺序；五类受管资源的 `display_name` 可重复、可修改，Admin 创建时生成稳定 `name`，列表支持展示名称包含匹配。AIBackend 使用单行字段投影。未操作任何已有数据库或 etcd 数据；已经应用过 00002 的环境不会自动获得新表，需要另行授权重建。HTTP 修正与验证见 [0012](decisions/0012-resource-names-and-query-schema.md)，AIBackend 与 ModelRoute 切片的证据见上文；凭据、TLS、AI/MCP 协议和运行时快照仍按独立切片推进。

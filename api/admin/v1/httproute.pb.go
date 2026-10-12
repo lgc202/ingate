@@ -764,61 +764,6 @@ func (x *PathMatch) GetValue() string {
 	return ""
 }
 
-// ParentReference 引用 Gateway 及可选 Listener。
-type ParentReference struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是 Gateway 的稳定名称。
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// section_name 省略时选择所有受支持的 HTTP Listener。
-	SectionName   string `protobuf:"bytes,2,opt,name=section_name,json=sectionName,proto3" json:"section_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ParentReference) Reset() {
-	*x = ParentReference{}
-	mi := &file_admin_v1_httproute_proto_msgTypes[12]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ParentReference) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ParentReference) ProtoMessage() {}
-
-func (x *ParentReference) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_httproute_proto_msgTypes[12]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ParentReference.ProtoReflect.Descriptor instead.
-func (*ParentReference) Descriptor() ([]byte, []int) {
-	return file_admin_v1_httproute_proto_rawDescGZIP(), []int{12}
-}
-
-func (x *ParentReference) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *ParentReference) GetSectionName() string {
-	if x != nil {
-		return x.SectionName
-	}
-	return ""
-}
-
 // HTTPRouteRule 保存 OR 匹配条件和一个后端引用。
 type HTTPRouteRule struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -834,7 +779,7 @@ type HTTPRouteRule struct {
 
 func (x *HTTPRouteRule) Reset() {
 	*x = HTTPRouteRule{}
-	mi := &file_admin_v1_httproute_proto_msgTypes[13]
+	mi := &file_admin_v1_httproute_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -846,7 +791,7 @@ func (x *HTTPRouteRule) String() string {
 func (*HTTPRouteRule) ProtoMessage() {}
 
 func (x *HTTPRouteRule) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_httproute_proto_msgTypes[13]
+	mi := &file_admin_v1_httproute_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -859,7 +804,7 @@ func (x *HTTPRouteRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HTTPRouteRule.ProtoReflect.Descriptor instead.
 func (*HTTPRouteRule) Descriptor() ([]byte, []int) {
-	return file_admin_v1_httproute_proto_rawDescGZIP(), []int{13}
+	return file_admin_v1_httproute_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *HTTPRouteRule) GetName() string {
@@ -894,7 +839,7 @@ type HTTPRouteMatch struct {
 
 func (x *HTTPRouteMatch) Reset() {
 	*x = HTTPRouteMatch{}
-	mi := &file_admin_v1_httproute_proto_msgTypes[14]
+	mi := &file_admin_v1_httproute_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -906,7 +851,7 @@ func (x *HTTPRouteMatch) String() string {
 func (*HTTPRouteMatch) ProtoMessage() {}
 
 func (x *HTTPRouteMatch) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_httproute_proto_msgTypes[14]
+	mi := &file_admin_v1_httproute_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -919,7 +864,7 @@ func (x *HTTPRouteMatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HTTPRouteMatch.ProtoReflect.Descriptor instead.
 func (*HTTPRouteMatch) Descriptor() ([]byte, []int) {
-	return file_admin_v1_httproute_proto_rawDescGZIP(), []int{14}
+	return file_admin_v1_httproute_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *HTTPRouteMatch) GetPath() *PathMatch {
@@ -933,7 +878,7 @@ var File_admin_v1_httproute_proto protoreflect.FileDescriptor
 
 const file_admin_v1_httproute_proto_rawDesc = "" +
 	"\n" +
-	"\x18admin/v1/httproute.proto\x12\badmin.v1\x1a\x16admin/v1/backend.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xba\x01\n" +
+	"\x18admin/v1/httproute.proto\x12\badmin.v1\x1a\x16admin/v1/backend.proto\x1a\x16admin/v1/gateway.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xba\x01\n" +
 	"\x16CreateHTTPRouteRequest\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12D\n" +
 	"\vparent_refs\x18\x02 \x03(\v2\x19.admin.v1.ParentReferenceB\b\xbaH\x05\x92\x01\x02\b\x01R\n" +
@@ -978,10 +923,7 @@ const file_admin_v1_httproute_proto_rawDesc = "" +
 	"\fdisplay_name\x18\x06 \x01(\tR\vdisplayName\"X\n" +
 	"\tPathMatch\x125\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x17.admin.v1.PathMatchTypeB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04type\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value\"Q\n" +
-	"\x0fParentReference\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12!\n" +
-	"\fsection_name\x18\x02 \x01(\tR\vsectionName\"\xa2\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"\xa2\x01\n" +
 	"\rHTTPRouteRule\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x122\n" +
 	"\amatches\x18\x02 \x03(\v2\x18.admin.v1.HTTPRouteMatchR\amatches\x12I\n" +
@@ -1013,7 +955,7 @@ func file_admin_v1_httproute_proto_rawDescGZIP() []byte {
 }
 
 var file_admin_v1_httproute_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_admin_v1_httproute_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_admin_v1_httproute_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_admin_v1_httproute_proto_goTypes = []any{
 	(PathMatchType)(0),             // 0: admin.v1.PathMatchType
 	(*CreateHTTPRouteRequest)(nil), // 1: admin.v1.CreateHTTPRouteRequest
@@ -1028,26 +970,26 @@ var file_admin_v1_httproute_proto_goTypes = []any{
 	(*DeleteHTTPRouteReply)(nil),   // 10: admin.v1.DeleteHTTPRouteReply
 	(*HTTPRoute)(nil),              // 11: admin.v1.HTTPRoute
 	(*PathMatch)(nil),              // 12: admin.v1.PathMatch
-	(*ParentReference)(nil),        // 13: admin.v1.ParentReference
-	(*HTTPRouteRule)(nil),          // 14: admin.v1.HTTPRouteRule
-	(*HTTPRouteMatch)(nil),         // 15: admin.v1.HTTPRouteMatch
+	(*HTTPRouteRule)(nil),          // 13: admin.v1.HTTPRouteRule
+	(*HTTPRouteMatch)(nil),         // 14: admin.v1.HTTPRouteMatch
+	(*ParentReference)(nil),        // 15: admin.v1.ParentReference
 	(*timestamppb.Timestamp)(nil),  // 16: google.protobuf.Timestamp
 	(*BackendReference)(nil),       // 17: admin.v1.BackendReference
 }
 var file_admin_v1_httproute_proto_depIdxs = []int32{
-	13, // 0: admin.v1.CreateHTTPRouteRequest.parent_refs:type_name -> admin.v1.ParentReference
-	14, // 1: admin.v1.CreateHTTPRouteRequest.rules:type_name -> admin.v1.HTTPRouteRule
+	15, // 0: admin.v1.CreateHTTPRouteRequest.parent_refs:type_name -> admin.v1.ParentReference
+	13, // 1: admin.v1.CreateHTTPRouteRequest.rules:type_name -> admin.v1.HTTPRouteRule
 	11, // 2: admin.v1.CreateHTTPRouteReply.route:type_name -> admin.v1.HTTPRoute
 	11, // 3: admin.v1.GetHTTPRouteReply.route:type_name -> admin.v1.HTTPRoute
 	11, // 4: admin.v1.ListHTTPRoutesReply.routes:type_name -> admin.v1.HTTPRoute
-	13, // 5: admin.v1.UpdateHTTPRouteRequest.parent_refs:type_name -> admin.v1.ParentReference
-	14, // 6: admin.v1.UpdateHTTPRouteRequest.rules:type_name -> admin.v1.HTTPRouteRule
+	15, // 5: admin.v1.UpdateHTTPRouteRequest.parent_refs:type_name -> admin.v1.ParentReference
+	13, // 6: admin.v1.UpdateHTTPRouteRequest.rules:type_name -> admin.v1.HTTPRouteRule
 	11, // 7: admin.v1.UpdateHTTPRouteReply.route:type_name -> admin.v1.HTTPRoute
-	13, // 8: admin.v1.HTTPRoute.parent_refs:type_name -> admin.v1.ParentReference
-	14, // 9: admin.v1.HTTPRoute.rules:type_name -> admin.v1.HTTPRouteRule
+	15, // 8: admin.v1.HTTPRoute.parent_refs:type_name -> admin.v1.ParentReference
+	13, // 9: admin.v1.HTTPRoute.rules:type_name -> admin.v1.HTTPRouteRule
 	16, // 10: admin.v1.HTTPRoute.create_time:type_name -> google.protobuf.Timestamp
 	0,  // 11: admin.v1.PathMatch.type:type_name -> admin.v1.PathMatchType
-	15, // 12: admin.v1.HTTPRouteRule.matches:type_name -> admin.v1.HTTPRouteMatch
+	14, // 12: admin.v1.HTTPRouteRule.matches:type_name -> admin.v1.HTTPRouteMatch
 	17, // 13: admin.v1.HTTPRouteRule.backend_refs:type_name -> admin.v1.BackendReference
 	12, // 14: admin.v1.HTTPRouteMatch.path:type_name -> admin.v1.PathMatch
 	1,  // 15: admin.v1.HTTPRouteService.CreateHTTPRoute:input_type -> admin.v1.CreateHTTPRouteRequest
@@ -1073,13 +1015,14 @@ func file_admin_v1_httproute_proto_init() {
 		return
 	}
 	file_admin_v1_backend_proto_init()
+	file_admin_v1_gateway_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_httproute_proto_rawDesc), len(file_admin_v1_httproute_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   15,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

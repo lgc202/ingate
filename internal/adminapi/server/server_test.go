@@ -20,6 +20,7 @@ import (
 	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
 	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
+	modelroutehandler "github.com/lgc202/ingate/internal/adminapi/handler/modelroute"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
 	mysqlstore "github.com/lgc202/ingate/internal/adminapi/repository/mysql"
 	"github.com/lgc202/ingate/internal/adminapi/server"
@@ -27,6 +28,7 @@ import (
 	backendservice "github.com/lgc202/ingate/internal/adminapi/service/backend"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/httproute"
+	modelrouteservice "github.com/lgc202/ingate/internal/adminapi/service/modelroute"
 	clientfake "github.com/lgc202/ingate/pkg/generated/clientset/versioned/fake"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -205,11 +207,13 @@ func newTestServersWithStore(
 	routes := repository.NewHTTPRoute(client.GatewayV1alpha1().HTTPRoutes(), store)
 	backends := repository.NewBackend(client.GatewayV1alpha1().Backends(), store)
 	aiBackends := repository.NewAIBackend(client.GatewayV1alpha1().AIBackends(), store)
+	modelRoutes := repository.NewModelRoute(client.GatewayV1alpha1().ModelRoutes(), store)
 
 	gatewayHandler := gatewayhandler.New(gatewayservice.New(gateways))
 	routeHandler := routehandler.New(routeservice.New(routes))
 	backendHandler := backendhandler.New(backendservice.New(backends))
 	aiBackendHandler := aibackendhandler.New(aibackendservice.New(aiBackends))
+	modelRouteHandler := modelroutehandler.New(modelrouteservice.New(modelRoutes))
 
 	config := &conf.Server{
 		Http: &conf.Server_HTTP{
@@ -223,11 +227,12 @@ func newTestServersWithStore(
 	}
 
 	handlers := server.Handlers{
-		Gateway:   gatewayHandler,
-		HTTPRoute: routeHandler,
-		Backend:   backendHandler,
-		AIBackend: aiBackendHandler,
-		Account:   accounthandler.New(nil),
+		Gateway:    gatewayHandler,
+		HTTPRoute:  routeHandler,
+		Backend:    backendHandler,
+		AIBackend:  aiBackendHandler,
+		ModelRoute: modelRouteHandler,
+		Account:    accounthandler.New(nil),
 	}
 	chain := server.NewMiddlewareChain(authentication)
 	httpServer, grpcServer := server.New(config, handlers, chain)

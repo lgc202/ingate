@@ -669,6 +669,61 @@ func (x *Gateway) GetVersion() string {
 	return ""
 }
 
+// ParentReference 引用 Gateway 及可选 Listener。
+type ParentReference struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name 是 Gateway 的稳定名称。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// section_name 省略时选择所有受支持的 HTTP Listener。
+	SectionName   string `protobuf:"bytes,2,opt,name=section_name,json=sectionName,proto3" json:"section_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ParentReference) Reset() {
+	*x = ParentReference{}
+	mi := &file_admin_v1_gateway_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ParentReference) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ParentReference) ProtoMessage() {}
+
+func (x *ParentReference) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_gateway_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ParentReference.ProtoReflect.Descriptor instead.
+func (*ParentReference) Descriptor() ([]byte, []int) {
+	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ParentReference) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ParentReference) GetSectionName() string {
+	if x != nil {
+		return x.SectionName
+	}
+	return ""
+}
+
 // Listener 表示网关对外暴露的一个监听入口。
 type Listener struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -686,7 +741,7 @@ type Listener struct {
 
 func (x *Listener) Reset() {
 	*x = Listener{}
-	mi := &file_admin_v1_gateway_proto_msgTypes[11]
+	mi := &file_admin_v1_gateway_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -698,7 +753,7 @@ func (x *Listener) String() string {
 func (*Listener) ProtoMessage() {}
 
 func (x *Listener) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_gateway_proto_msgTypes[11]
+	mi := &file_admin_v1_gateway_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -711,7 +766,7 @@ func (x *Listener) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Listener.ProtoReflect.Descriptor instead.
 func (*Listener) Descriptor() ([]byte, []int) {
-	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{11}
+	return file_admin_v1_gateway_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Listener) GetName() string {
@@ -781,7 +836,10 @@ const file_admin_v1_gateway_proto_rawDesc = "" +
 	"\tlisteners\x18\x03 \x03(\v2\x12.admin.v1.ListenerR\tlisteners\x12;\n" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createTime\x12\x18\n" +
-	"\aversion\x18\x05 \x01(\tR\aversion\"\x97\x02\n" +
+	"\aversion\x18\x05 \x01(\tR\aversion\"Q\n" +
+	"\x0fParentReference\x12\x1b\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12!\n" +
+	"\fsection_name\x18\x02 \x01(\tR\vsectionName\"\x97\x02\n" +
 	"\bListener\x12<\n" +
 	"\x04name\x18\x01 \x01(\tB(\xbaH%r#\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\x04name\x12@\n" +
 	"\bprotocol\x18\x02 \x01(\x0e2\x1a.admin.v1.ListenerProtocolB\b\xbaH\x05\x82\x01\x02\b\x01R\bprotocol\x12\x1f\n" +
@@ -811,7 +869,7 @@ func file_admin_v1_gateway_proto_rawDescGZIP() []byte {
 }
 
 var file_admin_v1_gateway_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_admin_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_admin_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_admin_v1_gateway_proto_goTypes = []any{
 	(ListenerProtocol)(0),         // 0: admin.v1.ListenerProtocol
 	(*CreateGatewayRequest)(nil),  // 1: admin.v1.CreateGatewayRequest
@@ -825,18 +883,19 @@ var file_admin_v1_gateway_proto_goTypes = []any{
 	(*DeleteGatewayRequest)(nil),  // 9: admin.v1.DeleteGatewayRequest
 	(*DeleteGatewayReply)(nil),    // 10: admin.v1.DeleteGatewayReply
 	(*Gateway)(nil),               // 11: admin.v1.Gateway
-	(*Listener)(nil),              // 12: admin.v1.Listener
-	(*timestamppb.Timestamp)(nil), // 13: google.protobuf.Timestamp
+	(*ParentReference)(nil),       // 12: admin.v1.ParentReference
+	(*Listener)(nil),              // 13: admin.v1.Listener
+	(*timestamppb.Timestamp)(nil), // 14: google.protobuf.Timestamp
 }
 var file_admin_v1_gateway_proto_depIdxs = []int32{
-	12, // 0: admin.v1.CreateGatewayRequest.listeners:type_name -> admin.v1.Listener
+	13, // 0: admin.v1.CreateGatewayRequest.listeners:type_name -> admin.v1.Listener
 	11, // 1: admin.v1.CreateGatewayReply.gateway:type_name -> admin.v1.Gateway
 	11, // 2: admin.v1.GetGatewayReply.gateway:type_name -> admin.v1.Gateway
 	11, // 3: admin.v1.ListGatewaysReply.gateways:type_name -> admin.v1.Gateway
-	12, // 4: admin.v1.UpdateGatewayRequest.listeners:type_name -> admin.v1.Listener
+	13, // 4: admin.v1.UpdateGatewayRequest.listeners:type_name -> admin.v1.Listener
 	11, // 5: admin.v1.UpdateGatewayReply.gateway:type_name -> admin.v1.Gateway
-	12, // 6: admin.v1.Gateway.listeners:type_name -> admin.v1.Listener
-	13, // 7: admin.v1.Gateway.create_time:type_name -> google.protobuf.Timestamp
+	13, // 6: admin.v1.Gateway.listeners:type_name -> admin.v1.Listener
+	14, // 7: admin.v1.Gateway.create_time:type_name -> google.protobuf.Timestamp
 	0,  // 8: admin.v1.Listener.protocol:type_name -> admin.v1.ListenerProtocol
 	1,  // 9: admin.v1.GatewayService.CreateGateway:input_type -> admin.v1.CreateGatewayRequest
 	3,  // 10: admin.v1.GatewayService.GetGateway:input_type -> admin.v1.GetGatewayRequest
@@ -866,7 +925,7 @@ func file_admin_v1_gateway_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_gateway_proto_rawDesc), len(file_admin_v1_gateway_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

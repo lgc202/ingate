@@ -1,10 +1,10 @@
 # 三类路由复用 Backend，以 AIBackend 定义模型服务访问契约
 
-- 状态：用户于 2026-10-12 确认模型/MCP 基础字段并授权实施；六种资源关系及 HTTP 子集已确认。AIBackend、ModelRoute 声明已提交；MCPRoute 声明与存储、AIBackend 管理与投影已实现，待用户 review，未提交
+- 状态：六种声明式资源及 AIBackend 管理与投影已提交；ModelRoute 管理与投影已实现，待用户 review，未提交；不新增数据面业务
 - 作者：Ingate 开发协作
 - 更新日期：2026-10-12
 - 讨论入口：本仓库文档 review，依据 [0010 决策](../decisions/0010-unified-ai-proxy-config-delivery.md)及用户确认的资源关系
-- 当前源码基线：`3519b189`（AIBackend、ModelRoute），分支 `codex/rebuild-from-zero`；HTTP 替换前基线为 `56205b84321c`
+- 当前源码基线：`75ac86b8`（MCPRoute 资源与 AIBackend 管理查询），分支 `codex/rebuild-from-zero`；HTTP 替换前基线为 `56205b84321c`
 - 范围：资源契约、裁决边界、管理接口影响、实施顺序及 D1/D2 进度；不新增数据面业务
 
 ## 摘要
@@ -23,7 +23,7 @@
 
 基线裁决按 Gateway/Listener 和规范化路径判断冲突；阶段 B 的[裁决](../../internal/controllermanager/controller/gateway/resolve.go)已保留同路径候选，按父引用独立附着。[Envoy 适配层](../../internal/controllermanager/dataplane/envoy/resources.go)按 Exact 优先、长 PathPrefix 优先稳定排序，IP/DNS 后端采用 EDS/STRICT_DNS。后端连接超时仍为 5 秒，没有上游 TLS 配置。改名不能填补这些协议和安全缺口。
 
-当前 Admin 接口保留 [0005](../decisions/0005-admin-resource-management.md)的 API Server 写入、MySQL 异步查询分工；[资源存储映射](../../internal/apiserver/registry/gateway/storage.go)已有 Gateway、HTTPRoute、Backend，并在 D1 新增 AIBackend、ModelRoute、MCPRoute 及其 status。D2 首步已接入 AIBackend 管理与查询投影，ModelRoute、MCPRoute 尚无 Admin 入口。没有 Namespace、Secret、运行时快照或租约资源。本文不假设完整 Kubernetes 已存在。
+当前 Admin 接口保留 [0005](../decisions/0005-admin-resource-management.md)的 API Server 写入、MySQL 异步查询分工；[资源存储映射](../../internal/apiserver/registry/gateway/storage.go)已有六种资源及其 status。D2 已接入 AIBackend、ModelRoute 管理与查询投影，MCPRoute 尚无 Admin 入口。没有 Namespace、Secret、运行时快照或租约资源。本文不假设完整 Kubernetes 已存在。
 
 本稿输入是已确认讨论和现有代码，没有另建 PRD，也没有新增计费、配额、Agent、工具聚合、插件市场或多租户业务需求。
 
@@ -76,7 +76,7 @@ parentRefs:
 
 Gateway、HTTPRoute、Backend 的 Admin 创建请求不接收技术名称；后台生成不可修改的 `metadata.name`，供引用、查询和必要时展示“资源 ID”。三种资源均提供可修改且允许重复的 `spec.displayName`；列表参数 `display_name` 使用包含匹配，不限制为前缀。原生 API 保留 name / generateName 与 metadata.uid，MySQL 不额外投影 UID。详见 [名称契约](../decisions/0012-resource-names-and-query-schema.md)。
 
-新增三种资源沿用同一身份和展示名称契约：Admin 生成 name，用户编辑 displayName，引用仍使用 name。不新增 uid 字段、展示名称唯一约束或前缀索引字段；AIBackend Admin 入口已实现，ModelRoute、MCPRoute 仍待接入。
+新增三种资源沿用同一身份和展示名称契约：Admin 生成 name，用户编辑 displayName，引用仍使用 name。不新增 uid 字段、展示名称唯一约束或前缀索引字段；AIBackend、ModelRoute Admin 入口已实现，MCPRoute 仍待接入。
 
 跨 Gateway 的 Listener 冲突仍按 [0002](../decisions/0002-shared-data-plane-controller.md)的创建时间、名称稳定裁决。暂不引入 wildcard Host、GatewayClass、部署编排或流量管理策略资源。
 
@@ -156,7 +156,7 @@ AIBackend 可被多条 ModelRoute 使用，也可访问该服务提供的多个�
 
 官方 [AIGatewayRouteSpec / Rule / Match](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/api/v1beta1/ai_gateway_route.go#L61)及 [OpenAI 示例](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/examples/basic/openai.yaml)采用以上规则层次，并没有 route 级 path 或 schema。后端类型的历史注释仍提到 AIGatewayRouteSpec.APISchema，但该版本的实际 route 类型和示例已经没有这个字段，不能据旧注释复制。
 
-`matches` 是 OR，match 内的 headers 是 AND。省略或空 matches、或空 match 都表示不限制模型，沿用官方及 HTTPRoute 的缺省匹配语义；有模型条件的规则优先于 catch-all，同级最终按创建时间、资源名、规则声明顺序裁决。它会允许任意请求模型名进入指定 AIBackend，而不是自动发现模型；管理界面必须显示「所有模型」，不得显示成「未配置」。该默认行为已确认但尚未实现，未知模型只有在没有匹配规则及 catch-all 时才由网关拒绝。
+`matches` 是 OR，match 内的 headers 是 AND。省略或空 matches、或空 match 都表示不限制模型，沿用官方及 HTTPRoute 的缺省匹配语义；有模型条件的规则优先于 catch-all，同级最终按创建时间、资源名、规则声明顺序裁决。它会允许任意请求模型名进入指定 AIBackend，而不是自动发现模型；管理界面必须显示「所有模型」，不得显示成「未配置」。catch-all 声明已实现，运行时默认匹配行为尚未实现，未知模型只有在没有匹配规则及 catch-all 时才由网关拒绝。
 
 保留官方匹配键不要求 Go 把它实际塞入 HTTP 请求：Go 可以直接用请求体的模型提取结果执行等价匹配。后续请求处理必须清除或覆盖客户端伪造的同名 Header，不能让它选择账号。当前只有模型选择需求，其他 Header、hostnames、InferencePool、filters 和模型发现不随结构一并开放。
 
@@ -210,7 +210,7 @@ ModelRoute/MCPRoute 的 status 复用现有 `RouteParentStatus`；AIBackend 使�
 
 ## 示例：同一个模型服务提供两个对外模型
 
-以下是字段的构造示例，仅解释资源归属。当前 API Server 已接入 AIBackend、ModelRoute，但仍无法接收 MCPRoute。域名和模型均为示意，没有访问真实提供商，没有创建凭据。
+以下是字段的构造示例，仅解释资源归属。当前 API Server 已接入 AIBackend、ModelRoute、MCPRoute 的声明与存储；模型和 MCP 请求运行链路仍未实现。域名和模型均为示意，没有访问真实提供商，没有创建凭据。
 
 ```yaml
 apiVersion: gateway.ingate.io/v1alpha1
@@ -421,13 +421,13 @@ PUT 带 `version`，不允许改资源名；Repository 获取当前对象、核�
 
 生成沿用 [generate-api.sh](../../scripts/generate-api.sh)与现有 `make generate-kubernetes`、`make generate-proto`。API 类型和 protobuf 是各自机械产物的来源，生成文件不手改。D1 的消费者就是声明式资源 CRUD，不以运行数据面未实现为由制造空服务；也不在存储步骤提前建空 Controller。
 
-本地 GoCanon 出现了尚未提交、状态为「实现待审查」的 0073 及 `add api-resource` 能力；该草案明确首版不自动迁移预制 Gateway 项目。当前 MCP 工具不可用，不能宣称 Ingate 已可由它直接追加资源，更不能绕过保护复制生成结果。D1 开始前须重新查询实际能力及版本，若尚不适配 Ingate，仍复用当前 Kubernetes 生成链与已实现 Registry 模式，不在 Ingate 自建替代生成器。
+D1 契约修订时，本地 GoCanon 出现了尚未提交、状态为「实现待审查」的 0073 及 `add api-resource` 能力；该草案明确首版不自动迁移预制 Gateway 项目。当前 MCP 工具不可用，不能宣称 Ingate 已可由它直接追加资源，更不能绕过保护复制生成结果。D1 开始前须重新查询实际能力及版本，若尚不适配 Ingate，仍复用当前 Kubernetes 生成链与已实现 Registry 模式，不在 Ingate 自建替代生成器。
 
 2026-10-12 的 D1 首步只接入 AIBackend：内部/外部类型、BackendReference、OpenAI schema/prefix、标准 Conditions、Scheme default/validation、主资源与 status Storage、Kubernetes 生成产物。prefix 原值保留，省略或空字符串在版本化解码时默认 `/v1`；单对象校验使用标准 URL 解析拒绝 authority/query/fragment，不查 Backend 是否存在。主资源保护 Status，Spec 变化递增 Generation；status 入口保护 Spec 和 metadata。尚未加入 Admin、MySQL 投影、Controller、转发入口、TLS、凭据或新依赖，保存对象不产生接纳状态。用户于同日授权提交该切片。
 
 同日用户要求继续，D1 第二步接入 ModelRoute：复用 ParentReference/RouteParentStatus，沿用 headers 与 modelNameOverride 字段形状，只支持模型 Exact 条件和每规则单个 AIBackend。ParentRefs/rules/matches 上界分别为 16/15/128；省略或空 matches、空 match 可保存为 catch-all。HTTPRoute 和 ModelRoute 共同调用从原 HTTPRoute 提取的父状态校验，保持旧校验集合。完成 Scheme、默认值、CRUD/List/Watch/status 及标准生成，尚无 Admin、协调器或模型请求处理。规则优先级、Header 提取与防伪不因字段已保存就成为运行能力。用户于同日授权提交该切片。
 
-用户要求“先提交一版然后继续”，前两步已提交为 `3519b189`，未推送。D1 第三步接入 [MCPRoute](../../pkg/apis/gateway/v1alpha1/mcproute.go)：复用父引用及父状态，path 与 backendRefs[].path 使用可选指针，只为省略值默认 /mcp；显式空值拒绝。路径最大 1024 字符，采用标准 URL 解析校验绝对路径并拒绝 authority/query/fragment，保留合法路径及尾斜杠；backendRefs 恰好一个 Backend，不经过 AIBackend。已实现默认值、单对象校验、CRUD/List/Watch/status 和标准生成；不新增 securityPolicy、协议版本配置、SDK、Admin、投影、Controller 或 MCP 转发。存储验证见[完成度报告](../api-gateway-readiness.md#mcproute-资源切片的本轮证据)。该切片待用户 review，未提交。
+用户要求“先提交一版然后继续”，前两步已提交为 `3519b189`，未推送。D1 第三步接入 [MCPRoute](../../pkg/apis/gateway/v1alpha1/mcproute.go)：复用父引用及父状态，path 与 backendRefs[].path 使用可选指针，只为省略值默认 /mcp；显式空值拒绝。路径最大 1024 字符，采用标准 URL 解析校验绝对路径并拒绝 authority/query/fragment，保留合法路径及尾斜杠；backendRefs 恰好一个 Backend，不经过 AIBackend。已实现默认值、单对象校验、CRUD/List/Watch/status 和标准生成；不新增 securityPolicy、协议版本配置、SDK、Admin、投影、Controller 或 MCP 转发。存储验证见[完成度报告](../api-gateway-readiness.md#mcproute-资源切片的本轮证据)。该切片已随 `75ac86b8` 提交，未推送。
 
 当前生成脚本会清理带 client-gen 标记的旧文件，但其他生成产物是否残留、发现接口是否仍暴露旧资源，需要单独核对。工作区旧 API 数据、MySQL 数据和迁移版本先只读盘点；需要重建、迁移或删除时，列出确切目标并取得授权，不借契约替换自动清理用户数据。
 
@@ -441,7 +441,15 @@ PUT 带 `version`，不允许改资源名；Repository 获取当前对象、核�
 
 BackendReference 已有第二个真实协议消费者，从 httproute.proto 移到 backend.proto，消息名称及字段编号保持不变。新协议及类型转换不增加 Domain 镜像。投影沿现有逐资源单 Worker、启动补齐后清理残留的模式，处理 status 更新以同步版本，不解析引用或发布数据面；失败交回框架重试。直接修正未发布的迁移基线，不执行实库迁移或删除已有数据。本步不接入 ModelRoute/MCPRoute 管理、不开发协议服务或新增依赖。
 
-本步已接通 [Admin 协议](../../api/admin/v1/aibackend.proto)、管理端装配、[查询模型](../../internal/adminapi/repository/mysql/aibackend.go)和 [Manager 投影](../../internal/controllermanager/controller/projection/aibackend.go)。字段仍只有 displayName、backendRef.name 和 schema.name/prefix；查询结果包含稳定 name、version、创建时间，不开放状态编辑。单测和隔离存储检查的证据及未验证边界见[完成度报告](../api-gateway-readiness.md#aibackend-管理与查询投影的本轮证据)。当前工作区待用户 review，未提交。
+本步已接通 [Admin 协议](../../api/admin/v1/aibackend.proto)、管理端装配、[查询模型](../../internal/adminapi/repository/mysql/aibackend.go)和 [Manager 投影](../../internal/controllermanager/controller/projection/aibackend.go)。字段仍只有 displayName、backendRef.name 和 schema.name/prefix；查询结果包含稳定 name、version、创建时间，不开放状态编辑。单测和隔离存储检查的证据及未验证边界见[完成度报告](../api-gateway-readiness.md#aibackend-管理与查询投影的本轮证据)。该切片已随 `75ac86b8` 提交，未推送。
+
+### D2 第二步：ModelRoute 管理与查询
+
+用户确认提交前一步并继续，MCPRoute 声明与存储、AIBackend 管理与投影提交为 `75ac86b8`，未推送。本步接通 [ModelRouteService](../../api/admin/v1/modelroute.proto) 的 Create/Get/List/完整 PUT/Delete，复用当前管理认证和分层。字段沿用 parentRefs、rules/matches/headers、单个 AIBackend 引用及 modelNameOverride；不恢复 route 级 path/schema。API Server 负责默认值及对象内校验，Repository 不再添加一套 ModelRoute 语义校验；传输层声明集合边界及单字段约束。
+
+常用查询为稳定 name 读取、展示名称字面包含匹配、Gateway 引用精确筛选和分页；Gateway 条件只检查声明的 parentRefs，不承诺已经接纳。modelroutes 表用 parents/rules JSON 保存有序配置，记录 name、display_name、version 和创建/记录更新时间，只有主键及 name 唯一索引。没有规则名排序、position 子表、外键或猜测性的模型/后端索引；模型值、Header 名大小写、空 match 与空 matches 保留原义。完整 PUT 可清空展示名、规则名和模型覆盖，保留 metadata/status。
+
+ParentReference 出现第二个实际管理协议消费者，从 httproute.proto 移到 gateway.proto，消息名称和字段编号不变。新增投影只转换 API Server 的已保存配置，逐资源单 Worker 协调，含 status-only 版本变化及启动补齐/清理；不重新裁决引用、补造模型匹配条件或写成功状态。查询仍只读异步 MySQL 模型，不加权威存储回退。直接修正 00002 未发布基线，未运行实库迁移或删除已有数据。本切片待用户 review，未提交；下一步为 MCPRoute 管理与投影，不开发协议运行服务。
 
 ## 验证矩阵：每项能力都要有失效时会失败的断言
 

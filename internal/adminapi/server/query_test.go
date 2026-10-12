@@ -205,6 +205,7 @@ func TestResourceDisplayNameSearchHTTP(t *testing.T) {
 		{path: "/api/admin/v1/http-routes", table: "httproutes"},
 		{path: "/api/admin/v1/backends", table: "backends"},
 		{path: "/api/admin/v1/ai-backends", table: "aibackends"},
+		{path: "/api/admin/v1/model-routes", table: "modelroutes"},
 	} {
 		t.Run(tc.table, func(t *testing.T) {
 			httpServer, apiClient, query := newQueryTestServer(t)

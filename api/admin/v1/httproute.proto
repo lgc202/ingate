@@ -3,6 +3,7 @@ syntax = "proto3";
 package admin.v1;
 
 import "admin/v1/backend.proto";
+import "admin/v1/gateway.proto";
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
@@ -152,14 +153,6 @@ enum PathMatchType {
   PATH_MATCH_TYPE_EXACT = 1;
   // PATH_MATCH_TYPE_PREFIX 表示按路径段匹配前缀。
   PATH_MATCH_TYPE_PREFIX = 2;
-}
-
-// ParentReference 引用 Gateway 及可选 Listener。
-message ParentReference {
-  // name 是 Gateway 的稳定名称。
-  string name = 1 [(buf.validate.field).string.min_len = 1];
-  // section_name 省略时选择所有受支持的 HTTP Listener。
-  string section_name = 2;
 }
 
 // HTTPRouteRule 保存 OR 匹配条件和一个后端引用。

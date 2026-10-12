@@ -129,6 +129,14 @@ message Gateway {
   string version = 5;
 }
 
+// ParentReference 引用 Gateway 及可选 Listener。
+message ParentReference {
+  // name 是 Gateway 的稳定名称。
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  // section_name 省略时选择所有受支持的 HTTP Listener。
+  string section_name = 2;
+}
+
 // Listener 表示网关对外暴露的一个监听入口。
 message Listener {
   // name 是当前 Gateway 内稳定且唯一的 Listener 名称。

@@ -52,6 +52,11 @@ func (s *Store) AIBackends() gatewayclient.AIBackendInterface {
 	return s.client.GatewayV1alpha1().AIBackends()
 }
 
+// ModelRoutes 返回 ModelRoute 资源客户端。
+func (s *Store) ModelRoutes() gatewayclient.ModelRouteInterface {
+	return s.client.GatewayV1alpha1().ModelRoutes()
+}
+
 func loadConfig(kubeconfig string) (*rest.Config, error) {
 	if kubeconfig == "" {
 		config, err := rest.InClusterConfig()

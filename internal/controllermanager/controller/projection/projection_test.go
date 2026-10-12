@@ -74,6 +74,12 @@ func TestReconcileProjectsVersionAfterStatusOnlyUpdate(t *testing.T) {
 				object.Status.Conditions = []metav1.Condition{condition}
 			case *gatewayv1alpha1.AIBackend:
 				object.Status.Conditions = []metav1.Condition{condition}
+			case *gatewayv1alpha1.ModelRoute:
+				object.Status.Parents = []gatewayv1alpha1.RouteParentStatus{{
+					ParentRef:      gatewayv1alpha1.ParentReference{Name: "edge", SectionName: "http"},
+					ControllerName: "gateway.ingate.io/test",
+					Conditions:     []metav1.Condition{condition},
+				}}
 			}
 			if err := apiClient.Status().Update(t.Context(), current); err != nil {
 				t.Fatalf("Status.Update(%q) error = %v, want nil", current.GetName(), err)
@@ -239,7 +245,53 @@ func projectionTestCases() []projectionTestCase {
 	metadata := metav1.ObjectMeta{Name: "current", ResourceVersion: "8", Generation: 1, CreationTimestamp: metav1.NewTime(createdAt)}
 	parentsJSON := `[{"name":"edge","sectionName":"http"}]`
 	rulesJSON := `[{"matches":[{"pathType":"PathPrefix","pathValue":"/api"}],"backendRefs":[{"name":"backend"}]}]`
+	modelRulesJSON := `[{"matches":[{"headers":[{"name":"x-ai-eg-model","type":"Exact","value":"model"}]}],"backendRefs":[{"name":"models","modelNameOverride":"provider-model"}]}]`
 	return []projectionTestCase{
+		{
+			name: "ModelRoute", table: "modelroutes", initialSyncName: modelRouteInitialSyncName,
+			object: &gatewayv1alpha1.ModelRoute{
+				ObjectMeta: metadata,
+				Spec: gatewayv1alpha1.ModelRouteSpec{
+					DisplayName: "模型路由",
+					ParentRefs:  []gatewayv1alpha1.ParentReference{{Name: "edge", SectionName: "http"}},
+					Rules: []gatewayv1alpha1.ModelRouteRule{{
+						Matches: []gatewayv1alpha1.ModelRouteMatch{{
+							Headers: []gatewayv1alpha1.HTTPHeaderMatch{{
+								Name:  "x-ai-eg-model",
+								Type:  gatewayv1alpha1.HeaderMatchExact,
+								Value: "model",
+							}},
+						}},
+						BackendRefs: []gatewayv1alpha1.AIBackendReference{{Name: "models", ModelNameOverride: "provider-model"}},
+					}},
+				},
+			},
+			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewModelRoute(c, s) },
+			expectCreate: func(mock sqlmock.Sqlmock, name, version string) {
+				expectProjectionLookup(mock, "modelroutes", name, false)
+				mock.ExpectExec("INSERT INTO `modelroutes` (`name`,`display_name`,`version`,`created_at`,`updated_at`,`parents`,`rules`) VALUES (?,?,?,?,?,?,?)").
+					WithArgs(name, "模型路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, modelRulesJSON).
+					WillReturnResult(sqlmock.NewResult(41, 1))
+				mock.ExpectCommit()
+			},
+			expectUpdate: func(mock sqlmock.Sqlmock, name, version string) {
+				expectProjectionLookup(mock, "modelroutes", name, true)
+				mock.ExpectExec("UPDATE `modelroutes` SET `display_name`=?,`version`=?,`created_at`=?,`updated_at`=?,`parents`=?,`rules`=? WHERE `id` = ?").
+					WithArgs("模型路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, modelRulesJSON, 41).
+					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectCommit()
+			},
+			expectDelete: func(mock sqlmock.Sqlmock, name string) {
+				mock.ExpectBegin()
+				mock.ExpectExec("DELETE FROM `modelroutes` WHERE name = ?").WithArgs(name).WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectCommit()
+			},
+			expectDeleteErr: func(mock sqlmock.Sqlmock, name string, err error) {
+				mock.ExpectBegin()
+				mock.ExpectExec("DELETE FROM `modelroutes` WHERE name = ?").WithArgs(name).WillReturnError(err)
+				mock.ExpectRollback()
+			},
+		},
 		{
 			name: "AIBackend", table: "aibackends", initialSyncName: aiBackendInitialSyncName,
 			object: &gatewayv1alpha1.AIBackend{
@@ -422,7 +474,7 @@ func newProjectionTestClient(t *testing.T, objects ...client.Object) client.With
 		t.Fatalf("AddToScheme() error = %v, want nil", err)
 	}
 	return fake.NewClientBuilder().WithScheme(scheme).
-		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.HTTPRoute{}, &gatewayv1alpha1.Backend{}, &gatewayv1alpha1.AIBackend{}).
+		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.HTTPRoute{}, &gatewayv1alpha1.Backend{}, &gatewayv1alpha1.AIBackend{}, &gatewayv1alpha1.ModelRoute{}).
 		WithObjects(objects...).Build()
 }
 

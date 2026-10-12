@@ -10,15 +10,17 @@ import (
 	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
 	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
+	modelroutehandler "github.com/lgc202/ingate/internal/adminapi/handler/modelroute"
 )
 
 // Handlers 保存 Admin API 需要注册的业务 Handler。
 type Handlers struct {
-	Gateway   *gatewayhandler.Handler
-	HTTPRoute *routehandler.Handler
-	Backend   *backendhandler.Handler
-	AIBackend *aibackendhandler.Handler
-	Account   *accounthandler.Handler
+	Gateway    *gatewayhandler.Handler
+	HTTPRoute  *routehandler.Handler
+	Backend    *backendhandler.Handler
+	AIBackend  *aibackendhandler.Handler
+	ModelRoute *modelroutehandler.Handler
+	Account    *accounthandler.Handler
 }
 
 // New 构造并注册 Admin API 的入站服务，但不开始监听端口。
@@ -43,6 +45,8 @@ func New(
 	adminv1.RegisterBackendServiceServer(grpcServer, handlers.Backend)
 	adminv1.RegisterAIBackendServiceHTTPServer(httpServer, handlers.AIBackend)
 	adminv1.RegisterAIBackendServiceServer(grpcServer, handlers.AIBackend)
+	adminv1.RegisterModelRouteServiceHTTPServer(httpServer, handlers.ModelRoute)
+	adminv1.RegisterModelRouteServiceServer(grpcServer, handlers.ModelRoute)
 
 	return httpServer, grpcServer
 }

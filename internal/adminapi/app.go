@@ -14,6 +14,7 @@ import (
 	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
 	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
+	modelroutehandler "github.com/lgc202/ingate/internal/adminapi/handler/modelroute"
 	"github.com/lgc202/ingate/internal/adminapi/middleware"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
 	apiserverstore "github.com/lgc202/ingate/internal/adminapi/repository/apiserver"
@@ -25,6 +26,7 @@ import (
 	backendservice "github.com/lgc202/ingate/internal/adminapi/service/backend"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/httproute"
+	modelrouteservice "github.com/lgc202/ingate/internal/adminapi/service/modelroute"
 	logconfig "github.com/lgc202/ingate/internal/pkg/log"
 	mysqlclient "github.com/lgc202/ingate/internal/pkg/mysql"
 	redisclient "github.com/lgc202/ingate/internal/pkg/redis"
@@ -111,24 +113,28 @@ func newApp(
 	routes := repository.NewHTTPRoute(apiServerStore.HTTPRoutes(), mysqlStore)
 	backends := repository.NewBackend(apiServerStore.Backends(), mysqlStore)
 	aiBackends := repository.NewAIBackend(apiServerStore.AIBackends(), mysqlStore)
+	modelRoutes := repository.NewModelRoute(apiServerStore.ModelRoutes(), mysqlStore)
 
 	gatewayService := gatewayservice.New(gateways)
 	routeService := routeservice.New(routes)
 	backendService := backendservice.New(backends)
 	aiBackendService := aibackendservice.New(aiBackends)
+	modelRouteService := modelrouteservice.New(modelRoutes)
 
 	gatewayHandler := gatewayhandler.New(gatewayService)
 	routeHandler := routehandler.New(routeService)
 	backendHandler := backendhandler.New(backendService)
 	aiBackendHandler := aibackendhandler.New(aiBackendService)
+	modelRouteHandler := modelroutehandler.New(modelRouteService)
 	accountHandler := accounthandler.New(accountService)
 
 	handlers := server.Handlers{
-		Gateway:   gatewayHandler,
-		HTTPRoute: routeHandler,
-		Backend:   backendHandler,
-		AIBackend: aiBackendHandler,
-		Account:   accountHandler,
+		Gateway:    gatewayHandler,
+		HTTPRoute:  routeHandler,
+		Backend:    backendHandler,
+		AIBackend:  aiBackendHandler,
+		ModelRoute: modelRouteHandler,
+		Account:    accountHandler,
 	}
 	middlewareChain := server.NewMiddlewareChain(middleware.RequireSession(accountService))
 	httpServer, grpcServer := server.New(config.GetServer(), handlers, middlewareChain)
