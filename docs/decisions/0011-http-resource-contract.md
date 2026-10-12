@@ -4,6 +4,8 @@
 - 状态：设计 review 通过，用户于 2026-10-11 授权提交阶段 B 当前实现；保留验证缺口
 - 范围：继任 0001、0002、0005 中的 HTTP 资源名称及路由语义；其他生命周期和职责不变
 
+2026-10-12 更新：本文保留阶段 B 的实现快照。集群级作用域及跨资源平局的名称键已由 [0013](0013-namespaced-resources.md)替代为 Namespace 作用域及 Namespace/name；存储和管理链路仍待切换，不将目标作用域视为已完成。
+
 ## 已实现范围与来源
 
 沿用 [资源契约](../design/ai-gateway-resource-contract.md)与[固定版本上游对照](../design/ai-gateway-upstream-alignment.md)，不导入参考项目的业务、未实现类型或新依赖。原生 Group 仍为 gateway.ingate.io/v1alpha1，资源仍为集群级；这是 Gateway API 语义的明确子集，不宣称完整兼容认证。

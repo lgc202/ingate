@@ -1,10 +1,10 @@
 # 三类路由复用 Backend，以 AIBackend 定义模型服务访问契约
 
-- 状态：六种声明式资源及三种新增资源的管理与投影均已提交；共享协调器组织调整待用户 review，未提交；不新增数据面业务
+- 状态：六种资源的声明、管理与投影及共享协调器组织调整均已提交；用户授权提交 Namespace 编译身份改造；不新增协议数据面业务
 - 作者：Ingate 开发协作
 - 更新日期：2026-10-12
 - 讨论入口：本仓库文档 review，依据 [0010 决策](../decisions/0010-unified-ai-proxy-config-delivery.md)及用户确认的资源关系
-- 当前源码基线：`f054c54b`（MCPRoute 管理与查询投影），分支 `codex/rebuild-from-zero`；HTTP 替换前基线为 `56205b84321c`
+- 当前源码基线：`90045e8d`（共享协调器按资源组织），分支 `codex/rebuild-from-zero`；HTTP 替换前基线为 `56205b84321c`
 - 范围：资源契约、裁决边界、管理接口影响、实施顺序及 D1/D2 进度；不新增数据面业务
 
 ## 摘要
@@ -33,7 +33,7 @@
 
 拟采用 `gateway.ingate.io/v1alpha1`，保留无版本内部类型、版本化外部类型、生成 Conversion/DeepCopy/OpenAPI/Clientset 的现有形式。六种主资源使用 Kubernetes metadata、spec、status 结构。
 
-| Kind | API Server 资源名 | 管理端集合路径（拟定） |
+| Kind | API Server 资源名 | 当前管理端集合路径 |
 | --- | --- | --- |
 | Gateway | gateways | /api/admin/v1/gateways |
 | HTTPRoute | httproutes | /api/admin/v1/http-routes |
@@ -42,7 +42,7 @@
 | MCPRoute | mcproutes | /api/admin/v1/mcp-routes |
 | Backend | backends | /api/admin/v1/backends |
 
-拟继续采用集群级资源，名称在同一 Kind 内唯一；不同 Kind 的同名对象互不等同。当前没有租户或 Namespace 管理契约，暂不引入命名空间、跨命名空间引用和 ReferenceGrant。集群级资源不提供租户隔离；如果产品要提供租户自治，必须在该产品能力实现前重新评审作用域与权限，不能用名称前缀替代隔离。
+用户已确认改用 Namespace 作用域：管理请求显式指定空间，界面可默认选中一个空间，后端不固定空间；引用只在源对象的空间内解析。名称在同一 Kind、同一 Namespace 内唯一，不同空间可同名。目标管理路径为 `/api/admin/v1/namespaces/{namespace}/<resources>`，不保留旧 CRUD 兼容入口；上表仍是尚未切换的当前接口。具体范围和分步状态见 [0013](../decisions/0013-namespaced-resources.md)。Namespace 不是权限或网络隔离的替代品，本次不增加租户、ReferenceGrant 或跨空间授权。
 
 资源名称沿用当前 DNS subdomain 规则；Listener 名称沿用 DNS label 规则。端点集合采用现有确定排序；路由规则列表保留声明顺序，因为它是 Gateway API 规定的最终同资源匹配裁决因素。更新仍使用原样的 `metadata.resourceVersion`，不把它解释成跨资源业务发布版本。
 
@@ -58,7 +58,7 @@ parentRefs:
 
 `name` 引用 Gateway，必填；`sectionName` 可选，设置时引用其中的 Listener，省略时引用整个 Gateway，由其符合协议及附着要求的 Listener 接纳。至少一个 Listener 接纳即表示该 parent 附着成功，不表示所有 Listener 均成功。沿用 Gateway API 的语义，不再要求额外填写 sectionName 才能使用。
 
-引用限定到 Gateway，不接受任意 Group/Kind，不增加未实现的 namespace 或按端口绑定。Gateway 改 Listener 端口时，显式 Listener 引用仍稳定；删除或改 Listener 名称时，该绑定失效。省略 sectionName 会使后续新增的合格 Listener 也可能接纳该路由，管理端须展示此影响；需要固定入口时显式填写。
+引用限定到同一 Namespace 的 Gateway，不接受任意 Group/Kind，不增加跨空间 namespace 字段或按端口绑定。Gateway 改 Listener 端口时，显式 Listener 引用仍稳定；删除或改 Listener 名称时，该绑定失效。省略 sectionName 会使后续新增的合格 Listener 也可能接纳该路由，管理端须展示此影响；需要固定入口时显式填写。
 
 `parentRefs` 是非空集合，重复的 `(name, sectionName)` 在写入时拒绝。同一 Gateway 的多条引用必须都显式指定不同 Listener，不能同时声明整个 Gateway 和其某个 Listener；该约束沿用上游以避免重叠引用。拟允许一个路由绑定多个入口，各绑定独立接纳和报告状态。非空要求是本项目只管理有入口路由的范围限制；Gateway API HTTPRoute 本身允许无 parent 的对象，本文不宣称完整一致性。
 
@@ -78,7 +78,7 @@ Gateway、HTTPRoute、Backend 的 Admin 创建请求不接收技术名称；后�
 
 新增三种资源沿用同一身份和展示名称契约：Admin 生成 name，用户编辑 displayName，引用仍使用 name。不新增 uid 字段、展示名称唯一约束或前缀索引字段；三种资源的 Admin 入口均已实现。
 
-跨 Gateway 的 Listener 冲突仍按 [0002](../decisions/0002-shared-data-plane-controller.md)的创建时间、名称稳定裁决。暂不引入 wildcard Host、GatewayClass、部署编排或流量管理策略资源。
+跨 Gateway 的 Listener 冲突仍在 [0002](../decisions/0002-shared-data-plane-controller.md)的共享数据面范围内裁决，包括不同 Namespace。按创建时间、Namespace、name 稳定排序；相同物理入口不会因资源分属不同空间而放行。暂不引入 wildcard Host、GatewayClass、部署编排或流量管理策略资源。
 
 ### Backend 管理网络目标，不管理模型账号
 
@@ -326,7 +326,7 @@ backendRefs:
 
 相同入口下，相同模型条件需要按匹配优先级选择；有模型条件优先于 catch-all。模型规则不能读取客户端自报的内部路由标识来跳过匹配。输入格式由操作路径决定，不再有两个 ModelRoute 在同路径声明不同输入 schema 的冲突。
 
-普通 HTTP 按 Gateway API 已实现匹配条件确定优先级：Exact 优先，PathPrefix 越长越优先；跨同类路由平局用创建时间、资源名称；同一路由最终用规则列表顺序，不按可选规则名排序。具有相同 match 的 HTTPRoute 不因重叠而整体删除，较低优先级规则保留为候选，优先规则删除后可重新选择。原 Ingate 将完全重复路径标为冲突；本次设计 review 已确认改变这一行为。
+普通 HTTP 按 Gateway API 已实现匹配条件确定优先级：Exact 优先，PathPrefix 越长越优先；跨同类路由平局用创建时间、Namespace、name；同一路由最终用规则列表顺序，不按可选规则名排序。具有相同 match 的 HTTPRoute 不因重叠而整体删除，较低优先级规则保留为候选，优先规则删除后可重新选择。原 Ingate 将完全重复路径标为冲突；本次设计 review 已确认改变这一行为。
 
 HTTPRoute、MCPRoute 和模型入口之间完全相同的网络匹配，是上游未为本项目统一运行方式规定的跨种类冲突。旧稿提出的「创建时间、Kind、名称」裁决仍未批准，本次不把它写入字段或资源接纳逻辑；接通数据面前须单独定稿。有模型条件的规则之间按创建时间、名称、声明顺序选择，后端引用有效性不改变匹配优先级，失效不能使同名模型自动改由其他账号。
 
@@ -382,7 +382,7 @@ PUT 带 `version`，不允许改资源名；Repository 获取当前对象、核�
 | --- | --- |
 | ModelRoute 直接指向网络 Backend | 已确认不采用；模型服务契约独立复用。多了引用校验和删除影响，Controller 在编译时解析，不增加数据面 API 查询跳数 |
 | 给 MCP 再增加一层 MCPBackend | 当前不采用；单后端服务参数放在 MCPRoute 的后端引用上。未来出现独立复用需求时再评审，不能为名称对称增加资源 |
-| 直接采用 Kubernetes Gateway API 全量类型与行为 | 当前采用自有 Group 和明确子集；避免引入未要求的 Namespace/GatewayClass/Service 管理，但必须公开差异，不能宣称兼容认证 |
+| 直接采用 Kubernetes Gateway API 全量类型与行为 | 当前采用自有 Group 和明确子集；Namespace 作用域已确认，不额外引入 GatewayClass/Service 管理；必须公开差异，不能宣称兼容认证 |
 | 所有策略都内联或都独立附着 | 不作统一规定；TLS 沿用 Envoy Gateway 内联子集，模型认证拟沿用独立 BackendSecurityPolicy，MCP 认证沿用引用内 securityPolicy。按独立权限/生命周期选择，不建立泛型 Policy 系统 |
 | 仍让每条路由只含一个父入口、一个匹配 | 本稿用 parent/rule/match 结构，按 parent 的标准 Conditions 表达附着、接纳和引用结果，不发明逐规则 status 协议 |
 | 用一个泛型协议对象处理 HTTP、模型和 MCP | 不采用；运行基础共用，协议资源和错误语义独立，不定义任意配置字典或插件接口 |
@@ -408,7 +408,13 @@ PUT 带 `version`，不允许改资源名；Repository 获取当前对象、核�
 
 用户确认在继续 D3 前先整理共享协调器。调整前 `resolve.go` 集中 Gateway 裁决和 HTTPRoute 绑定，`status.go` 集中两类资源的状态写回；直接追加模型/MCP 会让不同资源的变更持续落在同一组文件。此次按资源职责搬移到 `gateway.go`、`httproute.go`，对应测试跟随拆分并移除旧文件；`resources.go` 保存本轮输入、解析结果和资源读取，`controller.go` 保留 Watch、队列与协调流程，`compile.go` 保留配置汇总。
 
-这一步只调整组织，不增加 AIBackend Watch、引用解析或 Conditions，不预建 ModelRoute/MCPRoute 文件。现有单队列键、单 Worker、单一数据面发布者及读取失败/发布失败/状态写回失败的顺序保持不变；MySQL 投影仍独立。基线 HTTP 冲突、缺失引用、稳定排序、空配置、状态幂等及错误回传测试用于核对行为不变，不引入泛型 Controller、资源插件接口或新依赖。引用观测作为后续独立切片继续。
+这一步只调整组织，不增加 AIBackend Watch、引用解析或 Conditions，不预建 ModelRoute/MCPRoute 文件。现有单队列键、单 Worker、单一数据面发布者及读取失败/发布失败/状态写回失败的顺序保持不变；MySQL 投影仍独立。基线 HTTP 冲突、缺失引用、稳定排序、空配置、状态幂等及错误回传测试用于核对行为不变，不引入泛型 Controller、资源插件接口或新依赖。该组织调整已提交为 `90045e8d`，未推送。
+
+### Namespace 编译身份准备（用户授权提交）
+
+用户随后确认显式 Namespace、同空间引用，不固定后台空间。当前先把 HTTP 编译中的对象键、状态归并和数据面标识改为包含 Namespace，跨空间 Listener 仍按共享 Envoy 裁决。API Server 存储、Admin、MySQL 和投影未切换；范围和验证见 [0013](../decisions/0013-namespaced-resources.md)。
+
+未提交的 AIBackend 状态诊断草稿已移除。用户要求后续先编译并存储 AI 配置，供 AI Proxy 按标准 List/Watch 消费，不把单独写 Conditions 当作编译完成。本步不新增运行时资源或 AI 服务。
 
 ## 实现计划：按完整消费者路径切分，阶段完成后等待 review
 
@@ -421,7 +427,7 @@ PUT 带 `version`，不允许改资源名；Repository 获取当前对象、核�
 | C 后续统一测试：HTTP 主链路与 TLS | API Server、Manager、ADS、真实 Envoy、可控 HTTP/HTTPS 后端；明确认证环境 | 当前不搭建；统一测试时覆盖创建/更新/删除、Host/路径不匹配、DNS/IP、证书错名/不受信任、ACK/NACK/重连；TLS 失败不明文降级 |
 | D1 声明式资源 | 先 AIBackend，后 ModelRoute、MCPRoute：内外 Go 类型、default/validation、Scheme、Strategy、REST Storage、标准生成客户端/OpenAPI | 每个资源独立 review；存储保持 Spec/Status 与版本契约；不创建新服务、空 Controller、凭据字段或数据面入口 |
 | D2 管理与查询 | 三种资源的 Admin Create/Get/List/PUT/Delete、Service、Repository、Manager 投影及直接修正迁移基线 | 先列常用查询及所需索引，再定表；有序 rules/refs 可沿现有 JSON 投影，不为还原数组建 position 子表；不使用泛型 CRUD 层或通用资源表 |
-| D3 引用与状态 | 在已有 Manager 中解析依赖、监听变更并写标准 Conditions | 只确认能证明的引用和能力；运行尚未实现时不写已接纳或已生效成功，不发布无法处理的路径 |
+| D3 编译与存储 | 在已有 Manager 中解析依赖，编译并存储供 AI Proxy 消费的配置，记录可证明的标准 Conditions | 先完成 Namespace 全链路和运行配置存储契约；AI Proxy Watch 留到该服务开发阶段。运行尚未实现时不写已生效成功，不发布无法处理的路径 |
 | E 后续协议运行 | 已确认操作/协议、安全边界、派生配置与 Go 模型/MCP 模块 | 本次不开发；运行切片另行 review。覆盖请求/流、取消、失效目标、可信入口和配置切换，不默认加入模型重试、MCP 聚合或 Redis 会话 |
 | F 部署与故障验证 | 实际入站/出站权限、凭据保护、撤销界限、长流排空、实例状态及容量 | 环境证据齐备后评估上线，不把静态检查和单测当作完成验收 |
 
@@ -485,7 +491,7 @@ ParentReference 出现第二个实际管理协议消费者，从 httproute.proto
 
 ## 待确认事项：资源关系不再重选，剩余选择影响实现范围
 
-1. 自有 Group、集群级作用域与 HTTP 子集的附着、匹配、状态和失效引用变化已确认；对应阶段 B 实现另行代码 review。
+1. 自有 Group 和 HTTP 子集已确认并实现；原集群级作用域决定已由 [0013](../decisions/0013-namespaced-resources.md)替代为显式 Namespace、同空间引用。编译身份正在切换，存储、管理和投影尚未切换，不据此宣称已经提供 Namespace 管理。
 2. 官方 Header 匹配形状及 catch-all、AIBackend 首版 OpenAI/prefix、MCP 基础路径/单后端字段已确认，按 D1 实施，不先启动新服务。操作和真实提供商仍在 [模型操作与部署建议](ai-model-operations-and-deployment.md)中独立 review。
 3. BackendSecurityPolicy 的独立附着建议、凭据存储与权限、AI 客户端入站认证，以及内联 TLS 子集与出口部署边界；用户要求凭据参考官方，新增 [集中凭据与运行配置稿](ai-credentials-and-runtime-config.md)仍待 review，未完成前不接真实密钥或公网入口。
 4. MCP 的目标客户端与协议版本、Go SDK 的真实支持范围；先确定单后端代理，不把聚合当作已有需求。

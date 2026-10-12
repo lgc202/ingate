@@ -106,7 +106,7 @@ Agent Router [MCPRouteSpec](https://github.com/theagentrouter/agent-router/blob/
 | 一个 Go AI Proxy，模型与 MCP 模块分开 | 用户选择统一运行/配置生命周期；模型不再原样使用官方 ExtProc，需要验证新增 HTTP 转发的流、取消和背压 | 方向已确认，出口拓扑与运行参数未确认 |
 | API Server 下发编译结果 | 已有 mini API 机制，没有 kubelet 卷投射；复用 client-go List/Watch，不实现宿主编排替代品 | 下发方向已确认，运行时对象/权限/激活未确认 |
 | ModelRoute、AIBackend 名称 | 用户已确认职责关系；对应官方 AIGatewayRoute、AIServiceBackend，不增加公共模型实体 | 已确认 |
-| 自有 Group、cluster scope | 沿用现有管理边界；没有 Namespace/租户契约。不具备租户自治隔离，未来增加该能力前必须重审 | 阶段 B 的 HTTP 资源已确认并实现；未来租户/作用域演进仍须重审 |
+| 自有 Group、Namespace scope | 保留自有 Group；原 cluster scope 决定已由显式 Namespace、同空间引用替代，不增加跨空间授权或部署编排 | [0013](../decisions/0013-namespaced-resources.md)已确认作用域，当前只改造编译身份；存储、管理与投影仍待切换 |
 | ModelRoute 沿用 headers 匹配，无 route 级 path/schema | 统一 Go 运行不构成更改资源字段的必要理由；保留请求内容提取与匹配原义 | 本次基础字段已确认，替代旧稿的 matches.model/单操作路由建议 |
 | 精确操作入口与跨 HTTP/模型/MCP 入口裁决 | 普通 HTTP 仍直达 Envoy，不能机械复制官方 `/` 根前缀；冲突行为属于运行编译边界 | 另行 review；本次不发布入口或预建路由编排框架 |
 | 保留当前网络池、Admin HTTP/gRPC 与 MySQL 投影 | 属于现有功能及消费者，不因采用上游术语删除 | 阶段 B 当前实现及 00002 基线修正已获用户授权提交；未执行实库迁移 |
@@ -117,6 +117,6 @@ Agent Router [MCPRouteSpec](https://github.com/theagentrouter/agent-router/blob/
 
 基础 API 生命周期沿用 Kubernetes metadata、Strategy、标准错误、生成工具与现有 client-go；xDS 使用现有 go-control-plane。协议能力优先评估官方 MCP SDK、提供商 SDK 和 Agent Router 已有转换实现。实际采用包、版本或移植代码前，核对公开接口、许可证、internal 包限制、运行模式及依赖影响；没有可复用接口时才实现小范围适配，不直接复制整套 Controller 或升级全部依赖。
 
-此前上游对照阶段仅修改文档。已核对固定版本资源契约、关键协调/翻译路径和指定反例测试定义，不代表审查了上游全部代码，也未运行上游测试、SDK 互操作、真实 Envoy/提供商/MCP/凭据/实库验证。纯文档检查不替代这些证据。上表中的自有 Group、cluster scope 及 HTTP 管理/投影替换已随阶段 B 确认；模型、MCP、安全和跨协议裁决仍保留各自待确认边界。
+此前上游对照阶段仅修改文档。已核对固定版本资源契约、关键协调/翻译路径和指定反例测试定义，不代表审查了上游全部代码，也未运行上游测试、SDK 互操作、真实 Envoy/提供商/MCP/凭据/实库验证。纯文档检查不替代这些证据。自有 Group 和 HTTP 管理/投影替换已随阶段 B 确认；作用域以 0013 为准。模型/MCP 运行、安全和跨协议裁决仍保留各自待确认边界。
 
-[契约稿](ai-gateway-resource-contract.md)的六种资源关系、HTTP 子集及本次模型/MCP 基础字段已通过 review，HTTP 实现及验证见 [0011](../decisions/0011-http-resource-contract.md)。AIBackend、ModelRoute 声明已提交为 `3519b189`；MCPRoute 声明与存储、AIBackend Admin/查询投影已提交为 `75ac86b8`；ModelRoute 管理与投影已提交为 `53573124`，均未推送。MCPRoute 管理与投影已提交为 `f054c54b`，未推送；当前先按用户确认整理共享协调器职责，之后继续既有 Manager 内的引用与标准 Conditions，不在此开发新服务。MCPRoute 采用已确认的单 Backend、可选路径及默认值子集；这不表示已实现官方聚合器或协议转发。每阶段审查全部手写改动；提交前仍等用户 review。
+[契约稿](ai-gateway-resource-contract.md)的六种资源关系、HTTP 子集及本次模型/MCP 基础字段已通过 review，HTTP 实现及验证见 [0011](../decisions/0011-http-resource-contract.md)。AIBackend、ModelRoute 声明已提交为 `3519b189`；MCPRoute 声明与存储、AIBackend Admin/查询投影已提交为 `75ac86b8`；ModelRoute 管理与投影已提交为 `53573124`，均未推送。MCPRoute 管理与投影已提交为 `f054c54b`，共享协调器职责整理已提交为 `90045e8d`，均未推送。当前先准备 Namespace 编译身份，之后切换存储与管理链路，再实施已有 Manager 内的 AI 编译与存储，不在此开发新服务。MCPRoute 采用已确认的单 Backend、可选路径及默认值子集；这不表示已实现官方聚合器或协议转发。每阶段审查全部手写改动；提交前仍等用户 review。

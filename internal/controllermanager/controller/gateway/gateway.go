@@ -7,6 +7,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
@@ -51,20 +52,21 @@ func (r *Reconciler) updateGatewayStatuses(
 	gateways []gatewayv1alpha1.Gateway,
 	conflicts []gatewayConflict,
 ) error {
-	byName := make(map[string]gatewayConflict, len(conflicts))
+	byKey := make(map[client.ObjectKey]gatewayConflict, len(conflicts))
 	for _, conflict := range conflicts {
-		byName[conflict.gateway.Name] = conflict
+		byKey[client.ObjectKeyFromObject(conflict.gateway)] = conflict
 	}
 
 	for i := range gateways {
 		gateway := gateways[i].DeepCopy()
 		condition := acceptedCondition(gateway.Generation)
-		if conflict, found := byName[gateway.Name]; found {
+		key := client.ObjectKeyFromObject(gateway)
+		if conflict, found := byKey[key]; found {
 			condition.Status = metav1.ConditionFalse
 			condition.Reason = "ListenerConflict"
 			condition.Message = fmt.Sprintf(
 				"listener %q conflicts with Gateway %q listener %q",
-				conflict.listenerName, conflict.owner.Name, conflict.ownerListenerName,
+				conflict.listenerName, client.ObjectKeyFromObject(conflict.owner).String(), conflict.ownerListenerName,
 			)
 		}
 
@@ -72,7 +74,7 @@ func (r *Reconciler) updateGatewayStatuses(
 			continue
 		}
 		if err := r.client.Status().Update(ctx, gateway); err != nil {
-			return fmt.Errorf("update Gateway %q status: %w", gateway.Name, err)
+			return fmt.Errorf("update Gateway %q status: %w", key.String(), err)
 		}
 	}
 

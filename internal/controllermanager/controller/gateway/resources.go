@@ -41,7 +41,7 @@ func (r *Reconciler) readResources(ctx context.Context) (resources, error) {
 	return result, nil
 }
 
-// resolve 按创建时间和名称稳定排列候选；引用失效不移除路径匹配。
+// resolve 按创建时间、Namespace 和名称稳定排列候选；引用失效不移除路径匹配。
 func resolve(
 	gateways []gatewayv1alpha1.Gateway,
 	routes []gatewayv1alpha1.HTTPRoute,
@@ -55,6 +55,9 @@ func resolve(
 
 func compareMeta(a, b metav1.ObjectMeta) int {
 	if order := a.CreationTimestamp.Compare(b.CreationTimestamp.Time); order != 0 {
+		return order
+	}
+	if order := cmp.Compare(a.Namespace, b.Namespace); order != 0 {
 		return order
 	}
 

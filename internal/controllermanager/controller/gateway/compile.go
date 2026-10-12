@@ -3,13 +3,16 @@ package gateway
 import (
 	"fmt"
 	"maps"
+	"path"
 	"slices"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/lgc202/ingate/internal/controllermanager/dataplane"
 )
 
 type listenerRef struct {
-	gatewayName  string
+	gatewayKey   client.ObjectKey
 	listenerName string
 }
 
@@ -17,9 +20,11 @@ type listenerRef struct {
 func compile(result resolution) dataplane.Config {
 	routesByListener := make(map[listenerRef][]dataplane.Route)
 	for _, binding := range result.bindings {
-		ref := listenerRef{gatewayName: binding.gatewayName, listenerName: binding.listenerName}
+		ref := listenerRef{gatewayKey: binding.gatewayKey, listenerName: binding.listenerName}
+		routeKey := client.ObjectKeyFromObject(binding.route)
+		routeName := path.Join(routeKey.Namespace, routeKey.Name)
 		routesByListener[ref] = append(routesByListener[ref], dataplane.Route{
-			Name:        fmt.Sprintf("%s/rule/%d/match/%d", binding.route.Name, binding.ruleIndex, binding.matchIndex),
+			Name:        fmt.Sprintf("%s/rule/%d/match/%d", routeName, binding.ruleIndex, binding.matchIndex),
 			PathType:    dataplane.PathMatchType(binding.path.Type),
 			Path:        binding.path.Value,
 			BackendName: binding.backendName,
@@ -28,6 +33,7 @@ func compile(result resolution) dataplane.Config {
 
 	listenersByPort := make(map[int32]*dataplane.Listener)
 	for _, gateway := range result.gateways {
+		gatewayKey := client.ObjectKeyFromObject(gateway)
 		for _, listener := range gateway.Spec.Listeners {
 			group := listenersByPort[listener.Port]
 			if group == nil {
@@ -35,9 +41,9 @@ func compile(result resolution) dataplane.Config {
 				listenersByPort[listener.Port] = group
 			}
 
-			ref := listenerRef{gatewayName: gateway.Name, listenerName: listener.Name}
+			ref := listenerRef{gatewayKey: gatewayKey, listenerName: listener.Name}
 			group.Hosts = append(group.Hosts, dataplane.Host{
-				Name:     "gateway/" + gateway.Name + "/listener/" + listener.Name,
+				Name:     path.Join("gateway", gatewayKey.Namespace, gatewayKey.Name, "listener", listener.Name),
 				Hostname: listener.Hostname,
 				Routes:   routesByListener[ref],
 			})
@@ -59,7 +65,7 @@ func compile(result resolution) dataplane.Config {
 			}
 		}
 		config.Backends = append(config.Backends, dataplane.Backend{
-			Name:      backend.Name,
+			Name:      path.Join(backend.Namespace, backend.Name),
 			Endpoints: endpoints,
 		})
 	}

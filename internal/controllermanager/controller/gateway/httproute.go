@@ -1,22 +1,25 @@
 package gateway
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"maps"
+	"path"
 	"slices"
 	"strings"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
 type httpRouteBinding struct {
 	route        *gatewayv1alpha1.HTTPRoute
-	gatewayName  string
+	gatewayKey   client.ObjectKey
 	listenerName string
 	ruleIndex    int
 	matchIndex   int
@@ -25,7 +28,7 @@ type httpRouteBinding struct {
 }
 
 type httpRouteParentResolution struct {
-	routeName      string
+	routeKey       client.ObjectKey
 	parentRef      gatewayv1alpha1.ParentReference
 	accepted       bool
 	reason         string
@@ -37,13 +40,13 @@ func (r *resolution) selectHTTPRoutes(
 	routes []gatewayv1alpha1.HTTPRoute,
 	backends []gatewayv1alpha1.Backend,
 ) {
-	gatewaysByName := make(map[string]*gatewayv1alpha1.Gateway, len(r.gateways))
+	gatewaysByKey := make(map[client.ObjectKey]*gatewayv1alpha1.Gateway, len(r.gateways))
 	for _, gateway := range r.gateways {
-		gatewaysByName[gateway.Name] = gateway
+		gatewaysByKey[client.ObjectKeyFromObject(gateway)] = gateway
 	}
-	backendsByName := make(map[string]*gatewayv1alpha1.Backend, len(backends))
+	backendsByKey := make(map[client.ObjectKey]*gatewayv1alpha1.Backend, len(backends))
 	for i := range backends {
-		backendsByName[backends[i].Name] = &backends[i]
+		backendsByKey[client.ObjectKeyFromObject(&backends[i])] = &backends[i]
 	}
 	ordered := make([]*gatewayv1alpha1.HTTPRoute, len(routes))
 	for i := range routes {
@@ -53,13 +56,15 @@ func (r *resolution) selectHTTPRoutes(
 		return compareMeta(a.ObjectMeta, b.ObjectMeta)
 	})
 
-	used := make(map[string]bool)
+	used := make(map[client.ObjectKey]bool)
 	for _, route := range ordered {
 		for _, parent := range route.Spec.ParentRefs {
-			state := r.attachHTTPRouteParent(route, parent, gatewaysByName[parent.Name], backendsByName, used)
+			key := client.ObjectKey{Namespace: route.Namespace, Name: parent.Name}
+			state := r.attachHTTPRouteParent(route, parent, gatewaysByKey[key], backendsByKey, used)
 			for _, rule := range route.Spec.Rules {
 				for _, ref := range rule.BackendRefs {
-					if backendsByName[ref.Name] == nil && state.missingBackend == "" {
+					key := client.ObjectKey{Namespace: route.Namespace, Name: ref.Name}
+					if backendsByKey[key] == nil && state.missingBackend == "" {
 						state.missingBackend = ref.Name
 					}
 				}
@@ -68,8 +73,11 @@ func (r *resolution) selectHTTPRoutes(
 		}
 	}
 
-	for _, name := range slices.Sorted(maps.Keys(used)) {
-		r.backends = append(r.backends, backendsByName[name])
+	keys := slices.SortedFunc(maps.Keys(used), func(a, b client.ObjectKey) int {
+		return cmp.Compare(a.String(), b.String())
+	})
+	for _, key := range keys {
+		r.backends = append(r.backends, backendsByKey[key])
 	}
 }
 
@@ -77,11 +85,11 @@ func (r *resolution) attachHTTPRouteParent(
 	route *gatewayv1alpha1.HTTPRoute,
 	parent gatewayv1alpha1.ParentReference,
 	gateway *gatewayv1alpha1.Gateway,
-	backends map[string]*gatewayv1alpha1.Backend,
-	used map[string]bool,
+	backends map[client.ObjectKey]*gatewayv1alpha1.Backend,
+	used map[client.ObjectKey]bool,
 ) httpRouteParentResolution {
 	state := httpRouteParentResolution{
-		routeName: route.Name,
+		routeKey:  client.ObjectKeyFromObject(route),
 		parentRef: parent,
 		reason:    "NoMatchingParent",
 		message:   "no accepted HTTP listener matches the parent reference",
@@ -101,7 +109,7 @@ func (r *resolution) attachHTTPRouteParent(
 		state.accepted = true
 		state.reason = "Accepted"
 		state.message = "attached to at least one HTTP listener"
-		r.bindHTTPRouteRules(route, gateway.Name, listener.Name, backends, used)
+		r.bindHTTPRouteRules(route, client.ObjectKeyFromObject(gateway), listener.Name, backends, used)
 	}
 
 	return state
@@ -109,16 +117,20 @@ func (r *resolution) attachHTTPRouteParent(
 
 func (r *resolution) bindHTTPRouteRules(
 	route *gatewayv1alpha1.HTTPRoute,
-	gatewayName, listenerName string,
-	backends map[string]*gatewayv1alpha1.Backend,
-	used map[string]bool,
+	gatewayKey client.ObjectKey,
+	listenerName string,
+	backends map[client.ObjectKey]*gatewayv1alpha1.Backend,
+	used map[client.ObjectKey]bool,
 ) {
 	for i, rule := range route.Spec.Rules {
 		// API 只接受单个目标，异常的多引用不能被静默裁剪为第一个。
 		backendName := ""
-		if len(rule.BackendRefs) == 1 && backends[rule.BackendRefs[0].Name] != nil {
-			backendName = rule.BackendRefs[0].Name
-			used[backendName] = true
+		if len(rule.BackendRefs) == 1 {
+			key := client.ObjectKey{Namespace: route.Namespace, Name: rule.BackendRefs[0].Name}
+			if backends[key] != nil {
+				backendName = path.Join(key.Namespace, key.Name)
+				used[key] = true
+			}
 		}
 
 		matches := rule.Matches
@@ -128,7 +140,7 @@ func (r *resolution) bindHTTPRouteRules(
 		for j, match := range matches {
 			r.bindings = append(r.bindings, httpRouteBinding{
 				route:        route,
-				gatewayName:  gatewayName,
+				gatewayKey:   gatewayKey,
 				listenerName: listenerName,
 				ruleIndex:    i,
 				matchIndex:   j,
@@ -144,15 +156,16 @@ func (r *Reconciler) updateHTTPRouteStatuses(
 	routes []gatewayv1alpha1.HTTPRoute,
 	parents []httpRouteParentResolution,
 ) error {
-	byName := make(map[string][]httpRouteParentResolution)
+	byKey := make(map[client.ObjectKey][]httpRouteParentResolution)
 	for _, parent := range parents {
-		byName[parent.routeName] = append(byName[parent.routeName], parent)
+		byKey[parent.routeKey] = append(byKey[parent.routeKey], parent)
 	}
 
 	for i := range routes {
 		route := routes[i].DeepCopy()
-		desired := make([]gatewayv1alpha1.RouteParentStatus, 0, len(byName[route.Name]))
-		for _, state := range byName[route.Name] {
+		key := client.ObjectKeyFromObject(route)
+		desired := make([]gatewayv1alpha1.RouteParentStatus, 0, len(byKey[key]))
+		for _, state := range byKey[key] {
 			parent := gatewayv1alpha1.RouteParentStatus{
 				ParentRef:      state.parentRef,
 				ControllerName: controllerName,
@@ -200,7 +213,7 @@ func (r *Reconciler) updateHTTPRouteStatuses(
 
 		route.Status.Parents = desired
 		if err := r.client.Status().Update(ctx, route); err != nil {
-			return fmt.Errorf("update HTTPRoute %q status: %w", route.Name, err)
+			return fmt.Errorf("update HTTPRoute %q status: %w", key.String(), err)
 		}
 	}
 

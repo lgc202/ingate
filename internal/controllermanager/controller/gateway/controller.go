@@ -1,4 +1,4 @@
-// Package gateway 协调声明式网关资源，共同生成一份共享数据面配置。
+// Package gateway 按资源作用域解析引用，共同生成一份共享 HTTP 数据面配置。
 package gateway
 
 import (

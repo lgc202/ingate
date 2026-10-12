@@ -11,6 +11,7 @@
 - [AI 凭据与运行配置设计](design/ai-credentials-and-runtime-config.md)：Secret 引用、派生配置、版本绑定、本地就绪及轮转/撤销建议；待 review，包含集中托管的基础设施代价和未定契约。
 - [架构与流程图](diagrams/ai-gateway.html)：当前架构、目标资源关系、目标架构、请求流程、配置发布流程；可离线打开。
 - [HTTP 资源替换实现记录](decisions/0011-http-resource-contract.md)：阶段 B 范围、验证与未覆盖项。
+- [Namespace 与同空间引用](decisions/0013-namespaced-resources.md)：已确认管理请求显式指定空间；当前先改造编译身份，存储与管理链路尚未切换。
 - [重构审查记录](refactoring-review.md)：此前重构的验证结果与保留缺口，不代表当前端到端验收。
 
 ## 已有决策
@@ -29,5 +30,6 @@
 | [0010](decisions/0010-unified-ai-proxy-config-delivery.md) | 统一 AI Proxy、配置下发与目标资源关系 |
 | [0011](decisions/0011-http-resource-contract.md) | HTTPRoute/Backend 替换及标准行为子集 |
 | [0012](decisions/0012-resource-names-and-query-schema.md) | 资源名称、搜索和查询模型修正 |
+| [0013](decisions/0013-namespaced-resources.md) | 显式 Namespace、同空间引用与共享数据面 |
 
 各文档保留自己的状态；加入索引不表示草案或历史待评审项已经获得确认。

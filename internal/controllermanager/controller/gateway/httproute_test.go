@@ -219,14 +219,14 @@ func TestHTTPRouteParentStatusesPreserveOwnershipAndTransitionTime(t *testing.T)
 	r := New(apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }))
 	parents := []httpRouteParentResolution{
 		{
-			routeName: route.Name,
+			routeKey:  client.ObjectKeyFromObject(&route),
 			parentRef: route.Spec.ParentRefs[0],
 			accepted:  true,
 			reason:    "Accepted",
 			message:   "attached",
 		},
 		{
-			routeName: route.Name,
+			routeKey:  client.ObjectKeyFromObject(&route),
 			parentRef: missing,
 			reason:    "NoMatchingParent",
 			message:   "missing Gateway",

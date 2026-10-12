@@ -15,20 +15,22 @@ type Listener struct {
 
 // Host 是一个 Gateway Listener 占用的主机名及其路由。
 type Host struct {
+	// Name 是包含来源资源作用域的编译标识，不是用户展示名称。
 	Name     string
 	Hostname string
 
-	// Routes 已按创建时间、资源名称和规则列表顺序排列；适配器稳定排序路径优先级。
+	// Routes 已按创建时间、Namespace、资源名称和规则列表顺序排列；适配器稳定排序路径优先级。
 	Routes []Route
 }
 
 // Route 将一个 Host 上的路径匹配关联到后端。
 // PathPrefix 的 Path 已去除尾斜杠，根路径除外。
 type Route struct {
+	// Name 是包含来源 HTTPRoute 作用域、规则和匹配序号的编译标识。
 	Name     string
 	PathType PathMatchType
 	Path     string
-	// BackendName 为空时保持匹配并返回 HTTP 500，不转发到其他规则。
+	// BackendName 是包含作用域的编译标识；为空时保持匹配并返回 HTTP 500，不转发到其他规则。
 	BackendName string
 }
 
@@ -44,6 +46,7 @@ const (
 
 // Backend 是一组可供 Route 引用的后端地址。
 type Backend struct {
+	// Name 是来源 Backend 的作用域标识，必须与 Route.BackendName 一致。
 	Name      string
 	Endpoints []Endpoint
 }
