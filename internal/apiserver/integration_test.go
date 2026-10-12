@@ -13,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/storage/etcd3/testserver"
 	"k8s.io/client-go/dynamic"
@@ -21,12 +22,45 @@ import (
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
-// TestResourceHTTPContract 通过真实 HTTPS 和 etcd 验证三种资源的存储契约。
+// TestResourceHTTPContract 通过真实 HTTPS 和隔离 etcd 验证已实现资源的存储契约。
 func TestResourceHTTPContract(t *testing.T) {
 	tests := []struct {
 		name, kind, resource string
 		spec, updatedSpec    map[string]any
 	}{
+		{
+			name: "models", kind: "ModelRoute", resource: "modelroutes",
+			spec: map[string]any{
+				"displayName": "重复展示名称",
+				"parentRefs":  []any{map[string]any{"name": "missing-gateway"}},
+				"rules": []any{map[string]any{
+					"matches": []any{map[string]any{
+						"headers": []any{map[string]any{"name": "x-ai-eg-model", "type": "Exact", "value": "coding"}},
+					}},
+					"backendRefs": []any{map[string]any{"name": "missing-ai-backend", "modelNameOverride": "code-v2"}},
+				}},
+			},
+			updatedSpec: map[string]any{
+				"displayName": "更新展示名称",
+				"parentRefs":  []any{map[string]any{"name": "missing-gateway"}},
+				"rules": []any{map[string]any{
+					"backendRefs": []any{map[string]any{"name": "another-missing-ai-backend"}},
+				}},
+			},
+		},
+		{
+			name: "model-service", kind: "AIBackend", resource: "aibackends",
+			spec: map[string]any{
+				"displayName": "重复展示名称",
+				"backendRef":  map[string]any{"name": "missing-network"},
+				"schema":      map[string]any{"name": "OpenAI", "prefix": "/v1"},
+			},
+			updatedSpec: map[string]any{
+				"displayName": "更新展示名称",
+				"backendRef":  map[string]any{"name": "another-missing-network"},
+				"schema":      map[string]any{"name": "OpenAI", "prefix": "compatibility/v1"},
+			},
+		},
 		{
 			name: "edge", kind: "Gateway", resource: "gateways",
 			spec: map[string]any{"displayName": "重复展示名称", "listeners": []any{
@@ -117,6 +151,101 @@ func TestHTTPRouteDefaultingAndValidation(t *testing.T) {
 	}}
 	if _, err := resources.Create(t.Context(), unknown, metav1.CreateOptions{FieldValidation: metav1.FieldValidationStrict}); !apierrors.IsBadRequest(err) {
 		t.Errorf("strict Create(unsupported method) error = %v, want BadRequest", err)
+	}
+}
+
+func TestAIBackendDefaultingAndValidation(t *testing.T) {
+	client := startGatewayAPI(t)
+	resources := client.Resource(gatewayv1alpha1.SchemeGroupVersion.WithResource("aibackends"))
+	backend := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": gatewayv1alpha1.SchemeGroupVersion.String(),
+		"kind":       "AIBackend",
+		"metadata":   map[string]any{"name": "model-service"},
+		"spec": map[string]any{
+			"backendRef": map[string]any{"name": "missing-network"},
+			"schema":     map[string]any{"name": "OpenAI"},
+		},
+	}}
+	created, err := resources.Create(t.Context(), backend, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Create(AIBackend with unresolved reference) error = %v, want nil", err)
+	}
+	prefix, found, err := unstructured.NestedString(created.Object, "spec", "schema", "prefix")
+	if err != nil || !found || prefix != "/v1" {
+		t.Errorf("Create(AIBackend).schema.prefix = %q, found %t, error %v, want /v1", prefix, found, err)
+	}
+
+	invalid := backend.DeepCopy()
+	invalid.SetName("unsupported")
+	invalid.Object["spec"].(map[string]any)["schema"] = map[string]any{"name": "Anthropic"}
+	if _, err := resources.Create(t.Context(), invalid, metav1.CreateOptions{}); !apierrors.IsInvalid(err) {
+		t.Errorf("Create(AIBackend unsupported schema) error = %v, want Invalid", err)
+	}
+	invalid.SetName("invalid-prefix")
+	invalid.Object["spec"].(map[string]any)["schema"] = map[string]any{"name": "OpenAI", "prefix": "https://api.example.com/v1"}
+	if _, err := resources.Create(t.Context(), invalid, metav1.CreateOptions{}); !apierrors.IsInvalid(err) {
+		t.Errorf("Create(AIBackend URL prefix) error = %v, want Invalid", err)
+	}
+	invalid.SetName("unsupported-version")
+	invalid.Object["spec"].(map[string]any)["schema"] = map[string]any{"name": "OpenAI", "version": "v1"}
+	if _, err := resources.Create(t.Context(), invalid, metav1.CreateOptions{FieldValidation: metav1.FieldValidationStrict}); !apierrors.IsBadRequest(err) {
+		t.Errorf("strict Create(AIBackend version) error = %v, want BadRequest", err)
+	}
+}
+
+func TestModelRouteDefaultingAndValidation(t *testing.T) {
+	client := startGatewayAPI(t)
+	resources := client.Resource(gatewayv1alpha1.SchemeGroupVersion.WithResource("modelroutes"))
+	route := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": gatewayv1alpha1.SchemeGroupVersion.String(),
+		"kind":       "ModelRoute",
+		"metadata":   map[string]any{"name": "models"},
+		"spec": map[string]any{
+			"parentRefs": []any{map[string]any{"name": "missing-gateway"}},
+			"rules": []any{map[string]any{
+				"matches": []any{map[string]any{
+					"headers": []any{map[string]any{"name": "X-AI-EG-MODEL", "value": "Coding"}},
+				}},
+				"backendRefs": []any{map[string]any{"name": "missing-ai-backend"}},
+			}},
+		},
+	}}
+	created, err := resources.Create(t.Context(), route, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Create(ModelRoute with unresolved references) error = %v, want nil", err)
+	}
+	var got gatewayv1alpha1.ModelRoute
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(created.Object, &got); err != nil {
+		t.Fatalf("decode created ModelRoute error = %v, want nil", err)
+	}
+	if len(got.Spec.Rules) != 1 || len(got.Spec.Rules[0].Matches) != 1 {
+		t.Fatalf("Create(ModelRoute).rules = %+v, want one rule with one match", got.Spec.Rules)
+	}
+	wantHeader := gatewayv1alpha1.HTTPHeaderMatch{
+		Name:  "X-AI-EG-MODEL",
+		Type:  gatewayv1alpha1.HeaderMatchExact,
+		Value: "Coding",
+	}
+	if diff := cmp.Diff([]gatewayv1alpha1.HTTPHeaderMatch{wantHeader}, got.Spec.Rules[0].Matches[0].Headers); diff != "" {
+		t.Errorf("Create(ModelRoute).headers mismatch (-want +got):\n%s", diff)
+	}
+
+	invalid := route.DeepCopy()
+	invalid.SetName("unsupported-match")
+	invalidRules := invalid.Object["spec"].(map[string]any)["rules"].([]any)
+	invalidMatches := invalidRules[0].(map[string]any)["matches"].([]any)
+	invalidHeaders := invalidMatches[0].(map[string]any)["headers"].([]any)
+	invalidHeaders[0].(map[string]any)["type"] = "RegularExpression"
+	if _, err := resources.Create(t.Context(), invalid, metav1.CreateOptions{}); !apierrors.IsInvalid(err) {
+		t.Errorf("Create(ModelRoute regex match) error = %v, want Invalid", err)
+	}
+
+	invalid = route.DeepCopy()
+	invalid.SetName("unsupported-path")
+	invalid.Object["spec"].(map[string]any)["path"] = "/v1/chat/completions"
+	options := metav1.CreateOptions{FieldValidation: metav1.FieldValidationStrict}
+	if _, err := resources.Create(t.Context(), invalid, options); !apierrors.IsBadRequest(err) {
+		t.Errorf("strict Create(ModelRoute route-level path) error = %v, want BadRequest", err)
 	}
 }
 
@@ -395,7 +524,7 @@ func assertConditions(t *testing.T, resource *unstructured.Unstructured, want in
 	t.Helper()
 
 	conditions, found, err := unstructured.NestedSlice(resource.Object, "status", "conditions")
-	if resource.GetKind() == "HTTPRoute" {
+	if resource.GetKind() == "HTTPRoute" || resource.GetKind() == "ModelRoute" {
 		parents, exists, parentErr := unstructured.NestedSlice(resource.Object, "status", "parents")
 		if parentErr != nil {
 			t.Fatalf("read status.parents: %v", parentErr)
@@ -414,7 +543,7 @@ func assertConditions(t *testing.T, resource *unstructured.Unstructured, want in
 }
 
 func statusForKind(kind string, conditions []any) map[string]any {
-	if kind == "HTTPRoute" {
+	if kind == "HTTPRoute" || kind == "ModelRoute" {
 		return map[string]any{"parents": []any{map[string]any{
 			"parentRef":      map[string]any{"name": "edge", "sectionName": "http"},
 			"controllerName": "gateway.ingate.io/test",

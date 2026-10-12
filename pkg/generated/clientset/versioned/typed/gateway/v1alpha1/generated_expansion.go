@@ -2,8 +2,12 @@
 
 package v1alpha1
 
+type AIBackendExpansion interface{}
+
 type BackendExpansion interface{}
 
 type GatewayExpansion interface{}
 
 type HTTPRouteExpansion interface{}
+
+type ModelRouteExpansion interface{}

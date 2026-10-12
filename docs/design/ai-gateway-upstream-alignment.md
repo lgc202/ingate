@@ -1,8 +1,8 @@
 # AI 网关上游设计对照：采用、裁剪与必要差异
 
-- 状态：用户于 2026-10-10 review 通过；HTTP 子集按阶段 B 实施。后续安全与协议切片另行确认，不授权安装组件或新增依赖
-- 核对日期：2026-10-10
-- Ingate 基线：`56205b84321c60b9e6e73d2b9f2d5664575ea275`
+- 状态：六种资源关系、HTTP 子集及 2026-10-12 模型/MCP 基础字段已确认；AIBackend、ModelRoute 声明与存储已实现并获用户提交授权，不授权新服务、安装组件或新增依赖
+- 最近核对日期：2026-10-12；通用 HTTP/TLS 与 MCP 运行行为的此前核对日期为 2026-10-10
+- 当前 Ingate 基线：`bd45a499`；HTTP 替换前基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
 - 对应设计：[资源契约与替换计划](ai-gateway-resource-contract.md)
 
 ## 结论与来源选择
@@ -53,6 +53,24 @@ Agent Router [AIServiceBackendSpec](https://github.com/theagentrouter/agent-rout
 
 模型认证参考 [BackendSecurityPolicySpec](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/api/v1beta1/backendsecurity_policy.go#L47)的 targetRefs 附着，凭据由受保护引用获取。Ingate 的建议目标是已确认的 AIBackend；这是名称/目标适配，不是新策略框架。认证权限、轮转及撤销有独立生命周期，建议独立资源，而不是写死进模型 API schema。新增策略 API 与凭据能力仍须 review。
 
+### 2026-10-12 重新核对：资源定义必须连到实际消费者
+
+本次只读取得表中固定提交的类型、Controller、ExtProc 入口与示例，未切换到 main，未运行上游组件。旧稿的模型字段并非官方原样契约；用户于 2026-10-12 确认基础字段修订，运行入口编译和安全边界仍另行 review。
+
+| 关注点 | 本次读取的官方证据 | Ingate 修订建议与行为影响 |
+| --- | --- | --- |
+| route 级 path/schema | [AIGatewayRouteSpec](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/api/v1beta1/ai_gateway_route.go#L61)与 [OpenAI 示例](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/examples/basic/openai.yaml)均无这两个字段 | 撤掉 ModelRoute.path/schema；同一组模型规则适用于已开放操作，不再复制每操作资源 |
+| 客户端格式选择 | [操作注册](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/cmd/extproc/mainlib/main.go#L328) + [processorForPath](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/extproc/server.go#L98)按标准路径选择处理器 | 操作属于运行实现范围；不新增 operation 字段，也不因资源存在就开放全部接口 |
+| 模型选择 | [AIGatewayRouteRuleMatch](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/api/v1beta1/ai_gateway_route.go#L424)使用 headers，模型键为 `x-ai-eg-model`；[ProcessRequestBody](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/extproc/processor_impl.go#L287)从请求内容赋值并生成 Header mutation | 撤掉 matches.model，沿用官方 headers 形状和提取后匹配的语义；Go 可直接匹配提取值，不能信任客户端伪造 Header |
+| 空 matches | 官方 matches 可省略，派生 [HTTPRoute](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/controller/ai_gateway_route.go#L341)沿用 HTTPRoute 的缺省匹配 | 撤掉强制每规则填写模型的额外限制；空值为 catch-all，管理端须明确显示「所有模型」；未知模型未必由网关拒绝 |
+| 上游 prefix 默认值 | [schemaToFilterAPI](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/controller/gateway.go#L175)对 OpenAI 用 `cmp.Or(prefix, "v1")` | 省略及空字符串的有效前缀为 `/v1`，不能解释成根路径。schema 类型注释与实际编译行为有差异，以消费者为依据 |
+| schema.version | [VersionedAPISchema](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/api/v1beta1/shared_types.go#L18)明确 OpenAI 忽略 version；实际编译也未复制该值 | 首版只有 OpenAI，建议不开放无效 version 字段；增加确实需要版本的提供商时采用上游原义 |
+| 模型入口生成 | [newHTTPRoute](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/controller/ai_gateway_route.go#L341)使用 Controller 的 rootPrefix；[启动参数](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/cmd/controller/main.go#L235)默认 `/` | 不复制官方覆盖根前缀的网络入口；统一 Go Proxy 的已批准操作拟生成精确入口，避免接管普通 HTTP/MCP。这是运行编译适配，不是新增资源字段 |
+
+上述依据不能由过时注释替代。AIServiceBackendSpec 的 APISchema 注释仍提及 AIGatewayRouteSpec.APISchema，但该版本实际 route 定义不存在该字段；shared_types 的省略 prefix 描述也不能替代 Controller 的默认处理。
+
+名称变化、cluster scope、displayName、单目标、只开放模型 Exact 匹配以及标准 parent Conditions，仍是明确的 Ingate 子集。沿用结构不等于完整实现官方 Header 路由、模型发现、InferencePool、多目标重试、转换或计费。后台生成 name、重复 displayName 和必要时显示资源 ID 沿用本项目已确认契约，不重新发明身份系统。
+
 ### 不照搬实现中的每一处行为
 
 官方 [newHTTPRoute](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/controller/ai_gateway_route.go#L249)会跳过无法取得或未经授权的 AIServiceBackend 引用，继续构建其余配置并汇总错误；[撤销 ReferenceGrant 的测试](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/controller/ai_gateway_route_test.go#L1060)断言派生 HTTPRoute 清掉该目标，并通知 Gateway 重建配置，不能只改 status 却继续使用旧账号。
@@ -73,6 +91,8 @@ Gateway API [XBackend](https://gateway-api.sigs.k8s.io/reference/api-types/backe
 
 Agent Router [MCPRouteSpec](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/api/v1beta1/mcp_route.go#L71)直接引用网络目标；[backendRefs](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/api/v1beta1/mcp_route.go#L182)携带 path 与 securityPolicy。入口/上游路径均默认 `/mcp`。本稿沿用这些名称及附着边界，不再自造 authentication 包装或每路由 protocol.versions；首个切片拟限定远程单后端 Streamable HTTP，仍须 review。
 
+本次重读了这些类型及 [MCP 实例配置](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/examples/mcp/mcp_example.yaml)：path 是可选指针，两个路径默认值及 1024 长度限制一致。建议基础资源只接入 parentRefs、path、单个 Backend 引用及其 path；认证未定时不创建空 securityPolicy。拒绝显式空 path 是项目的路径有效性子集，不能冒充官方已写出的字段约束。协议版本、会话与 SDK 行为本次没有重新验证，不影响先做非敏感资源 CRUD。
+
 官方此版本主要提供多后端聚合；Ingate 的单后端、不重命名工具、不引入共享会话存储是范围裁剪，不是官方聚合器等价实现。完整方法、通知、请求取消和合法流式交互仍必须通过选定版本验证，不能拿 tools/call 成功代替。
 
 有一个容易误读的发布边界：SDK v1.7.0 的 [协议版本定义](https://github.com/modelcontextprotocol/go-sdk/blob/v1.7.0/mcp/shared.go#L44)包含 2026-07-28，Agent Router 也含 modern 处理代码，但固定版本 [servePOST](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/mcpproxy/handlers.go#L65)仍保留 era 分派 TODO，只调用 serveLegacyPOST。[发布说明](https://github.com/theagentrouter/agent-router/releases/tag/v1.2.0)也明确 modern 端到端支持尚未启用。因此不能把最新协议直接填进示例便声称可互操作。
@@ -87,8 +107,8 @@ Agent Router [MCPRouteSpec](https://github.com/theagentrouter/agent-router/blob/
 | API Server 下发编译结果 | 已有 mini API 机制，没有 kubelet 卷投射；复用 client-go List/Watch，不实现宿主编排替代品 | 下发方向已确认，运行时对象/权限/激活未确认 |
 | ModelRoute、AIBackend 名称 | 用户已确认职责关系；对应官方 AIGatewayRoute、AIServiceBackend，不增加公共模型实体 | 已确认 |
 | 自有 Group、cluster scope | 沿用现有管理边界；没有 Namespace/租户契约。不具备租户自治隔离，未来增加该能力前必须重审 | 阶段 B 的 HTTP 资源已确认并实现；未来租户/作用域演进仍须重审 |
-| 类型化 matches.model、显式单操作入口 | Go 在请求体解析结果上路由，无需公开 Envoy 内部 Header；显式控制暴露操作。与官方 Header/routing prefix 不同 | 待 review，保留匹配原义 |
-| 跨 HTTP/模型/MCP 入口裁决、内部模型表分组 | 同一 Envoy 入口需要单一归属和解析器；不是标准已规定的跨协议行为，也不是新 API | 待 review，先用稳定排序，不预建编排系统 |
+| ModelRoute 沿用 headers 匹配，无 route 级 path/schema | 统一 Go 运行不构成更改资源字段的必要理由；保留请求内容提取与匹配原义 | 本次基础字段已确认，替代旧稿的 matches.model/单操作路由建议 |
+| 精确操作入口与跨 HTTP/模型/MCP 入口裁决 | 普通 HTTP 仍直达 Envoy，不能机械复制官方 `/` 根前缀；冲突行为属于运行编译边界 | 另行 review；本次不发布入口或预建路由编排框架 |
 | 保留当前网络池、Admin HTTP/gRPC 与 MySQL 投影 | 属于现有功能及消费者，不因采用上游术语删除 | 阶段 B 当前实现及 00002 基线修正已获用户授权提交；未执行实库迁移 |
 
 以上差异不能仅以「我们更灵活」为依据。若无需差异就能满足消费者，应选上游原义；发现新共享需求后再提炼公共抽象，不在第一切片预建 Provider/Processor 插件、策略 DSL、通用实体表、空接口或新 Watch 协议。
@@ -99,4 +119,4 @@ Agent Router [MCPRouteSpec](https://github.com/theagentrouter/agent-router/blob/
 
 此前上游对照阶段仅修改文档。已核对固定版本资源契约、关键协调/翻译路径和指定反例测试定义，不代表审查了上游全部代码，也未运行上游测试、SDK 互操作、真实 Envoy/提供商/MCP/凭据/实库验证。纯文档检查不替代这些证据。上表中的自有 Group、cluster scope 及 HTTP 管理/投影替换已随阶段 B 确认；模型、MCP、安全和跨协议裁决仍保留各自待确认边界。
 
-[契约稿](ai-gateway-resource-contract.md)已通过 review；HTTP 子集已按完整消费者路径实施，范围与验证见 [0011](../decisions/0011-http-resource-contract.md)。新增模型认证策略、凭据保护和首个协议选择未确认时，只推进已批准范围，不以示例自行补全业务、API 或依赖。每阶段审查全部手写改动；提交前仍等用户 review。
+[契约稿](ai-gateway-resource-contract.md)的六种资源关系、HTTP 子集及本次模型/MCP 基础字段已通过 review，HTTP 实现及验证见 [0011](../decisions/0011-http-resource-contract.md)。当前完成 AIBackend、ModelRoute 声明与存储，用户已授权提交这两步；下一资源是 MCPRoute，随后做 Admin/投影，不在此开发新服务。每阶段审查全部手写改动；提交前仍等用户 review。

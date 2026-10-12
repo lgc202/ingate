@@ -29,6 +29,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&Gateway{}, &GatewayList{},
 		&HTTPRoute{}, &HTTPRouteList{},
 		&Backend{}, &BackendList{},
+		&AIBackend{}, &AIBackendList{},
+		&ModelRoute{}, &ModelRouteList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

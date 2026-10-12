@@ -1,4 +1,4 @@
-// Package gateway 将 Gateway、HTTPRoute 和 Backend 注册到 Generic API Server 的 API Group。
+// Package gateway 将已实现的网关和模型服务资源注册到 Generic API Server 的 API Group。
 package gateway
 
 import (
@@ -8,9 +8,11 @@ import (
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/rest"
 
+	aibackendstorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/aibackend"
 	backendstorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/backend"
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/gateway"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/httproute"
+	modelroutestorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/modelroute"
 )
 
 // NewStorage 创建 gateway.ingate.io API Group 中已实现资源的存储映射。
@@ -36,12 +38,33 @@ func NewStorage(
 		return nil, fmt.Errorf("create Backend REST storage: %w", err)
 	}
 
+	aiBackendREST, aiBackendStatusREST, err := aibackendstorage.NewREST(scheme, optionsGetter)
+	if err != nil {
+		backendREST.Destroy()
+		routeREST.Destroy()
+		gatewayREST.Destroy()
+		return nil, fmt.Errorf("create AIBackend REST storage: %w", err)
+	}
+
+	modelRouteREST, modelRouteStatusREST, err := modelroutestorage.NewREST(scheme, optionsGetter)
+	if err != nil {
+		aiBackendREST.Destroy()
+		backendREST.Destroy()
+		routeREST.Destroy()
+		gatewayREST.Destroy()
+		return nil, fmt.Errorf("create ModelRoute REST storage: %w", err)
+	}
+
 	return map[string]rest.Storage{
-		"gateways":          gatewayREST,
-		"gateways/status":   statusREST,
-		"httproutes":        routeREST,
-		"httproutes/status": routeStatusREST,
-		"backends":          backendREST,
-		"backends/status":   backendStatusREST,
+		"gateways":           gatewayREST,
+		"gateways/status":    statusREST,
+		"httproutes":         routeREST,
+		"httproutes/status":  routeStatusREST,
+		"backends":           backendREST,
+		"backends/status":    backendStatusREST,
+		"aibackends":         aiBackendREST,
+		"aibackends/status":  aiBackendStatusREST,
+		"modelroutes":        modelRouteREST,
+		"modelroutes/status": modelRouteStatusREST,
 	}, nil
 }

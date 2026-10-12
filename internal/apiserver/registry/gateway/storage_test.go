@@ -5,8 +5,10 @@ import (
 
 	"k8s.io/apiserver/pkg/registry/rest"
 
+	aibackendstorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/aibackend"
 	backendstorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/backend"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/httproute"
+	modelroutestorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway/modelroute"
 )
 
 func TestStatusRESTOnlyExposesStatusOperations(t *testing.T) {
@@ -16,6 +18,8 @@ func TestStatusRESTOnlyExposesStatusOperations(t *testing.T) {
 	}{
 		{name: "HTTPRoute", storage: &routestorage.StatusREST{}},
 		{name: "Backend", storage: &backendstorage.StatusREST{}},
+		{name: "AIBackend", storage: &aibackendstorage.StatusREST{}},
+		{name: "ModelRoute", storage: &modelroutestorage.StatusREST{}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, ok := tt.storage.(rest.Creater); ok {

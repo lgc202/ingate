@@ -27,6 +27,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&Gateway{}, &GatewayList{},
 		&HTTPRoute{}, &HTTPRouteList{},
 		&Backend{}, &BackendList{},
+		&AIBackend{}, &AIBackendList{},
+		&ModelRoute{}, &ModelRouteList{},
 	)
 	return nil
 }

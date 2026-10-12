@@ -1,19 +1,19 @@
 # 三类路由复用 Backend，以 AIBackend 定义模型服务访问契约
 
-- 状态：用户于 2026-10-10 review 通过设计，并于 2026-10-11 授权提交阶段 B 的 HTTP 资源替换当前实现。凭据、TLS 和首个 AI/MCP 协议等独立确认边界仍保留
+- 状态：用户于 2026-10-12 确认模型/MCP 基础字段并授权实施；六种资源关系及 HTTP 子集已确认。AIBackend、ModelRoute 声明与存储切片已实现，用户于同日授权提交，MCPRoute 未实现
 - 作者：Ingate 开发协作
-- 更新日期：2026-10-10
+- 更新日期：2026-10-12
 - 讨论入口：本仓库文档 review，依据 [0010 决策](../decisions/0010-unified-ai-proxy-config-delivery.md)及用户确认的资源关系
-- 源码基线：`56205b84321c`，分支 `codex/rebuild-from-zero`
-- 范围：资源契约、裁决边界、管理接口影响和实施顺序；不修改业务代码或生成文件
+- 当前源码基线：`bd45a499`，分支 `codex/rebuild-from-zero`；HTTP 替换前基线为 `56205b84321c`
+- 范围：资源契约、裁决边界、管理接口影响、实施顺序及 D1 进度；不新增数据面业务
 
 ## 摘要
 
 我们按已确认关系设计 Gateway、HTTPRoute、ModelRoute、AIBackend、MCPRoute、Backend。三种路由通过 `parentRefs` 绑定 Gateway；HTTPRoute 和 MCPRoute 直接引用 Backend，ModelRoute 引用 AIBackend，AIBackend 再引用 Backend。Backend 管理网络目标，AIBackend 管理模型服务契约，ModelRoute 管理模型入口与目标映射。
 
-项目没有旧方案兼容压力，Route、Upstream 的职责统一替换到 HTTPRoute、Backend，不保留同义的兼容 API。替换仍须保留当前普通 HTTP 路径匹配、端点权重、资源版本并发控制、异步管理查询等功能。设计已通过 review；本次实施限于阶段 B，后续切片仍遵守各自确认边界。
+项目没有旧方案兼容压力，Route、Upstream 已替换为 HTTPRoute、Backend，不保留同义的兼容 API。普通 HTTP 路径匹配、端点权重、资源版本并发控制、异步管理查询继续保留。本次修订模型/MCP 契约，并按已确认字段分步接入声明与存储，不恢复已撤回的新服务代码。
 
-本次修订按[固定版本上游对照](ai-gateway-upstream-alignment.md)收敛字段与行为。通用路由语义以 Gateway API 为主；模型服务以 Agent Router 为主；网络端点和 TLS 以 Envoy Gateway 为主。不把三者的全部功能混成一个自有框架，也不将名称相近等同于标准兼容。下文新增的策略附着建议仍待评审。
+本次重新读取 Agent Router v1.2.0 固定提交的资源类型、Controller、请求入口注册和实际 YAML，按[上游对照](ai-gateway-upstream-alignment.md)收敛字段。用户已确认撤掉旧稿的 `ModelRoute.path`、`ModelRoute.schema`、`matches.model`，采用下文基础资源字段。统一 Go Proxy 不要求改变官方资源形状；安全策略及协议运行建议仍待评审。
 
 ![已确认的资源引用关系](../diagrams/ai-resource-model.svg)
 
@@ -23,7 +23,7 @@
 
 基线裁决按 Gateway/Listener 和规范化路径判断冲突；阶段 B 的[裁决](../../internal/controllermanager/controller/gateway/resolve.go)已保留同路径候选，按父引用独立附着。[Envoy 适配层](../../internal/controllermanager/dataplane/envoy/resources.go)按 Exact 优先、长 PathPrefix 优先稳定排序，IP/DNS 后端采用 EDS/STRICT_DNS。后端连接超时仍为 5 秒，没有上游 TLS 配置。改名不能填补这些协议和安全缺口。
 
-当前 Admin 接口保留 [0005](../decisions/0005-admin-resource-management.md)的 API Server 写入、MySQL 异步查询分工；[资源存储映射](../../internal/apiserver/registry/gateway/storage.go)已替换为 Gateway、HTTPRoute、Backend 及其 status。没有 Namespace、Secret、运行时快照或租约资源。本文不假设完整 Kubernetes 已存在。
+当前 Admin 接口保留 [0005](../decisions/0005-admin-resource-management.md)的 API Server 写入、MySQL 异步查询分工；[资源存储映射](../../internal/apiserver/registry/gateway/storage.go)已有 Gateway、HTTPRoute、Backend，并在 D1 新增 AIBackend、ModelRoute 及其 status。两种新资源尚无 Admin 入口。没有 Namespace、Secret、运行时快照或租约资源。本文不假设完整 Kubernetes 已存在。
 
 本稿输入是已确认讨论和现有代码，没有另建 PRD，也没有新增计费、配额、Agent、工具聚合、插件市场或多租户业务需求。
 
@@ -76,6 +76,8 @@ parentRefs:
 
 Gateway、HTTPRoute、Backend 的 Admin 创建请求不接收技术名称；后台生成不可修改的 `metadata.name`，供引用、查询和必要时展示“资源 ID”。三种资源均提供可修改且允许重复的 `spec.displayName`；列表参数 `display_name` 使用包含匹配，不限制为前缀。原生 API 保留 name / generateName 与 metadata.uid，MySQL 不额外投影 UID。详见 [名称契约](../decisions/0012-resource-names-and-query-schema.md)。
 
+新增三种资源沿用同一身份和展示名称契约：Admin 生成 name，用户编辑 displayName，引用仍使用 name。不新增 uid 字段、展示名称唯一约束或前缀索引字段；新增资源的 Admin 入口尚未实现。
+
 跨 Gateway 的 Listener 冲突仍按 [0002](../decisions/0002-shared-data-plane-controller.md)的创建时间、名称稳定裁决。暂不引入 wildcard Host、GatewayClass、部署编排或流量管理策略资源。
 
 ### Backend 管理网络目标，不管理模型账号
@@ -122,12 +124,16 @@ rules:
 
 | 字段 | 拟定行为 |
 | --- | --- |
+| spec.displayName | 沿用已有资源的可修改、可重复展示名称 |
 | spec.backendRef.name | 引用一个 Backend，网络地址只在 Backend 维护 |
-| spec.schema.name | 沿用 Agent Router VersionedAPISchema 的命名，如 OpenAI；不把 Chat Completions 操作再造为 OpenAIChatCompletions schema |
-| spec.schema.version | 沿用提供商版本语义；如 AzureOpenAI 使用 API version，OpenAI 的该字段不表示 `/v1`。实际开放枚举与校验由已实现 codec 决定 |
-| spec.schema.prefix | 上游 API 路径前缀，如 `/v1`；沿用官方 prefix，不另加含义重叠的 basePath，不含域名、query、fragment |
+| spec.schema.name | 必填；首版只接受官方枚举值 OpenAI，不把 Chat Completions 或 Responses 操作再造为 schema |
+| spec.schema.prefix | 可选的上游 API 路径前缀。省略或空字符串时有效值为 `/v1`；接受有或没有前导 `/` 的路径前缀，沿用官方形式，不含域名、query、fragment |
 
-schema 定义 API 格式，操作能力另由实现范围限定。即使接口自称 OpenAI-compatible，也要用选定操作和测试证据确认兼容范围；支持 Chat Completions 不表示支持 Responses、音频或图片。首个 codec、实际提供商和协议版本仍待用户确认；不在 schema 枚举中列出尚未实现的协议。
+字段来源是官方 [AIServiceBackendSpec](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/api/v1beta1/ai_service_backend.go#L54)和 [VersionedAPISchema](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/api/v1beta1/shared_types.go#L18)。这里有一个源码与注释差异：shared_types 的注释暗示省略 prefix 可不使用前缀，但 [schemaToFilterAPI](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/controller/gateway.go#L175)对 OpenAI 的省略值及空字符串实际采用 `v1`。本稿按实际编译行为取默认值，显式 `/` 才表达根路径；不把空值默默解释成另一种访问路径。
+
+官方 version 对 OpenAI 被忽略。首版不开放 `schema.version`，避免保存一个不生效的配置；实际增加 AzureOpenAI 等提供商时再采用它的原义，不用 `/v1` 充当提供商版本。也不加入 header/body mutation、providerOptions 或模型列表字段。
+
+schema 定义上游 API 格式，客户端操作由运行实现的标准路径决定。资源能被保存不表示请求已经能转发；当前没有 AI 数据面。首版 OpenAI 声明范围已确认，不能因存在 schema 枚举便声称已经实现 codec。真实服务的操作能力、认证和 TLS 仍须单独核对。
 
 拟参考官方 BackendSecurityPolicy，通过 targetRefs 附着 AIBackend，分别管理 API 契约和访问身份。它不是第四类路由，也不改变已确认引用关系。凭据权限、轮转和撤销本就具有独立生命周期，因此不再以「暂时减少资源」为理由把认证写死进 AIBackend。
 
@@ -135,37 +141,44 @@ schema 定义 API 格式，操作能力另由实现范围限定。即使接口�
 
 AIBackend 可被多条 ModelRoute 使用，也可访问该服务提供的多个模型。共享账号轮转不要求重写所有模型路由；路由切换模型不要求重建 Backend。认证或 TLS 的必需引用不可用时关闭该访问路径，不回退到无认证、客户端 Authorization 或其他账号。
 
-### ModelRoute 同时声明客户端 API 和模型选择
+### ModelRoute 沿用官方规则形状，不另建单操作路由
 
 | 字段 | 拟定行为 |
 | --- | --- |
+| spec.displayName | 沿用已有资源的展示名称契约 |
 | spec.parentRefs | 入口绑定 |
-| spec.path | 模型 API 的精确入口路径；不根据 schema 自动创建公网路径 |
-| spec.schema | 客户端输入 API 格式；与 AIBackend 的上游格式形成转换对 |
 | spec.rules[].name | 可选，设置时资源内唯一；省略不影响使用，最终同资源匹配按规则列表顺序 |
-| spec.rules[].matches[].model | 非空客户端模型名，按原值精确匹配；不推断别名、不增加 wildcard |
-| spec.rules[].backendRefs[].name | 引用 AIBackend；第一切片每规则一个目标 |
+| spec.rules[].matches[].headers[].name | 首版只支持官方模型匹配键 `x-ai-eg-model`；大小写按 HTTP Header 名处理。它指向网关提取的模型名，不信任客户端同名 Header |
+| spec.rules[].matches[].headers[].type | 省略为 Exact；首版只支持 Exact，不开放正则或其他 Header 条件 |
+| spec.rules[].matches[].headers[].value | 模型名按原值精确匹配，不 trim、不改大小写、不根据资源名推断别名 |
+| spec.rules[].backendRefs[].name | 引用 AIBackend；首版每规则恰好一个目标，不支持权重、优先级或自动故障转移 |
 | spec.rules[].backendRefs[].modelNameOverride | 可选；沿用官方名称，设置时覆盖请求模型名，省略时保留原值，不从资源名猜测 |
 
-请求 `model` 不是网络 Host，也不是 Backend 的属性。具体上游模型覆盖属于一次路由到模型服务的绑定。`matches[].model` 是本项目待评审的类型化适配：官方从请求体提取模型，再以内部 Header 匹配；统一 Go 模块直接对提取结果匹配，无须把 `x-ai-eg-model` 这个实现载体开放为客户端可信输入。复用其精确模型匹配语义，不增加新的「模型实体」或发现机制。
+官方 [AIGatewayRouteSpec / Rule / Match](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/api/v1beta1/ai_gateway_route.go#L61)及 [OpenAI 示例](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/examples/basic/openai.yaml)采用以上规则层次，并没有 route 级 path 或 schema。后端类型的历史注释仍提到 AIGatewayRouteSpec.APISchema，但该版本的实际 route 类型和示例已经没有这个字段，不能据旧注释复制。
 
-首个模型切片拟要求每条规则至少一个精确 model match；不提供省略匹配即开放所有模型的 catch-all。它是操作范围裁剪，和 HTTPRoute 的缺省 `/` 不是同一个契约；如果批准全模型转发，应直接补充官方 catch-all 语义与权限反例，而非增加另一个模型选择 DSL。
+`matches` 是 OR，match 内的 headers 是 AND。省略或空 matches、或空 match 都表示不限制模型，沿用官方及 HTTPRoute 的缺省匹配语义；有模型条件的规则优先于 catch-all，同级最终按创建时间、资源名、规则声明顺序裁决。它会允许任意请求模型名进入指定 AIBackend，而不是自动发现模型；管理界面必须显示「所有模型」，不得显示成「未配置」。该默认行为已确认但尚未实现，未知模型只有在没有匹配规则及 catch-all 时才由网关拒绝。
 
-入口路径与上游路径独立。候选 Chat Completions codec 输出操作的相对路径 `/chat/completions`，与 AIBackend schema.prefix 的 `/v1` 形成 `/v1/chat/completions`；不把完整客户端入口路径再接到 prefix 后产生 `/v1/v1/...`，也不从客户端 URI 推导任意上游路径。ModelRoute.path 是显式暴露单一操作的适配，与官方根 prefix 下支持多种操作不同，须通过用户确认；不将其称为官方原样契约。
+保留官方匹配键不要求 Go 把它实际塞入 HTTP 请求：Go 可以直接用请求体的模型提取结果执行等价匹配。后续请求处理必须清除或覆盖客户端伪造的同名 Header，不能让它选择账号。当前只有模型选择需求，其他 Header、hostnames、InferencePool、filters 和模型发现不随结构一并开放。
+
+客户端格式按已注册的标准操作路径确定。官方 [操作注册](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/cmd/extproc/mainlib/main.go#L328)分别注册 Chat、Responses、Messages 等处理器；[processorForPath](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/extproc/server.go#L98)按路径选择，AIBackend.schema 再决定上游格式。建议同一组模型规则适用于已开放的标准操作，不为每个操作复制一份 ModelRoute；新增运行操作无需改变资源字段。首批开放哪些操作仍按独立协议稿 review，不因保存资源就开放官方全部接口。
+
+入口与上游路径仍独立。例如 Chat 操作后缀 `/chat/completions` 与 AIBackend 的有效 prefix `/v1` 组成上游路径。统一 Go Proxy 拟只接管已批准操作的精确路径，不照搬官方覆盖 `/` 的派生 HTTPRoute，也不新增 rootPrefix/operation 配置；这项入口编译差异须在运行切片 review，避免抢占已有 HTTP/MCP 入口。资源阶段不发布这些入口。
 
 本稿的模型映射只改变出站请求的目标模型。响应中的模型身份默认保留上游 API 语义，不自动按输入别名逆向改写；如果客户端契约要求隐藏或返回别名，需要在首个 codec review 中明确。日志和诊断需区分请求别名、实际模型及服务目标，但不记录原始提示词和密钥。
 
-模型入口路径确定后，只接受所选模型 API 支持的方法。非法请求体、缺失模型、未知别名和不支持的操作按该输入 API 的错误格式返回，不伪造一套所有提供商通用的响应 body。错误码、usage、工具调用和 SSE 事件需随首个 codec 一起定稿。
+模型操作确定后，只接受该操作支持的方法。非法请求体、缺失模型、未匹配且没有 catch-all 的模型，以及不支持的操作按该输入 API 的错误格式返回，不伪造一套所有提供商通用的响应 body。错误码、usage、工具调用和 SSE 事件需随协议实现一起定稿。
 
 ### MCPRoute 直接引用 Backend，并在引用上定义服务访问参数
 
 | 字段 | 拟定行为 |
 | --- | --- |
+| spec.displayName | 沿用已有资源的展示名称契约 |
 | spec.parentRefs | Gateway/Listener 绑定 |
 | spec.path | MCP 的精确入口路径，省略为 `/mcp`，沿用官方默认值 |
 | spec.backendRefs[].name | 第一切片只引用一个 Backend，采用单后端代理模式 |
 | spec.backendRefs[].path | MCP 上游端点路径，省略为 `/mcp`；沿用官方默认值，不从客户端拼接任意目标 URL |
-| spec.backendRefs[].securityPolicy | 沿用官方 MCP 后端引用的安全配置附着位置；只开放已批准认证形式，不继承模型账号 |
+
+安全设计确认后采用官方引用内的 `securityPolicy` 位置；本次基础资源字段不开放该字段，也不放置未实现的空安全对象。路由和后端路径采用可选字段：只对省略值默认 `/mcp`，显式空字符串拒绝；路径必须是绝对路径、不含 query/fragment，最大 1024 字符沿用官方 MCP 字段限制。入口采用精确匹配，不对路径做未经确认的尾斜杠改写。
 
 MCPRoute 不经过 AIBackend，因为它不需要模型 API schema 转换。首个切片限定远程 Streamable HTTP，不启动 stdio 命令；协议版本是 SDK/客户端/后端的运行兼容契约，暂不新增每路由 protocol.transport/versions 配置。单后端透明代理也要覆盖所选版本的正常请求、通知、流式响应、取消与协议错误，不能仅实现 tools/call 或丢弃自己暂时不解析的合法方法。
 
@@ -175,9 +188,29 @@ MCPRoute 不经过 AIBackend，因为它不需要模型 API schema 转换。首�
 
 MCP 实现版本必须在开发前明确选择，并记录能力矩阵。本轮查阅的 [2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http)已取消协议级会话和 GET 流端点；但 Agent Router v1.2.0 的 POST 主入口仍只调用 legacy 分支，modern 代码尚未接通，不能把 SDK 含有类型或分支当成发布网关端到端支持。没有旧 Ingate API 兼容压力，不等于外部客户端版本可以忽略；首个版本待客户端/后端和互操作验证确定，示例不预选最新版本。
 
+### 首个资源切片的校验与状态边界
+
+以下基础字段与约束已由用户于 2026-10-12 确认。它们不依赖 AI Proxy 已经存在；跨对象引用解析和运行确认不塞进 API 写入路径。
+
+| 对象/字段 | 写入时的约束 | 来源或明确差异 |
+| --- | --- | --- |
+| 三种新资源的 metadata / displayName | 沿用已有资源的名称、更新版本、Spec/Status 隔离和展示名称规则 | 当前 Ingate 契约，不再加第二套身份 |
+| ModelRoute/MCPRoute.parentRefs | 非空，最多 16 项；名称格式、重复及整个 Gateway/section 重叠校验沿用现有 ParentReference | 上界沿用官方；非空模型路由是项目子集，官方 AIGatewayRoute 可无 parent |
+| AIBackend.backendRef.name | 必填，符合已有 Backend 引用名称规则；允许引用尚未创建的对象 | 单对象格式与跨对象解析分离 |
+| AIBackend.schema | 必填；name 仅 OpenAI；prefix 为合法路径前缀，省略或空值的有效值为 `/v1` | 官方字段与实际默认值；其他 schema、version 不在首版开放 |
+| ModelRoute.rules | 1..15 项；可选 name 沿用现有规则名称校验，填写时唯一 | 非空沿用当前 HTTPRoute 子集，上界沿用官方发布 API；不复制其内部保留规则名 |
+| ModelRoute.rules[].matches | 可省略或为空；最多 128 项，列表保留顺序 | 沿用官方形状及上界；空值为 catch-all |
+| ModelRoute 的单个 match | 可为空；非空时只有一个 `x-ai-eg-model` Exact Header 条件，value 非空 | 首版只支持模型精确匹配，不因沿用 headers 而开放任意 Header 或正则 |
+| ModelRoute.rules[].backendRefs | 恰好一个 AIBackend 名称；override 省略或空值表示保留请求模型名 | 官方覆盖语义；单目标是已选范围，不把 Backend 端点权重搬到这里 |
+| MCPRoute.backendRefs | 恰好一个 Backend 名称；入口及上游 path 省略值为 `/mcp`，长度上界 1024 | 官方字段及默认值；单目标和显式空路径拒绝是项目子集 |
+
+对已声明字段的未支持枚举或集合数量必须返回明确校验错误，不能接受后只取第一项或忽略。未声明的字段另按原生 API 与 Admin 协议的实际解码契约处理，并验证客户端的严格校验方式；不在本次资源追加中悄悄改变整个 API Server 的未知字段策略，也不把 OpenAPI 描述存在当成严格校验已经生效。
+
+ModelRoute/MCPRoute 的 status 复用现有 `RouteParentStatus`；AIBackend 使用与 Backend 一样的 `conditions`。只声明可用状态结构，不在 Create/Update 中填 Accepted，不新增全局 Ready 或逐规则状态。资源存储切片尚无对应协调器时 status 为空，不能为了让界面「成功」返回伪造的生效状态。
+
 ## 示例：同一个模型服务提供两个对外模型
 
-以下是拟定字段的构造示例，仅解释资源归属，当前 API Server 无法接收。域名和模型均为示意，没有访问真实提供商，没有创建凭据。
+以下是字段的构造示例，仅解释资源归属。当前 API Server 已接入 AIBackend、ModelRoute，但仍无法接收 MCPRoute。域名和模型均为示意，没有访问真实提供商，没有创建凭据。
 
 ```yaml
 apiVersion: gateway.ingate.io/v1alpha1
@@ -223,25 +256,28 @@ spec:
   parentRefs:
     - name: public
       sectionName: api
-  path: /v1/chat/completions
-  schema:
-    name: OpenAI
   rules:
     - name: coding
       matches:
-        - model: coding
+        - headers:
+            - name: x-ai-eg-model
+              type: Exact
+              value: coding
       backendRefs:
         - name: model-service
           modelNameOverride: code-v2
     - name: summary
       matches:
-        - model: summary
+        - headers:
+            - name: x-ai-eg-model
+              type: Exact
+              value: summary
       backendRefs:
         - name: model-service
           modelNameOverride: text-v3
 ```
 
-调用方请求中的 `model=coding` 匹配第一条规则。Go 按输入 schema 读取模型名，使用 AIBackend 的上游 schema/prefix，并把该次目标模型覆盖为 `code-v2`；连接使用 Backend 的端点及 TLS 配置。选择 `summary` 时仍访问同一个模型服务，只将目标模型覆盖为 `text-v3`。示例未包含待定的凭据策略，不能用于有认证要求的真实服务，也不是公网部署配置；不能靠未配置策略获得客户端身份。
+在后续运行实现中，调用方在已开放的标准模型接口发送 `model=coding`，匹配第一条规则并将上游模型覆盖为 `code-v2`；`model=summary` 使用同一 AIBackend 和 Backend，只覆盖为 `text-v3`。这份 ModelRoute 不绑定 Chat 或 Responses，也不声明客户端 schema；操作由标准路径决定。示例没有凭据或 TLS，当前只有声明存储、没有运行消费者，不能用于真实提供商或公网部署。
 
 HTTPRoute 和 MCPRoute 的引用分别如下；被引用 Backend 需另行定义，它们不使用上面的模型账号：
 
@@ -286,13 +322,13 @@ backendRefs:
 
 ### 多个模型规则可以共享一个网络入口
 
-网络入口键由 Gateway/Listener 的有效 Host、路径和已实现的方法约束决定。不同 ModelRoute 使用同一个精确路径、相同输入 schema 时，可以在内部编译结果中共用一份模型路由表；不同模型别名不构成 HTTP 路径冲突。Envoy 把该入口交给 Go，并传入可信的入口及发布标识；具体模型规则由 Go 在请求中选择。这个分组仅是编译实现细节，不新增「模型入口组」资源、公开 ID、管理接口或生命周期。
+网络入口键由 Gateway/Listener 的有效 Host、已开放操作路径和方法决定。同一绑定上的 ModelRoute 规则汇总后用于各个已开放模型操作；不同模型别名不构成 HTTP 路径冲突。Envoy 把模型入口交给 Go；具体规则由 Go 选择。汇总仅是编译细节，不新增「模型入口组」资源、公开 ID 或生命周期。
 
-相同入口下，相同模型别名需要按匹配优先级选择。模型规则不能读取客户端自报的内部路由标识来跳过匹配。同一路径使用不兼容的输入 schema 时，无法靠同一个请求体解析器区分，报告入口冲突，不随意选择 schema 或把已转换请求再次转换。
+相同入口下，相同模型条件需要按匹配优先级选择；有模型条件优先于 catch-all。模型规则不能读取客户端自报的内部路由标识来跳过匹配。输入格式由操作路径决定，不再有两个 ModelRoute 在同路径声明不同输入 schema 的冲突。
 
 普通 HTTP 按 Gateway API 已实现匹配条件确定优先级：Exact 优先，PathPrefix 越长越优先；跨同类路由平局用创建时间、资源名称；同一路由最终用规则列表顺序，不按可选规则名排序。具有相同 match 的 HTTPRoute 不因重叠而整体删除，较低优先级规则保留为候选，优先规则删除后可重新选择。原 Ingate 将完全重复路径标为冲突；本次设计 review 已确认改变这一行为。
 
-HTTPRoute、MCPRoute 和模型路由表之间完全相同的网络匹配，是上游未为本项目统一运行方式规定的跨种类冲突。拟按创建时间，再按 Kind、资源名称裁决入口归属；Kind 的字典序只是同时间稳定裁决，不是业务优先级。模型表先稳定确定输入 schema，再对兼容规则按创建时间、资源名称和规则列表顺序选择别名。后端引用是否有效不参与匹配优先级，失效不能使同名模型自动改由其他账号或输入 API 服务。这个跨种类规则必须单独通过 review，不称为 Gateway API 标准。
+HTTPRoute、MCPRoute 和模型入口之间完全相同的网络匹配，是上游未为本项目统一运行方式规定的跨种类冲突。旧稿提出的「创建时间、Kind、名称」裁决仍未批准，本次不把它写入字段或资源接纳逻辑；接通数据面前须单独定稿。有模型条件的规则之间按创建时间、名称、声明顺序选择，后端引用有效性不改变匹配优先级，失效不能使同名模型自动改由其他账号。
 
 普通 HTTP 的 Exact 优先、较长 PathPrefix 优先保持不变。例如 HTTPRoute 的 `/` 前缀可以和模型的精确 `/v1/chat/completions` 共存，后者优先；它们不是完全相同的网络匹配。
 
@@ -370,18 +406,26 @@ PUT 带 `version`，不允许改资源名；Repository 获取当前对象、核�
 
 ## 实现计划：按完整消费者路径切分，阶段完成后等待 review
 
-2026-10-11 用户调整推进顺序：阶段 B 后继续阶段 D/E 的契约评审与已批准实现；阶段 C 的真实组件联动、ACK/NACK、实库及故障场景留到后续统一测试，不作为当前开发前置条件。下面阶段字母标识范围，不再表示必须顺序完成。TLS、认证和凭据的设计与必要实现仍随对应功能推进；实际密钥接入前的安全边界不因测试延期取消。备查清单见 [HTTP 主链路隔离验证方案](http-gateway-validation-plan.md)。
+2026-10-12 用户要求先撤回未提交的新服务，先定资源模型并实现，再接数据面。当前没有 AI Proxy 代码；下一步按下表的 D1、D2、D3 小步推进，每步审查后等待用户 review。真实组件联动、ACK/NACK、实库及故障场景仍留到后续统一测试，不因延期宣称已验收。备查清单见 [HTTP 主链路隔离验证方案](http-gateway-validation-plan.md)。
 
 | 阶段 | 范围与受影响路径 | 验收及停止条件 |
 | --- | --- | --- |
 | A 契约 review | 本稿的作用域、字段、裁决、状态、管理路径；另行完成凭据与首个协议选择 | 字段逐项确认后才编码；未解决部分不以示例补全 |
 | B HTTP 资源统一替换 | pkg/apis 内外类型、validation、Scheme；Registry；Controller 裁决/编译/状态；dataplane；Admin proto/Handler/Service/Repository 产品视图；删除重复的 Domain 资源类型；投影与迁移；测试及文档 | 所有生产消费者统一到 HTTPRoute/Backend；已实现 HTTP 功能正反例；生成代码可重复；审查全部手写改动后等用户 review |
 | C 后续统一测试：HTTP 主链路与 TLS | API Server、Manager、ADS、真实 Envoy、可控 HTTP/HTTPS 后端；明确认证环境 | 当前不搭建；统一测试时覆盖创建/更新/删除、Host/路径不匹配、DNS/IP、证书错名/不受信任、ACK/NACK/重连；TLS 失败不明文降级 |
-| D 模型契约与最小运行切片 | 已选 schema、AIBackend/ModelRoute、派生运行视图与 Go 模型模块；认证策略与凭据方案先通过独立 review | 同路径不同别名、未知模型、引用失效、非流/SSE、取消、可信入口标识、配置切换和轮转；不在此加入提供商业务重试 |
-| E MCP 契约与最小运行切片 | 已选协议版本、MCPRoute、单后端 Proxy；复用已验证加载与生命周期 | 该版本完整请求与流式交互、非法 Origin、版本不符、取消与后端失败；不默认加入聚合或 Redis 会话 |
+| D1 声明式资源 | 先 AIBackend，后 ModelRoute、MCPRoute：内外 Go 类型、default/validation、Scheme、Strategy、REST Storage、标准生成客户端/OpenAPI | 每个资源独立 review；存储保持 Spec/Status 与版本契约；不创建新服务、空 Controller、凭据字段或数据面入口 |
+| D2 管理与查询 | 三种资源的 Admin Create/Get/List/PUT/Delete、Service、Repository、Manager 投影及直接修正迁移基线 | 先列常用查询及所需索引，再定表；有序 rules/refs 可沿现有 JSON 投影，不为还原数组建 position 子表；不使用泛型 CRUD 层或通用资源表 |
+| D3 引用与状态 | 在已有 Manager 中解析依赖、监听变更并写标准 Conditions | 只确认能证明的引用和能力；运行尚未实现时不写已接纳或已生效成功，不发布无法处理的路径 |
+| E 后续协议运行 | 已确认操作/协议、安全边界、派生配置与 Go 模型/MCP 模块 | 本次不开发；运行切片另行 review。覆盖请求/流、取消、失效目标、可信入口和配置切换，不默认加入模型重试、MCP 聚合或 Redis 会话 |
 | F 部署与故障验证 | 实际入站/出站权限、凭据保护、撤销界限、长流排空、实例状态及容量 | 环境证据齐备后评估上线，不把静态检查和单测当作完成验收 |
 
-生成沿用 [generate-api.sh](../../scripts/generate-api.sh)与现有 `make generate-kubernetes`、`make generate-proto`。API 类型和 protobuf 是各自机械产物的来源，生成文件不手改。新增资源只在它的真实消费者阶段引入，不先创建未实现 Registry、空 Controller 或空协议包。
+生成沿用 [generate-api.sh](../../scripts/generate-api.sh)与现有 `make generate-kubernetes`、`make generate-proto`。API 类型和 protobuf 是各自机械产物的来源，生成文件不手改。D1 的消费者就是声明式资源 CRUD，不以运行数据面未实现为由制造空服务；也不在存储步骤提前建空 Controller。
+
+本地 GoCanon 出现了尚未提交、状态为「实现待审查」的 0073 及 `add api-resource` 能力；该草案明确首版不自动迁移预制 Gateway 项目。当前 MCP 工具不可用，不能宣称 Ingate 已可由它直接追加资源，更不能绕过保护复制生成结果。D1 开始前须重新查询实际能力及版本，若尚不适配 Ingate，仍复用当前 Kubernetes 生成链与已实现 Registry 模式，不在 Ingate 自建替代生成器。
+
+2026-10-12 的 D1 首步只接入 AIBackend：内部/外部类型、BackendReference、OpenAI schema/prefix、标准 Conditions、Scheme default/validation、主资源与 status Storage、Kubernetes 生成产物。prefix 原值保留，省略或空字符串在版本化解码时默认 `/v1`；单对象校验使用标准 URL 解析拒绝 authority/query/fragment，不查 Backend 是否存在。主资源保护 Status，Spec 变化递增 Generation；status 入口保护 Spec 和 metadata。尚未加入 Admin、MySQL 投影、Controller、转发入口、TLS、凭据或新依赖，保存对象不产生接纳状态。用户于同日授权提交该切片。
+
+同日用户要求继续，D1 第二步接入 ModelRoute：复用 ParentReference/RouteParentStatus，沿用 headers 与 modelNameOverride 字段形状，只支持模型 Exact 条件和每规则单个 AIBackend。ParentRefs/rules/matches 上界分别为 16/15/128；省略或空 matches、空 match 可保存为 catch-all。HTTPRoute 和 ModelRoute 共同调用从原 HTTPRoute 提取的父状态校验，保持旧校验集合。完成 Scheme、默认值、CRUD/List/Watch/status 及标准生成，尚无 Admin、协调器或模型请求处理。规则优先级、Header 提取与防伪不因字段已保存就成为运行能力。用户于同日授权提交该切片。
 
 当前生成脚本会清理带 client-gen 标记的旧文件，但其他生成产物是否残留、发现接口是否仍暴露旧资源，需要单独核对。工作区旧 API 数据、MySQL 数据和迁移版本先只读盘点；需要重建、迁移或删除时，列出确切目标并取得授权，不借契约替换自动清理用户数据。
 
@@ -394,7 +438,7 @@ PUT 带 `version`，不允许改资源名；Repository 获取当前对象、核�
 | parentRefs | 显式 Listener、多入口和缺省整个 Gateway | 缺 Gateway、缺 Listener、重叠引用、零个合格 Listener；部分 Listener 成功不伪称全部成功 | validation、裁决、真实 API |
 | HTTP 匹配 | Exact、路径段前缀、Host、缺省 `/` | `/api` 不匹配 `/apix`、不同 Host、同资源列表顺序、跨资源时间/名称平局；重排无关资源结果不变 | 单元 + 真实 Envoy |
 | Backend | IP/DNS、端点权重、端点排序稳定 | 重复地址/端口、空端点、TLS 错名/不受信任、不允许构建失败降级 | validation + 网络组件 |
-| 内部模型路由表 | 同路径两个 model 到正确目标；省略 override 保留原值 | 相同别名按顺序、schema 冲突、未知 model、优先目标失效不改换账号或输入 API | 编译 + Go + Envoy |
+| 内部模型路由表 | 同入口两个模型到正确目标；省略 override 保留原值；空匹配进入 catch-all | 精确条件优先于 catch-all；相同别名按顺序；无 catch-all 的未知模型拒绝；伪造模型 Header 无效；优先目标失效不改换账号 | 编译 + Go + Envoy |
 | 失效引用 | 目标恢复后重新服务 | HTTP 保留 match 返回 500；模型/MCP 返回协议错误；不落到 HTTP 兜底、不匿名调用 | 整链路与故障注入 |
 | 身份和可信标识 | 批准身份用于指定目标 | 伪造入口/发布标识、客户端 Authorization/Cookie 不泄露、重定向不带出密钥 | 真实中间件 + 测试后端 |
 | MCP | 所选版本的普通与 SSE 响应 | 版本不符、非法 Origin、方法错误、流关闭取消、通知语义 | 选定客户端/后端互操作 |
@@ -408,17 +452,17 @@ PUT 带 `version`，不允许改资源名；Repository 获取当前对象、核�
 ## 待确认事项：资源关系不再重选，剩余选择影响实现范围
 
 1. 自有 Group、集群级作用域与 HTTP 子集的附着、匹配、状态和失效引用变化已确认；对应阶段 B 实现另行代码 review。
-2. 首批模型 API/操作、真实提供商、类型化 model 匹配及单操作入口适配；2026-10-11 用户要求参考官方，具体范围见 [模型操作与部署建议](ai-model-operations-and-deployment.md)，仍待 review，不因参考例自动新增所有提供商。
+2. 官方 Header 匹配形状及 catch-all、AIBackend 首版 OpenAI/prefix、MCP 基础路径/单后端字段已确认，按 D1 实施，不先启动新服务。操作和真实提供商仍在 [模型操作与部署建议](ai-model-operations-and-deployment.md)中独立 review。
 3. BackendSecurityPolicy 的独立附着建议、凭据存储与权限、AI 客户端入站认证，以及内联 TLS 子集与出口部署边界；用户要求凭据参考官方，新增 [集中凭据与运行配置稿](ai-credentials-and-runtime-config.md)仍待 review，未完成前不接真实密钥或公网入口。
 4. MCP 的目标客户端与协议版本、Go SDK 的真实支持范围；先确定单后端代理，不把聚合当作已有需求。
 5. 运行时资源、发布标识、实例确认、撤销、故障恢复和保留界限；沿 0010 候选流程另行定稿。
 
-以上独立确认事项阻止对应未定范围的实现，不阻止已批准的 HTTP 阶段 B；安全机制与首个 AI/MCP 协议不因设计 review 自动扩展。
+以上独立确认事项阻止对应未定范围的实现，不改变已提交的 HTTP 能力。资源存储无需先完成全部运行设计；接通真实协议、安全机制及外部提供商需要另行 review。
 
 ## 本轮工作流与证据边界
 
-本轮没有可调用的 GoCanon MCP，沿用本地规则源 `/Users/lgc202/workspace/source/lgc202/gocanon`，HEAD `e4f88af7b385cf13d58fa55a5b7856971f60f997`。该规则仓库有其他未提交改动，本轮读取的开发入口、规范索引、执行清单和选定规范文件未修改。
+2026-10-12 修订没有可调用的 GoCanon MCP，读取本地规则源 `/Users/lgc202/workspace/source/lgc202/gocanon`，HEAD `5684841d220f954316529dac4e1876c7801844cb`。工作树有未提交改动，包含开发入口和声明式资源追加草案；它们不是固定提交的已发布能力。本轮完整读取当前开发入口、协作规则和规范索引，读取 0073 的能力边界，不执行 GoCanon 资源追加生成、不修改规则源。
 
-按文档任务沿用已完整读取的开发入口及 Generic APIServer、Controller Manager、参数校验规范；这些规则文件本次没有变化，仍为草案，仅作为设计审查依据。重点核对 APISERVER-007/009/010/014/015、CONTROLLER-005/008/011/013/015/016、VALIDATION-008/009/010/011/013，与目标仓库 0002、0005 和 0010 的实际边界对照，不套入 GoCanon 参考业务。
+按文档任务沿用本连续任务已完整读取且本次未修改的 Generic APIServer、Controller Manager、参数校验规范；它们仍为草案，仅作为设计审查依据。继续核对 API 的校验/默认值、Spec/Status 隔离、单对象和跨对象职责，不套入 GoCanon 的参考业务。
 
-初稿采用 to-design 整理选择、备选方案与破坏性影响；设计修订采用 technical-writing 核对可追溯依据，采用 prd-to-spec 整理字段、行为、调用方和验收矩阵。HTTP 子集已通过设计 review，并按阶段 B 实施；本阶段代码与验证见 [0011](../decisions/0011-http-resource-contract.md)。这不代表真实 Envoy、提供商、MCP、凭据或实库验收。
+契约修订用 technical-writing 区分当前实现、官方事实和待 review 建议，按固定提交核对字段、实际调用链和示例。随后用户确认基础字段，开始上述 AIBackend 首步，按 GoCanon APIServer/validation/Go 命名函数及目标 AGENTS 审查手写代码，生成产物另核对重复生成。HTTP 子集实现与此前验证见 [0011](../decisions/0011-http-resource-contract.md)。当前切片的具体验证同步在[完成度记录](../api-gateway-readiness.md)；尚未重新验证 MCP 最新协议、真实 Envoy、提供商、凭据或实库。

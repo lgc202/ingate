@@ -1,7 +1,7 @@
 # API 网关完成度与 AI 网关开发条件
 
-- 评估日期：2026-10-10；2026-10-11 同步 ADS 反馈观测实现
-- 源码基线：`56205b84321c60b9e6e73d2b9f2d5664575ea275`；本页已同步本次提交的阶段 B 与 0012 名称/查询模型修正实现
+- 评估日期：2026-10-10；2026-10-11 同步 ADS 反馈；2026-10-12 同步 AIBackend、ModelRoute 声明与存储切片
+- 实现起点：`bd45a499`；本版包含 AIBackend、ModelRoute 声明与存储切片；HTTP 替换前评估基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
 - 分支：`codex/rebuild-from-zero`
 - 范围：现有三个组件、资源契约、控制面到数据面的调用关系与已有测试；HTTPRoute/Backend 替换已实现，用户于 2026-10-11 授权提交，真实组件验收仍未完成
 - AI 方向：[0010 决策](decisions/0010-unified-ai-proxy-config-delivery.md)
@@ -16,6 +16,8 @@ Ingate 已具备 HTTP 网关的控制面主结构和最小转发配置实现：�
 2026-10-11 补齐 MySQL 多资源子记录归属和五个事务读取入口的选项回归测试；错误归属、关闭只读和降低隔离级别的临时 overlay 均被测试捕获。这不证明真实 MySQL 隔离效果。用户随后明确当前开发阶段不安排这类实库与真实数据面测试，留到后续统一测试；[HTTP 主链路隔离验证方案](design/http-gateway-validation-plan.md) 仅保留清单与隔离边界，本轮没有启动真实组件。
 
 当前继续 AI 契约设计，契约 review 通过后进入对应最小切片开发，不以 HTTP 主链路实测作为开发前置条件。日常单元测试、静态检查和代码 review 继续执行；真实组件、整链路与故障场景在后续统一测试阶段验收。未完成的验证仍不能表述为已验收，也不能据此扩大到生产部署、完整 MCP 聚合或多提供商重试。
+
+2026-10-12 用户确认模型/MCP 基础字段后，先接入 AIBackend，再按用户“继续”接入 ModelRoute 声明与存储，用户已授权提交这两步。两种新资源具有 CRUD/List/Watch/status、默认值与单对象校验、标准生成客户端与 OpenAPI；没有新增 Admin 接口、MySQL 表、Controller、AI Proxy、TLS 或凭据。MCPRoute 仍未实现，保存模型资源不表示模型接口可调用。
 
 ## 当前主路径与术语
 
@@ -33,7 +35,7 @@ ADS 是 Envoy 接收多个 xDS 资源类型的 gRPC 服务。当前使用 SotW�
 
 | 范围 | 当前已有实现 | 当前证据与边界 |
 | --- | --- | --- |
-| 资源 API | 三类资源 CRUD/List/Watch、Status 子资源、字段校验、Generation、resourceVersion 冲突 | 真实 HTTPS + 隔离 etcd 存储集成测试；没有覆盖生产认证授权 |
+| 资源 API | Gateway、HTTPRoute、Backend、AIBackend、ModelRoute 的 CRUD/List/Watch、Status 子资源、字段校验、Generation、resourceVersion 冲突 | 真实 HTTPS + 隔离 etcd 存储集成测试；没有覆盖生产认证授权 |
 | 资源裁决 | Listener 端口/Host 冲突、独立父引用接纳、缺省路径、重叠规则优先顺序及失效目标恢复 | 单元测试覆盖正反例、输入顺序变化及不修改输入；没有验证真实 Manager Watch 收敛 |
 | HTTP 配置 | Exact 优先、长 PathPrefix 优先；路径段匹配；IP 使用 EDS，含 DNS 使用 STRICT_DNS；端点权重与 ROUND_ROBIN | protobuf、失效后端的 500 directResponse、稳定排序、内容版本和空配置替换测试；尚非真实 Envoy 转发证据 |
 | ADS 服务 | 原生 gRPC，监听/取消生命周期，首次 Snapshot 就绪，按流/类型/nonce 关联 ACK/NACK 日志 | 本地监听和 bufconn ADS 收取/反馈接入测试；回调单元测试覆盖版本归属、过期反馈、隔离与清理；没有真实 Envoy ACK/NACK 验收 |
@@ -42,17 +44,35 @@ ADS 是 Envoy 接收多个 xDS 资源类型的 gRPC 服务。当前使用 SotW�
 | 管理鉴权 | 账户、密码校验、Redis Bearer Session、改密后的会话版本校验 | Service、Session 存储及真实 RequireSession 有回归测试；中间件测试使用 sqlmock 与 miniredis，不代表实库或真实 Redis 故障转移已验证 |
 | 客户端与运行入口 | MySQL 原生客户端、Redis UniversalClient、版本、日志、组件装配与清理 | 普通测试；历史 Redis 拓扑结果见重构记录，本轮不将其当作全部重新验证 |
 | CI / 开发入口 | 格式、lint、Vet、测试、构建与生成代码校验 | 工作流存在；阶段 B 执行结果见 0011，后文仅保留历史验证，不代表远端 CI 已运行 |
-| AI / MCP | 尚无模型、MCP、凭据或运行时快照 API/处理器 | 只有已确认设计方向；普通 Backend 不能替代这些契约 |
+| AI / MCP | 仅新增 AIBackend、ModelRoute 声明 API；MCPRoute、凭据、运行时快照及处理器仍未实现 | 模型资源的保存、默认值、校验及存储已验证；不能据此调用模型或 MCP |
 
 可审计入口：
 
-- [资源类型](../pkg/apis/gateway/v1alpha1/types.go)、[HTTPRoute](../pkg/apis/gateway/v1alpha1/httproute.go)、[Backend](../pkg/apis/gateway/v1alpha1/backend.go)、[存储注册](../internal/apiserver/registry/gateway/storage.go)。注册映射只有三类资源及其 Status，没有 Secret、Pod、Lease 或运行时快照。
+- [资源类型](../pkg/apis/gateway/v1alpha1/types.go)、[HTTPRoute](../pkg/apis/gateway/v1alpha1/httproute.go)、[Backend](../pkg/apis/gateway/v1alpha1/backend.go)、[AIBackend](../pkg/apis/gateway/v1alpha1/aibackend.go)、[ModelRoute](../pkg/apis/gateway/v1alpha1/modelroute.go)、[存储注册](../internal/apiserver/registry/gateway/storage.go)。注册映射包含这五类资源及其 Status，没有 Secret、Pod、Lease 或运行时快照。
 - [Gateway Reconciler](../internal/controllermanager/controller/gateway/controller.go) 的 `Reconcile` 与 `SetupWithManager`；[裁决测试](../internal/controllermanager/controller/gateway/resolve_test.go)、[编译测试](../internal/controllermanager/controller/gateway/compile_test.go)、[Status 测试](../internal/controllermanager/controller/gateway/status_test.go)。
 - [Envoy 资源构建](../internal/controllermanager/dataplane/envoy/resources.go)、[发布器](../internal/controllermanager/dataplane/envoy/publisher.go)、[服务](../internal/controllermanager/dataplane/envoy/server.go)、[ADS 测试](../internal/controllermanager/dataplane/envoy/server_test.go)、[反馈回调](../internal/controllermanager/dataplane/envoy/callbacks.go)与[回调测试](../internal/controllermanager/dataplane/envoy/callbacks_test.go)。
 - [投影测试](../internal/controllermanager/controller/projection/projection_test.go)、[MySQL 资源测试](../internal/adminapi/repository/mysql/resource_test.go)、[管理 HTTP 测试](../internal/adminapi/server/server_test.go)、[管理鉴权实现](../internal/adminapi/middleware/authentication.go)。
 - [Makefile](../Makefile)、[CI](../.github/workflows/go.yml)、[历史审查记录](refactoring-review.md)。
 
 ## 开发与后续验收需要保留的边界
+
+### AIBackend 首个资源切片的本轮证据
+
+API 形状、引用边界与 OpenAI prefix 原义来自[已确认资源契约](design/ai-gateway-resource-contract.md)及固定版本官方源码。实现复用现有 Registry、Kubernetes generic Store、metadata/Conditions 校验与仓库生成脚本，不引入通用 CRUD 层或新依赖。声明次序、校验职责、错误路径、注释及全部新增/修改手写文件按目标 AGENTS 与 GoCanon 审查；框架固定方法签名保持原样，生成代码不手改。
+
+本轮 `gofmt`、空白检查、`golangci-lint run ./...`、`go vet ./...`、`go test ./...`、`go build ./...` 通过；`make generate-kubernetes` 连续两次产生一致的 24 个生成文件。`go test -tags=integration ./internal/apiserver -count=1` 通过，沿用每个用例独立的临时目录及 embedded etcd/HTTPS，不连接已有服务。
+
+存储测试覆盖 AIBackend 创建/读取/筛选/Watch/更新/status/删除、重复展示名、陈旧 resourceVersion 冲突、Generation 和 Spec/Status 隔离；新增 HTTP 断言覆盖 prefix 默认值、悬空 Backend 引用可保存、不支持的 schema 与 URL prefix 拒绝、严格字段校验拒绝未开放 version。单测覆盖对象内校验、转换、默认值、筛选不匹配及 Status 方法集；生成 fake 客户端只验证类型化入口，不冒充真实存储验证。
+
+这些证据不覆盖 Manager 引用收敛、上游网络访问、模型响应、生产认证授权或真实 Envoy/MCP/数据库；AIBackend 的条件由对应协调器实现后再维护，当前不自动写入接纳或生效状态。
+
+### ModelRoute 资源切片的本轮证据
+
+ModelRoute 只追加已确认的父引用、rules/matches/headers、单个 AIBackend 引用及可选模型覆盖；不添加 route 级 path/schema。Header 名大小写不敏感，模型值原样保留；仅对已声明条件的空 type 默认 Exact，空 matches/空 match 保留 catch-all 形状，不擅自填充条件或改写规则顺序。
+
+父状态校验从 HTTPRoute 原实现抽取到现有 status 文件，由两种路由共同调用；未改变 HTTPRoute 的校验集合。契约对照覆盖正常状态、非法父名、缺少 controllerName、越界 observedGeneration；ModelRoute 另验证重复父状态。字段单测包含不支持的 Header/正则、集合边界、父引用及规则重名冲突；存储测试复用 CRUD/List/Watch/status、陈旧版本冲突及 Spec/Status 隔离契约，并覆盖缺省 Exact 和严格解码拒绝 route 级 path。
+
+本轮 `gofmt`、已跟踪及未跟踪文件空白检查、`golangci-lint run ./...`、`go vet ./...`、`go test ./...`、`go build ./...` 和 `go test -tags=integration ./internal/apiserver -count=1` 通过；`make generate-kubernetes` 重复生成的 26 个文件内容一致。这里只证明声明与存储，不证明模型匹配优先级、Header 提取或伪造防护已经进入数据面；相关行为尚无 Controller/Proxy 消费者，也未执行真实模型服务验收。
 
 ### 后续统一测试需要覆盖真实转发与 ACK
 

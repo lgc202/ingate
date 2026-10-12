@@ -6,6 +6,36 @@
 package v1alpha1
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
+func (in AIBackend) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.AIBackend"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in AIBackendList) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.AIBackendList"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in AIBackendReference) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.AIBackendReference"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in AIBackendSpec) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.AIBackendSpec"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in AIBackendStatus) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.AIBackendStatus"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in APISchema) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.APISchema"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
 func (in Backend) OpenAPIModelName() string {
 	return "io.ingate.pkg.apis.gateway.v1alpha1.Backend"
 }
@@ -56,6 +86,11 @@ func (in GatewayStatus) OpenAPIModelName() string {
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
+func (in HTTPHeaderMatch) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.HTTPHeaderMatch"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
 func (in HTTPRoute) OpenAPIModelName() string {
 	return "io.ingate.pkg.apis.gateway.v1alpha1.HTTPRoute"
 }
@@ -88,6 +123,36 @@ func (in HTTPRouteStatus) OpenAPIModelName() string {
 // OpenAPIModelName returns the OpenAPI model name for this type.
 func (in Listener) OpenAPIModelName() string {
 	return "io.ingate.pkg.apis.gateway.v1alpha1.Listener"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in ModelRoute) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.ModelRoute"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in ModelRouteList) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.ModelRouteList"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in ModelRouteMatch) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.ModelRouteMatch"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in ModelRouteRule) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.ModelRouteRule"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in ModelRouteSpec) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.ModelRouteSpec"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
+func (in ModelRouteStatus) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.ModelRouteStatus"
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.

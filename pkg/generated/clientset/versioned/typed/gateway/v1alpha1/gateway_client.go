@@ -12,14 +12,20 @@ import (
 
 type GatewayV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	AIBackendsGetter
 	BackendsGetter
 	GatewaysGetter
 	HTTPRoutesGetter
+	ModelRoutesGetter
 }
 
 // GatewayV1alpha1Client is used to interact with features provided by the gateway.ingate.io group.
 type GatewayV1alpha1Client struct {
 	restClient rest.Interface
+}
+
+func (c *GatewayV1alpha1Client) AIBackends() AIBackendInterface {
+	return newAIBackends(c)
 }
 
 func (c *GatewayV1alpha1Client) Backends() BackendInterface {
@@ -32,6 +38,10 @@ func (c *GatewayV1alpha1Client) Gateways() GatewayInterface {
 
 func (c *GatewayV1alpha1Client) HTTPRoutes() HTTPRouteInterface {
 	return newHTTPRoutes(c)
+}
+
+func (c *GatewayV1alpha1Client) ModelRoutes() ModelRouteInterface {
+	return newModelRoutes(c)
 }
 
 // NewForConfig creates a new GatewayV1alpha1Client for the given config.

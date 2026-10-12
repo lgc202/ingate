@@ -2,6 +2,7 @@
 
 - 状态：待 review；用户要求参考官方，本稿提出具体采用范围，不代表已批准实现
 - 日期：2026-10-11
+- 资源字段对齐：2026-10-12；操作和部署建议仍待 review
 - Ingate 源码基线：`b247a4c6`，分支 `codex/rebuild-from-zero`
 - 范围：首批模型操作、Go/Envoy 部署与通信边界；不新增 API、依赖、二进制或部署文件
 
@@ -32,16 +33,16 @@ Ingate 保留已经确认的两处差异：模型和 MCP 都进入统一 Go HTTP
 | 维度 | 建议契约 | 行为影响 |
 | --- | --- | --- |
 | 输入与输出 schema | 首批均为 `OpenAI` | 不做 Chat↔Responses 或 OpenAI↔Anthropic 转换 |
-| 首批入口 | 两个标准 POST 创建路径；每个 ModelRoute 仍绑定一个精确路径 | Chat 和 Responses 可共享 AIBackend，但各自定义模型规则；不把任意 `/v1/*` 自动暴露 |
-| 模型选择 | 请求体顶层字符串 `model`，按已编译规则精确匹配 | 不增加官方内部模型 Header 的公开兼容接口；未知模型不转给 HTTP 兜底 |
+| 首批入口 | 两个标准 POST 创建路径；ModelRoute 不绑定单一操作 | 一组模型规则同时用于已开放操作；不把任意 `/v1/*` 自动暴露，也不为两个操作复制资源 |
+| 模型选择 | 请求体顶层字符串 `model`，按官方 headers 规则形状匹配 | `x-ai-eg-model` 表达网关提取值，不信任客户端同名 Header；未知模型未命中且无 catch-all 时拒绝，不转给 HTTP 兜底 |
 | 模型覆盖 | 沿用可选 `modelNameOverride` | 只替换该目标的请求模型名，省略时保留原值；响应默认保留上游模型名 |
 | 上游路径 | 已识别操作的路径后缀与 AIBackend 的 `schema.prefix` 组合 | `/v1` 是上游前缀，不是 API 版本枚举；不能直接拼接整个入站路径产生 `/v1/v1/...` |
 | 上游能力 | 仅向实际支持该操作的服务配置规则 | 不为不支持 Responses 的服务静默降级为 Chat；接入具体服务时核对接口和认证要求 |
 | 其他 JSON 字段 | 不由网关重新构造完整提供商请求对象 | 避免 SDK 重编码丢失扩展字段；语法、体积和路由字段仍需校验，不等于不受限透传 |
 
-本稿建议标准路径作为首批入口范围，不添加新的 `operation` 资源字段。若批准任意自定义入口路径，需要另外明确它与上游操作的绑定方式；不能凭路径猜测后开放。`schema.version` 不用 `/v1` 填充；实际提供商存在版本参数要求时，按该 schema 契约单独处理。
+本稿建议标准路径作为首批入口范围，不添加新的 `operation` 资源字段。2026-10-12 重读官方固定提交后，资源稿建议撤掉 ModelRoute.path/schema，客户端格式由已注册标准路径决定；具体证据见[上游对照](ai-gateway-upstream-alignment.md#2026-10-12-重新核对资源定义必须连到实际消费者)。任意自定义入口、按操作选不同目标并非当前需求，不先增加字段。首版 OpenAI 的上游 prefix 省略或为空时有效值为 `/v1`；不开放该 schema 忽略的 version 配置。
 
-现有[资源契约稿](ai-gateway-resource-contract.md)里的 `coding → code-v2` 示例可分别应用于 Chat 与 Responses：两个 ModelRoute 绑定各自路径，均引用 `model-service` AIBackend，再使用 `model-network` Backend。客户端协议字段分别是 `messages` 和 `input`，网关不把一种改写成另一种。示例模型名仅解释映射，不能证明某个真实模型支持这两个操作。
+现有[资源契约稿](ai-gateway-resource-contract.md)里的 `coding → code-v2` 示例使用一份 ModelRoute，引用 `model-service` AIBackend，再使用 `model-network` Backend。Chat 与 Responses 的客户端字段分别是 `messages` 和 `input`，操作路径不同，但复用模型规则；网关不把一种请求改写成另一种。示例模型名仅解释映射，不能证明某个真实模型支持这两个操作。一个后端是否支持首批全部操作仍需在实际接入时核对，不能由 schema.name 推断。
 
 ### 响应与流：共用传输，不混淆事件协议
 
@@ -112,7 +113,7 @@ sequenceDiagram
 
 项目无旧 AI 接口兼容压力，也尚无 AI 运行代码。本稿不改变已提交的 Gateway、HTTPRoute、Backend、Admin Session 和 MySQL 投影行为；新增模型请求不能抢占已有 HTTP 入口或扩大操作暴露范围。跨种类冲突、无效引用与错误动作继续按资源契约单独 review。
 
-下一步先确认本稿的“OpenAI 两个创建操作 + 同部署单元 UDS”范围，再补齐凭据来源与权限、后端 TLS/入站安全、派生运行对象及版本激活。2026-10-11 用户要求凭据参考官方，具体建议与代价见 [AI 凭据与运行配置设计](ai-credentials-and-runtime-config.md)，仍待 review。协议切片还须确定请求体与并发流界限、超时和退出排空，以及本地错误格式和提供商状态引用行为；这些项目未定时不开始对应运行实现，不接真实密钥。
+当前先完成[资源字段 review 与分步实现](ai-gateway-resource-contract.md#实现计划按完整消费者路径切分阶段完成后等待-review)，不继续新服务开发。本稿的“OpenAI 两个创建操作 + 同部署单元 UDS”是后续运行建议，不是资源 CRUD 的前置条件。凭据来源与权限、后端 TLS/入站安全、派生运行对象及版本激活仍在接数据面前确认。2026-10-11 用户要求凭据参考官方，具体建议与代价见 [AI 凭据与运行配置设计](ai-credentials-and-runtime-config.md)，仍待 review。协议切片还须确定请求体与并发流界限、超时、退出排空、本地错误格式和提供商状态引用行为；未定时不接真实密钥。
 
 日常代码审查、单元与静态检查继续执行；真实 Envoy、模型/MCP、实库、ACK/NACK 和故障恢复留到用户指定的统一测试阶段。相关能力在得到证据前标为未验证，不能因延期就宣称完成组件验收。
 

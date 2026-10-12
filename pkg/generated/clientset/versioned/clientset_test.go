@@ -52,3 +52,25 @@ func TestGeneratedResourceClients(t *testing.T) {
 		t.Errorf("Backends().Get(backend).Name = %q, want backend", backend.Name)
 	}
 }
+
+func TestGeneratedAIBackendClient(t *testing.T) {
+	client := clientfake.NewSimpleClientset()
+	resources := client.GatewayV1alpha1().AIBackends()
+	backend := &gatewayv1alpha1.AIBackend{
+		ObjectMeta: metav1.ObjectMeta{Name: "model-service"},
+		Spec: gatewayv1alpha1.AIBackendSpec{
+			BackendRef: gatewayv1alpha1.BackendReference{Name: "model-network"},
+			Schema:     gatewayv1alpha1.APISchema{Name: gatewayv1alpha1.APISchemaOpenAI, Prefix: "/v1"},
+		},
+	}
+	if _, err := resources.Create(t.Context(), backend, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("AIBackends().Create(model-service) error = %v, want nil", err)
+	}
+	got, err := resources.Get(t.Context(), backend.Name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("AIBackends().Get(model-service) error = %v, want nil", err)
+	}
+	if got.Name != backend.Name || got.Spec != backend.Spec {
+		t.Errorf("AIBackends().Get(model-service) = %+v, want name %q and spec %+v", got, backend.Name, backend.Spec)
+	}
+}
