@@ -1,7 +1,7 @@
 # 0013：显式 Namespace 与同空间资源引用
 
 - 日期：2026-10-12
-- 状态：作用域和请求边界已确认；用户授权提交第一步编译身份改造，存储与管理链路尚未切换
+- 状态：作用域、请求边界和原生 Namespace 生命周期实现方式已确认；编译身份改造已提交，存储与管理链路尚未切换
 - 范围：替代 0011、0012 及资源契约中采用集群级主资源的决定；保留共享 Envoy、资源名称和展示名称契约
 
 ## 已确认契约
@@ -48,9 +48,41 @@ Higress 的 [watchNamespace 配置](https://higress.io/docs/latest/user/configur
 
 不保留集群级 CRUD 兼容入口，不同时维护两套身份，也不自动迁移或删除现有 etcd/MySQL 数据。按新项目方式修改迁移基线，实际运行数据重建仍需另行授权。
 
-存储切换前须明确 Namespace 的原生资源入口、存在性校验和删除生命周期，复用 Kubernetes 的机制与约束，不把任意字符串分组冒充完整 Namespace 管理。此处尚未批准 Namespace CRUD、级联删除、终止回收、按空间的角色权限或跨空间授权实现。命名空间化不能被描述成这些能力已经完成。
+存储切换前先实现 Namespace 的原生资源入口、存在性校验和删除生命周期，不把任意字符串分组冒充完整 Namespace 管理。用户已确认下述实现方式；按空间的角色权限和跨空间授权不在范围内。
 
-## 本步审查和验证边界
+## 原生 Namespace 的实现方式
+
+使用标准核心组 `v1` 的 Namespace，由调用方显式创建；不启用 OneX 的 NamespaceAutoProvision，不自动创建 Kubernetes 的全部系统空间。Namespace 本身是集群级资源，业务资源才属于 Namespace。
+
+已发布的 `k8s.io/api`、`apimachinery`、`apiserver`、`client-go` 直接复用。Kubernetes 明确[不支持把主仓库作为外部库使用](https://github.com/kubernetes/kubernetes/blob/v1.37.0/README.md#to-start-using-k8s)，因此不引入 `k8s.io/kubernetes`，也不加入前次依赖探查中的 component-helpers、controller-manager、kubelet。Namespace 专属代码按 Kubernetes `v1.37.0` 受控移植，保留许可证和来源，逐项记录本地适配，升级时对照原始文件审查差异。
+
+OneX 本地参考提交为 `10119504e12c316569337b0dbca04fb192c7d7ea`：其 Namespace 存储直接引用 Kubernetes 主仓库，删除协调器则在项目内适配 controller-runtime。Ingate 采用相同职责划分，不复制它的主仓库依赖和隐式自动创建行为。
+
+完整生命周期的职责如下：
+
+- API Server 安装 `/api/v1/namespaces`、`/status`、`/finalize`，复用 Generic Store；Namespace 专属 DELETE 先进入 Terminating，不能绕过 `spec.finalizers` 直接删除。
+- 已发布的 NamespaceLifecycle 准入插件读取 Ingate 自己的 Namespace，不以宿主集群的 Namespace 作为存在性依据，也不改变已有委托认证、鉴权的目标。
+- Controller Manager 根据 Discovery 清理命名空间级资源，保留 finalizer 等待、冲突重试和 UID 防护；不写死六种业务类型，不直接清空 etcd 前缀或 MySQL 表。
+
+第一小步只提供 Namespace 内部对象、标准 `k8s.io/api/core/v1` 外部对象的转换和三类写入 Strategy。内部对象复用公开的 NamespaceSpec/NamespaceStatus 字段类型，不再复制等价枚举和条件结构。DeepCopy 和转换由仓库锁定的 Kubernetes 工具生成；Scheme 注册仅包含 Namespace/NamespaceList 及标准请求选项，不把整个 Kubernetes 核心资源集合注册进来。来源和本地差异记录在下表，原始许可证保存在 [KUBERNETES-LICENSE](../KUBERNETES-LICENSE)，不单独建立第三方源码目录。
+
+| 本地文件 | Kubernetes v1.37.0 上游文件 | 本地适配 |
+| --- | --- | --- |
+| [内部对象](../../pkg/apis/core/types.go) | [pkg/apis/core/types.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/types.go) 的 Namespace/NamespaceList | 保留内部 runtime.Object；Spec/Status、finalizer、阶段和条件类型使用公开的 core/v1 定义；DeepCopy/Conversion 由 v0.37.0 官方工具生成 |
+| [字段校验](../../pkg/apis/core/validation/namespace.go) | [pkg/apis/core/validation/validation.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/validation/validation.go) 的 Namespace 函数、metadata 包装与 finalizer 校验 | metadata 和语法检查调用 apimachinery；保留 metadata/spec 两类 finalizer 的标准名称限制；以公开常量替代主仓库 helper；阶段错误路径使用实际 JSON 字段 `status.phase`，而非上游的 `status.Phase`，错误说明文字简化 |
+| [写入策略](../../internal/apiserver/registry/core/namespace/strategy.go) | [pkg/registry/core/namespace/strategy.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/registry/core/namespace/strategy.go) 的主资源/status/finalize 策略 | 构造器注入私有 ObjectTyper，不使用 legacyscheme 或全局 Strategy；不接入主仓库 DeclarativeValidation，现行校验由 validation 包显式完成；用 slices.Contains 补入缺失的 finalizer；按 GoCanon 顺序组织声明 |
+
+上述文件基于上游源码适配，保留适用的上游版权、许可证和本地修改声明。目录调整不改变代码来源；不能把修改过的移植代码直接视为完全原创。升级时先比较固定版本文件与目标版本，再审查对应 Strategy、校验、转换和契约测试，不直接覆盖本地实现。后续默认值、REST Storage、字段选择器和删除控制器接入时补充本表；生成代码只能修改类型标记或生成脚本后重新生成。
+
+Strategy 沿用标准行为：创建时设置 Active 并确保 `kubernetes` finalizer；普通更新保留 status 和 spec.finalizers；status 更新保护 spec；finalize 更新保护 status；不通过 Update 创建，允许标准 Namespace 无条件更新。Namespace 不机械套用网关 Spec 变化递增 Generation 的规则。字段校验由 API validation 包拥有，复用 apimachinery 的 metadata、名称及 finalizer 语法校验。
+
+本步尚未安装原生 API、启用本地准入数据源或接入删除协调器，不改变 etcd 存储契约，也不切换业务 scope。默认值、Namespace 特殊 DELETE、存储版本和上述生命周期接线随下一步实现；不能把类型和 Strategy 测试描述成完整 Namespace 已可用。
+
+本步按 GoCanon 快照 `f478423-dirty` 的 APIServer、参数校验、命名/函数、错误和测试草案审查；草案仍不作为已发布规则。逐个审查全部手写文件，核对声明顺序、三类字段保护和 metadata/spec finalizer 校验；生成文件单独核对结果与可重复性。外部对象、列表、编码往返与 DeepCopy 测试通过，名称、finalizer 和非法阶段反例通过。临时源码 overlay 移除普通更新的 Status 保护后，`TestPrepareForUpdate` 失败；错误实现未写入仓库。
+
+`gofmt -l cmd internal pkg`、已跟踪及新增文件空白检查、`golangci-lint run ./...`（0 issues）、`go vet ./...`、`go test ./... -count=1`、`go build ./...` 均通过。生成脚本重跑后 `pkg/apis` 与 `pkg/generated` 的 77 个文件内容哈希一致，原有客户端和 OpenAPI 没有变化。构建仍有共享 module stat cache 写入受限的非致命提示。未修改 API Server 存储契约，本步不运行存储 integration；未验证完整 Namespace API、准入、删除控制器及真实组件联动。用户已 review 通过并授权提交此步。
+
+## 已提交编译身份改造的审查和验证边界
 
 使用 GoCanon MCP，规则源 `/Users/lgc202/workspace/source/lgc202/gocanon`，快照 `f478423-dirty`，revision `f4784239c945ba61e90bdfa588ce01f69b9403f5`。完整读取开发入口与规范索引，按 Controller Manager、命名、函数、错误、防御和测试规范审查；草案只作为审查依据，不当作已发布能力。
 

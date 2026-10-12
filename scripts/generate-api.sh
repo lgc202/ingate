@@ -9,11 +9,13 @@ cd "${repository_root}"
 
 go tool deepcopy-gen \
     --output-file zz_generated.deepcopy.go \
+    ./pkg/apis/core \
     ./pkg/apis/gateway \
     ./pkg/apis/gateway/v1alpha1
 
 go tool conversion-gen \
     --output-file zz_generated.conversion.go \
+    ./pkg/apis/core \
     ./pkg/apis/gateway/v1alpha1
 
 openapi_output="${repository_root}/pkg/generated/openapi"
