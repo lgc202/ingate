@@ -468,6 +468,16 @@ func testResourceHTTPContract(
 func startGatewayAPI(t *testing.T) dynamic.Interface {
 	t.Helper()
 
+	client, err := dynamic.NewForConfig(startAPIServer(t))
+	if err != nil {
+		t.Fatalf("dynamic.NewForConfig() error = %v", err)
+	}
+	return client
+}
+
+func startAPIServer(t *testing.T) *rest.Config {
+	t.Helper()
+
 	etcd := testserver.RunEtcd(t, nil)
 	t.Cleanup(func() {
 		if err := etcd.Close(); err != nil {
@@ -555,11 +565,7 @@ func startGatewayAPI(t *testing.T) dynamic.Interface {
 		}
 	}
 
-	client, err := dynamic.NewForConfig(restConfig)
-	if err != nil {
-		t.Fatalf("dynamic.NewForConfig() error = %v", err)
-	}
-	return client
+	return restConfig
 }
 
 func expectResourceEvent(

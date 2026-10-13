@@ -1,0 +1,54 @@
+package apiserver
+
+import (
+	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apiserver/pkg/registry/rest"
+
+	namespacestorage "github.com/lgc202/ingate/internal/apiserver/registry/core/namespace"
+)
+
+func TestCoreAPIGroupInfo(t *testing.T) {
+	scheme, err := newScheme()
+	if err != nil {
+		t.Fatalf("newScheme() error = %v", err)
+	}
+
+	storage := map[string]rest.Storage{
+		"namespaces":          &namespacestorage.REST{},
+		"namespaces/status":   &namespacestorage.StatusREST{},
+		"namespaces/finalize": &namespacestorage.FinalizeREST{},
+	}
+	info := coreAPIGroupInfo(scheme, storage)
+	if info.Scheme != scheme {
+		t.Errorf("coreAPIGroupInfo() scheme = %p, want %p", info.Scheme, scheme)
+	}
+	if len(info.PrioritizedVersions) != 1 || info.PrioritizedVersions[0] != corev1.SchemeGroupVersion {
+		t.Errorf("coreAPIGroupInfo() versions = %v, want [%s]", info.PrioritizedVersions, corev1.SchemeGroupVersion)
+	}
+	versionedStorage := info.VersionedResourcesStorageMap[corev1.SchemeGroupVersion.Version]
+	if len(info.VersionedResourcesStorageMap) != 1 || len(versionedStorage) != len(storage) {
+		t.Errorf("coreAPIGroupInfo() storage = %v, want only Namespace v1 storage", info.VersionedResourcesStorageMap)
+	}
+	for name, want := range storage {
+		if got := versionedStorage[name]; got != want {
+			t.Errorf("coreAPIGroupInfo() storage[%q] = %v, want %v", name, got, want)
+		}
+	}
+	if scheme.Recognizes(corev1.SchemeGroupVersion.WithKind("Pod")) {
+		t.Error("coreAPIGroupInfo() scheme recognizes Pod, want only supported core resources")
+	}
+
+	values, err := info.ParameterCodec.EncodeParameters(
+		&metav1.ListOptions{FieldSelector: "status.phase=Active"},
+		corev1.SchemeGroupVersion,
+	)
+	if err != nil {
+		t.Fatalf("coreAPIGroupInfo().ParameterCodec.EncodeParameters() error = %v", err)
+	}
+	if got := values.Get("fieldSelector"); got != "status.phase=Active" {
+		t.Errorf("coreAPIGroupInfo() fieldSelector = %q, want status.phase=Active", got)
+	}
+}

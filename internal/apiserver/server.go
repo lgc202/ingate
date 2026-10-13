@@ -11,7 +11,7 @@ type Server struct {
 	GenericAPIServer *genericapiserver.GenericAPIServer
 }
 
-// New 组装 Generic API Server 并安装 Gateway API Group，但不启动服务。
+// New 组装 Generic API Server 并安装核心组和 Gateway API Group，但不启动服务。
 func (c completedConfig) New() (*Server, error) {
 	genericServer, err := c.genericConfig.New(
 		componentName,
@@ -22,6 +22,15 @@ func (c completedConfig) New() (*Server, error) {
 	}
 
 	server := &Server{GenericAPIServer: genericServer}
+	if err := installCoreAPIGroup(
+		server.GenericAPIServer,
+		c.scheme,
+		c.genericConfig.RESTOptionsGetter,
+	); err != nil {
+		server.GenericAPIServer.Destroy()
+		return nil, err
+	}
+
 	if err := installGatewayAPIGroup(
 		server.GenericAPIServer,
 		c.scheme,

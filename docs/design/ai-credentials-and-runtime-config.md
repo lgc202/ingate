@@ -16,7 +16,9 @@ Controller 负责裁决并生成完整配置，Go 负责加载配置与授权凭
 
 ## 背景：当前缺的是存储与确认契约
 
-当前 [Registry](../../internal/apiserver/registry/gateway/storage.go) 只安装 Gateway、HTTPRoute、Backend 和它们的 status，没有 Secret、Namespace 或运行配置。当前 [Options](../../internal/apiserver/options.go) 沿用 RecommendedOptions；其上游采用委托认证与授权，并依赖 CoreAPI/Admission 的配置。已有 HTTPS Listener 不证明身份和资源权限已配置正确。[存储测试](../../internal/apiserver/integration_test.go) 为隔离存储，将这些选项设为 nil，不能作为密钥访问隔离的证据。
+2026-10-13 状态补充：[网关 Registry](../../internal/apiserver/registry/gateway/storage.go) 已安装六种业务资源及其 status；本轮 [核心组](../../internal/apiserver/core.go) 接入 Namespace 主资源、status 和 finalize。Namespace 准入数据源、自动删除控制器及六种业务资源的存储作用域仍未切换，没有 Secret 或运行配置 API。作用域目标以已确认的 [0013](../decisions/0013-namespaced-resources.md) 为准，本稿其余凭据与发布建议仍待 review。
+
+当前 [Options](../../internal/apiserver/options.go) 沿用 RecommendedOptions；其上游采用委托认证与授权，并依赖 CoreAPI/Admission 的配置。已有 HTTPS Listener 不证明身份和资源权限已配置正确。[存储测试](../../internal/apiserver/integration_test.go) 为隔离存储，将这些选项设为 nil，不能作为密钥访问隔离的证据。
 
 当前 [Publisher](../../internal/controllermanager/dataplane/envoy/publisher.go) 按 `node.cluster=ingate-shared-data-plane` 发布共享快照，以不同资源类型的内容哈希作为 xDS 版本。[ADS Server](../../internal/controllermanager/dataplane/envoy/server.go) 使用 SotW 服务，没有 Callback。Cache 发布成功和 Manager ready 只说明本地状态，不说明任一 Envoy 已接受配置。
 

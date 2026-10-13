@@ -1,4 +1,4 @@
-// Package apiserver 通过 Kubernetes Generic API Server 提供声明式网关资源 API。
+// Package apiserver 通过 Kubernetes Generic API Server 提供 Namespace 和声明式网关资源 API。
 package apiserver
 
 import (

@@ -139,6 +139,20 @@ Options 先构造 Factory 并调用 EtcdOptions.ApplyWithStorageFactoryTo，再�
 
 `bash -n scripts/generate-api.sh`、`gofmt -l cmd internal pkg`、`git diff --check`、`golangci-lint run ./...`（0 issues）、`go vet ./...`、`go test ./... -count=1`、`go build ./...` 和 `go test -tags=integration ./internal/apiserver -count=1` 均通过。build 的共享 module stat cache 写入提示仍非致命，退出码为 0。集成检查只证明已有 HTTP/存储契约仍可运行，不证明 Namespace HTTP 入口、本地准入、删除控制器或真实组件联动已经完成。用户已授权提交并继续；提交前再次逐个复核手写文件并重跑上述检查，全部通过。
 
+## 第五小步：安装原生 Namespace HTTP API
+
+第四小步已提交为 `568b91ec`。本步在既有 Server 配置链中安装核心组 `v1`，只挂载 Namespace 主资源、status 和 finalize。`registry/core/storage.go` 聚合已有 Namespace 存储；`internal/apiserver/core.go` 按组创建 APIGroupInfo，调用锁定的 apiserver v0.37.0 的 NewDefaultAPIGroupInfo 和 InstallLegacyAPIGroup。核心组的标准前缀是 `/api`；不把空 Group 安装到 `/apis`，不编写自有 HTTP Handler 或复制 CRUD、Discovery、OpenAPI 路由。
+
+安装失败时先销毁本组尚未交付的存储，Server.New 再销毁 GenericAPIServer；安装成功后存储销毁归框架所有，子资源不重复关闭共享 Store。Server 先安装核心组再安装业务组，任一失败都不进入 Run。新增 Group 聚合包沿用既有 registry/gateway 的层级，不创建通用组注册器、资源配置开关或新接口；没有增加依赖、API 字段或生成产物。
+
+隔离 HTTPS 与 etcd 检查通过原生 client-go 验证：Discovery 的资源集合、集群作用域和动词精确匹配 Namespace 三类入口；v2/v3 实际端点包含 Namespace 定义，排除 Pod；v2 文档包含四条 Namespace 路径；Pod 与错误 `/apis/v1/namespaces` 请求返回 NotFound。写入链覆盖服务端身份及默认值、重复创建拒绝、过期版本冲突、普通更新保护 status/finalizers、选择器匹配与不匹配、status 更新保护 finalizers 和保存 Conditions、dry-run 不落库、DELETE 进入 Terminating 而不提前删除、finalize 拒绝 Patch，以及显式清空 finalizer 后对象被删除。
+
+本步不启用本地 NamespaceLifecycle 数据源，不自动创建系统空间，不接 Namespace 删除控制器，不切换六种业务资源的存储、Admin 或 MySQL。当前 DELETE 后仍需显式 finalize，不能表述为已具备命名空间内容自动清理。集成测试沿用隔离启动配置，关闭委托认证、鉴权、Admission 和 CoreAPI；不证明生产权限和宿主集群交互。测试辅助函数只抽出原有 Server/etcd 生命周期，原 Gateway 动态客户端入口不变。
+
+GoCanon MCP 再次确认规则源 `/Users/lgc202/workspace/source/lgc202/gocanon`、revision `336a025bf2d761d1eac3cf7f5991d152e6d3d7e9`、启动快照 `336a025-dirty`。按 APIServer、命名/函数、错误及测试规范审查；草案仍只是 review 依据，仓库 AGENTS 的 GO-FUNC-012..014 约定单独执行。逐一审查 7 个 Go 文件和 4 个文档，包含 4 个未跟踪文件；检查声明顺序、错误相邻、语义分段、共享存储所有权及真实调用路径。同步包注释、文档索引、能力快照和凭据稿的 Namespace 现状，不改变凭据设计的待评审状态。
+
+`gofmt -l cmd internal pkg`、已跟踪及未跟踪文件空白检查、`golangci-lint run ./...`（0 issues）、`go vet ./...`、`go test ./... -count=1`、`go build ./...` 和 `go test -tags=integration ./internal/apiserver -count=1` 均通过。API 类型未修改，无须重新生成；pkg/apis、pkg/generated、go.mod/go.sum 无差异。本轮没有验证失败安装下的 Destroy 调用次数、生产认证授权、自动清理控制器或真实组件整链路；现有成功启动与退出检查不替代这些证据。用户授权复核标准实现方式后提交并继续：再次对照锁定版本的安装与销毁契约、审查全部手写差异、重跑上述检查，未发现阻止提交的问题。下一步只接 NamespaceLifecycle 的本地数据源，保留宿主委托认证/鉴权和框架生命周期。
+
 ## 已提交编译身份改造的审查和验证边界
 
 使用 GoCanon MCP，规则源 `/Users/lgc202/workspace/source/lgc202/gocanon`，快照 `f478423-dirty`，revision `f4784239c945ba61e90bdfa588ce01f69b9403f5`。完整读取开发入口与规范索引，按 Controller Manager、命名、函数、错误、防御和测试规范审查；草案只作为审查依据，不当作已发布能力。

@@ -21,6 +21,8 @@ Ingate 已具备 HTTP 网关的控制面主结构和最小转发配置实现：�
 
 ## 当前主路径与术语
 
+2026-10-13 增补：Namespace 内部类型、存储生命周期、按资源编码工厂和 OpenAPI 已提交；原生 `/api/v1/namespaces`、`/status`、`/finalize` 接入已复核，用户授权提交。真实 HTTPS 与隔离 etcd 检查覆盖 Discovery、v2/v3 文档、字段保护和手动 finalize。尚无本地 NamespaceLifecycle 数据源或自动清理控制器，六种业务资源的存储与管理链路仍是集群级；目标和实施记录见 [0013](decisions/0013-namespaced-resources.md)。
+
 ![当前 API 网关架构](diagrams/api-current-architecture.svg)
 
 Gateway 定义 HTTP Listener；HTTPRoute 通过 parentRefs 绑定入口，通过有序 rules/matches 选择 Backend；Backend 保存地址、端口和权重。三者都是集群级 `gateway.ingate.io/v1alpha1` 资源，不是 Kubernetes Gateway API 的全部实现，也不是目前已经安装的 CRD。
@@ -142,7 +144,7 @@ GoCanon MCP 重新核对为 `5684841-dirty`，规则 revision `5684841d220f95431
 
 ### 新快照和凭据不能沿用尚未验证的权限假设
 
-当前资源注册没有 Secret、Pod 或 Lease。API Server 使用上游 RecommendedOptions，但这不等于已经验收独立部署的权限系统。[存储集成测试](../internal/apiserver/integration_test.go) 在 `startGatewayAPI` 中将 Authentication、Authorization、Admission 与 CoreAPI 设为 nil，以隔离存储测试。
+当前资源注册没有 Secret、Pod 或 Lease。API Server 使用上游 RecommendedOptions，但这不等于已经验收独立部署的权限系统。[存储集成测试](../internal/apiserver/integration_test.go) 在 `startAPIServer` 中将 Authentication、Authorization、Admission 与 CoreAPI 设为 nil，以隔离存储测试。
 
 为 Go Proxy 下发运行时快照之前，需要明确谁可写领域对象、谁可写派生对象、Proxy 可读哪些对象、谁可回报实例状态。引入模型密钥之前，还需凭据机制、传输与存储保护、轮转和撤销测试。不能先将明文密钥放入通用资源后再补权限。
 
