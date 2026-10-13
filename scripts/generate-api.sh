@@ -32,6 +32,7 @@ go tool openapi-gen \
     --output-file zz_generated.openapi.go \
     --output-model-name-file zz_generated.model_name.go \
     --report-filename "${openapi_report}" \
+    --readonly-pkg k8s.io/api/core/v1 \
     --readonly-pkg k8s.io/apimachinery/pkg/api/resource \
     --readonly-pkg k8s.io/apimachinery/pkg/apis/meta/v1 \
     --readonly-pkg k8s.io/apimachinery/pkg/runtime \
@@ -39,9 +40,11 @@ go tool openapi-gen \
     --readonly-pkg k8s.io/apimachinery/pkg/util/intstr \
     --readonly-pkg k8s.io/apimachinery/pkg/version \
     --readonly-pkg time \
+    k8s.io/api/core/v1 \
     k8s.io/apimachinery/pkg/api/resource \
     k8s.io/apimachinery/pkg/apis/meta/v1 \
     k8s.io/apimachinery/pkg/runtime \
+    k8s.io/apimachinery/pkg/util/intstr \
     k8s.io/apimachinery/pkg/version \
     ./pkg/apis/gateway/v1alpha1
 

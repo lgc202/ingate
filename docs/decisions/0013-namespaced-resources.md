@@ -125,6 +125,20 @@ Options 先构造 Factory 并调用 EtcdOptions.ApplyWithStorageFactoryTo，再�
 
 用户授权复核标准实现方式后提交并继续。提交前对照锁定的 apiserver v0.37.0 的 RecommendedOptions、EtcdOptions 和 DefaultStorageFactory，确认使用公开的存储扩展入口，保持 Etcd 首先且仅应用一次，计数器与监控沿用官方机制；没有自行实现 Codec、StorageFactory 接口、加密或健康检查。再次审查全部手写变更及调用方，未发现阻止提交的问题，上述检查全部重跑通过。本结论只覆盖本切片，不等同于整个 Namespace 生命周期或生产部署已经验证。
 
+## 第四小步：原生 Namespace OpenAPI 定义
+
+第三小步已提交为 `8216baa7`。本步沿用 go.mod 锁定的官方 openapi-gen 和 scripts/generate-api.sh，把公开 core/v1 加入定义生成输入及 readonly-pkg；同时将已有只读 intstr 包加入输入，以补齐核心类型引用的 IntOrString。外部 Namespace 不复制或改名，继续使用 SDK 的 io.k8s.api.core.v1 模型名称。OpenAPI v2/v3 继续共用已有定义函数和私有 Scheme 的 DefinitionNamer，不手写 Schema，也不引入新的生成依赖。
+
+锁定的生成器以包或类型上的 openapi-gen 标记选择类型，没有从外部包只选 Namespace 的 CLI 参数；core/v1 已标记整个包参与生成。因此生成包会包含其它核心类型的定义，这是机械生成范围，不改变私有 Scheme、存储启用集合、Discovery 或 API 安装；不为缩小产物而新增类型镜像、定制筛选器或手改生成文件。API 规则例外只接纳本次新增输入中已经存在的 Kubernetes 字段，逐条对照锁定的 SDK；项目自有 API 的违规仍使生成失败。
+
+本步验证 Namespace 对象、列表、Spec、Status、Condition 定义及 Schema 依赖，不安装核心 HTTP API，不修改准入、业务 scope、MySQL 或删除控制器。原生 API 安装与本地准入数据源仍是后续独立切片。
+
+首轮生成被规则报告门禁拒绝：core/v1 增加 25 项既有字段命名例外，intstr 增加 3 项；逐项对照 v0.37.0 的 types.go 和 intstr.go 后更新例外基线，没有新增 Ingate API 例外。缺少 IntOrString 的首轮产物被依赖断言拒绝，报告 HTTPGetAction、ServicePort、TCPSocketAction 的缺失引用；补齐输入并完成生成后，依赖检查通过。Namespace v2/v3 均由官方 Builder 构建，确认五类 Namespace 定义可达，并检查 Pod 不进入这两个根对象的文档，未用自写遍历器替代官方构建。
+
+逐个审查本次 4 个手写文件：生成脚本、例外基线、Options 测试及本文；按 GO-FUNC-012..014 核对测试入口顺序、调用与错误检查相邻、配置构造与结果断言分段，不改变生产配置链。生成文件单独核对来源、注册项和依赖；连续两次完整生成前后 pkg/apis 与 pkg/generated 的 80 个已跟踪文件哈希一致，SDK 核心模型名文件也未变化。实际差异仅包含 OpenAPI 生成文件，DeepCopy、Conversion、ModelName 和 Clientset 没有变化；go.mod/go.sum 未修改。
+
+`bash -n scripts/generate-api.sh`、`gofmt -l cmd internal pkg`、`git diff --check`、`golangci-lint run ./...`（0 issues）、`go vet ./...`、`go test ./... -count=1`、`go build ./...` 和 `go test -tags=integration ./internal/apiserver -count=1` 均通过。build 的共享 module stat cache 写入提示仍非致命，退出码为 0。集成检查只证明已有 HTTP/存储契约仍可运行，不证明 Namespace HTTP 入口、本地准入、删除控制器或真实组件联动已经完成。用户已授权提交并继续；提交前再次逐个复核手写文件并重跑上述检查，全部通过。
+
 ## 已提交编译身份改造的审查和验证边界
 
 使用 GoCanon MCP，规则源 `/Users/lgc202/workspace/source/lgc202/gocanon`，快照 `f478423-dirty`，revision `f4784239c945ba61e90bdfa588ce01f69b9403f5`。完整读取开发入口与规范索引，按 Controller Manager、命名、函数、错误、防御和测试规范审查；草案只作为审查依据，不当作已发布能力。
