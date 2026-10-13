@@ -22,13 +22,13 @@ func TestInstall(t *testing.T) {
 	}
 
 	for _, version := range []schema.GroupVersion{core.SchemeGroupVersion, corev1.SchemeGroupVersion} {
-		for _, kind := range []string{"Namespace", "NamespaceList"} {
+		for _, kind := range []string{"Namespace", "NamespaceList", "ConfigMap", "ConfigMapList"} {
 			gvk := version.WithKind(kind)
 			if _, err := scheme.New(gvk); err != nil {
 				t.Errorf("Scheme.New(%s) error = %v, want nil", gvk, err)
 			}
 		}
-		for _, kind := range []string{"Pod", "Secret", "Service", "ConfigMap"} {
+		for _, kind := range []string{"Pod", "Secret", "Service"} {
 			if gvk := version.WithKind(kind); scheme.Recognizes(gvk) {
 				t.Errorf("Scheme.Recognizes(%s) = true, want false", gvk)
 			}

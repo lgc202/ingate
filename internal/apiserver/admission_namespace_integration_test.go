@@ -106,6 +106,18 @@ func TestNamespaceLifecycleLoopback(t *testing.T) {
 		{namespace: "shared", wantReason: metav1.StatusReasonForbidden},
 	}
 	for _, tt := range tests {
+		_, configMapErr := localClient.ConfigMaps(tt.namespace).Create(ctx, &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: "runtime"},
+			Data:       map[string]string{"config.json": "{}"},
+		}, metav1.CreateOptions{})
+		if tt.wantReason == "" {
+			if configMapErr != nil {
+				t.Errorf("Create(ConfigMap in %q) error = %v, want nil", tt.namespace, configMapErr)
+			}
+		} else if got := apierrors.ReasonForError(configMapErr); got != tt.wantReason {
+			t.Errorf("Create(ConfigMap in %q) reason = %q, want %q (error = %v)", tt.namespace, got, tt.wantReason, configMapErr)
+		}
+
 		// 请求通过真实 Gateway HTTP 存储入口及框架装配的准入链。
 		_, err := gateways.GatewayV1alpha1().Gateways(tt.namespace).Create(ctx, &gatewayv1alpha1.Gateway{
 			ObjectMeta: metav1.ObjectMeta{Namespace: tt.namespace, Name: "edge"},

@@ -27,6 +27,10 @@ func TestNewScheme(t *testing.T) {
 		{gvk: coreapi.SchemeGroupVersion.WithKind("NamespaceList"), wantType: reflect.TypeFor[*coreapi.NamespaceList]()},
 		{gvk: corev1.SchemeGroupVersion.WithKind("Namespace"), wantType: reflect.TypeFor[*corev1.Namespace]()},
 		{gvk: corev1.SchemeGroupVersion.WithKind("NamespaceList"), wantType: reflect.TypeFor[*corev1.NamespaceList]()},
+		{gvk: coreapi.SchemeGroupVersion.WithKind("ConfigMap"), wantType: reflect.TypeFor[*coreapi.ConfigMap]()},
+		{gvk: coreapi.SchemeGroupVersion.WithKind("ConfigMapList"), wantType: reflect.TypeFor[*coreapi.ConfigMapList]()},
+		{gvk: corev1.SchemeGroupVersion.WithKind("ConfigMap"), wantType: reflect.TypeFor[*corev1.ConfigMap]()},
+		{gvk: corev1.SchemeGroupVersion.WithKind("ConfigMapList"), wantType: reflect.TypeFor[*corev1.ConfigMapList]()},
 		{gvk: gateway.SchemeGroupVersion.WithKind("Gateway"), wantType: reflect.TypeFor[*gateway.Gateway]()},
 		{gvk: v1alpha1.SchemeGroupVersion.WithKind("Gateway"), wantType: reflect.TypeFor[*v1alpha1.Gateway]()},
 		{gvk: metav1.SchemeGroupVersion.WithKind("Table"), wantType: reflect.TypeFor[*metav1.Table]()},
@@ -44,7 +48,7 @@ func TestNewScheme(t *testing.T) {
 		}
 	}
 
-	for _, kind := range []string{"Pod", "Secret", "Service", "ConfigMap"} {
+	for _, kind := range []string{"Pod", "Secret", "Service"} {
 		if gvk := corev1.SchemeGroupVersion.WithKind(kind); scheme.Recognizes(gvk) {
 			t.Errorf("Scheme.Recognizes(%s) = true, want false", gvk)
 		}

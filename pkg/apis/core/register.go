@@ -14,6 +14,9 @@ var (
 )
 
 func addKnownTypes(scheme *runtime.Scheme) error {
-	scheme.AddKnownTypes(SchemeGroupVersion, &Namespace{}, &NamespaceList{})
+	scheme.AddKnownTypes(SchemeGroupVersion,
+		&Namespace{}, &NamespaceList{},
+		&ConfigMap{}, &ConfigMapList{},
+	)
 	return nil
 }

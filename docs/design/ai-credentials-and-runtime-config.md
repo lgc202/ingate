@@ -6,6 +6,8 @@
 - 讨论入口：[统一 AI Proxy 决策](../decisions/0010-unified-ai-proxy-config-delivery.md)、[模型操作与部署建议](ai-model-operations-and-deployment.md)
 - 范围：凭据职责、派生配置、版本关联、撤销与恢复；仅修改文档
 
+2026-10-13 编译存储切片补充：用户已确认 [AI 编译配置契约](ai-compiled-config-contract.md)，采用 ConfigMap 替代下文 AIProxyConfig 候选，先保存当前完整非敏感配置，普通 HTTP 不进入 AI payload。原生 ConfigMap API 已通过用户 review 并获准本地提交；内部编码及编译写入尚未实现。Secret、双版本、本地健康准入及撤销仍须独立确认，不因本轮确认而获准实现。
+
 ## 摘要
 
 我们建议沿用官方的 Secret 与 secretRef：密钥集中保存，BackendSecurityPolicy 附着 AIBackend 并引用凭据。首批只设计 OpenAI API key，不增加云身份交换、任意 Header 模板或多种凭据插件。Secret 原文不进入普通派生配置、MySQL 查询投影、状态或日志。
@@ -16,7 +18,7 @@ Controller 负责裁决并生成完整配置，Go 负责加载配置与授权凭
 
 ## 背景：当前缺的是存储与确认契约
 
-2026-10-13 状态补充：[网关 Registry](../../internal/apiserver/registry/gateway/storage.go) 已安装六种业务资源及其 status；[核心组](../../internal/apiserver/core.go) 的 Namespace 主资源、status 和 finalize 已提交。官方 NamespaceLifecycle 的 Ingate 本地数据源已提交；删除内核与 Manager 的 Namespace Watch、重试调度已提交为 `5cc450d5`，尚未验证真实自动删除联动。Backend 默认存储筛选重构已提交为 `17cfe8d5`；本轮六种业务资源的 Namespace 存储、管理和投影链路已切换，待 review，没有 Secret 或运行配置 API。作用域目标以已确认的 [0013](../decisions/0013-namespaced-resources.md) 为准，本稿其余凭据与发布建议仍待 review。
+2026-10-13 状态补充：[网关 Registry](../../internal/apiserver/registry/gateway/storage.go) 已安装六种业务资源及其 status；[核心组](../../internal/apiserver/core.go) 的 Namespace 主资源、status 和 finalize 已提交。官方 NamespaceLifecycle 的 Ingate 本地数据源已提交；删除内核与 Manager 的 Namespace Watch、重试调度已提交为 `5cc450d5`，尚未验证真实自动删除联动。Backend 默认存储筛选重构已提交为 `17cfe8d5`；六种业务资源的 Namespace 存储、管理和投影链路已由用户 review 并授权提交为 `cda0478e`，未推送，没有 Secret 或运行配置 API。作用域目标以已确认的 [0013](../decisions/0013-namespaced-resources.md) 为准，本稿其余凭据与发布建议仍待 review。
 
 当前 [Options](../../internal/apiserver/options.go) 沿用 RecommendedOptions；其上游采用委托认证与授权，并依赖 CoreAPI/Admission 的配置。已有 HTTPS Listener 不证明身份和资源权限已配置正确。[存储测试](../../internal/apiserver/integration_test.go) 为隔离存储，将这些选项设为 nil，不能作为密钥访问隔离的证据。
 
@@ -145,6 +147,28 @@ ACK/NACK 只在相同 stream、资源类型和已发送 nonce 下关联到版本
 
 配置大小、新鲜度期限、探针时间和排空期限是实现前要确认的运行参数；本稿不填没有部署与业务依据的性能数字。故障表定义了行为方向，不表示这些界限已经落实。只批准此方向，仍不能开始依赖具体期限的运行代码。
 
+## 非敏感配置载体：已确认 ConfigMap，凭据与运行仍待确认
+
+用户已确认先编译并保存配置，Proxy 的 Watch 在开发该组件时接入。原先 AIProxyConfig 候选已由标准 ConfigMap 替代，不新增公开派生 Kind。原生 API 存储切片已通过用户 review 并获准本地提交，Controller 尚未写入配置；下述对照保留选择依据，不再表示需要重新确认载体。
+
+本次只读核对 Agent Router 固定提交 `daa9f891a8afcb18576d4593ad18870d1d18abac` 的 [filterapi.Config](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/filterapi/filterconfig.go)和 [Gateway 编译](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/controller/gateway.go)：协议配置与 Kubernetes 类型分离；编译后的后端包含 schema、模型名覆盖及可选认证数据，配置序列化后交给 [Secret 写入器](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/controller/filter_config_bundle.go)。该版本使用分片与索引 Secret，不能把它概括成一份无大小限制的文件，也不能照搬认证数据到公开配置。
+
+非敏感编译结果使用标准 `core/v1 ConfigMap`，密钥仍按独立 Secret 设计处理。ConfigMap 原本用于非敏感配置，支持经 API 订阅变化，数据上限为 1 MiB，见 [Kubernetes ConfigMap 文档](https://kubernetes.io/docs/concepts/configuration/configmap/)。这是 Ingate 已确认的载体选择，不声称官方使用 ConfigMap；其访问仍需授权，网络目标和来源信息也不能因此公开给所有用户。
+
+| 边界 | 已确认范围 |
+| --- | --- |
+| 原生资源 | 在 Ingate 核心组接入标准 namespaced ConfigMap；沿用 Generic Store、官方字段校验和原生客户端，不新增 AIProxyConfig Kind、通用配置表或 Admin CRUD |
+| 配置所属空间 | 共享数据面的配置存在显式指定的控制面 Namespace；业务来源仍保留各自 Namespace/name。控制面空间需预先创建，不隐式创建或默认猜测，也不改变六种业务资源的同空间引用 |
+| 内容职责 | 内部强类型协议配置独立于 Kubernetes 包；ConfigMap 只承载序列化结果，编译切片按已确认字段、匹配、失效目标及删除语义实现，再进行代码 review，不使用任意字段字典推导业务 |
+| 敏感内容 | 不写密钥、Token、认证 Header 或密钥哈希；不把“暂不接凭据”解释为已允许匿名调用真实模型服务 |
+| 更新与上限 | 使用标准 resourceVersion 做并发更新；完整配置整体替换，超限返回明确错误。本阶段不引入分片、无界历史、发布任务或全局 Ready |
+
+这一选择会把配置内容校验责任放在编译和加载层：API Server 校验标准 ConfigMap，不校验其字符串中的模型规则。专用派生资源可以做字段级 API 校验和 OpenAPI 描述，但需要维护另一套公开类型与存储契约；是否需要这层 API 能力，应按实际消费者确认，不单凭已有六种业务资源就增加第七种。
+
+用户要求先明确 payload，不能先装空载体再补设计。[完整编译配置契约](ai-compiled-config-contract.md) 已经确认，包含固定对象名与 key、显式控制面 Namespace、完整字段和例子、匹配/失效/删除及存储行为。代码分原生 ConfigMap API、内部强类型配置、Controller 编译写入三个小步；不先建空模型服务或只写 Conditions，也不改变现有 Envoy 转发。模型与 MCP 运行协议、凭据、TLS、Proxy Watch 和跨组件版本激活仍不在这三个小步内。
+
+本节设计时按 GoCanon 启动快照 `336a025-dirty` 及已确认的 0010/0013 边界审查。GitHub 页面读取失败后只读取固定提交的原始源码；远端 tag 查询因 HTTP/2 错误失败，未将其记作重新验证成功，没有执行上游组件。原生 ConfigMap 实施采用的新规则快照、来源适配与检查结果记录在 [编译配置契约](ai-compiled-config-contract.md#原生-configmap-实现记录)，不据此宣称凭据或运行能力已经实现。
+
 ## 理由与取舍
 
 把 key 内联在 AIBackend 中能少一个引用，但会使普通资源查询、投影和配置转储携带秘密，也把账号轮转与模型契约更新混在一起。Secret 与 secretRef 已有官方依据；我们选择其原义，并承认 namespaced 存储与权限的接入成本。
@@ -157,7 +181,7 @@ ACK/NACK 只在相同 stream、资源类型和已发送 nonce 下关联到版本
 
 这是新增 AI 能力的设计，不保留旧 AI 契约，也不改变现有 HTTP 转发、管理员 Session 或 MySQL 普通查询语义。集中凭据不等于新增计费、租户、配额或通用策略语言。
 
-建议按三个独立改动推进，并在每项代码 review 后停下等待提交确认：
+以下三项保留凭据与运行阶段的候选拆分，不是本轮编译存储的实施顺序。当前先编译并保存非敏感结果，以 [新契约的实施计划](ai-compiled-config-contract.md#兼容性与实施)为准；真实凭据和接流量仍受下述前置条件限制。每项代码 review 后停下等待提交确认：
 
 1. 先确定 Ingate 托管 Secret 的命名空间与身份/授权部署契约，完成受保护存储、密钥管理和正反例。依赖的宿主或身份提供方不能凭参考示例补出；未完成前不接真实 key。
 2. 通过策略与 AIProxyConfig 的正式字段契约后，接入 Controller 编译和原生 List/Watch 加载；只生成明确类型的机械代码，不先建空 Controller、插件接口或新 MySQL 表。

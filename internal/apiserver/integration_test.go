@@ -645,7 +645,9 @@ func startAPIServerWithOptions(t *testing.T, options *Options) *rest.Config {
 		}
 		response, err := httpClient.Do(request)
 		if err == nil {
-			response.Body.Close()
+			if err := response.Body.Close(); err != nil {
+				t.Fatalf("close readiness response: %v", err)
+			}
 			if response.StatusCode == http.StatusOK {
 				break
 			}

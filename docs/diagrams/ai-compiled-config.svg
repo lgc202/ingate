@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="620" viewBox="0 0 1120 620" role="img" aria-labelledby="title desc">
+  <title id="title">Ingate AI 编译配置已确认设计</title>
+  <desc id="desc">共享协调器将不同 Namespace 的领域资源解析为一份非敏感 ConfigMap，经 Ingate API Server 存入 etcd。Go Proxy 的订阅属于后续开发，现有 HTTP xDS 发布保持不变。编译流程读取、裁决、编码校验和幂等写入；失败不写半份配置，全量删除仍写空配置。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#475569"/></marker>
+    <style>
+      text { font-family: system-ui, 'PingFang SC', sans-serif; fill: #1e293b; font-size: 17px; }
+      .heading { font-size: 23px; font-weight: 600; }
+      .note { font-size: 15px; fill: #475569; }
+      .box { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.5; rx: 8; }
+      .config { fill: #eff6ff; stroke: #60a5fa; stroke-width: 1.5; rx: 8; }
+      .future { fill: #fff; stroke: #94a3b8; stroke-width: 1.5; stroke-dasharray: 6 4; rx: 8; }
+      .line { fill: none; stroke: #475569; stroke-width: 1.7; marker-end: url(#arrow); }
+      .later { stroke-dasharray: 6 4; }
+    </style>
+  </defs>
+  <rect width="1120" height="620" fill="#fff"/>
+  <text x="28" y="36" class="heading">配置边界：编译结果持久化；Proxy 消费留待后续</text>
+  <text x="28" y="63" class="note">目标设计已确认 · 原生 ConfigMap API 已通过 review · 编译及 Proxy 消费尚未实现</text>
+  <rect class="box" x="28" y="94" width="248" height="126"/>
+  <text x="44" y="123">业务空间：team-a / team-b</text>
+  <text x="44" y="153">Gateway / 三类 Route</text>
+  <text x="44" y="180">AIBackend / Backend</text>
+  <text x="44" y="207" class="note">引用仍只在同 Namespace 内解析</text>
+  <path class="line" d="M276 160 H330"/>
+  <rect class="box" x="330" y="113" width="200" height="91"/>
+  <text x="350" y="145">共享协调器</text>
+  <text x="350" y="174" class="note">单一裁决与配置写入者</text>
+  <path class="line" d="M530 158 H590"/>
+  <rect class="config" x="590" y="94" width="252" height="126"/>
+  <text x="607" y="123">控制面 Namespace</text>
+  <text x="607" y="151">ConfigMap · config.json</text>
+  <text x="607" y="179">API Server → etcd</text>
+  <text x="607" y="207" class="note">匹配 / 协议绑定 / 网络快照</text>
+  <path class="line later" d="M842 158 H912"/>
+  <text x="851" y="141" class="note">订阅</text>
+  <rect class="future" x="912" y="114" width="180" height="89"/>
+  <text x="930" y="146">统一 Go AI Proxy</text>
+  <text x="930" y="175" class="note">校验后加载不可变视图</text>
+  <path class="line" d="M430 204 V260 H590"/>
+  <text x="442" y="246" class="note">现有 HTTP / xDS</text>
+  <rect class="box" x="590" y="238" width="252" height="47"/>
+  <text x="607" y="267">共享 Envoy：保留 HTTP 转发</text>
+  <text x="28" y="319" class="note">ConfigMap 不含凭据；保存成功不代表 Go 已加载、Envoy 已 ACK 或真实请求成功。</text>
+  <path d="M28 341 H1092" stroke="#e2e8f0"/>
+  <text x="28" y="377" class="heading">保存流程：完整读取 → 确定性编译 → 原生并发更新</text>
+  <rect class="box" x="28" y="411" width="181" height="75"/>
+  <text x="44" y="441">读取六类资源</text>
+  <text x="44" y="468" class="note">多次 List ≠ 跨资源事务</text>
+  <path class="line" d="M209 449 H247"/>
+  <rect class="box" x="247" y="411" width="182" height="75"/>
+  <text x="263" y="441">附着、引用与排序</text>
+  <text x="263" y="468" class="note">失效目标保留拒绝匹配</text>
+  <path class="line" d="M429 449 H467"/>
+  <rect class="box" x="467" y="411" width="182" height="75"/>
+  <text x="483" y="441">编码与内容校验</text>
+  <text x="483" y="468" class="note">revision / 引用 / 大小</text>
+  <path class="line" d="M649 449 H687"/>
+  <rect class="box" x="687" y="411" width="182" height="75"/>
+  <text x="703" y="441">比较已保存内容</text>
+  <text x="703" y="468" class="note">相同不写，不制造新版本</text>
+  <path class="line" d="M869 449 H907"/>
+  <rect class="config" x="907" y="411" width="185" height="75"/>
+  <text x="923" y="441">Create / Update</text>
+  <text x="923" y="468" class="note">标准 resourceVersion</text>
+  <path class="line" d="M558 486 V529 H687"/>
+  <rect class="box" x="687" y="506" width="405" height="48"/>
+  <text x="703" y="536">读、校验或写入失败：报告重试，不写半份配置</text>
+  <text x="28" y="585" class="note">最后一条 AI 路由删除：仍写入三组空数组；不跳过更新，不把旧路由留在运行视图。</text>
+</svg>

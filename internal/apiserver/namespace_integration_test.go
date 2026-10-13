@@ -60,7 +60,11 @@ func TestCoreAPIHTTPContract(t *testing.T) {
 	verbs := make(map[string]metav1.Verbs)
 	for _, resource := range resources.APIResources {
 		verbs[resource.Name] = resource.Verbs
-		if resource.Namespaced || resource.Kind != "Namespace" {
+		if resource.Name == "configmaps" {
+			if !resource.Namespaced || resource.Kind != "ConfigMap" || !cmp.Equal(resource.ShortNames, []string{"cm"}) {
+				t.Errorf("Discovery(configmaps) = %+v, want namespaced ConfigMap with short name cm", resource)
+			}
+		} else if resource.Namespaced || resource.Kind != "Namespace" {
 			t.Errorf("Discovery(%q) scope/kind = %t/%q, want false/Namespace",
 				resource.Name, resource.Namespaced, resource.Kind)
 		}
@@ -69,6 +73,7 @@ func TestCoreAPIHTTPContract(t *testing.T) {
 		"namespaces":          {"create", "delete", "get", "list", "patch", "update", "watch"},
 		"namespaces/status":   {"get", "patch", "update"},
 		"namespaces/finalize": {"update"},
+		"configmaps":          {"create", "delete", "deletecollection", "get", "list", "patch", "update", "watch"},
 	}
 	if diff := cmp.Diff(wantVerbs, verbs); diff != "" {
 		t.Errorf("Discovery(v1) verbs mismatch (-want +got):\n%s", diff)
@@ -90,6 +95,8 @@ func TestCoreAPIHTTPContract(t *testing.T) {
 		"/api/v1/namespaces/{name}",
 		"/api/v1/namespaces/{name}/status",
 		"/api/v1/namespaces/{name}/finalize",
+		"/api/v1/namespaces/{namespace}/configmaps",
+		"/api/v1/namespaces/{namespace}/configmaps/{name}",
 	} {
 		if _, ok := swagger.Paths.Paths[path]; !ok {
 			t.Errorf("OpenAPI v2 path %q missing, want installed", path)
@@ -100,6 +107,9 @@ func TestCoreAPIHTTPContract(t *testing.T) {
 	}
 	if _, ok := swagger.Definitions[corev1.Namespace{}.OpenAPIModelName()]; !ok {
 		t.Error("OpenAPI v2 lacks Namespace, want installed definition")
+	}
+	if _, ok := swagger.Definitions[corev1.ConfigMap{}.OpenAPIModelName()]; !ok {
+		t.Error("OpenAPI v2 lacks ConfigMap, want installed definition")
 	}
 
 	data, err = client.RESTClient().Get().AbsPath("/openapi/v3/api/v1").DoRaw(t.Context())
@@ -115,6 +125,9 @@ func TestCoreAPIHTTPContract(t *testing.T) {
 	}
 	if _, ok := document.Components.Schemas[corev1.Namespace{}.OpenAPIModelName()]; !ok {
 		t.Error("OpenAPI v3 lacks Namespace, want installed definition")
+	}
+	if _, ok := document.Components.Schemas[corev1.ConfigMap{}.OpenAPIModelName()]; !ok {
+		t.Error("OpenAPI v3 lacks ConfigMap, want installed definition")
 	}
 	if _, ok := document.Components.Schemas[corev1.Pod{}.OpenAPIModelName()]; ok {
 		t.Error("OpenAPI v3 includes Pod, want only installed resources and dependencies")

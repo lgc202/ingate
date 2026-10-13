@@ -52,6 +52,24 @@ func TestStorageFactoryCodecs(t *testing.T) {
 			storageGVK: corev1.SchemeGroupVersion.WithKind("NamespaceList"),
 		},
 		{
+			name:     "configmap",
+			resource: corev1.SchemeGroupVersion.WithResource("configmaps").GroupResource(),
+			object: &coreapi.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "runtime"},
+				Data:       map[string]string{"config.json": "{}"},
+			},
+			storageGVK: corev1.SchemeGroupVersion.WithKind("ConfigMap"),
+		},
+		{
+			name:     "configmap_list",
+			resource: corev1.SchemeGroupVersion.WithResource("configmaps").GroupResource(),
+			object: &coreapi.ConfigMapList{Items: []coreapi.ConfigMap{{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "runtime"},
+				BinaryData: map[string][]byte{"bytes": {0, 255}},
+			}}},
+			storageGVK: corev1.SchemeGroupVersion.WithKind("ConfigMapList"),
+		},
+		{
 			name:       "gateway",
 			resource:   gatewayapi.Resource("gateways"),
 			object:     gateway,
@@ -187,7 +205,12 @@ func TestStorageFactoryConfig(t *testing.T) {
 		t.Error("newStorageFactory() mutated original EtcdOptions count tracker")
 	}
 	if factory.APIResourceConfigSource.ResourceEnabled(corev1.SchemeGroupVersion.WithResource("pods")) {
-		t.Error("Factory enables Pod storage, want Namespace only in core group")
+		t.Error("Factory enables Pod storage, want only supported core resources")
+	}
+	for _, resource := range []string{"namespaces", "configmaps"} {
+		if !factory.APIResourceConfigSource.ResourceEnabled(corev1.SchemeGroupVersion.WithResource(resource)) {
+			t.Errorf("Factory enables %q = false, want true", resource)
+		}
 	}
 
 	explicitTracker := flowcontrolrequest.NewStorageObjectCountTracker()

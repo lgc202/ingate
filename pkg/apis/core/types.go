@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// 来源：Kubernetes v1.37.0 pkg/apis/core/types.go 的 Namespace 和 NamespaceList。
+// 来源：Kubernetes v1.37.0 pkg/apis/core/types.go 的 Namespace、ConfigMap 及其列表。
 // 本地适配：嵌套字段复用已发布的 core/v1 类型，不导入 Kubernetes 主仓库。
 package core
 
@@ -44,4 +44,29 @@ type NamespaceList struct {
 	metav1.ListMeta
 
 	Items []Namespace
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ConfigMap 保存命名空间内的非敏感配置，不解释 data 中的应用协议。
+type ConfigMap struct {
+	metav1.TypeMeta
+	metav1.ObjectMeta
+
+	// Immutable 为 true 时禁止修改 Data、BinaryData 或恢复为可变对象。
+	Immutable *bool
+	// Data 保存 UTF-8 字符串，与 BinaryData 不得包含同名 key。
+	Data map[string]string
+	// BinaryData 保存非字符串内容；总数据大小沿用标准 ConfigMap 上限。
+	BinaryData map[string][]byte
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ConfigMapList 是命名空间配置内部对象的列表。
+type ConfigMapList struct {
+	metav1.TypeMeta
+	metav1.ListMeta
+
+	Items []ConfigMap
 }

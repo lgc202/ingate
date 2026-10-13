@@ -7,6 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/registry/rest"
 
+	configmapstorage "github.com/lgc202/ingate/internal/apiserver/registry/core/configmap"
 	namespacestorage "github.com/lgc202/ingate/internal/apiserver/registry/core/namespace"
 )
 
@@ -20,6 +21,7 @@ func TestCoreAPIGroupInfo(t *testing.T) {
 		"namespaces":          &namespacestorage.REST{},
 		"namespaces/status":   &namespacestorage.StatusREST{},
 		"namespaces/finalize": &namespacestorage.FinalizeREST{},
+		"configmaps":          &configmapstorage.REST{},
 	}
 	info := coreAPIGroupInfo(scheme, storage)
 	if info.Scheme != scheme {
@@ -30,7 +32,7 @@ func TestCoreAPIGroupInfo(t *testing.T) {
 	}
 	versionedStorage := info.VersionedResourcesStorageMap[corev1.SchemeGroupVersion.Version]
 	if len(info.VersionedResourcesStorageMap) != 1 || len(versionedStorage) != len(storage) {
-		t.Errorf("coreAPIGroupInfo() storage = %v, want only Namespace v1 storage", info.VersionedResourcesStorageMap)
+		t.Errorf("coreAPIGroupInfo() storage = %v, want only supported core/v1 storage", info.VersionedResourcesStorageMap)
 	}
 	for name, want := range storage {
 		if got := versionedStorage[name]; got != want {

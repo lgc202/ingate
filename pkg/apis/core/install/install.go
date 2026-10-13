@@ -9,7 +9,7 @@ import (
 	"github.com/lgc202/ingate/pkg/apis/core/v1"
 )
 
-// Install 注册 Namespace 内外部类型、转换和默认值，并指定核心 v1 为首选外部版本。
+// Install 注册已支持的核心内外部类型、转换和默认值，并指定 v1 为首选外部版本。
 func Install(scheme *runtime.Scheme) error {
 	if err := core.AddToScheme(scheme); err != nil {
 		return err

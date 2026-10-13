@@ -27,7 +27,10 @@ func newStorageFactory(
 	encoding := serverstorage.NewDefaultResourceEncodingConfigForEffectiveVersion(scheme, config.EffectiveVersion)
 	resources := serverstorage.NewResourceConfig()
 	resources.EnableVersions(gatewayv1alpha1.SchemeGroupVersion)
-	resources.EnableResources(corev1.SchemeGroupVersion.WithResource("namespaces"))
+	resources.EnableResources(
+		corev1.SchemeGroupVersion.WithResource("namespaces"),
+		corev1.SchemeGroupVersion.WithResource("configmaps"),
+	)
 
 	factory := serverstorage.NewDefaultStorageFactory(
 		storageConfig,

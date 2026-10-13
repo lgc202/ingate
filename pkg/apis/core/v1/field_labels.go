@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // 来源：Kubernetes v1.37.0 pkg/apis/core/v1/conversion.go 的 Namespace 字段转换。
-// 本地适配：只注册 Namespace 的标准字段转换，不注册其他核心资源。
+// 本地适配：只追加 Namespace 特定的字段转换；ConfigMap 使用 Scheme 默认的 metadata 字段转换。
 package v1
 
 import (
