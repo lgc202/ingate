@@ -11,11 +11,15 @@ const componentName = "ingate-apiserver"
 type Config struct {
 	GenericConfig *genericapiserver.RecommendedConfig
 	Scheme        *runtime.Scheme
+
+	// 保存本地 Informer 工厂，将退出清理责任随配置移交给 Server.New；Admission 关闭时为 nil。
+	namespaceInitializer *namespaceLifecycleInitializer
 }
 
 type completedConfig struct {
-	genericConfig genericapiserver.CompletedConfig
-	scheme        *runtime.Scheme
+	genericConfig        genericapiserver.CompletedConfig
+	scheme               *runtime.Scheme
+	namespaceInitializer *namespaceLifecycleInitializer
 }
 
 // CompletedConfig 保存已经完成默认值计算的配置。
@@ -28,8 +32,9 @@ type CompletedConfig struct {
 // 它会修改 Config.GenericConfig，应在应用全部启动选项后调用。
 func (c *Config) Complete() CompletedConfig {
 	completed := &completedConfig{
-		genericConfig: c.GenericConfig.Complete(),
-		scheme:        c.Scheme,
+		genericConfig:        c.GenericConfig.Complete(),
+		scheme:               c.Scheme,
+		namespaceInitializer: c.namespaceInitializer,
 	}
 
 	return CompletedConfig{completedConfig: completed}

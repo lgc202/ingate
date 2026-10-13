@@ -21,7 +21,7 @@ Ingate 已具备 HTTP 网关的控制面主结构和最小转发配置实现：�
 
 ## 当前主路径与术语
 
-2026-10-13 增补：Namespace 内部类型、存储生命周期、按资源编码工厂和 OpenAPI 已提交；原生 `/api/v1/namespaces`、`/status`、`/finalize` 接入已复核，用户授权提交。真实 HTTPS 与隔离 etcd 检查覆盖 Discovery、v2/v3 文档、字段保护和手动 finalize。尚无本地 NamespaceLifecycle 数据源或自动清理控制器，六种业务资源的存储与管理链路仍是集群级；目标和实施记录见 [0013](decisions/0013-namespaced-resources.md)。
+2026-10-13 增补：Namespace 内部类型、存储生命周期、按资源编码工厂和 OpenAPI 已提交；原生 `/api/v1/namespaces`、`/status`、`/finalize` 接入提交为 `e649d9f6`。真实 HTTPS 与隔离 etcd 检查覆盖 Discovery、v2/v3 文档、字段保护和手动 finalize。本轮官方 NamespaceLifecycle 本地数据源与布局已确认，用户授权提交；两个隔离 API Server 验证插件以 Ingate 的 Namespace 存在性和阶段为准，不采用宿主同名对象。没有自动清理控制器，六种业务资源的存储与管理链路仍是集群级；该插件检查不证明业务 HTTP 已支持命名空间请求。目标和实施记录见 [0013](decisions/0013-namespaced-resources.md)。
 
 ![当前 API 网关架构](diagrams/api-current-architecture.svg)
 

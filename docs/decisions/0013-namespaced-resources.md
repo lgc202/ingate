@@ -153,6 +153,30 @@ GoCanon MCP 再次确认规则源 `/Users/lgc202/workspace/source/lgc202/gocanon
 
 `gofmt -l cmd internal pkg`、已跟踪及未跟踪文件空白检查、`golangci-lint run ./...`（0 issues）、`go vet ./...`、`go test ./... -count=1`、`go build ./...` 和 `go test -tags=integration ./internal/apiserver -count=1` 均通过。API 类型未修改，无须重新生成；pkg/apis、pkg/generated、go.mod/go.sum 无差异。本轮没有验证失败安装下的 Destroy 调用次数、生产认证授权、自动清理控制器或真实组件整链路；现有成功启动与退出检查不替代这些证据。用户授权复核标准实现方式后提交并继续：再次对照锁定版本的安装与销毁契约、审查全部手写差异、重跑上述检查，未发现阻止提交的问题。下一步只接 NamespaceLifecycle 的本地数据源，保留宿主委托认证/鉴权和框架生命周期。
 
+## 第六小步：官方 NamespaceLifecycle 使用本地数据源
+
+第五小步已提交为 `e649d9f6`，未推送。本步复用锁定的 apiserver v0.37.0 的 NamespaceLifecycle 插件，通过其公开客户端与 Informer 初始化接口接入 Ingate 的 LoopbackClientConfig。不复制或改写插件的存在性、Terminating、保护空间、缓存回退和删除处理规则，不增加依赖或新 API。
+
+原生 RecommendedOptions 先准备 HTTPS、Loopback 和宿主 CoreAPI，再执行 ExtraAdmissionInitializers。本地初始化器保留原额外初始化器，在通用宿主初始化之后，仅替换具体 Lifecycle 插件的客户端和 Namespace Lister；其它插件仍使用宿主依赖。宿主认证、鉴权、动态客户端和 SharedInformerFactory 不改写，也不因此消除原 CoreAPI 的外部依赖。本步不统一调整 Webhook/Policy 的 Namespace 选择器或授权语义。
+
+本地工厂使用 client-go 的 SharedInformerFactory：PostStartHook 按框架 Context 启动；独立 readyz 检查反映已启动 Informer 的缓存同步；GenericAPIServer 的 Destroy 回调等待其退出。Options 应用或 Server 构造失败时关闭尚未启动的工厂；Admission 关闭时不创建本地初始化器或启动 Hook。框架的标准禁用插件参数保持有效，不自动创建 default、kube-system 或 kube-public。
+
+单元检查覆盖本地 Active 放行、仅宿主存在时 NotFound、本地 Terminating/宿主 Active 冲突时 Forbidden、不存在空间的 Update/Delete 保持原插件行为，以及其它插件仍获得宿主客户端与工厂。错误检查覆盖缺失或非法 Loopback、原额外初始化器失败保留错误原因与原函数、Admission 关闭时不注册本地 Hook。
+
+集成检查启动两个各自隔离的 HTTPS API Server 和 etcd，使用临时宿主 kubeconfig，沿实际 Options → Config → Server → PostStartHook → readyz 链运行官方插件；真实 List/Watch 和实时 Get 以本地 Namespace 为准。Gateway 属性直接交给运行中的插件检查，不通过 Gateway HTTP 创建请求，因为六种业务资源本步仍为集群级。测试只启用 NamespaceLifecycle，关闭委托认证、鉴权和 APF；不证明生产权限、完整默认准入链或全部宿主插件行为。
+
+GoCanon MCP 来源和快照仍为 `336a025-dirty`，revision `336a025bf2d761d1eac3cf7f5991d152e6d3d7e9`。完整读取 Runtime 规范并结合已读取的 APIServer、命名/函数、错误、防御和测试规范，审查 7 个 Go 文件和 4 个文档（包含 3 个新增手写文件）；核对声明顺序、原初始化器保留、相邻错误检查、插件依赖边界和退出所有权。规范草案只作审查依据，不作为模板级或生产就绪认证。
+
+`gofmt -l cmd internal pkg`、已跟踪及新增文件空白检查、`go vet ./...`、`go test ./... -count=1`、`go build ./...` 和 `go test -tags=integration ./internal/apiserver -count=1` 均通过。沙箱内 lint 三次因包加载器报 no go files to analyze 失败；使用正常缓存权限重跑 `golangci-lint run ./...` 得到 0 issues，没有修改依赖或运行 go mod tidy。没有修改 API 类型、生成产物或 go.mod/go.sum，无须重新生成。
+
+按用户要求补充源码注释，解释准入职责、本地与宿主数据源、Informer/Lister、周期 resync 与 List/Watch 的区别、额外初始化顺序、readyz 和退出清理所有权；测试注释明确直接调用插件不等于业务 HTTP 已支持 namespaced 请求。只增加注释，不修改执行逻辑、签名、配置或断言。
+
+用户确认准入代码布局后，将接线集中到 [admission_namespace.go](../../internal/apiserver/admission_namespace.go)，单元与集成测试分别使用 [admission_namespace_test.go](../../internal/apiserver/admission_namespace_test.go) 和 [admission_namespace_integration_test.go](../../internal/apiserver/admission_namespace_integration_test.go)。三个文件只改名，内容哈希保持一致。插件装配留在 API Server 组件包；需要实现自有独立准入规则时再放入 admission/<plugin>，不提前建空包或通用注册器。单资源字段校验与字段保护仍属于 validation/Strategy，异步清理仍属于 Controller。
+
+提交前格式、空白、lint（0 issues）、vet、全仓普通测试和构建再次通过；首次全组 integration 因 TestNamespaceStorageDeleteValidation 启动时回环端口已占用而失败，没有运行到行为断言。未修改代码，单独重跑完整 integration 后通过（24.351s）；首次失败不记作通过。
+
+用户授权提交并继续。提交前再次按声明顺序、错误路径、注释和生命周期边界审查全部手写文件，并复核生成目录与依赖未变。没有接入 Namespace 删除控制器、切换业务存储/Admin/MySQL、验证完整默认准入链或真实网关整链路；现有空间仍需显式 finalize。下一切片接入删除协调器，业务作用域切换之后才能验收空间内资源自动清理。
+
 ## 已提交编译身份改造的审查和验证边界
 
 使用 GoCanon MCP，规则源 `/Users/lgc202/workspace/source/lgc202/gocanon`，快照 `f478423-dirty`，revision `f4784239c945ba61e90bdfa588ce01f69b9403f5`。完整读取开发入口与规范索引，按 Controller Manager、命名、函数、错误、防御和测试规范审查；草案只作为审查依据，不当作已发布能力。

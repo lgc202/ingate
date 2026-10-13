@@ -478,6 +478,24 @@ func startGatewayAPI(t *testing.T) dynamic.Interface {
 func startAPIServer(t *testing.T) *rest.Config {
 	t.Helper()
 
+	options, err := NewOptions()
+	if err != nil {
+		t.Fatalf("NewOptions() error = %v", err)
+	}
+	options.RecommendedOptions.CoreAPI = nil
+	options.RecommendedOptions.Authentication = nil
+	options.RecommendedOptions.Authorization = nil
+	options.RecommendedOptions.Admission = nil
+	options.RecommendedOptions.Features.EnablePriorityAndFairness = false
+
+	return startAPIServerWithOptions(t, options)
+}
+
+// startAPIServerWithOptions 使用用例指定的框架选项，存储、证书和监听端口仍全部隔离。
+// 返回前等待 readyz，通过 Cleanup 取消并等待服务退出，不连接部署环境的 etcd。
+func startAPIServerWithOptions(t *testing.T, options *Options) *rest.Config {
+	t.Helper()
+
 	etcd := testserver.RunEtcd(t, nil)
 	t.Cleanup(func() {
 		if err := etcd.Close(); err != nil {
@@ -491,18 +509,9 @@ func startAPIServer(t *testing.T) *rest.Config {
 	}
 	t.Cleanup(func() { _ = listener.Close() })
 
-	options, err := NewOptions()
-	if err != nil {
-		t.Fatalf("NewOptions() error = %v", err)
-	}
 	options.RecommendedOptions.Etcd.StorageConfig.Transport.ServerList = etcd.Endpoints()
 	options.RecommendedOptions.SecureServing.Listener = listener
 	options.RecommendedOptions.SecureServing.ServerCert.CertDirectory = ""
-	options.RecommendedOptions.CoreAPI = nil
-	options.RecommendedOptions.Authentication = nil
-	options.RecommendedOptions.Authorization = nil
-	options.RecommendedOptions.Admission = nil
-	options.RecommendedOptions.Features.EnablePriorityAndFairness = false
 
 	config, err := options.Config()
 	if err != nil {

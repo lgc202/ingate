@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apiserver/pkg/admission"
 	apiopenapi "k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
@@ -89,26 +90,66 @@ func (o *Options) Config() (*Config, error) {
 	genericConfig.OpenAPIV3Config.Info.Title = openAPITitle
 
 	// ApplyTo 准备存储、认证和 HTTPS Listener，但不启动请求处理循环。
-	if err := o.applyRecommendedOptions(genericConfig); err != nil {
+	namespaceInitializer, err := o.applyRecommendedOptions(genericConfig)
+	if err != nil {
 		return nil, fmt.Errorf("apply recommended API server options: %w", err)
 	}
 
-	return &Config{GenericConfig: genericConfig, Scheme: o.scheme}, nil
+	return &Config{
+		GenericConfig:        genericConfig,
+		Scheme:               o.scheme,
+		namespaceInitializer: namespaceInitializer,
+	}, nil
 }
 
-func (o *Options) applyRecommendedOptions(config *genericapiserver.RecommendedConfig) error {
+// applyRecommendedOptions 保留官方配置链，只接入按资源编码的存储和本地 Namespace 准入依赖。
+// 返回的初始化器持有尚未启动的工厂，由 Config 传递给 Server.New 接管退出清理。
+func (o *Options) applyRecommendedOptions(
+	config *genericapiserver.RecommendedConfig,
+) (*namespaceLifecycleInitializer, error) {
 	if options := o.RecommendedOptions.Etcd; options != nil {
 		factory, err := newStorageFactory(options, o.scheme, o.codecs, config)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := options.ApplyWithStorageFactoryTo(factory, &config.Config); err != nil {
-			return fmt.Errorf("apply resource storage options: %w", err)
+			return nil, fmt.Errorf("apply resource storage options: %w", err)
 		}
 	}
 
-	// Etcd 已应用；浅副本仅关闭这一次重复调用，不修改原始启动选项。
+	// Etcd 已应用；浅副本仅跳过这一次重复调用，额外初始化器也只在副本上替换，
+	// 不修改调用方持有的原始启动选项。
 	recommended := *o.RecommendedOptions
 	recommended.Etcd = nil
-	return recommended.ApplyTo(config)
+	var namespaceInitializer *namespaceLifecycleInitializer
+	if recommended.Admission != nil {
+		extraInitializers := recommended.ExtraAdmissionInitializers
+		// 不能在 ApplyTo 前创建本地客户端：框架须先准备 HTTPS 和 LoopbackClientConfig。
+		// ExtraAdmissionInitializers 是官方的后置扩展入口，宿主 CoreAPI 此时也已准备好。
+		recommended.ExtraAdmissionInitializers = func(
+			config *genericapiserver.RecommendedConfig,
+		) ([]admission.PluginInitializer, error) {
+			initializers, err := extraInitializers(config)
+			if err != nil {
+				return nil, err
+			}
+
+			namespaceInitializer, err = newNamespaceLifecycleInitializer(config)
+			if err != nil {
+				return nil, err
+			}
+			// 框架先向插件注入宿主依赖，再依次执行额外初始化器；放在最后才能让
+			// NamespaceLifecycle 最终使用本地依赖，而不改变其它插件和原扩展的接线。
+			return append(initializers, namespaceInitializer), nil
+		}
+	}
+	if err := recommended.ApplyTo(config); err != nil {
+		// 后续框架装配失败时，没有 Server 接管工厂；此时 Hook 尚未执行，可以直接关闭。
+		if namespaceInitializer != nil {
+			namespaceInitializer.informers.Shutdown()
+		}
+		return nil, err
+	}
+
+	return namespaceInitializer, nil
 }
