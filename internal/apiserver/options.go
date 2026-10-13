@@ -5,8 +5,8 @@ import (
 	"net"
 
 	"github.com/spf13/pflag"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	apiopenapi "k8s.io/apiserver/pkg/endpoints/openapi"
@@ -14,13 +14,12 @@ import (
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/util/compatibility"
 
-	gatewayapi "github.com/lgc202/ingate/pkg/apis/gateway"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 	generatedopenapi "github.com/lgc202/ingate/pkg/generated/openapi"
 )
 
 const (
-	defaultEtcdPathPrefix = "/registry/gateway.ingate.io"
+	defaultEtcdPathPrefix = "/registry"
 	openAPITitle          = "Ingate API Server"
 )
 
@@ -42,13 +41,7 @@ func NewOptions() (*Options, error) {
 	codecs := serializer.NewCodecFactory(scheme)
 	recommendedOptions := genericoptions.NewRecommendedOptions(
 		defaultEtcdPathPrefix,
-		codecs.LegacyCodec(gatewayv1alpha1.SchemeGroupVersion),
-	)
-
-	// 请求使用外部版本；持久化统一写入当前存储版本。
-	recommendedOptions.Etcd.StorageConfig.EncodeVersioner = runtime.NewMultiGroupVersioner(
-		gatewayv1alpha1.SchemeGroupVersion,
-		schema.GroupKind{Group: gatewayapi.GroupName},
+		codecs.LegacyCodec(corev1.SchemeGroupVersion, gatewayv1alpha1.SchemeGroupVersion),
 	)
 
 	return &Options{
@@ -96,9 +89,26 @@ func (o *Options) Config() (*Config, error) {
 	genericConfig.OpenAPIV3Config.Info.Title = openAPITitle
 
 	// ApplyTo 准备存储、认证和 HTTPS Listener，但不启动请求处理循环。
-	if err := o.RecommendedOptions.ApplyTo(genericConfig); err != nil {
+	if err := o.applyRecommendedOptions(genericConfig); err != nil {
 		return nil, fmt.Errorf("apply recommended API server options: %w", err)
 	}
 
 	return &Config{GenericConfig: genericConfig, Scheme: o.scheme}, nil
+}
+
+func (o *Options) applyRecommendedOptions(config *genericapiserver.RecommendedConfig) error {
+	if options := o.RecommendedOptions.Etcd; options != nil {
+		factory, err := newStorageFactory(options, o.scheme, o.codecs, config)
+		if err != nil {
+			return err
+		}
+		if err := options.ApplyWithStorageFactoryTo(factory, &config.Config); err != nil {
+			return fmt.Errorf("apply resource storage options: %w", err)
+		}
+	}
+
+	// Etcd 已应用；浅副本仅关闭这一次重复调用，不修改原始启动选项。
+	recommended := *o.RecommendedOptions
+	recommended.Etcd = nil
+	return recommended.ApplyTo(config)
 }

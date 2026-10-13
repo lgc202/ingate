@@ -16,19 +16,14 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
-	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/storage/etcd3/testserver"
-	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/utils/ptr"
 
 	namespacestorage "github.com/lgc202/ingate/internal/apiserver/registry/core/namespace"
 	coreapi "github.com/lgc202/ingate/pkg/apis/core"
-	coreinstall "github.com/lgc202/ingate/pkg/apis/core/install"
 )
 
 // TestNamespaceStorageWrites 验证三类存储入口的字段保护和实际 etcd 筛选。
@@ -297,7 +292,13 @@ func TestNamespaceStorageDeleteValidation(t *testing.T) {
 	}
 }
 
-func newNamespaceStorage(t *testing.T) (*namespacestorage.REST, *namespacestorage.StatusREST, *namespacestorage.FinalizeREST) {
+func newNamespaceStorage(
+	t *testing.T,
+) (
+	*namespacestorage.REST,
+	*namespacestorage.StatusREST,
+	*namespacestorage.FinalizeREST,
+) {
 	t.Helper()
 
 	etcd := testserver.RunEtcd(t, nil)
@@ -306,22 +307,18 @@ func newNamespaceStorage(t *testing.T) (*namespacestorage.REST, *namespacestorag
 			t.Errorf("close namespace etcd client: %v", err)
 		}
 	})
-	scheme := runtime.NewScheme()
-	if err := coreinstall.Install(scheme); err != nil {
-		t.Fatalf("Install(core) error = %v", err)
+
+	options, config := storageTestOptions(t)
+	etcdOptions := options.RecommendedOptions.Etcd
+	etcdOptions.StorageConfig.Transport.ServerList = etcd.Endpoints()
+	etcdOptions.EnableWatchCache = false
+	factory, err := newStorageFactory(etcdOptions, options.scheme, options.codecs, config)
+	if err != nil {
+		t.Fatalf("newStorageFactory() error = %v", err)
 	}
-	codec := serializer.NewCodecFactory(scheme).LegacyCodec(corev1.SchemeGroupVersion)
-	config := storagebackend.NewDefaultConfig("/registry/core", codec)
-	config.Transport.ServerList = etcd.Endpoints()
-	config.EncodeVersioner = runtime.NewMultiGroupVersioner(corev1.SchemeGroupVersion, schema.GroupKind{Group: ""})
-	resource := coreapi.SchemeGroupVersion.WithResource("namespaces").GroupResource()
-	options := generic.RESTOptions{
-		StorageConfig:           config.ForResource(resource),
-		Decorator:               generic.UndecoratedStorage,
-		ResourcePrefix:          "namespaces",
-		DeleteCollectionWorkers: 1,
-	}
-	mainREST, statusREST, finalizeREST, err := namespacestorage.NewREST(scheme, options)
+
+	getter := etcdOptions.CreateRESTOptionsGetter(factory, nil)
+	mainREST, statusREST, finalizeREST, err := namespacestorage.NewREST(options.scheme, getter)
 	if err != nil {
 		t.Fatalf("NewREST(Namespace) error = %v", err)
 	}

@@ -107,6 +107,24 @@ Namespace 存储集成用例验证三类写入的字段保护、不匹配选择�
 
 临时源码 overlay 移除 spec.finalizers 删除保护、忽略标签选择器后，TestShouldDeleteDuringUpdate/spec_finalizer 和 TestMatcher/different_label 分别失败；初次 overlay 构建失败不算断言验证，修正临时错误实现后才得到上述反例结果。错误实现未写入仓库。本步尚未验证原生 Namespace HTTP API、准入数据源、删除控制器或真实组件联动；用户已 review 通过并授权提交本步，提交前复核上述检查均通过。
 
+## 第三小步：按 API Group 选择存储编码
+
+第二小步已提交为 `f5de3d12`。当前 API Server 的 SimpleStorageFactory 共用 Gateway 的存储编码；Namespace 的核心 v1 无法沿此编码写入。接入原生 API 前，先使用已发布 apiserver 的 [DefaultStorageFactory](https://github.com/kubernetes/kubernetes/blob/v1.37.0/staging/src/k8s.io/apiserver/pkg/server/storage/storage_factory.go) 和 ResourceEncodingConfig，让两个 Group 各自写入外部存储版本、读取为本组内部类型；不新建 Codec 或 StorageFactory 接口。
+
+Options 先构造 Factory 并调用 EtcdOptions.ApplyWithStorageFactoryTo，再用 RecommendedOptions 的浅副本调用其余 ApplyTo，仅在副本中置空 Etcd。这样保持原有初始化顺序，健康检查、加密转换与存储监控均只安装一次并使用同一个 Factory；原始启动选项不被关闭，其他组件选项不改写。资源专属服务器配置使用公开 ParseEtcdServersOverrides 和 SetEtcdLocation，不另写解析器。类型注册只追加已有 Namespace/NamespaceList，不注册 Pod、Secret 等核心业务资源。
+
+默认 etcd 根前缀改为 `/registry`；Factory 使用资源名称作为默认前缀，Gateway 位于 `/registry/gateways/<name>`，Namespace 位于 `/registry/namespaces/<name>`。六种业务资源暂时仍是集群级，切换后再由 Generic Store 加入 namespace 层级。旧默认配置把根路径中的 gateway.ingate.io 与 SimpleStorageFactory 的 Group 前缀叠加，本步不为旧路径增加兼容映射，也不迁移或删除已有数据。启动参数 --etcd-prefix 仍由框架接收，含义为所有资源的存储根目录；部署环境的数据重建另行授权。
+
+本步只完成私有 Scheme 和存储 Factory 接线，不安装核心 API，不修改管理协议、MySQL、准入或 Controller Manager。核心 OpenAPI、原生 API 安装和本地 NamespaceLifecycle 接入继续作为后续切片。
+
+首轮按 GoCanon 快照 `f478423-dirty` 检查了 5 个修改和 2 个新增手写文件，但漏检了 Options 方法的文件归属、辅助函数先于调用入口和部分语义阶段黏连；首轮检查结论不能视为布局审查已经通过。单元检查覆盖两个 Group 的对象/列表存储版本、内部类型还原、编码不修改输入、未知 Group 拒绝、资源专属服务器与不匹配资源、解析错误保留原因、默认及显式计数器和自定义存储根路径。私有 Scheme 反例确认 Pod、Secret、Service、ConfigMap 未注册。Namespace 隔离 etcd 用例改用本步的 Factory 和官方 RESTOptionsGetter；已有 Gateway HTTP 契约用例经过实际 Options.Config 接线，两组存储检查均通过。
+
+`gofmt -l cmd internal pkg`、已跟踪与两个新增文件空白检查、`golangci-lint run ./...`（0 issues）、`go vet ./...`、`go test ./... -count=1`、`go build ./...` 和 `go test -tags=integration ./internal/apiserver -count=1` 均通过。build 的共享 module stat cache 写入权限提示仍非致命，退出码为 0。未修改 API 字段、生成脚本、生成产物或依赖，不需要重新生成。未验证 Namespace HTTP API、本地准入数据源、删除控制器或真实组件联动，也未操作部署环境的存量数据。
+
+2026-10-13 按 GoCanon MCP 新快照 `336a025-dirty`（revision `336a025bf2d761d1eac3cf7f5991d152e6d3d7e9`，规则源仍为 `/Users/lgc202/workspace/source/lgc202/gocanon`）重新读取开发入口、规范索引、命名/函数和 APIServer 草案。依据本仓库 AGENTS 明确采用的 GO-FUNC-012..014，把 applyRecommendedOptions 移回 options.go 的 Config 之后；storage.go 只保留 Factory 构造。存储配置准备、编码与资源策略、Factory 构造和返回分开；测试用例表与循环分开，编码、版本核对和解码阶段分开；长签名完整展开，错误赋值与对应检查保持相邻，不给同阶段连续断言机械插入空行。本次只调整声明归属和排版，未改动执行顺序、参数、返回值或断言。重新逐文件检查当前 7 个手写文件，上述全仓检查及隔离 etcd 集成检查均重跑通过。
+
+用户授权复核标准实现方式后提交并继续。提交前对照锁定的 apiserver v0.37.0 的 RecommendedOptions、EtcdOptions 和 DefaultStorageFactory，确认使用公开的存储扩展入口，保持 Etcd 首先且仅应用一次，计数器与监控沿用官方机制；没有自行实现 Codec、StorageFactory 接口、加密或健康检查。再次审查全部手写变更及调用方，未发现阻止提交的问题，上述检查全部重跑通过。本结论只覆盖本切片，不等同于整个 Namespace 生命周期或生产部署已经验证。
+
 ## 已提交编译身份改造的审查和验证边界
 
 使用 GoCanon MCP，规则源 `/Users/lgc202/workspace/source/lgc202/gocanon`，快照 `f478423-dirty`，revision `f4784239c945ba61e90bdfa588ce01f69b9403f5`。完整读取开发入口与规范索引，按 Controller Manager、命名、函数、错误、防御和测试规范审查；草案只作为审查依据，不当作已发布能力。

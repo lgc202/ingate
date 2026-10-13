@@ -6,8 +6,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	coreinstall "github.com/lgc202/ingate/pkg/apis/core/install"
 	gatewayinstall "github.com/lgc202/ingate/pkg/apis/gateway/install"
 )
 
@@ -19,8 +19,10 @@ func newScheme() (*runtime.Scheme, error) {
 	}
 	metav1.AddToGroupVersion(scheme, metav1.SchemeGroupVersion)
 
-	// Generic API Server 的请求选项使用核心 v1 编码。
-	metav1.AddToGroupVersion(scheme, schema.GroupVersion{Version: "v1"})
+	// 仅注册已有 Namespace 和标准请求选项，不引入整个 Kubernetes 核心资源集合。
+	if err := coreinstall.Install(scheme); err != nil {
+		return nil, fmt.Errorf("register Namespace API types: %w", err)
+	}
 
 	if err := gatewayinstall.Install(scheme); err != nil {
 		return nil, fmt.Errorf("register Gateway API types: %w", err)
