@@ -15,7 +15,7 @@ import (
 func ValidateMCPRoute(route *gateway.MCPRoute) field.ErrorList {
 	errs := apivalidation.ValidateObjectMeta(
 		&route.ObjectMeta,
-		false,
+		true,
 		apivalidation.NameIsDNSSubdomain,
 		field.NewPath("metadata"),
 	)

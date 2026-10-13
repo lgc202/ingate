@@ -40,28 +40,28 @@ func (r *HTTPRouteReconciler) SetupWithManager(manager ctrl.Manager) error {
 		Complete(r)
 }
 
-// Reconcile 按名称同步一个 HTTPRoute，或执行启动全量对账。
+// Reconcile 按命名空间和名称同步一个 HTTPRoute，或执行启动全量对账。
 func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	if request.Name == routeInitialSyncName {
+	if request.Namespace == "" && request.Name == routeInitialSyncName {
 		return ctrl.Result{}, r.syncAll(ctx)
 	}
-	return ctrl.Result{}, r.syncHTTPRoute(ctx, request.Name)
+	return ctrl.Result{}, r.syncHTTPRoute(ctx, request.NamespacedName)
 }
 
-func (r *HTTPRouteReconciler) syncHTTPRoute(ctx context.Context, name string) error {
+func (r *HTTPRouteReconciler) syncHTTPRoute(ctx context.Context, key types.NamespacedName) error {
 	var route gatewayv1alpha1.HTTPRoute
-	if err := r.client.Get(ctx, types.NamespacedName{Name: name}, &route); err != nil {
+	if err := r.client.Get(ctx, key, &route); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return fmt.Errorf("get HTTPRoute %q: %w", name, err)
+			return fmt.Errorf("get HTTPRoute %q: %w", key.String(), err)
 		}
-		if err := r.store.DeleteHTTPRoute(ctx, name); err != nil {
-			return fmt.Errorf("delete HTTPRoute %q from MySQL: %w", name, err)
+		if err := r.store.DeleteHTTPRoute(ctx, key.Namespace, key.Name); err != nil {
+			return fmt.Errorf("delete HTTPRoute %q from MySQL: %w", key.String(), err)
 		}
 		return nil
 	}
 
 	if err := r.store.UpsertHTTPRoute(ctx, routeToMySQL(&route)); err != nil {
-		return fmt.Errorf("sync HTTPRoute %q to MySQL: %w", name, err)
+		return fmt.Errorf("sync HTTPRoute %q to MySQL: %w", key.String(), err)
 	}
 
 	return nil
@@ -73,26 +73,26 @@ func (r *HTTPRouteReconciler) syncAll(ctx context.Context) error {
 		return fmt.Errorf("list HTTPRoutes for initial sync: %w", err)
 	}
 
-	current := make(map[string]struct{}, len(routes.Items))
+	current := make(map[types.NamespacedName]struct{}, len(routes.Items))
 	for i := range routes.Items {
 		route := &routes.Items[i]
 		if err := r.store.UpsertHTTPRoute(ctx, routeToMySQL(route)); err != nil {
-			return fmt.Errorf("sync HTTPRoute %q to MySQL: %w", route.Name, err)
+			return fmt.Errorf("sync HTTPRoute %q to MySQL: %w", client.ObjectKeyFromObject(route).String(), err)
 		}
-		current[route.Name] = struct{}{}
+		current[client.ObjectKeyFromObject(route)] = struct{}{}
 	}
 
-	storedNames, err := r.store.ListHTTPRouteNames(ctx)
+	storedKeys, err := r.store.ListHTTPRouteKeys(ctx)
 	if err != nil {
 		return err
 	}
 
-	for _, name := range storedNames {
-		if _, exists := current[name]; exists {
+	for _, key := range storedKeys {
+		if _, exists := current[key]; exists {
 			continue
 		}
-		if err := r.store.DeleteHTTPRoute(ctx, name); err != nil {
-			return fmt.Errorf("delete stale HTTPRoute %q from MySQL: %w", name, err)
+		if err := r.store.DeleteHTTPRoute(ctx, key.Namespace, key.Name); err != nil {
+			return fmt.Errorf("delete stale HTTPRoute %q from MySQL: %w", key.String(), err)
 		}
 	}
 
@@ -103,6 +103,7 @@ func routeToMySQL(route *gatewayv1alpha1.HTTPRoute) mysql.HTTPRoute {
 	defaulted := route.DeepCopy()
 	gatewayv1alpha1.SetDefaultsHTTPRoute(defaulted)
 	result := mysql.HTTPRoute{
+		Namespace:   route.Namespace,
 		Name:        route.Name,
 		DisplayName: route.Spec.DisplayName,
 		Version:     route.ResourceVersion,

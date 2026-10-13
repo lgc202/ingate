@@ -31,10 +31,16 @@ func TestValidateAIBackend(t *testing.T) {
 			wantType:  field.ErrorTypeInvalid,
 		},
 		{
-			name:      "namespace",
-			mutate:    func(b *gateway.AIBackend) { b.Namespace = "default" },
+			name:      "missing namespace",
+			mutate:    func(b *gateway.AIBackend) { b.Namespace = "" },
 			wantField: "metadata.namespace",
-			wantType:  field.ErrorTypeForbidden,
+			wantType:  field.ErrorTypeRequired,
+		},
+		{
+			name:      "invalid namespace",
+			mutate:    func(b *gateway.AIBackend) { b.Namespace = "Team.A" },
+			wantField: "metadata.namespace",
+			wantType:  field.ErrorTypeInvalid,
 		},
 		{
 			name:      "empty backend",
@@ -162,7 +168,7 @@ func TestValidateAIBackendStatusUpdate(t *testing.T) {
 
 func validAIBackend() *gateway.AIBackend {
 	return &gateway.AIBackend{
-		ObjectMeta: metav1.ObjectMeta{Name: "model-service"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "model-service"},
 		Spec: gateway.AIBackendSpec{
 			DisplayName: "模型服务",
 			BackendRef:  gateway.BackendReference{Name: "model-network"},

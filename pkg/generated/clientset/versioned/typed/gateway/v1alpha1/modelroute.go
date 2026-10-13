@@ -16,7 +16,7 @@ import (
 // ModelRoutesGetter has a method to return a ModelRouteInterface.
 // A group's client should implement this interface.
 type ModelRoutesGetter interface {
-	ModelRoutes() ModelRouteInterface
+	ModelRoutes(namespace string) ModelRouteInterface
 }
 
 // ModelRouteInterface has methods to work with ModelRoute resources.
@@ -40,13 +40,13 @@ type modelRoutes struct {
 }
 
 // newModelRoutes returns a ModelRoutes
-func newModelRoutes(c *GatewayV1alpha1Client) *modelRoutes {
+func newModelRoutes(c *GatewayV1alpha1Client, namespace string) *modelRoutes {
 	return &modelRoutes{
 		gentype.NewClientWithList[*gatewayv1alpha1.ModelRoute, *gatewayv1alpha1.ModelRouteList](
 			"modelroutes",
 			c.RESTClient(),
 			scheme.ParameterCodec,
-			"",
+			namespace,
 			func() *gatewayv1alpha1.ModelRoute { return &gatewayv1alpha1.ModelRoute{} },
 			func() *gatewayv1alpha1.ModelRouteList { return &gatewayv1alpha1.ModelRouteList{} },
 		),

@@ -11,7 +11,7 @@
 - [AI 凭据与运行配置设计](design/ai-credentials-and-runtime-config.md)：Secret 引用、派生配置、版本绑定、本地就绪及轮转/撤销建议；待 review，包含集中托管的基础设施代价和未定契约。
 - [架构与流程图](diagrams/ai-gateway.html)：当前架构、目标资源关系、目标架构、请求流程、配置发布流程；可离线打开。
 - [HTTP 资源替换实现记录](decisions/0011-http-resource-contract.md)：阶段 B 范围、验证与未覆盖项。
-- [Namespace 与同空间引用](decisions/0013-namespaced-resources.md)：编译身份、Namespace 存储、OpenAPI、原生 HTTP API、本地 NamespaceLifecycle 和删除控制器已提交；本轮 Backend 存储改用框架默认属性与筛选，待 review；业务作用域、管理 API 与查询投影仍待一起切换。
+- [Namespace 与同空间引用](decisions/0013-namespaced-resources.md)：编译身份、Namespace 存储、OpenAPI、原生 HTTP API、本地 NamespaceLifecycle 和删除控制器已提交；Backend 默认存储筛选重构已提交；本轮六种资源的存储、管理 API 与查询投影已一起切换 Namespace，待 review。
 - [重构审查记录](refactoring-review.md)：此前重构的验证结果与保留缺口，不代表当前端到端验收。
 
 ## 已有决策

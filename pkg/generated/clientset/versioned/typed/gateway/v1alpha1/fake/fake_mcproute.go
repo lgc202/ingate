@@ -14,11 +14,11 @@ type fakeMCPRoutes struct {
 	Fake *FakeGatewayV1alpha1
 }
 
-func newFakeMCPRoutes(fake *FakeGatewayV1alpha1) gatewayv1alpha1.MCPRouteInterface {
+func newFakeMCPRoutes(fake *FakeGatewayV1alpha1, namespace string) gatewayv1alpha1.MCPRouteInterface {
 	return &fakeMCPRoutes{
 		gentype.NewFakeClientWithList[*v1alpha1.MCPRoute, *v1alpha1.MCPRouteList](
 			fake.Fake,
-			"",
+			namespace,
 			v1alpha1.SchemeGroupVersion.WithResource("mcproutes"),
 			v1alpha1.SchemeGroupVersion.WithKind("MCPRoute"),
 			func() *v1alpha1.MCPRoute { return &v1alpha1.MCPRoute{} },

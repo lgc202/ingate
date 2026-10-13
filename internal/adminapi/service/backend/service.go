@@ -28,12 +28,14 @@ var (
 
 // CreateParams 保存创建 Backend 所需的参数。
 type CreateParams struct {
+	Namespace   string
 	DisplayName string
 	Endpoints   []gatewayv1alpha1.Endpoint
 }
 
 // UpdateParams 保存完整替换 Backend 可编辑配置所需的参数。
 type UpdateParams struct {
+	Namespace   string
 	Name        string
 	Version     string
 	DisplayName string
@@ -42,6 +44,7 @@ type UpdateParams struct {
 
 // ListParams 保存分页与展示名称包含匹配条件。
 type ListParams struct {
+	Namespace   string
 	PageSize    int32
 	PageNum     int32
 	DisplayName string
@@ -63,7 +66,10 @@ func (s *Service) Create(
 	params CreateParams,
 ) (repository.BackendInfo, error) {
 	backend := &gatewayv1alpha1.Backend{
-		ObjectMeta: metav1.ObjectMeta{Name: "backend-" + strings.ToLower(rand.Text())},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: params.Namespace,
+			Name:      "backend-" + strings.ToLower(rand.Text()),
+		},
 		Spec: gatewayv1alpha1.BackendSpec{
 			DisplayName: params.DisplayName,
 			Endpoints:   params.Endpoints,
@@ -81,9 +87,9 @@ func (s *Service) Create(
 // Get 读取指定 Backend。
 func (s *Service) Get(
 	ctx context.Context,
-	name string,
+	namespace, name string,
 ) (repository.BackendInfo, error) {
-	backend, err := s.backends.Get(ctx, name)
+	backend, err := s.backends.Get(ctx, namespace, name)
 	if err != nil {
 		return repository.BackendInfo{}, translateRepositoryError(err)
 	}
@@ -104,6 +110,7 @@ func (s *Service) List(
 	}
 
 	page, err := s.backends.List(ctx, repository.ResourceListParams{
+		Namespace:   params.Namespace,
 		PageSize:    params.PageSize,
 		PageNum:     params.PageNum,
 		DisplayName: params.DisplayName,
@@ -122,6 +129,7 @@ func (s *Service) Update(
 ) (repository.BackendInfo, error) {
 	backend := &gatewayv1alpha1.Backend{
 		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       params.Namespace,
 			Name:            params.Name,
 			ResourceVersion: params.Version,
 		},
@@ -140,8 +148,8 @@ func (s *Service) Update(
 }
 
 // Delete 删除指定 Backend。
-func (s *Service) Delete(ctx context.Context, name string) error {
-	return translateRepositoryError(s.backends.Delete(ctx, name))
+func (s *Service) Delete(ctx context.Context, namespace, name string) error {
+	return translateRepositoryError(s.backends.Delete(ctx, namespace, name))
 }
 
 func translateRepositoryError(err error) error {

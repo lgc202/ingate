@@ -53,6 +53,7 @@ func TestCreateAIBackendReturnsSavedState(t *testing.T) {
 	})
 	clientAPI := adminv1.NewAIBackendServiceHTTPClient(httpClient)
 	reply, err := clientAPI.CreateAIBackend(t.Context(), &adminv1.CreateAIBackendRequest{
+		Namespace:   "team-a",
 		DisplayName: "模型服务",
 		BackendRef:  &adminv1.BackendReference{Name: "network"},
 		Schema:      &adminv1.APISchema{Name: "OpenAI"},
@@ -65,6 +66,7 @@ func TestCreateAIBackendReturnsSavedState(t *testing.T) {
 		t.Errorf("CreateAIBackend().name = %q, want generated aibackend ID", name)
 	}
 	want := &adminv1.AIBackend{
+		Namespace:   "team-a",
 		Name:        name,
 		DisplayName: "模型服务",
 		BackendRef:  &adminv1.BackendReference{Name: "network"},
@@ -80,6 +82,7 @@ func TestCreateAIBackendReturnsSavedState(t *testing.T) {
 func TestAIBackendUpdateAndDeleteHTTP(t *testing.T) {
 	seed := &gatewayv1alpha1.AIBackend{
 		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       "team-a",
 			Name:            "models",
 			UID:             types.UID("model-instance"),
 			ResourceVersion: "7",
@@ -95,9 +98,9 @@ func TestAIBackendUpdateAndDeleteHTTP(t *testing.T) {
 	}
 	httpServer, client := crudTestServer(t, seed)
 	stale := `{"version":"stale","backendRef":{"name":"other-network"},"schema":{"name":"OpenAI","prefix":"/compat/v1"}}`
-	response := requestResource(httpServer, http.MethodPut, "/api/admin/v1/ai-backends/models", stale)
+	response := requestResource(httpServer, http.MethodPut, "/api/admin/v1/namespaces/team-a/ai-backends/models", stale)
 	requireHTTPStatus(t, response, http.StatusConflict)
-	stored, err := client.GatewayV1alpha1().AIBackends().Get(t.Context(), "models", metav1.GetOptions{})
+	stored, err := client.GatewayV1alpha1().AIBackends("team-a").Get(t.Context(), "models", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get(AIBackend after stale update) error = %v, want nil", err)
 	}
@@ -106,11 +109,11 @@ func TestAIBackendUpdateAndDeleteHTTP(t *testing.T) {
 	}
 
 	body := `{"version":"7","backendRef":{"name":"other-network"},"schema":{"name":"OpenAI","prefix":"/compat/v1"}}`
-	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/ai-backends/models", body)
+	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/namespaces/team-a/ai-backends/models", body)
 	requireHTTPStatus(t, response, http.StatusOK)
 	var reply adminv1.UpdateAIBackendReply
 	decodeReply(t, response, &reply)
-	stored, err = client.GatewayV1alpha1().AIBackends().Get(t.Context(), "models", metav1.GetOptions{})
+	stored, err = client.GatewayV1alpha1().AIBackends("team-a").Get(t.Context(), "models", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get(updated AIBackend) error = %v, want nil", err)
 	}
@@ -126,12 +129,12 @@ func TestAIBackendUpdateAndDeleteHTTP(t *testing.T) {
 		t.Errorf("UpdateAIBackend().backend = %v, want cleared display name and changed reference/prefix", got)
 	}
 
-	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/ai-backends/models", "")
+	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/namespaces/team-a/ai-backends/models", "")
 	requireHTTPStatus(t, response, http.StatusOK)
-	if _, err := client.GatewayV1alpha1().AIBackends().Get(t.Context(), "models", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+	if _, err := client.GatewayV1alpha1().AIBackends("team-a").Get(t.Context(), "models", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("Get(deleted AIBackend) error = %v, want NotFound", err)
 	}
-	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/ai-backends/models", "")
+	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/namespaces/team-a/ai-backends/models", "")
 	requireHTTPStatus(t, response, http.StatusNotFound)
 }
 
@@ -148,7 +151,7 @@ func TestAIBackendRequestValidationHTTP(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			httpServer, _, client := newTestServers()
-			response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/ai-backends", tt.body)
+			response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/namespaces/team-a/ai-backends", tt.body)
 			requireHTTPStatus(t, response, http.StatusBadRequest)
 			if actions := client.Actions(); len(actions) != 0 {
 				t.Errorf("CreateAIBackend(%s) API actions = %v, want none", tt.name, actions)
@@ -171,11 +174,11 @@ func TestAIBackendAuthenticationHTTP(t *testing.T) {
 		path   string
 		body   string
 	}{
-		{method: http.MethodPost, path: "/api/admin/v1/ai-backends", body: `{}`},
-		{method: http.MethodGet, path: "/api/admin/v1/ai-backends/models"},
-		{method: http.MethodGet, path: "/api/admin/v1/ai-backends"},
-		{method: http.MethodPut, path: "/api/admin/v1/ai-backends/models", body: `{}`},
-		{method: http.MethodDelete, path: "/api/admin/v1/ai-backends/models"},
+		{method: http.MethodPost, path: "/api/admin/v1/namespaces/team-a/ai-backends", body: `{}`},
+		{method: http.MethodGet, path: "/api/admin/v1/namespaces/team-a/ai-backends/models"},
+		{method: http.MethodGet, path: "/api/admin/v1/namespaces/team-a/ai-backends"},
+		{method: http.MethodPut, path: "/api/admin/v1/namespaces/team-a/ai-backends/models", body: `{}`},
+		{method: http.MethodDelete, path: "/api/admin/v1/namespaces/team-a/ai-backends/models"},
 	} {
 		response := requestResource(httpServer, tt.method, tt.path, tt.body)
 		requireHTTPStatus(t, response, http.StatusUnauthorized)
@@ -188,14 +191,15 @@ func TestAIBackendAuthenticationHTTP(t *testing.T) {
 func TestAIBackendQueryHTTP(t *testing.T) {
 	httpServer, client, query := newQueryTestServer(t)
 	createdAt := time.Date(2026, 10, 12, 1, 2, 3, 0, time.UTC)
-	columns := []string{"name", "display_name", "backend_name", "schema_name", "schema_prefix", "version", "created_at"}
-	query.ExpectQuery("FROM `aibackends` WHERE name =").WithArgs("models", 1).
-		WillReturnRows(sqlmock.NewRows(columns).AddRow("models", "模型服务", "network", "OpenAI", "/v1", "9", createdAt))
-	response := requestResource(httpServer, http.MethodGet, "/api/admin/v1/ai-backends/models", "")
+	columns := []string{"namespace", "name", "display_name", "backend_name", "schema_name", "schema_prefix", "version", "created_at"}
+	query.ExpectQuery("FROM `aibackends` WHERE namespace = \\? AND name =").WithArgs("team-a", "models", 1).
+		WillReturnRows(sqlmock.NewRows(columns).AddRow("team-a", "models", "模型服务", "network", "OpenAI", "/v1", "9", createdAt))
+	response := requestResource(httpServer, http.MethodGet, "/api/admin/v1/namespaces/team-a/ai-backends/models", "")
 	requireHTTPStatus(t, response, http.StatusOK)
 	var getReply adminv1.GetAIBackendReply
 	decodeReply(t, response, &getReply)
 	want := &adminv1.AIBackend{
+		Namespace:   "team-a",
 		Name:        "models",
 		DisplayName: "模型服务",
 		BackendRef:  &adminv1.BackendReference{Name: "network"},
@@ -208,12 +212,12 @@ func TestAIBackendQueryHTTP(t *testing.T) {
 	}
 
 	query.ExpectBegin()
-	query.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `aibackends`")).
+	query.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `aibackends` WHERE namespace = ?")).WithArgs("team-a").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	query.ExpectQuery("FROM `aibackends` ORDER BY name LIMIT").WithArgs(50).
-		WillReturnRows(sqlmock.NewRows(columns).AddRow("models", "模型服务", "network", "OpenAI", "/v1", "9", createdAt))
+	query.ExpectQuery("FROM `aibackends` WHERE namespace = \\? ORDER BY name LIMIT").WithArgs("team-a", 50).
+		WillReturnRows(sqlmock.NewRows(columns).AddRow("team-a", "models", "模型服务", "network", "OpenAI", "/v1", "9", createdAt))
 	query.ExpectCommit()
-	response = requestResource(httpServer, http.MethodGet, "/api/admin/v1/ai-backends", "")
+	response = requestResource(httpServer, http.MethodGet, "/api/admin/v1/namespaces/team-a/ai-backends", "")
 	requireHTTPStatus(t, response, http.StatusOK)
 	var listReply adminv1.ListAIBackendsReply
 	decodeReply(t, response, &listReply)
@@ -221,9 +225,9 @@ func TestAIBackendQueryHTTP(t *testing.T) {
 		t.Errorf("ListAIBackends(default page) mismatch (-want +got):\n%s", diff)
 	}
 
-	query.ExpectQuery("FROM `aibackends` WHERE name =").WithArgs("missing", 1).
+	query.ExpectQuery("FROM `aibackends` WHERE namespace = \\? AND name =").WithArgs("team-a", "missing", 1).
 		WillReturnRows(sqlmock.NewRows(columns))
-	response = requestResource(httpServer, http.MethodGet, "/api/admin/v1/ai-backends/missing", "")
+	response = requestResource(httpServer, http.MethodGet, "/api/admin/v1/namespaces/team-a/ai-backends/missing", "")
 	requireHTTPStatus(t, response, http.StatusNotFound)
 	if actions := client.Actions(); len(actions) != 0 {
 		t.Errorf("Get/ListAIBackends() API actions = %v, want query model only", actions)
@@ -233,13 +237,14 @@ func TestAIBackendQueryHTTP(t *testing.T) {
 func TestAIBackendGRPC(t *testing.T) {
 	connection, backend := newTestGRPCConnection(t)
 	client := adminv1.NewAIBackendServiceClient(connection)
-	if _, err := client.CreateAIBackend(t.Context(), &adminv1.CreateAIBackendRequest{}); status.Code(err) != codes.InvalidArgument {
+	if _, err := client.CreateAIBackend(t.Context(), &adminv1.CreateAIBackendRequest{Namespace: "team-a"}); status.Code(err) != codes.InvalidArgument {
 		t.Errorf("CreateAIBackend(empty) error = %v, want InvalidArgument", err)
 	}
 	if actions := backend.Actions(); len(actions) != 0 {
 		t.Errorf("CreateAIBackend(empty) API actions = %v, want none", actions)
 	}
 	request := &adminv1.CreateAIBackendRequest{
+		Namespace:   "team-a",
 		DisplayName: "模型服务",
 		BackendRef:  &adminv1.BackendReference{Name: "network"},
 		Schema:      &adminv1.APISchema{Name: "OpenAI", Prefix: "/v1"},

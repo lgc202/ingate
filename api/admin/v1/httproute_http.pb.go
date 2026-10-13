@@ -38,17 +38,20 @@ type HTTPRouteServiceHTTPServer interface {
 
 func RegisterHTTPRouteServiceHTTPServer(s *http.Server, srv HTTPRouteServiceHTTPServer) {
 	r := s.Route("/")
-	r.Handle("POST", "/api/admin/v1/http-routes", _HTTPRouteService_CreateHTTPRoute0_HTTP_Handler(srv))
-	r.Handle("GET", "/api/admin/v1/http-routes/{name}", _HTTPRouteService_GetHTTPRoute0_HTTP_Handler(srv))
-	r.Handle("GET", "/api/admin/v1/http-routes", _HTTPRouteService_ListHTTPRoutes0_HTTP_Handler(srv))
-	r.Handle("PUT", "/api/admin/v1/http-routes/{name}", _HTTPRouteService_UpdateHTTPRoute0_HTTP_Handler(srv))
-	r.Handle("DELETE", "/api/admin/v1/http-routes/{name}", _HTTPRouteService_DeleteHTTPRoute0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/admin/v1/namespaces/{namespace}/http-routes", _HTTPRouteService_CreateHTTPRoute0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/admin/v1/namespaces/{namespace}/http-routes/{name}", _HTTPRouteService_GetHTTPRoute0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/admin/v1/namespaces/{namespace}/http-routes", _HTTPRouteService_ListHTTPRoutes0_HTTP_Handler(srv))
+	r.Handle("PUT", "/api/admin/v1/namespaces/{namespace}/http-routes/{name}", _HTTPRouteService_UpdateHTTPRoute0_HTTP_Handler(srv))
+	r.Handle("DELETE", "/api/admin/v1/namespaces/{namespace}/http-routes/{name}", _HTTPRouteService_DeleteHTTPRoute0_HTTP_Handler(srv))
 }
 
 func _HTTPRouteService_CreateHTTPRoute0_HTTP_Handler(srv HTTPRouteServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in CreateHTTPRouteRequest
 		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationHTTPRouteServiceCreateHTTPRoute)
@@ -90,6 +93,9 @@ func _HTTPRouteService_ListHTTPRoutes0_HTTP_Handler(srv HTTPRouteServiceHTTPServ
 	return func(ctx http.Context) error {
 		var in ListHTTPRoutesRequest
 		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationHTTPRouteServiceListHTTPRoutes)
@@ -173,7 +179,7 @@ func NewHTTPRouteServiceHTTPClient(client *http.Client) HTTPRouteServiceHTTPClie
 // CreateHTTPRoute CreateHTTPRoute 创建路由。
 func (c *HTTPRouteServiceHTTPClientImpl) CreateHTTPRoute(ctx context.Context, in *CreateHTTPRouteRequest, opts ...http.CallOption) (*CreateHTTPRouteReply, error) {
 	var out CreateHTTPRouteReply
-	pattern := "/api/admin/v1/http-routes"
+	pattern := "/api/admin/v1/namespaces/{namespace}/http-routes"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -191,7 +197,7 @@ func (c *HTTPRouteServiceHTTPClientImpl) CreateHTTPRoute(ctx context.Context, in
 // DeleteHTTPRoute DeleteHTTPRoute 删除指定路由。
 func (c *HTTPRouteServiceHTTPClientImpl) DeleteHTTPRoute(ctx context.Context, in *DeleteHTTPRouteRequest, opts ...http.CallOption) (*DeleteHTTPRouteReply, error) {
 	var out DeleteHTTPRouteReply
-	pattern := "/api/admin/v1/http-routes/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/http-routes/{name}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -208,7 +214,7 @@ func (c *HTTPRouteServiceHTTPClientImpl) DeleteHTTPRoute(ctx context.Context, in
 // GetHTTPRoute GetHTTPRoute 读取指定路由。
 func (c *HTTPRouteServiceHTTPClientImpl) GetHTTPRoute(ctx context.Context, in *GetHTTPRouteRequest, opts ...http.CallOption) (*GetHTTPRouteReply, error) {
 	var out GetHTTPRouteReply
-	pattern := "/api/admin/v1/http-routes/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/http-routes/{name}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -225,7 +231,7 @@ func (c *HTTPRouteServiceHTTPClientImpl) GetHTTPRoute(ctx context.Context, in *G
 // ListHTTPRoutes ListHTTPRoutes 分页列出路由。
 func (c *HTTPRouteServiceHTTPClientImpl) ListHTTPRoutes(ctx context.Context, in *ListHTTPRoutesRequest, opts ...http.CallOption) (*ListHTTPRoutesReply, error) {
 	var out ListHTTPRoutesReply
-	pattern := "/api/admin/v1/http-routes"
+	pattern := "/api/admin/v1/namespaces/{namespace}/http-routes"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -242,7 +248,7 @@ func (c *HTTPRouteServiceHTTPClientImpl) ListHTTPRoutes(ctx context.Context, in 
 // UpdateHTTPRoute UpdateHTTPRoute 完整替换路由的可编辑配置。
 func (c *HTTPRouteServiceHTTPClientImpl) UpdateHTTPRoute(ctx context.Context, in *UpdateHTTPRouteRequest, opts ...http.CallOption) (*UpdateHTTPRouteReply, error) {
 	var out UpdateHTTPRouteReply
-	pattern := "/api/admin/v1/http-routes/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/http-routes/{name}"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),

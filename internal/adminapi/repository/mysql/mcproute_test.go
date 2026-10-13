@@ -16,6 +16,7 @@ func TestListMCPRoutesPreservesPathsAndParents(t *testing.T) {
 	recordReadOnlyTransaction(t, store)
 	route := MCPRoute{
 		ID:          1,
+		Namespace:   "team-a",
 		Name:        "tools",
 		DisplayName: "工具路由",
 		Version:     "9",
@@ -28,15 +29,15 @@ func TestListMCPRoutesPreservesPathsAndParents(t *testing.T) {
 		BackendName: "network",
 		BackendPath: "/upstream/",
 	}
-	columns := []string{"id", "name", "display_name", "version", "created_at", "parents", "path", "backend_name", "backend_path"}
+	columns := []string{"namespace", "id", "name", "display_name", "version", "created_at", "parents", "path", "backend_name", "backend_path"}
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `mcproutes`").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery("FROM `mcproutes` ORDER BY name LIMIT").WithArgs(20).
-		WillReturnRows(sqlmock.NewRows(columns).AddRow(route.ID, route.Name, route.DisplayName, route.Version, route.CreatedAt,
+	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `mcproutes` WHERE namespace = \\?").WithArgs("team-a").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery("FROM `mcproutes` WHERE namespace = \\? ORDER BY name LIMIT").WithArgs("team-a", 20).
+		WillReturnRows(sqlmock.NewRows(columns).AddRow("team-a", route.ID, route.Name, route.DisplayName, route.Version, route.CreatedAt,
 			projectionJSON(t, route.Parents), route.Path, route.BackendName, route.BackendPath))
 	mock.ExpectCommit()
 
-	got, err := store.ListMCPRoutes(t.Context(), MCPRouteListParams{PageSize: 20, PageNum: 1})
+	got, err := store.ListMCPRoutes(t.Context(), MCPRouteListParams{Namespace: "team-a", PageSize: 20, PageNum: 1})
 	if err != nil {
 		t.Fatalf("ListMCPRoutes(page 1) error = %v, want nil", err)
 	}
@@ -48,9 +49,9 @@ func TestListMCPRoutesPreservesPathsAndParents(t *testing.T) {
 
 func TestGetMCPRouteRejectsInvalidJSONWithoutPartialState(t *testing.T) {
 	store, mock := newResourceTestStore(t)
-	mock.ExpectQuery("FROM `mcproutes` WHERE name =").WithArgs("broken", 1).
-		WillReturnRows(sqlmock.NewRows([]string{"name", "parents", "path"}).AddRow("broken", `[{"name":`, "/mcp"))
-	got, err := store.GetMCPRoute(t.Context(), "broken")
+	mock.ExpectQuery("FROM `mcproutes` WHERE namespace = \\? AND name =").WithArgs("team-a", "broken", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"namespace", "name", "parents", "path"}).AddRow("team-a", "broken", `[{"name":`, "/mcp"))
+	got, err := store.GetMCPRoute(t.Context(), "team-a", "broken")
 	if err == nil {
 		t.Fatal("GetMCPRoute(broken) error = nil, want JSON decoding error")
 	}
@@ -61,9 +62,9 @@ func TestGetMCPRouteRejectsInvalidJSONWithoutPartialState(t *testing.T) {
 
 func TestGetMCPRoutePreservesNotFoundCause(t *testing.T) {
 	store, mock := newResourceTestStore(t)
-	mock.ExpectQuery("FROM `mcproutes` WHERE name =").WithArgs("missing", 1).
+	mock.ExpectQuery("FROM `mcproutes` WHERE namespace = \\? AND name =").WithArgs("team-a", "missing", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"name"}))
-	got, err := store.GetMCPRoute(t.Context(), "missing")
+	got, err := store.GetMCPRoute(t.Context(), "team-a", "missing")
 	if !errors.Is(err, ErrNotFound) || !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Errorf("GetMCPRoute(missing) error = %v, want ErrNotFound and GORM cause", err)
 	}
@@ -75,6 +76,7 @@ func TestGetMCPRoutePreservesNotFoundCause(t *testing.T) {
 func TestUpsertMCPRouteReplacesConfigAndClearsDisplayName(t *testing.T) {
 	store, mock := newResourceTestStore(t)
 	route := MCPRoute{
+		Namespace:   "team-a",
 		Name:        "tools",
 		Version:     "9",
 		CreatedAt:   time.Date(2026, 10, 12, 1, 2, 3, 0, time.UTC),
@@ -84,7 +86,7 @@ func TestUpsertMCPRouteReplacesConfigAndClearsDisplayName(t *testing.T) {
 		BackendPath: "/new/mcp/",
 	}
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT `id` FROM `mcproutes` WHERE name =").WithArgs("tools", 1).
+	mock.ExpectQuery("SELECT `id` FROM `mcproutes` WHERE namespace = \\? AND name =").WithArgs("team-a", "tools", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(41))
 	mock.ExpectExec(regexp.QuoteMeta("UPDATE `mcproutes` SET `display_name`=?,`version`=?,`created_at`=?,`updated_at`=?,`parents`=?,`path`=?,`backend_name`=?,`backend_path`=? WHERE `id` = ?")).
 		WithArgs("", "9", route.CreatedAt, sqlmock.AnyArg(), projectionJSON(t, route.Parents), "/", "new-backend", "/new/mcp/", 41).
@@ -98,11 +100,11 @@ func TestUpsertMCPRouteReplacesConfigAndClearsDisplayName(t *testing.T) {
 func TestListMCPRoutesRejectsInvalidJSONWithoutPartialPage(t *testing.T) {
 	store, mock := newResourceTestStore(t)
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `mcproutes`").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery("FROM `mcproutes` ORDER BY name LIMIT").WithArgs(50).
-		WillReturnRows(sqlmock.NewRows([]string{"name", "parents"}).AddRow("broken", `[{"name":`))
+	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `mcproutes` WHERE namespace = \\?").WithArgs("team-a").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery("FROM `mcproutes` WHERE namespace = \\? ORDER BY name LIMIT").WithArgs("team-a", 50).
+		WillReturnRows(sqlmock.NewRows([]string{"namespace", "name", "parents"}).AddRow("team-a", "broken", `[{"name":`))
 	mock.ExpectRollback()
-	got, err := store.ListMCPRoutes(t.Context(), MCPRouteListParams{PageSize: 50, PageNum: 1})
+	got, err := store.ListMCPRoutes(t.Context(), MCPRouteListParams{Namespace: "team-a", PageSize: 50, PageNum: 1})
 	if err == nil {
 		t.Fatal("ListMCPRoutes(broken JSON) error = nil, want decoding error")
 	}
@@ -115,11 +117,11 @@ func TestUpsertMCPRouteRollsBackWriteFailure(t *testing.T) {
 	store, mock := newResourceTestStore(t)
 	wantErr := errors.New("projection write failed")
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT `id` FROM `mcproutes` WHERE name =").WithArgs("tools", 1).
+	mock.ExpectQuery("SELECT `id` FROM `mcproutes` WHERE namespace = \\? AND name =").WithArgs("team-a", "tools", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(41))
 	mock.ExpectExec("UPDATE `mcproutes` SET").WillReturnError(wantErr)
 	mock.ExpectRollback()
-	err := store.UpsertMCPRoute(t.Context(), MCPRoute{Name: "tools"})
+	err := store.UpsertMCPRoute(t.Context(), MCPRoute{Namespace: "team-a", Name: "tools"})
 	if !errors.Is(err, wantErr) {
 		t.Errorf("UpsertMCPRoute(tools) error = %v, want wrapped %v", err, wantErr)
 	}
@@ -129,12 +131,13 @@ func TestListMCPRoutesCombinesLiteralNameAndGatewayFilters(t *testing.T) {
 	store, mock := newResourceTestStore(t)
 	condition := "display_name LIKE ? ESCAPE '!' AND JSON_CONTAINS(parents, JSON_OBJECT('name', ?))"
 	mock.ExpectBegin()
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `mcproutes` WHERE "+condition)).
-		WithArgs("%工具!%!_!!%", "other").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `mcproutes` WHERE "+condition+" ORDER BY name LIMIT ? OFFSET ?")).
-		WithArgs("%工具!%!_!!%", "other", 20, 20).WillReturnRows(sqlmock.NewRows([]string{"name"}))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `mcproutes` WHERE namespace = ? AND "+condition)).
+		WithArgs("team-a", "%工具!%!_!!%", "other").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `mcproutes` WHERE namespace = ? AND "+condition+" ORDER BY name LIMIT ? OFFSET ?")).
+		WithArgs("team-a", "%工具!%!_!!%", "other", 20, 20).WillReturnRows(sqlmock.NewRows([]string{"name"}))
 	mock.ExpectCommit()
 	got, err := store.ListMCPRoutes(t.Context(), MCPRouteListParams{
+		Namespace:   "team-a",
 		PageSize:    20,
 		PageNum:     2,
 		DisplayName: "工具%_!",

@@ -16,7 +16,7 @@ import (
 // MCPRoutesGetter has a method to return a MCPRouteInterface.
 // A group's client should implement this interface.
 type MCPRoutesGetter interface {
-	MCPRoutes() MCPRouteInterface
+	MCPRoutes(namespace string) MCPRouteInterface
 }
 
 // MCPRouteInterface has methods to work with MCPRoute resources.
@@ -40,13 +40,13 @@ type mCPRoutes struct {
 }
 
 // newMCPRoutes returns a MCPRoutes
-func newMCPRoutes(c *GatewayV1alpha1Client) *mCPRoutes {
+func newMCPRoutes(c *GatewayV1alpha1Client, namespace string) *mCPRoutes {
 	return &mCPRoutes{
 		gentype.NewClientWithList[*gatewayv1alpha1.MCPRoute, *gatewayv1alpha1.MCPRouteList](
 			"mcproutes",
 			c.RESTClient(),
 			scheme.ParameterCodec,
-			"",
+			namespace,
 			func() *gatewayv1alpha1.MCPRoute { return &gatewayv1alpha1.MCPRoute{} },
 			func() *gatewayv1alpha1.MCPRouteList { return &gatewayv1alpha1.MCPRouteList{} },
 		),

@@ -54,6 +54,7 @@ func TestCreateModelRouteReturnsSavedStateHTTP(t *testing.T) {
 	})
 	clientAPI := adminv1.NewModelRouteServiceHTTPClient(httpClient)
 	request := &adminv1.CreateModelRouteRequest{
+		Namespace:   "team-a",
 		DisplayName: "模型路由",
 		ParentRefs: []*adminv1.ParentReference{
 			{Name: "edge", SectionName: "z"},
@@ -80,6 +81,7 @@ func TestCreateModelRouteReturnsSavedStateHTTP(t *testing.T) {
 		t.Errorf("CreateModelRoute().name = %q, want generated modelroute ID", name)
 	}
 	want := &adminv1.ModelRoute{
+		Namespace:   "team-a",
 		Name:        name,
 		DisplayName: request.DisplayName,
 		ParentRefs:  request.ParentRefs,
@@ -109,6 +111,7 @@ func TestCreateModelRouteReturnsSavedStateHTTP(t *testing.T) {
 func TestModelRouteUpdateAndDeleteHTTP(t *testing.T) {
 	seed := &gatewayv1alpha1.ModelRoute{
 		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       "team-a",
 			Name:            "models",
 			UID:             types.UID("route-instance"),
 			ResourceVersion: "7",
@@ -127,9 +130,9 @@ func TestModelRouteUpdateAndDeleteHTTP(t *testing.T) {
 	}
 	httpServer, client := crudTestServer(t, seed)
 	stale := `{"version":"stale","parentRefs":[{"name":"other"}],"rules":[{"matches":[{}],"backendRefs":[{"name":"other-models"}]}]}`
-	response := requestResource(httpServer, http.MethodPut, "/api/admin/v1/model-routes/models", stale)
+	response := requestResource(httpServer, http.MethodPut, "/api/admin/v1/namespaces/team-a/model-routes/models", stale)
 	requireHTTPStatus(t, response, http.StatusConflict)
-	stored, err := client.GatewayV1alpha1().ModelRoutes().Get(t.Context(), "models", metav1.GetOptions{})
+	stored, err := client.GatewayV1alpha1().ModelRoutes("team-a").Get(t.Context(), "models", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get(ModelRoute after stale update) error = %v, want nil", err)
 	}
@@ -138,9 +141,9 @@ func TestModelRouteUpdateAndDeleteHTTP(t *testing.T) {
 	}
 
 	body := `{"version":"7","parentRefs":[{"name":"other"}],"rules":[{"matches":[{}],"backendRefs":[{"name":"other-models"}]}]}`
-	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/model-routes/models", body)
+	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/namespaces/team-a/model-routes/models", body)
 	requireHTTPStatus(t, response, http.StatusOK)
-	stored, err = client.GatewayV1alpha1().ModelRoutes().Get(t.Context(), "models", metav1.GetOptions{})
+	stored, err = client.GatewayV1alpha1().ModelRoutes("team-a").Get(t.Context(), "models", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get(updated ModelRoute) error = %v, want nil", err)
 	}
@@ -158,6 +161,7 @@ func TestModelRouteUpdateAndDeleteHTTP(t *testing.T) {
 	var reply adminv1.UpdateModelRouteReply
 	decodeReply(t, response, &reply)
 	wantReply := &adminv1.ModelRoute{
+		Namespace:  "team-a",
 		Name:       "models",
 		ParentRefs: []*adminv1.ParentReference{{Name: "other"}},
 		Rules: []*adminv1.ModelRouteRule{{
@@ -171,12 +175,12 @@ func TestModelRouteUpdateAndDeleteHTTP(t *testing.T) {
 		t.Errorf("UpdateModelRoute(cleared fields) reply mismatch (-want +got):\n%s", diff)
 	}
 
-	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/model-routes/models", "")
+	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/namespaces/team-a/model-routes/models", "")
 	requireHTTPStatus(t, response, http.StatusOK)
-	if _, err := client.GatewayV1alpha1().ModelRoutes().Get(t.Context(), "models", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+	if _, err := client.GatewayV1alpha1().ModelRoutes("team-a").Get(t.Context(), "models", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("Get(deleted ModelRoute) error = %v, want NotFound", err)
 	}
-	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/model-routes/models", "")
+	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/namespaces/team-a/model-routes/models", "")
 	requireHTTPStatus(t, response, http.StatusNotFound)
 }
 
@@ -194,7 +198,7 @@ func TestModelRouteRequestValidationHTTP(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			httpServer, _, client := newTestServers()
-			response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/model-routes", tt.body)
+			response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/namespaces/team-a/model-routes", tt.body)
 			requireHTTPStatus(t, response, http.StatusBadRequest)
 			if actions := client.Actions(); len(actions) != 0 {
 				t.Errorf("CreateModelRoute(%s) API actions = %v, want none", tt.name, actions)
@@ -217,11 +221,11 @@ func TestModelRouteAuthenticationHTTP(t *testing.T) {
 		path   string
 		body   string
 	}{
-		{method: http.MethodPost, path: "/api/admin/v1/model-routes", body: `{}`},
-		{method: http.MethodGet, path: "/api/admin/v1/model-routes/models"},
-		{method: http.MethodGet, path: "/api/admin/v1/model-routes"},
-		{method: http.MethodPut, path: "/api/admin/v1/model-routes/models", body: `{}`},
-		{method: http.MethodDelete, path: "/api/admin/v1/model-routes/models"},
+		{method: http.MethodPost, path: "/api/admin/v1/namespaces/team-a/model-routes", body: `{}`},
+		{method: http.MethodGet, path: "/api/admin/v1/namespaces/team-a/model-routes/models"},
+		{method: http.MethodGet, path: "/api/admin/v1/namespaces/team-a/model-routes"},
+		{method: http.MethodPut, path: "/api/admin/v1/namespaces/team-a/model-routes/models", body: `{}`},
+		{method: http.MethodDelete, path: "/api/admin/v1/namespaces/team-a/model-routes/models"},
 	} {
 		response := requestResource(httpServer, tt.method, tt.path, tt.body)
 		requireHTTPStatus(t, response, http.StatusUnauthorized)
@@ -236,14 +240,15 @@ func TestModelRouteQueryHTTP(t *testing.T) {
 	createdAt := time.Date(2026, 10, 12, 1, 2, 3, 0, time.UTC)
 	parentsJSON := `[{"name":"edge","sectionName":"z"},{"name":"edge","sectionName":"a"}]`
 	rulesJSON := `[{"name":"z-rule","matches":[{"headers":[{"name":"X-Ai-Eg-Model","type":"Exact","value":" Model-Z "}]},{}],"backendRefs":[{"name":"models-z","modelNameOverride":"provider-model"}]},{"name":"a-rule","matches":null,"backendRefs":[{"name":"models-a"}]}]`
-	columns := []string{"name", "display_name", "parents", "rules", "version", "created_at"}
-	query.ExpectQuery("FROM `modelroutes` WHERE name =").WithArgs("models", 1).
-		WillReturnRows(sqlmock.NewRows(columns).AddRow("models", "模型路由", parentsJSON, rulesJSON, "9", createdAt))
-	response := requestResource(httpServer, http.MethodGet, "/api/admin/v1/model-routes/models", "")
+	columns := []string{"namespace", "name", "display_name", "parents", "rules", "version", "created_at"}
+	query.ExpectQuery("FROM `modelroutes` WHERE namespace = \\? AND name =").WithArgs("team-a", "models", 1).
+		WillReturnRows(sqlmock.NewRows(columns).AddRow("team-a", "models", "模型路由", parentsJSON, rulesJSON, "9", createdAt))
+	response := requestResource(httpServer, http.MethodGet, "/api/admin/v1/namespaces/team-a/model-routes/models", "")
 	requireHTTPStatus(t, response, http.StatusOK)
 	var getReply adminv1.GetModelRouteReply
 	decodeReply(t, response, &getReply)
 	want := &adminv1.ModelRoute{
+		Namespace:   "team-a",
 		Name:        "models",
 		DisplayName: "模型路由",
 		ParentRefs: []*adminv1.ParentReference{
@@ -274,12 +279,12 @@ func TestModelRouteQueryHTTP(t *testing.T) {
 
 	condition := "JSON_CONTAINS(parents, JSON_OBJECT('name', ?))"
 	query.ExpectBegin()
-	query.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `modelroutes` WHERE " + condition)).
-		WithArgs("edge").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	query.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `modelroutes` WHERE "+condition+" ORDER BY name LIMIT ?")).
-		WithArgs("edge", 50).WillReturnRows(sqlmock.NewRows(columns).AddRow("models", "模型路由", parentsJSON, rulesJSON, "9", createdAt))
+	query.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `modelroutes` WHERE namespace = ? AND "+condition)).
+		WithArgs("team-a", "edge").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	query.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `modelroutes` WHERE namespace = ? AND "+condition+" ORDER BY name LIMIT ?")).
+		WithArgs("team-a", "edge", 50).WillReturnRows(sqlmock.NewRows(columns).AddRow("team-a", "models", "模型路由", parentsJSON, rulesJSON, "9", createdAt))
 	query.ExpectCommit()
-	response = requestResource(httpServer, http.MethodGet, "/api/admin/v1/model-routes?gatewayName=edge", "")
+	response = requestResource(httpServer, http.MethodGet, "/api/admin/v1/namespaces/team-a/model-routes?gatewayName=edge", "")
 	requireHTTPStatus(t, response, http.StatusOK)
 	var listReply adminv1.ListModelRoutesReply
 	decodeReply(t, response, &listReply)
@@ -288,9 +293,9 @@ func TestModelRouteQueryHTTP(t *testing.T) {
 		t.Errorf("ListModelRoutes(default page, Gateway filter) mismatch (-want +got):\n%s", diff)
 	}
 
-	query.ExpectQuery("FROM `modelroutes` WHERE name =").WithArgs("missing", 1).
+	query.ExpectQuery("FROM `modelroutes` WHERE namespace = \\? AND name =").WithArgs("team-a", "missing", 1).
 		WillReturnRows(sqlmock.NewRows(columns))
-	response = requestResource(httpServer, http.MethodGet, "/api/admin/v1/model-routes/missing", "")
+	response = requestResource(httpServer, http.MethodGet, "/api/admin/v1/namespaces/team-a/model-routes/missing", "")
 	requireHTTPStatus(t, response, http.StatusNotFound)
 	if actions := client.Actions(); len(actions) != 0 {
 		t.Errorf("Get/ListModelRoutes() API actions = %v, want query model only", actions)
@@ -300,13 +305,14 @@ func TestModelRouteQueryHTTP(t *testing.T) {
 func TestModelRouteGRPC(t *testing.T) {
 	connection, backend := newTestGRPCConnection(t)
 	client := adminv1.NewModelRouteServiceClient(connection)
-	if _, err := client.CreateModelRoute(t.Context(), &adminv1.CreateModelRouteRequest{}); status.Code(err) != codes.InvalidArgument {
+	if _, err := client.CreateModelRoute(t.Context(), &adminv1.CreateModelRouteRequest{Namespace: "team-a"}); status.Code(err) != codes.InvalidArgument {
 		t.Errorf("CreateModelRoute(empty) error = %v, want InvalidArgument", err)
 	}
 	if actions := backend.Actions(); len(actions) != 0 {
 		t.Errorf("CreateModelRoute(empty) API actions = %v, want none", actions)
 	}
 	request := &adminv1.CreateModelRouteRequest{
+		Namespace:   "team-a",
 		DisplayName: "模型路由",
 		ParentRefs:  []*adminv1.ParentReference{{Name: "edge"}},
 		Rules:       []*adminv1.ModelRouteRule{{BackendRefs: []*adminv1.AIBackendReference{{Name: "models"}}}},

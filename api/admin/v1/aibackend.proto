@@ -14,32 +14,32 @@ service AIBackendService {
   // CreateAIBackend 创建模型服务。
   rpc CreateAIBackend(CreateAIBackendRequest) returns (CreateAIBackendReply) {
     option (google.api.http) = {
-      post: "/api/admin/v1/ai-backends"
+      post: "/api/admin/v1/namespaces/{namespace}/ai-backends"
       body: "*"
     };
   }
 
   // GetAIBackend 读取指定模型服务。
   rpc GetAIBackend(GetAIBackendRequest) returns (GetAIBackendReply) {
-    option (google.api.http) = {get: "/api/admin/v1/ai-backends/{name}"};
+    option (google.api.http) = {get: "/api/admin/v1/namespaces/{namespace}/ai-backends/{name}"};
   }
 
   // ListAIBackends 分页列出模型服务。
   rpc ListAIBackends(ListAIBackendsRequest) returns (ListAIBackendsReply) {
-    option (google.api.http) = {get: "/api/admin/v1/ai-backends"};
+    option (google.api.http) = {get: "/api/admin/v1/namespaces/{namespace}/ai-backends"};
   }
 
   // UpdateAIBackend 完整替换模型服务的可编辑配置。
   rpc UpdateAIBackend(UpdateAIBackendRequest) returns (UpdateAIBackendReply) {
     option (google.api.http) = {
-      put: "/api/admin/v1/ai-backends/{name}"
+      put: "/api/admin/v1/namespaces/{namespace}/ai-backends/{name}"
       body: "*"
     };
   }
 
   // DeleteAIBackend 删除指定模型服务。
   rpc DeleteAIBackend(DeleteAIBackendRequest) returns (DeleteAIBackendReply) {
-    option (google.api.http) = {delete: "/api/admin/v1/ai-backends/{name}"};
+    option (google.api.http) = {delete: "/api/admin/v1/namespaces/{namespace}/ai-backends/{name}"};
   }
 }
 
@@ -51,6 +51,12 @@ message CreateAIBackendRequest {
   BackendReference backend_ref = 2 [(buf.validate.field).required = true];
   // schema 声明上游 API 格式与路径前缀。
   APISchema schema = 3 [(buf.validate.field).required = true];
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 4 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // CreateAIBackendReply 表示创建后的模型服务。
@@ -61,8 +67,14 @@ message CreateAIBackendReply {
 
 // GetAIBackendRequest 表示读取模型服务的请求。
 message GetAIBackendRequest {
-  // name 是资源的稳定名称。
+  // name 是资源在所属命名空间内的稳定名称。
   string name = 1 [(buf.validate.field).string.min_len = 1];
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // GetAIBackendReply 表示读取到的模型服务。
@@ -79,6 +91,12 @@ message ListAIBackendsRequest {
   int32 page_num = 2 [(buf.validate.field).int32.gte = 0];
   // display_name 按展示名称文字包含匹配筛选。
   string display_name = 3;
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 4 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // ListAIBackendsReply 表示一页模型服务。
@@ -91,7 +109,7 @@ message ListAIBackendsReply {
 
 // UpdateAIBackendRequest 表示完整替换模型服务的可编辑配置。
 message UpdateAIBackendRequest {
-  // name 是资源的稳定名称，不允许通过更新修改。
+  // name 是资源在所属命名空间内的稳定名称，不允许通过更新修改。
   string name = 1 [(buf.validate.field).string.min_len = 1];
   // version 是读取模型服务时获得的版本，用于并发更新检查。
   string version = 2 [(buf.validate.field).string.min_len = 1];
@@ -101,6 +119,12 @@ message UpdateAIBackendRequest {
   BackendReference backend_ref = 4 [(buf.validate.field).required = true];
   // schema 声明上游 API 格式与路径前缀。
   APISchema schema = 5 [(buf.validate.field).required = true];
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 6 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // UpdateAIBackendReply 表示更新后的模型服务。
@@ -111,8 +135,14 @@ message UpdateAIBackendReply {
 
 // DeleteAIBackendRequest 表示删除模型服务的请求。
 message DeleteAIBackendRequest {
-  // name 是资源的稳定名称。
+  // name 是资源在所属命名空间内的稳定名称。
   string name = 1 [(buf.validate.field).string.min_len = 1];
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // DeleteAIBackendReply 表示 API Server 已接受删除请求。
@@ -120,7 +150,7 @@ message DeleteAIBackendReply {}
 
 // AIBackend 表示面向产品调用方的模型服务。
 message AIBackend {
-  // name 是资源的稳定名称。
+  // name 是资源在所属命名空间内的稳定名称。
   string name = 1;
   // display_name 是供人阅读的名称，不用于资源引用。
   string display_name = 2;
@@ -132,6 +162,8 @@ message AIBackend {
   google.protobuf.Timestamp create_time = 5;
   // version 是更新时必须提交的资源版本。
   string version = 6;
+  // namespace 是资源所属的命名空间。
+  string namespace = 7;
 }
 
 // APISchema 表示上游模型 API 格式，不是具体操作名称。

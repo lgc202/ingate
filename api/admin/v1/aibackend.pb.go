@@ -32,7 +32,9 @@ type CreateAIBackendRequest struct {
 	// backend_ref 引用网络后端，不在写入时检查引用存在性。
 	BackendRef *BackendReference `protobuf:"bytes,2,opt,name=backend_ref,json=backendRef,proto3" json:"backend_ref,omitempty"`
 	// schema 声明上游 API 格式与路径前缀。
-	Schema        *APISchema `protobuf:"bytes,3,opt,name=schema,proto3" json:"schema,omitempty"`
+	Schema *APISchema `protobuf:"bytes,3,opt,name=schema,proto3" json:"schema,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,4,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -88,6 +90,13 @@ func (x *CreateAIBackendRequest) GetSchema() *APISchema {
 	return nil
 }
 
+func (x *CreateAIBackendRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
 // CreateAIBackendReply 表示创建后的模型服务。
 type CreateAIBackendReply struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -137,8 +146,10 @@ func (x *CreateAIBackendReply) GetBackend() *AIBackend {
 // GetAIBackendRequest 表示读取模型服务的请求。
 type GetAIBackendRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// name 是资源在所属命名空间内的稳定名称。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -176,6 +187,13 @@ func (*GetAIBackendRequest) Descriptor() ([]byte, []int) {
 func (x *GetAIBackendRequest) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *GetAIBackendRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -234,7 +252,9 @@ type ListAIBackendsRequest struct {
 	// page_num 是从 1 开始的页码；为零时使用第一页。
 	PageNum int32 `protobuf:"varint,2,opt,name=page_num,json=pageNum,proto3" json:"page_num,omitempty"`
 	// display_name 按展示名称文字包含匹配筛选。
-	DisplayName   string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	DisplayName string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,4,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -286,6 +306,13 @@ func (x *ListAIBackendsRequest) GetPageNum() int32 {
 func (x *ListAIBackendsRequest) GetDisplayName() string {
 	if x != nil {
 		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *ListAIBackendsRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -348,7 +375,7 @@ func (x *ListAIBackendsReply) GetTotalCount() int64 {
 // UpdateAIBackendRequest 表示完整替换模型服务的可编辑配置。
 type UpdateAIBackendRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称，不允许通过更新修改。
+	// name 是资源在所属命名空间内的稳定名称，不允许通过更新修改。
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// version 是读取模型服务时获得的版本，用于并发更新检查。
 	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
@@ -357,7 +384,9 @@ type UpdateAIBackendRequest struct {
 	// backend_ref 引用网络后端，不在写入时检查引用存在性。
 	BackendRef *BackendReference `protobuf:"bytes,4,opt,name=backend_ref,json=backendRef,proto3" json:"backend_ref,omitempty"`
 	// schema 声明上游 API 格式与路径前缀。
-	Schema        *APISchema `protobuf:"bytes,5,opt,name=schema,proto3" json:"schema,omitempty"`
+	Schema *APISchema `protobuf:"bytes,5,opt,name=schema,proto3" json:"schema,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,6,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -427,6 +456,13 @@ func (x *UpdateAIBackendRequest) GetSchema() *APISchema {
 	return nil
 }
 
+func (x *UpdateAIBackendRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
 // UpdateAIBackendReply 表示更新后的模型服务。
 type UpdateAIBackendReply struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -476,8 +512,10 @@ func (x *UpdateAIBackendReply) GetBackend() *AIBackend {
 // DeleteAIBackendRequest 表示删除模型服务的请求。
 type DeleteAIBackendRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// name 是资源在所属命名空间内的稳定名称。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -515,6 +553,13 @@ func (*DeleteAIBackendRequest) Descriptor() ([]byte, []int) {
 func (x *DeleteAIBackendRequest) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *DeleteAIBackendRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -559,7 +604,7 @@ func (*DeleteAIBackendReply) Descriptor() ([]byte, []int) {
 // AIBackend 表示面向产品调用方的模型服务。
 type AIBackend struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
+	// name 是资源在所属命名空间内的稳定名称。
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// display_name 是供人阅读的名称，不用于资源引用。
 	DisplayName string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
@@ -570,7 +615,9 @@ type AIBackend struct {
 	// create_time 是资源的创建时间。
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	// version 是更新时必须提交的资源版本。
-	Version       string `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`
+	Version string `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`
+	// namespace 是资源所属的命名空间。
+	Namespace     string `protobuf:"bytes,7,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -647,6 +694,13 @@ func (x *AIBackend) GetVersion() string {
 	return ""
 }
 
+func (x *AIBackend) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
 // APISchema 表示上游模型 API 格式，不是具体操作名称。
 type APISchema struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -706,39 +760,44 @@ var File_admin_v1_aibackend_proto protoreflect.FileDescriptor
 
 const file_admin_v1_aibackend_proto_rawDesc = "" +
 	"\n" +
-	"\x18admin/v1/aibackend.proto\x12\badmin.v1\x1a\x16admin/v1/backend.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb5\x01\n" +
+	"\x18admin/v1/aibackend.proto\x12\badmin.v1\x1a\x16admin/v1/backend.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xff\x01\n" +
 	"\x16CreateAIBackendRequest\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12C\n" +
 	"\vbackend_ref\x18\x02 \x01(\v2\x1a.admin.v1.BackendReferenceB\x06\xbaH\x03\xc8\x01\x01R\n" +
 	"backendRef\x123\n" +
-	"\x06schema\x18\x03 \x01(\v2\x13.admin.v1.APISchemaB\x06\xbaH\x03\xc8\x01\x01R\x06schema\"E\n" +
+	"\x06schema\x18\x03 \x01(\v2\x13.admin.v1.APISchemaB\x06\xbaH\x03\xc8\x01\x01R\x06schema\x12H\n" +
+	"\tnamespace\x18\x04 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"E\n" +
 	"\x14CreateAIBackendReply\x12-\n" +
-	"\abackend\x18\x01 \x01(\v2\x13.admin.v1.AIBackendR\abackend\"2\n" +
+	"\abackend\x18\x01 \x01(\v2\x13.admin.v1.AIBackendR\abackend\"|\n" +
 	"\x13GetAIBackendRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\"B\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12H\n" +
+	"\tnamespace\x18\x02 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"B\n" +
 	"\x11GetAIBackendReply\x12-\n" +
-	"\abackend\x18\x01 \x01(\v2\x13.admin.v1.AIBackendR\abackend\"\x87\x01\n" +
+	"\abackend\x18\x01 \x01(\v2\x13.admin.v1.AIBackendR\abackend\"\xd1\x01\n" +
 	"\x15ListAIBackendsRequest\x12'\n" +
 	"\tpage_size\x18\x01 \x01(\x05B\n" +
 	"\xbaH\a\x1a\x05\x18\xc8\x01(\x00R\bpageSize\x12\"\n" +
 	"\bpage_num\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\apageNum\x12!\n" +
-	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\"g\n" +
+	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12H\n" +
+	"\tnamespace\x18\x04 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"g\n" +
 	"\x13ListAIBackendsReply\x12/\n" +
 	"\bbackends\x18\x01 \x03(\v2\x13.admin.v1.AIBackendR\bbackends\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x03R\n" +
-	"totalCount\"\xf5\x01\n" +
+	"totalCount\"\xbf\x02\n" +
 	"\x16UpdateAIBackendRequest\x12\x1b\n" +
 	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12!\n" +
 	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12C\n" +
 	"\vbackend_ref\x18\x04 \x01(\v2\x1a.admin.v1.BackendReferenceB\x06\xbaH\x03\xc8\x01\x01R\n" +
 	"backendRef\x123\n" +
-	"\x06schema\x18\x05 \x01(\v2\x13.admin.v1.APISchemaB\x06\xbaH\x03\xc8\x01\x01R\x06schema\"E\n" +
+	"\x06schema\x18\x05 \x01(\v2\x13.admin.v1.APISchemaB\x06\xbaH\x03\xc8\x01\x01R\x06schema\x12H\n" +
+	"\tnamespace\x18\x06 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"E\n" +
 	"\x14UpdateAIBackendReply\x12-\n" +
-	"\abackend\x18\x01 \x01(\v2\x13.admin.v1.AIBackendR\abackend\"5\n" +
+	"\abackend\x18\x01 \x01(\v2\x13.admin.v1.AIBackendR\abackend\"\x7f\n" +
 	"\x16DeleteAIBackendRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\"\x16\n" +
-	"\x14DeleteAIBackendReply\"\x83\x02\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12H\n" +
+	"\tnamespace\x18\x02 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"\x16\n" +
+	"\x14DeleteAIBackendReply\"\xa1\x02\n" +
 	"\tAIBackend\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12;\n" +
@@ -747,18 +806,19 @@ const file_admin_v1_aibackend_proto_rawDesc = "" +
 	"\x06schema\x18\x04 \x01(\v2\x13.admin.v1.APISchemaR\x06schema\x12;\n" +
 	"\vcreate_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createTime\x12\x18\n" +
-	"\aversion\x18\x06 \x01(\tR\aversion\"F\n" +
+	"\aversion\x18\x06 \x01(\tR\aversion\x12\x1c\n" +
+	"\tnamespace\x18\a \x01(\tR\tnamespace\"F\n" +
 	"\tAPISchema\x12!\n" +
 	"\x04name\x18\x01 \x01(\tB\r\xbaH\n" +
 	"r\b\n" +
 	"\x06OpenAIR\x04name\x12\x16\n" +
-	"\x06prefix\x18\x02 \x01(\tR\x06prefix2\xfa\x04\n" +
-	"\x10AIBackendService\x12y\n" +
-	"\x0fCreateAIBackend\x12 .admin.v1.CreateAIBackendRequest\x1a\x1e.admin.v1.CreateAIBackendReply\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/api/admin/v1/ai-backends\x12t\n" +
-	"\fGetAIBackend\x12\x1d.admin.v1.GetAIBackendRequest\x1a\x1b.admin.v1.GetAIBackendReply\"(\x82\xd3\xe4\x93\x02\"\x12 /api/admin/v1/ai-backends/{name}\x12s\n" +
-	"\x0eListAIBackends\x12\x1f.admin.v1.ListAIBackendsRequest\x1a\x1d.admin.v1.ListAIBackendsReply\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/admin/v1/ai-backends\x12\x80\x01\n" +
-	"\x0fUpdateAIBackend\x12 .admin.v1.UpdateAIBackendRequest\x1a\x1e.admin.v1.UpdateAIBackendReply\"+\x82\xd3\xe4\x93\x02%:\x01*\x1a /api/admin/v1/ai-backends/{name}\x12}\n" +
-	"\x0fDeleteAIBackend\x12 .admin.v1.DeleteAIBackendRequest\x1a\x1e.admin.v1.DeleteAIBackendReply\"(\x82\xd3\xe4\x93\x02\"* /api/admin/v1/ai-backends/{name}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x06prefix\x18\x02 \x01(\tR\x06prefix2\xf1\x05\n" +
+	"\x10AIBackendService\x12\x90\x01\n" +
+	"\x0fCreateAIBackend\x12 .admin.v1.CreateAIBackendRequest\x1a\x1e.admin.v1.CreateAIBackendReply\";\x82\xd3\xe4\x93\x025:\x01*\"0/api/admin/v1/namespaces/{namespace}/ai-backends\x12\x8b\x01\n" +
+	"\fGetAIBackend\x12\x1d.admin.v1.GetAIBackendRequest\x1a\x1b.admin.v1.GetAIBackendReply\"?\x82\xd3\xe4\x93\x029\x127/api/admin/v1/namespaces/{namespace}/ai-backends/{name}\x12\x8a\x01\n" +
+	"\x0eListAIBackends\x12\x1f.admin.v1.ListAIBackendsRequest\x1a\x1d.admin.v1.ListAIBackendsReply\"8\x82\xd3\xe4\x93\x022\x120/api/admin/v1/namespaces/{namespace}/ai-backends\x12\x97\x01\n" +
+	"\x0fUpdateAIBackend\x12 .admin.v1.UpdateAIBackendRequest\x1a\x1e.admin.v1.UpdateAIBackendReply\"B\x82\xd3\xe4\x93\x02<:\x01*\x1a7/api/admin/v1/namespaces/{namespace}/ai-backends/{name}\x12\x94\x01\n" +
+	"\x0fDeleteAIBackend\x12 .admin.v1.DeleteAIBackendRequest\x1a\x1e.admin.v1.DeleteAIBackendReply\"?\x82\xd3\xe4\x93\x029*7/api/admin/v1/namespaces/{namespace}/ai-backends/{name}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_aibackend_proto_rawDescOnce sync.Once

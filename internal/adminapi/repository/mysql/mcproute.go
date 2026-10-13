@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // MCPRoute 保存单行路由投影，JSON 数组保留父引用的声明顺序。
 type MCPRoute struct {
 	ID          uint64           `gorm:"column:id;primaryKey;autoIncrement"`
+	Namespace   string           `gorm:"column:namespace"`
 	Name        string           `gorm:"column:name"`
 	DisplayName string           `gorm:"column:display_name"`
 	Version     string           `gorm:"column:version"`
@@ -29,8 +31,9 @@ type MCPRouteParent struct {
 	SectionName string `json:"sectionName,omitempty"`
 }
 
-// MCPRouteListParams 限定路由列表的分页和常用筛选条件。
+// MCPRouteListParams 限定一个命名空间内路由列表的分页和常用筛选条件。
 type MCPRouteListParams struct {
+	Namespace   string
 	PageSize    int32
 	PageNum     int32
 	DisplayName string
@@ -52,7 +55,9 @@ func (MCPRoute) TableName() string {
 func (s *Store) UpsertMCPRoute(ctx context.Context, route MCPRoute) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row MCPRoute
-		err := tx.Select("id").Where("name = ?", route.Name).Take(&row).Error
+		err := tx.Select("id").
+			Where("namespace = ? AND name = ?", route.Namespace, route.Name).
+			Take(&row).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			if err := tx.Create(&route).Error; err != nil {
 				return fmt.Errorf("create MCPRoute projection: %w", err)
@@ -74,28 +79,30 @@ func (s *Store) UpsertMCPRoute(ctx context.Context, route MCPRoute) error {
 }
 
 // DeleteMCPRoute 删除整个路由投影，不存在时成功返回。
-func (s *Store) DeleteMCPRoute(ctx context.Context, name string) error {
-	if err := s.db.WithContext(ctx).Where("name = ?", name).Delete(&MCPRoute{}).Error; err != nil {
+func (s *Store) DeleteMCPRoute(ctx context.Context, namespace, name string) error {
+	query := s.db.WithContext(ctx).Where("namespace = ? AND name = ?", namespace, name)
+	if err := query.Delete(&MCPRoute{}).Error; err != nil {
 		return fmt.Errorf("delete MCPRoute projection: %w", err)
 	}
 
 	return nil
 }
 
-// ListMCPRouteNames 返回已投影的稳定名称，供启动对账使用。
-func (s *Store) ListMCPRouteNames(ctx context.Context) ([]string, error) {
-	var names []string
-	if err := s.db.WithContext(ctx).Model(&MCPRoute{}).Order("name").Pluck("name", &names).Error; err != nil {
-		return nil, fmt.Errorf("list MCPRoute names: %w", err)
+// ListMCPRouteKeys 返回所有已投影对象的空间和名称，供启动对账使用。
+func (s *Store) ListMCPRouteKeys(ctx context.Context) ([]types.NamespacedName, error) {
+	var keys []types.NamespacedName
+	query := s.db.WithContext(ctx).Model(&MCPRoute{}).
+		Select("namespace", "name").Order("namespace, name")
+	if err := query.Find(&keys).Error; err != nil {
+		return nil, fmt.Errorf("list MCPRoute keys: %w", err)
 	}
-
-	return names, nil
+	return keys, nil
 }
 
 // GetMCPRoute 读取完整路由投影，JSON 解码失败时不返回部分配置。
-func (s *Store) GetMCPRoute(ctx context.Context, name string) (MCPRoute, error) {
+func (s *Store) GetMCPRoute(ctx context.Context, namespace, name string) (MCPRoute, error) {
 	var route MCPRoute
-	err := s.db.WithContext(ctx).Where("name = ?", name).Take(&route).Error
+	err := s.db.WithContext(ctx).Where("namespace = ? AND name = ?", namespace, name).Take(&route).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return MCPRoute{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 	}
@@ -106,11 +113,14 @@ func (s *Store) GetMCPRoute(ctx context.Context, name string) (MCPRoute, error) 
 	return route, nil
 }
 
-// ListMCPRoutes 在同一快照中按稳定名称分页，筛选和总数使用相同条件。
+// ListMCPRoutes 在指定命名空间的同一快照中按稳定名称分页，筛选和总数使用相同条件。
 func (s *Store) ListMCPRoutes(ctx context.Context, params MCPRouteListParams) (MCPRoutePage, error) {
 	var result MCPRoutePage
 	err := s.readOnlyTransaction(ctx, func(tx *gorm.DB) error {
-		query := filterDisplayName(tx.Model(&MCPRoute{}), params.DisplayName)
+		query := filterDisplayName(
+			tx.Model(&MCPRoute{}).Where("namespace = ?", params.Namespace),
+			params.DisplayName,
+		)
 		if params.GatewayName != "" {
 			query = query.Where("JSON_CONTAINS(parents, JSON_OBJECT('name', ?))", params.GatewayName)
 		}

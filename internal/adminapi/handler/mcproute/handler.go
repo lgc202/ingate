@@ -45,6 +45,7 @@ func (h *Handler) CreateMCPRoute(
 	req *adminv1.CreateMCPRouteRequest,
 ) (*adminv1.CreateMCPRouteReply, error) {
 	created, err := h.service.Create(ctx, routeservice.CreateParams{
+		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
 		ParentRefs:  parentsFromProto(req.GetParentRefs()),
 		Path:        req.Path,
@@ -62,7 +63,7 @@ func (h *Handler) GetMCPRoute(
 	ctx context.Context,
 	req *adminv1.GetMCPRouteRequest,
 ) (*adminv1.GetMCPRouteReply, error) {
-	route, err := h.service.Get(ctx, req.GetName())
+	route, err := h.service.Get(ctx, req.GetNamespace(), req.GetName())
 	if err != nil {
 		return nil, toTransportError(ctx, err)
 	}
@@ -76,6 +77,7 @@ func (h *Handler) ListMCPRoutes(
 	req *adminv1.ListMCPRoutesRequest,
 ) (*adminv1.ListMCPRoutesReply, error) {
 	page, err := h.service.List(ctx, routeservice.ListParams{
+		Namespace:   req.GetNamespace(),
 		PageSize:    req.GetPageSize(),
 		PageNum:     req.GetPageNum(),
 		DisplayName: req.GetDisplayName(),
@@ -99,6 +101,7 @@ func (h *Handler) UpdateMCPRoute(
 	req *adminv1.UpdateMCPRouteRequest,
 ) (*adminv1.UpdateMCPRouteReply, error) {
 	updated, err := h.service.Update(ctx, routeservice.UpdateParams{
+		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
 		Name:        req.GetName(),
 		Version:     req.GetVersion(),
@@ -118,7 +121,7 @@ func (h *Handler) DeleteMCPRoute(
 	ctx context.Context,
 	req *adminv1.DeleteMCPRouteRequest,
 ) (*adminv1.DeleteMCPRouteReply, error) {
-	if err := h.service.Delete(ctx, req.GetName()); err != nil {
+	if err := h.service.Delete(ctx, req.GetNamespace(), req.GetName()); err != nil {
 		return nil, toTransportError(ctx, err)
 	}
 
@@ -146,6 +149,7 @@ func backendRefsFromProto(refs []*adminv1.MCPBackendReference) []gatewayv1alpha1
 
 func routeToProto(route repository.MCPRouteInfo) *adminv1.MCPRoute {
 	result := &adminv1.MCPRoute{
+		Namespace:   route.Namespace,
 		Name:        route.Name,
 		DisplayName: route.DisplayName,
 		Path:        route.Path,

@@ -41,28 +41,28 @@ func (r *GatewayReconciler) SetupWithManager(manager ctrl.Manager) error {
 		Complete(r)
 }
 
-// Reconcile 按名称同步一个 Gateway，或执行启动全量对账。
+// Reconcile 按命名空间和名称同步一个 Gateway，或执行启动全量对账。
 func (r *GatewayReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	if request.Name == gatewayInitialSyncName {
+	if request.Namespace == "" && request.Name == gatewayInitialSyncName {
 		return ctrl.Result{}, r.syncAll(ctx)
 	}
-	return ctrl.Result{}, r.syncGateway(ctx, request.Name)
+	return ctrl.Result{}, r.syncGateway(ctx, request.NamespacedName)
 }
 
-func (r *GatewayReconciler) syncGateway(ctx context.Context, name string) error {
+func (r *GatewayReconciler) syncGateway(ctx context.Context, key types.NamespacedName) error {
 	var gateway gatewayv1alpha1.Gateway
-	if err := r.client.Get(ctx, types.NamespacedName{Name: name}, &gateway); err != nil {
+	if err := r.client.Get(ctx, key, &gateway); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return fmt.Errorf("get Gateway %q: %w", name, err)
+			return fmt.Errorf("get Gateway %q: %w", key.String(), err)
 		}
-		if err := r.store.DeleteGateway(ctx, name); err != nil {
-			return fmt.Errorf("delete Gateway %q from MySQL: %w", name, err)
+		if err := r.store.DeleteGateway(ctx, key.Namespace, key.Name); err != nil {
+			return fmt.Errorf("delete Gateway %q from MySQL: %w", key.String(), err)
 		}
 		return nil
 	}
 
 	if err := r.store.UpsertGateway(ctx, gatewayToMySQL(&gateway)); err != nil {
-		return fmt.Errorf("sync Gateway %q to MySQL: %w", name, err)
+		return fmt.Errorf("sync Gateway %q to MySQL: %w", key.String(), err)
 	}
 
 	return nil
@@ -74,26 +74,26 @@ func (r *GatewayReconciler) syncAll(ctx context.Context) error {
 		return fmt.Errorf("list Gateways for initial sync: %w", err)
 	}
 
-	current := make(map[string]struct{}, len(gateways.Items))
+	current := make(map[types.NamespacedName]struct{}, len(gateways.Items))
 	for i := range gateways.Items {
 		gateway := &gateways.Items[i]
 		if err := r.store.UpsertGateway(ctx, gatewayToMySQL(gateway)); err != nil {
-			return fmt.Errorf("sync Gateway %q to MySQL: %w", gateway.Name, err)
+			return fmt.Errorf("sync Gateway %q to MySQL: %w", client.ObjectKeyFromObject(gateway).String(), err)
 		}
-		current[gateway.Name] = struct{}{}
+		current[client.ObjectKeyFromObject(gateway)] = struct{}{}
 	}
 
-	storedNames, err := r.store.ListGatewayNames(ctx)
+	storedKeys, err := r.store.ListGatewayKeys(ctx)
 	if err != nil {
 		return err
 	}
 
-	for _, name := range storedNames {
-		if _, exists := current[name]; exists {
+	for _, key := range storedKeys {
+		if _, exists := current[key]; exists {
 			continue
 		}
-		if err := r.store.DeleteGateway(ctx, name); err != nil {
-			return fmt.Errorf("delete stale Gateway %q from MySQL: %w", name, err)
+		if err := r.store.DeleteGateway(ctx, key.Namespace, key.Name); err != nil {
+			return fmt.Errorf("delete stale Gateway %q from MySQL: %w", key.String(), err)
 		}
 	}
 
@@ -112,6 +112,7 @@ func gatewayToMySQL(gateway *gatewayv1alpha1.Gateway) mysql.Gateway {
 	}
 
 	return mysql.Gateway{
+		Namespace:   gateway.Namespace,
 		Name:        gateway.Name,
 		DisplayName: gateway.Spec.DisplayName,
 		Version:     gateway.ResourceVersion,

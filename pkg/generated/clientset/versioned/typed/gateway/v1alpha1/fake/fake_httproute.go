@@ -14,11 +14,11 @@ type fakeHTTPRoutes struct {
 	Fake *FakeGatewayV1alpha1
 }
 
-func newFakeHTTPRoutes(fake *FakeGatewayV1alpha1) gatewayv1alpha1.HTTPRouteInterface {
+func newFakeHTTPRoutes(fake *FakeGatewayV1alpha1, namespace string) gatewayv1alpha1.HTTPRouteInterface {
 	return &fakeHTTPRoutes{
 		gentype.NewFakeClientWithList[*v1alpha1.HTTPRoute, *v1alpha1.HTTPRouteList](
 			fake.Fake,
-			"",
+			namespace,
 			v1alpha1.SchemeGroupVersion.WithResource("httproutes"),
 			v1alpha1.SchemeGroupVersion.WithKind("HTTPRoute"),
 			func() *v1alpha1.HTTPRoute { return &v1alpha1.HTTPRoute{} },

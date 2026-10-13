@@ -51,7 +51,7 @@ func TestHTTPRouteRejectsInvalidContractBeforeWriting(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			client := clientfake.NewSimpleClientset()
 			route := gatewayv1alpha1.HTTPRoute{
-				ObjectMeta: metav1.ObjectMeta{Name: "public"},
+				ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "public"},
 				Spec: gatewayv1alpha1.HTTPRouteSpec{
 					ParentRefs: []gatewayv1alpha1.ParentReference{{Name: "edge"}},
 					Rules: []gatewayv1alpha1.HTTPRouteRule{
@@ -60,7 +60,7 @@ func TestHTTPRouteRejectsInvalidContractBeforeWriting(t *testing.T) {
 				},
 			}
 			tt.update(&route)
-			_, err := NewHTTPRoute(client.GatewayV1alpha1().HTTPRoutes(), nil).Create(t.Context(), &route)
+			_, err := NewHTTPRoute(client.GatewayV1alpha1(), nil).Create(t.Context(), &route)
 			if !errors.Is(err, ErrInvalid) {
 				t.Errorf("Create error = %v, want ErrInvalid", err)
 			}
@@ -73,7 +73,7 @@ func TestHTTPRouteRejectsInvalidContractBeforeWriting(t *testing.T) {
 
 func TestHTTPRouteDefaultingCopiesInputAndPreservesRuleOrder(t *testing.T) {
 	input := gatewayv1alpha1.HTTPRoute{
-		ObjectMeta: metav1.ObjectMeta{Name: "public"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "public"},
 		Spec: gatewayv1alpha1.HTTPRouteSpec{
 			ParentRefs: []gatewayv1alpha1.ParentReference{
 				{Name: "edge", SectionName: "http"},
@@ -96,7 +96,7 @@ func TestHTTPRouteDefaultingCopiesInputAndPreservesRuleOrder(t *testing.T) {
 	want := input.DeepCopy()
 	gatewayv1alpha1.SetDefaultsHTTPRoute(want)
 	client := clientfake.NewSimpleClientset()
-	created, err := NewHTTPRoute(client.GatewayV1alpha1().HTTPRoutes(), nil).Create(t.Context(), &input)
+	created, err := NewHTTPRoute(client.GatewayV1alpha1(), nil).Create(t.Context(), &input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestHTTPRouteDefaultingCopiesInputAndPreservesRuleOrder(t *testing.T) {
 	if got := created.Rules[0].Matches[0].Path; got == nil || got.Type != "PathPrefix" || got.Value != "/" {
 		t.Errorf("default path = %+v", got)
 	}
-	stored, err := client.GatewayV1alpha1().HTTPRoutes().Get(t.Context(), input.Name, metav1.GetOptions{})
+	stored, err := client.GatewayV1alpha1().HTTPRoutes("team-a").Get(t.Context(), input.Name, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

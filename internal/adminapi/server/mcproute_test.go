@@ -84,6 +84,7 @@ func TestCreateMCPRouteReturnsSavedStateHTTP(t *testing.T) {
 				}
 			})
 			request := &adminv1.CreateMCPRouteRequest{
+				Namespace:   "team-a",
 				DisplayName: "工具路由",
 				ParentRefs: []*adminv1.ParentReference{
 					{Name: "edge", SectionName: "z"},
@@ -101,6 +102,7 @@ func TestCreateMCPRouteReturnsSavedStateHTTP(t *testing.T) {
 				t.Errorf("CreateMCPRoute().name = %q, want generated mcproute ID", name)
 			}
 			want := &adminv1.MCPRoute{
+				Namespace:   "team-a",
 				Name:        name,
 				DisplayName: request.DisplayName,
 				ParentRefs:  request.ParentRefs,
@@ -119,6 +121,7 @@ func TestCreateMCPRouteReturnsSavedStateHTTP(t *testing.T) {
 func TestMCPRouteUpdateAndDeleteHTTP(t *testing.T) {
 	seed := &gatewayv1alpha1.MCPRoute{
 		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       "team-a",
 			Name:            "tools",
 			UID:             types.UID("route-instance"),
 			ResourceVersion: "7",
@@ -139,9 +142,9 @@ func TestMCPRouteUpdateAndDeleteHTTP(t *testing.T) {
 		return false, nil, nil
 	})
 	stale := `{"version":"stale","parentRefs":[{"name":"other"}],"backendRefs":[{"name":"other-backend"}]}`
-	response := requestResource(httpServer, http.MethodPut, "/api/admin/v1/mcp-routes/tools", stale)
+	response := requestResource(httpServer, http.MethodPut, "/api/admin/v1/namespaces/team-a/mcp-routes/tools", stale)
 	requireHTTPStatus(t, response, http.StatusConflict)
-	stored, err := client.GatewayV1alpha1().MCPRoutes().Get(t.Context(), "tools", metav1.GetOptions{})
+	stored, err := client.GatewayV1alpha1().MCPRoutes("team-a").Get(t.Context(), "tools", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get(MCPRoute after stale update) error = %v, want nil", err)
 	}
@@ -150,9 +153,9 @@ func TestMCPRouteUpdateAndDeleteHTTP(t *testing.T) {
 	}
 
 	body := `{"version":"7","parentRefs":[{"name":"other"}],"backendRefs":[{"name":"other-backend"}]}`
-	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/mcp-routes/tools", body)
+	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/namespaces/team-a/mcp-routes/tools", body)
 	requireHTTPStatus(t, response, http.StatusOK)
-	stored, err = client.GatewayV1alpha1().MCPRoutes().Get(t.Context(), "tools", metav1.GetOptions{})
+	stored, err = client.GatewayV1alpha1().MCPRoutes("team-a").Get(t.Context(), "tools", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get(updated MCPRoute) error = %v, want nil", err)
 	}
@@ -168,6 +171,7 @@ func TestMCPRouteUpdateAndDeleteHTTP(t *testing.T) {
 	var reply adminv1.UpdateMCPRouteReply
 	decodeReply(t, response, &reply)
 	wantReply := &adminv1.MCPRoute{
+		Namespace:   "team-a",
 		Name:        "tools",
 		ParentRefs:  []*adminv1.ParentReference{{Name: "other"}},
 		Path:        ptr.To("/mcp"),
@@ -179,12 +183,12 @@ func TestMCPRouteUpdateAndDeleteHTTP(t *testing.T) {
 		t.Errorf("UpdateMCPRoute(cleared name, reset paths) reply mismatch (-want +got):\n%s", diff)
 	}
 
-	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/mcp-routes/tools", "")
+	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/namespaces/team-a/mcp-routes/tools", "")
 	requireHTTPStatus(t, response, http.StatusOK)
-	if _, err := client.GatewayV1alpha1().MCPRoutes().Get(t.Context(), "tools", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+	if _, err := client.GatewayV1alpha1().MCPRoutes("team-a").Get(t.Context(), "tools", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("Get(deleted MCPRoute) error = %v, want NotFound", err)
 	}
-	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/mcp-routes/tools", "")
+	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/namespaces/team-a/mcp-routes/tools", "")
 	requireHTTPStatus(t, response, http.StatusNotFound)
 }
 
@@ -203,7 +207,7 @@ func TestMCPRouteRequestValidationHTTP(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			httpServer, _, client := newTestServers()
-			response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/mcp-routes", tt.body)
+			response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/namespaces/team-a/mcp-routes", tt.body)
 			requireHTTPStatus(t, response, http.StatusBadRequest)
 			if actions := client.Actions(); len(actions) != 0 {
 				t.Errorf("CreateMCPRoute(%s) API actions = %v, want none", tt.name, actions)
@@ -226,11 +230,11 @@ func TestMCPRouteAuthenticationHTTP(t *testing.T) {
 		path   string
 		body   string
 	}{
-		{method: http.MethodPost, path: "/api/admin/v1/mcp-routes", body: `{}`},
-		{method: http.MethodGet, path: "/api/admin/v1/mcp-routes/tools"},
-		{method: http.MethodGet, path: "/api/admin/v1/mcp-routes"},
-		{method: http.MethodPut, path: "/api/admin/v1/mcp-routes/tools", body: `{}`},
-		{method: http.MethodDelete, path: "/api/admin/v1/mcp-routes/tools"},
+		{method: http.MethodPost, path: "/api/admin/v1/namespaces/team-a/mcp-routes", body: `{}`},
+		{method: http.MethodGet, path: "/api/admin/v1/namespaces/team-a/mcp-routes/tools"},
+		{method: http.MethodGet, path: "/api/admin/v1/namespaces/team-a/mcp-routes"},
+		{method: http.MethodPut, path: "/api/admin/v1/namespaces/team-a/mcp-routes/tools", body: `{}`},
+		{method: http.MethodDelete, path: "/api/admin/v1/namespaces/team-a/mcp-routes/tools"},
 	} {
 		response := requestResource(httpServer, tt.method, tt.path, tt.body)
 		requireHTTPStatus(t, response, http.StatusUnauthorized)
@@ -244,14 +248,15 @@ func TestMCPRouteQueryHTTP(t *testing.T) {
 	httpServer, client, query := newQueryTestServer(t)
 	createdAt := time.Date(2026, 10, 12, 1, 2, 3, 0, time.UTC)
 	parentsJSON := `[{"name":"edge","sectionName":"z"},{"name":"edge","sectionName":"a"}]`
-	columns := []string{"name", "display_name", "parents", "path", "backend_name", "backend_path", "version", "created_at"}
-	query.ExpectQuery("FROM `mcproutes` WHERE name =").WithArgs("tools", 1).
-		WillReturnRows(sqlmock.NewRows(columns).AddRow("tools", "工具路由", parentsJSON, "/工具/%2F/", "network", "/", "9", createdAt))
-	response := requestResource(httpServer, http.MethodGet, "/api/admin/v1/mcp-routes/tools", "")
+	columns := []string{"namespace", "name", "display_name", "parents", "path", "backend_name", "backend_path", "version", "created_at"}
+	query.ExpectQuery("FROM `mcproutes` WHERE namespace = \\? AND name =").WithArgs("team-a", "tools", 1).
+		WillReturnRows(sqlmock.NewRows(columns).AddRow("team-a", "tools", "工具路由", parentsJSON, "/工具/%2F/", "network", "/", "9", createdAt))
+	response := requestResource(httpServer, http.MethodGet, "/api/admin/v1/namespaces/team-a/mcp-routes/tools", "")
 	requireHTTPStatus(t, response, http.StatusOK)
 	var getReply adminv1.GetMCPRouteReply
 	decodeReply(t, response, &getReply)
 	want := &adminv1.MCPRoute{
+		Namespace:   "team-a",
 		Name:        "tools",
 		DisplayName: "工具路由",
 		ParentRefs: []*adminv1.ParentReference{
@@ -269,12 +274,12 @@ func TestMCPRouteQueryHTTP(t *testing.T) {
 
 	condition := "JSON_CONTAINS(parents, JSON_OBJECT('name', ?))"
 	query.ExpectBegin()
-	query.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `mcproutes` WHERE " + condition)).
-		WithArgs("edge").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	query.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `mcproutes` WHERE "+condition+" ORDER BY name LIMIT ?")).
-		WithArgs("edge", 50).WillReturnRows(sqlmock.NewRows(columns).AddRow("tools", "工具路由", parentsJSON, "/工具/%2F/", "network", "/", "9", createdAt))
+	query.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `mcproutes` WHERE namespace = ? AND "+condition)).
+		WithArgs("team-a", "edge").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	query.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `mcproutes` WHERE namespace = ? AND "+condition+" ORDER BY name LIMIT ?")).
+		WithArgs("team-a", "edge", 50).WillReturnRows(sqlmock.NewRows(columns).AddRow("team-a", "tools", "工具路由", parentsJSON, "/工具/%2F/", "network", "/", "9", createdAt))
 	query.ExpectCommit()
-	response = requestResource(httpServer, http.MethodGet, "/api/admin/v1/mcp-routes?gatewayName=edge", "")
+	response = requestResource(httpServer, http.MethodGet, "/api/admin/v1/namespaces/team-a/mcp-routes?gatewayName=edge", "")
 	requireHTTPStatus(t, response, http.StatusOK)
 	var listReply adminv1.ListMCPRoutesReply
 	decodeReply(t, response, &listReply)
@@ -282,8 +287,8 @@ func TestMCPRouteQueryHTTP(t *testing.T) {
 		t.Errorf("ListMCPRoutes(default page, Gateway filter) mismatch (-want +got):\n%s", diff)
 	}
 
-	query.ExpectQuery("FROM `mcproutes` WHERE name =").WithArgs("missing", 1).WillReturnRows(sqlmock.NewRows(columns))
-	response = requestResource(httpServer, http.MethodGet, "/api/admin/v1/mcp-routes/missing", "")
+	query.ExpectQuery("FROM `mcproutes` WHERE namespace = \\? AND name =").WithArgs("team-a", "missing", 1).WillReturnRows(sqlmock.NewRows(columns))
+	response = requestResource(httpServer, http.MethodGet, "/api/admin/v1/namespaces/team-a/mcp-routes/missing", "")
 	requireHTTPStatus(t, response, http.StatusNotFound)
 	if actions := client.Actions(); len(actions) != 0 {
 		t.Errorf("Get/ListMCPRoutes() API actions = %v, want query model only", actions)
@@ -293,13 +298,14 @@ func TestMCPRouteQueryHTTP(t *testing.T) {
 func TestMCPRouteGRPC(t *testing.T) {
 	connection, backend := newTestGRPCConnection(t)
 	client := adminv1.NewMCPRouteServiceClient(connection)
-	if _, err := client.CreateMCPRoute(t.Context(), &adminv1.CreateMCPRouteRequest{}); status.Code(err) != codes.InvalidArgument {
+	if _, err := client.CreateMCPRoute(t.Context(), &adminv1.CreateMCPRouteRequest{Namespace: "team-a"}); status.Code(err) != codes.InvalidArgument {
 		t.Errorf("CreateMCPRoute(empty) error = %v, want InvalidArgument", err)
 	}
 	if actions := backend.Actions(); len(actions) != 0 {
 		t.Errorf("CreateMCPRoute(empty) API actions = %v, want none", actions)
 	}
 	request := &adminv1.CreateMCPRouteRequest{
+		Namespace:   "team-a",
 		DisplayName: "工具路由",
 		ParentRefs:  []*adminv1.ParentReference{{Name: "edge"}},
 		BackendRefs: []*adminv1.MCPBackendReference{{Name: "network"}},
@@ -354,6 +360,7 @@ func TestMCPRoutePathLengthGRPC(t *testing.T) {
 			t.Run(tt.name+"/upstream="+strconv.FormatBool(upstream), func(t *testing.T) {
 				connection, backend := newTestGRPCConnection(t)
 				request := &adminv1.CreateMCPRouteRequest{
+					Namespace:   "team-a",
 					ParentRefs:  []*adminv1.ParentReference{{Name: "edge"}},
 					BackendRefs: []*adminv1.MCPBackendReference{{Name: "network"}},
 				}

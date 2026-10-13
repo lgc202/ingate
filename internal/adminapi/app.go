@@ -111,12 +111,12 @@ func newApp(
 	accountService *accountservice.Service,
 	logger *slog.Logger,
 ) *kratos.App {
-	gateways := repository.NewGateway(apiServerStore.Gateways(), mysqlStore)
-	routes := repository.NewHTTPRoute(apiServerStore.HTTPRoutes(), mysqlStore)
-	backends := repository.NewBackend(apiServerStore.Backends(), mysqlStore)
-	aiBackends := repository.NewAIBackend(apiServerStore.AIBackends(), mysqlStore)
-	modelRoutes := repository.NewModelRoute(apiServerStore.ModelRoutes(), mysqlStore)
-	mcpRoutes := repository.NewMCPRoute(apiServerStore.MCPRoutes(), mysqlStore)
+	gateways := repository.NewGateway(apiServerStore, mysqlStore)
+	routes := repository.NewHTTPRoute(apiServerStore, mysqlStore)
+	backends := repository.NewBackend(apiServerStore, mysqlStore)
+	aiBackends := repository.NewAIBackend(apiServerStore, mysqlStore)
+	modelRoutes := repository.NewModelRoute(apiServerStore, mysqlStore)
+	mcpRoutes := repository.NewMCPRoute(apiServerStore, mysqlStore)
 
 	gatewayService := gatewayservice.New(gateways)
 	routeService := routeservice.New(routes)

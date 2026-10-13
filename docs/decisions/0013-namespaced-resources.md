@@ -1,7 +1,7 @@
 # 0013：显式 Namespace 与同空间资源引用
 
 - 日期：2026-10-12
-- 状态：作用域、请求边界和原生 Namespace 生命周期实现方式已确认；编译身份改造已提交，存储与管理链路尚未切换
+- 状态：作用域、请求边界和原生 Namespace 生命周期实现方式已确认；编译身份和 Namespace 基础设施已提交；本轮六种资源存储、管理与投影切换已实现，待 review
 - 范围：替代 0011、0012 及资源契约中采用集群级主资源的决定；保留共享 Envoy、资源名称和展示名称契约
 
 ## 已确认契约
@@ -38,13 +38,13 @@ Higress 的 [watchNamespace 配置](https://higress.io/docs/latest/user/configur
 - 输入顺序不影响编译结果；创建时间相同时，以 Namespace/name 裁决。共享入口的冲突范围不缩小。
 - 缺少本空间 Backend 时保留匹配并返回原有 500 动作，不转发到另一个空间的同名 Backend。
 
-当前 API Server 的 Strategy 仍为集群级，Admin 和 MySQL 也还没有 Namespace。空 Namespace 的现有输入保持当前编译名称；这是存储切换前的阶段边界，不保留一套旧 API。新作用域行为目前由显式 Namespace 的 fake-client/纯编译测试验证，不宣称真实 API 已接受命名空间资源。
+编译身份切片提交时，API Server 的 Strategy 仍为集群级，Admin 和 MySQL 也还没有 Namespace。空 Namespace 的现有输入保持当时的编译名称；这是存储切换前的阶段边界，不保留一套旧 API。该切片只用显式 Namespace 的 fake-client/纯编译测试验证新作用域，不证明当时的真实 API 已接受命名空间资源；本轮真实存储检查见第九小步。
 
 移除本轮未提交的 AIBackend 引用诊断草稿。用户要求的是编译并存储供 AI Proxy 消费的配置，不把单独写 Conditions 视为该能力；此次不新增 AI Watch、运行时资源或模型服务。
 
 ## 下一步：完整切换存储和管理链路
 
-后续切片一并修改六种资源的 Strategy/REST Storage、生成客户端及 OpenAPI、管理 protobuf/各层请求传递、MySQL 查询模型和异步投影。所有精确读取、更新、删除、列表筛选、启动补齐和残留清理都必须带 Namespace，数据库主对象唯一索引改为 `(namespace, name)`；子记录仍关联数据库内部主键，不新增 position 表或通用资源表。
+本轮切片一并修改六种资源的 Strategy/REST Storage、生成客户端及 OpenAPI、管理 protobuf/各层请求传递、MySQL 查询模型和异步投影。所有精确读取、更新、删除、列表筛选、启动补齐和残留清理都必须带 Namespace，数据库主对象唯一索引改为 `(namespace, name)`；子记录仍关联数据库内部主键，不新增 position 表或通用资源表。
 
 不保留集群级 CRUD 兼容入口，不同时维护两套身份，也不自动迁移或删除现有 etcd/MySQL 数据。按新项目方式修改迁移基线，实际运行数据重建仍需另行授权。
 
@@ -230,13 +230,13 @@ GoCanon MCP 再次核对规则源 `/Users/lgc202/workspace/source/lgc202/gocanon
 
 ## 第八小步：Backend 复用框架默认属性与筛选
 
-状态：待用户 review，未提交。本轮只修改 Backend REST 装配，增加对应单元测试；不改 Strategy、资源类型、管理 API、数据库或生成产物。
+状态：用户于 2026-10-13 授权提交，提交为 `17cfe8d5`，未推送。以下保留准备切片的实现快照；该切片只修改 Backend REST 装配，增加对应单元测试，不改 Strategy、资源类型、管理 API、数据库或生成产物。
 
 ### 实现依据与行为影响
 
 [Backend REST](../../internal/apiserver/registry/gateway/backend/etcd.go) 原有 `getAttrs` 只读取标签和 `metadata.name`，`matcher` 只组装标准 SelectionPredicate。锁定的 Kubernetes v1.37.0 的 [Store.CompleteWithOptions](https://github.com/kubernetes/kubernetes/blob/v1.37.0/staging/src/k8s.io/apiserver/pkg/registry/generic/registry/store.go) 已在未配置 AttrFunc 和 PredicateFunc 时，根据创建或更新 Strategy 的 NamespaceScoped 选择默认属性函数，再装配 Predicate。Backend 不需要专有字段，因此移除两个重复函数及其显式接线，直接复用默认行为；不新增公共 Registry 工厂或抽象接口。
 
-当前 NamespaceScoped 仍为 false，合法 Backend 的标签、`metadata.name`、CRUD、Watch、Spec/Status 保护及底层存储所有权不变。默认属性层使用上游 Metadata Accessor，不再重复检查具体 Backend 类型；无 metadata 的异常对象返回框架错误。此处不承诺保留私有辅助函数原来的错误文本，也不把属性提取当作资源类型校验。资源模型、解码入口与 Strategy 未修改。
+本准备切片中 NamespaceScoped 仍为 false，合法 Backend 的标签、`metadata.name`、CRUD、Watch、Spec/Status 保护及底层存储所有权不变。默认属性层使用上游 Metadata Accessor，不再重复检查具体 Backend 类型；无 metadata 的异常对象返回框架错误。此处不承诺保留私有辅助函数原来的错误文本，也不把属性提取当作资源类型校验。资源模型、解码入口与 Strategy 未修改。
 
 [单元测试](../../internal/apiserver/registry/gateway/backend/etcd_test.go) 调用实际 NewREST，分别检查交给存储装饰器和选择器的属性函数，覆盖标签与名称匹配、不同标签、不同名称、缺失 metadata 以及 Options 错误原因保留。装饰器 spy 只记录装配，不提供 CRUD/Watch；带 Namespace 的属性夹具专门检查当前仍使用集群级字段集合，不代表存储已经支持空间级对象。真实存储筛选继续由已有 HTTPS 与隔离 etcd 用例检查。
 
@@ -248,7 +248,7 @@ Backend 定向测试、`gofmt -l cmd internal pkg`、已跟踪及新增文件空
 
 继续核查发现，上一小步写的「先切换存储及机械产物，再调整 Admin/MySQL」不能作为两个可运行版本交付，应按本文最初约定一起切换以下边界：
 
-| 边界 | 当前代码及问题 | 切换时的改动 |
+| 边界 | 切换前代码及问题 | 本轮改动 |
 | --- | --- | --- |
 | API Server | 六种 Strategy 均返回 false；validation 禁止 namespace，属性函数也按集群级取字段 | 一起调整 Strategy、metadata 校验、筛选属性及对应主资源/status 的真实存储契约；继续使用原生 Store，不自行编码 etcd 键 |
 | 类型化客户端与 Admin 写入 | 六种版本化类型均声明 nonNamespaced；[Store](../../internal/adminapi/repository/apiserver/store.go) 及 [组合根](../../internal/adminapi/app.go) 在启动时获取固定的集群级客户端 | 从类型标记重新生成客户端；Repository 按每次请求的 namespace 获取资源客户端，不给所有用户隐式指定一个固定空间 |
@@ -275,3 +275,35 @@ Backend 定向测试、`gofmt -l cmd internal pkg`、已跟踪及新增文件空
 首次在沙箱内执行整个 Envoy 包测试时，两个已有 Server 用例无法绑定回环端口而失败；授权后全仓普通测试重跑通过，未把首次失败记为成功。本步没有改变 API Server 存储契约，不运行存储 integration；没有修改 API 类型或 protobuf，不重新生成机械产物。
 
 这些测试不证明真实 API Server 命名空间请求、MySQL 索引/投影、Envoy ACK 与真实流量已验证。按用户决定，真实组件联动仍留到统一测试阶段；存储契约改变时再执行 API Server integration，并重新生成和核对机械代码。
+
+## 第九小步：六种业务资源的 Namespace 全链路切换
+
+Backend 准备切片已提交为 `17cfe8d5`，未推送。本轮按上表一起切换作用域，不交付存储与管理身份不一致的中间版本，变更保持未提交，等待用户 review。
+
+六种 Strategy 的 NamespaceScoped 为 true，metadata 校验复用 apimachinery 的 namespaced 行为，创建需有效 Namespace，更新不能迁移所属空间。Backend 继续由 Generic Store 推导属性与筛选，其它资源的已有属性函数改为包含 metadata.namespace；status 的作用域由框架继承父资源，不重复定义一套规则。类型标记移除 nonNamespaced，客户端由仓库固定版本 Kubernetes 工具重新生成，不手改生成结果，不升级依赖。
+
+Admin 的 HTTP 路径统一为 `/api/admin/v1/namespaces/{namespace}/<resources>`，gRPC 的三十个请求均有 namespace 字段，六种返回对象也携带 namespace。protobuf 字段校验限定非空 DNS label、最长 63 字符；独立契约用例与原生 Namespace 名称校验对照。HTTP 路径绑定在 body/query 之后，以路径指定目标空间；不会因 body 的 namespace 值访问另一个空间。Handler、Service、Repository 显式传递参数，不使用自定义 Context 值。组合根只注入原生 Getter，Repository 在每次写入时获取目标空间客户端；没有固定默认空间或管理端全空间入口。
+
+原生 API 按 Kubernetes 标准保留无 namespace 的集合 List/Watch，供 Controller 汇总所有空间；这不是旧集群级 CRUD 的兼容入口。无空间的创建、对象详情、更新、删除和 status 路径不提供旧行为。对象实际 etcd 键由 Generic Store 形成，例如默认根下的 `/registry/backends/team-a/network`；不自行拼装存储键或迁移已有数据。
+
+MySQL 六张主对象表增加 namespace 列及 `(namespace, name)` 唯一索引，精确读取、Upsert 定位、删除、Count 与取页均使用空间条件。子记录继续关联数据库内部主键，不增加 UID、前缀字段或通用资源表。启动投影对账返回原生 NamespacedName，对比和残留清理使用完整对象键；另一空间的同名对象不能覆盖或保留本空间的残留记录。本轮只修改新项目建表基线，没有执行真实迁移、重建或清空。
+
+资源字段、同空间引用形状、展示名称契约、版本冲突、只读事务和共享 Envoy 裁决不变。NamespaceLifecycle 用例改为真实 Gateway HTTP 创建：本地存在而宿主不存在允许创建，只有宿主存在拒绝，本地 Terminating 即使宿主 Active 也拒绝。测试只启用该插件，不证明部署认证授权或完整默认准入链。
+
+审查使用本次重新核对的 GoCanon MCP 快照 `336a025-dirty`，revision `336a025bf2d761d1eac3cf7f5991d152e6d3d7e9`，规则源 `/Users/lgc202/workspace/source/lgc202/gocanon`。开发入口、索引和所选服务分层、Repository、请求校验、原生 API Server、Controller 与 Go 规范按当前连续任务完整读取；草案只作审查依据，不当作已接受规则。现有仓库不满足 GoCanon 追加生成器的拥有权前提，且该工具不能迁移预制 Gateway 项目，因此沿用现有固定版本 Buf 与 Kubernetes 工具生成机械代码，没有建立伪 manifest 或复制参考业务。
+
+已完成的检查与未完成的真实组件验收分别记录在下方，不以 lint 和单元测试证明模板级或生产就绪。Manager 自动删除、实库索引/迁移/事务及投影、Envoy ACK 和转发、完整认证授权仍留待统一测试。
+
+### 本轮审查与验证
+
+同时检查已跟踪改动和未跟踪文件，生成产物按工具结果核对；其余手写文件逐个审查。Go 文件先按 GO-FUNC-012 检查类型、方法和辅助函数的声明顺序，再逐函数检查职责、签名、命名、空间传递、错误原因及注释。错误赋值和判断保持相邻，按实际语义分段；复杂查询链、匿名函数签名和测试对象键展开，不以字符计数或语义扫描器替代人工判断。Go 函数、测试与排版技能用于这部分审查；技术写作技能用于区分当前接口、历史快照、未实现建议及验证边界。
+
+| 检查 | 结果与证明范围 |
+| --- | --- |
+| 格式与空白 | `gofmt -l cmd internal pkg api` 没有输出；`git diff --check` 无诊断。两个新增手写测试分别与 `/dev/null` 做 no-index 空白检查，无诊断，退出码 1 仅表示存在差异 |
+| 机械代码 | Kubernetes 与 Buf 生成器按仓库锁定版本重跑；53 个生成文件的路径与 SHA-256 一致，没有手改产物 |
+| 协议与静态检查 | `make proto-lint`、`golangci-lint run ./...`、`go vet ./...` 通过，lint 为 0 issues |
+| 普通测试与构建 | `go test ./... -count=1`、`go build ./...` 通过；管理请求、SQL 条件及投影对账均覆盖空间隔离反例，SQLmock 和 fake 不当作实库或真实 Watch 验证 |
+| API Server 存储 | `go test -tags=integration ./internal/apiserver -count=1` 通过，最后一轮 67.773 秒；使用隔离 HTTPS/etcd，验证六种资源同名跨空间 CRUD/status、namespaced 与全空间 Watch、Namespace 字段筛选、主资源/status Discovery、旧 CRUD 路径不可用及本地 NamespaceLifecycle 的真实创建入口 |
+
+资源 YAML 示例补充显式 Namespace 和创建前提，旧决策的集群级接口保留为历史快照。TLS 示例仍明确标为未确认、未实现，不据此新增 Backend 字段。未操作部署环境中的 API Server、etcd 或 MySQL 数据，没有自动数据迁移，也没有执行真实 Manager 自动删除、实库投影、Envoy 或生产认证授权联动。本轮实现等待用户 review，未提交。

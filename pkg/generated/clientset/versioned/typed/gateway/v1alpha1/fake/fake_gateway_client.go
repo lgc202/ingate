@@ -12,28 +12,28 @@ type FakeGatewayV1alpha1 struct {
 	*testing.Fake
 }
 
-func (c *FakeGatewayV1alpha1) AIBackends() v1alpha1.AIBackendInterface {
-	return newFakeAIBackends(c)
+func (c *FakeGatewayV1alpha1) AIBackends(namespace string) v1alpha1.AIBackendInterface {
+	return newFakeAIBackends(c, namespace)
 }
 
-func (c *FakeGatewayV1alpha1) Backends() v1alpha1.BackendInterface {
-	return newFakeBackends(c)
+func (c *FakeGatewayV1alpha1) Backends(namespace string) v1alpha1.BackendInterface {
+	return newFakeBackends(c, namespace)
 }
 
-func (c *FakeGatewayV1alpha1) Gateways() v1alpha1.GatewayInterface {
-	return newFakeGateways(c)
+func (c *FakeGatewayV1alpha1) Gateways(namespace string) v1alpha1.GatewayInterface {
+	return newFakeGateways(c, namespace)
 }
 
-func (c *FakeGatewayV1alpha1) HTTPRoutes() v1alpha1.HTTPRouteInterface {
-	return newFakeHTTPRoutes(c)
+func (c *FakeGatewayV1alpha1) HTTPRoutes(namespace string) v1alpha1.HTTPRouteInterface {
+	return newFakeHTTPRoutes(c, namespace)
 }
 
-func (c *FakeGatewayV1alpha1) MCPRoutes() v1alpha1.MCPRouteInterface {
-	return newFakeMCPRoutes(c)
+func (c *FakeGatewayV1alpha1) MCPRoutes(namespace string) v1alpha1.MCPRouteInterface {
+	return newFakeMCPRoutes(c, namespace)
 }
 
-func (c *FakeGatewayV1alpha1) ModelRoutes() v1alpha1.ModelRouteInterface {
-	return newFakeModelRoutes(c)
+func (c *FakeGatewayV1alpha1) ModelRoutes(namespace string) v1alpha1.ModelRouteInterface {
+	return newFakeModelRoutes(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

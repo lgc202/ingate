@@ -34,7 +34,9 @@ type CreateMCPRouteRequest struct {
 	// path 是入口绝对路径；省略时由 API Server 默认 /mcp，显式空值无效。
 	Path *string `protobuf:"bytes,3,opt,name=path,proto3,oneof" json:"path,omitempty"`
 	// backend_refs 首版只接受一个网络 Backend。
-	BackendRefs   []*MCPBackendReference `protobuf:"bytes,4,rep,name=backend_refs,json=backendRefs,proto3" json:"backend_refs,omitempty"`
+	BackendRefs []*MCPBackendReference `protobuf:"bytes,4,rep,name=backend_refs,json=backendRefs,proto3" json:"backend_refs,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,5,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -97,6 +99,13 @@ func (x *CreateMCPRouteRequest) GetBackendRefs() []*MCPBackendReference {
 	return nil
 }
 
+func (x *CreateMCPRouteRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
 // CreateMCPRouteReply 表示创建后的路由。
 type CreateMCPRouteReply struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -146,8 +155,10 @@ func (x *CreateMCPRouteReply) GetRoute() *MCPRoute {
 // GetMCPRouteRequest 表示读取路由的请求。
 type GetMCPRouteRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// name 是资源在所属命名空间内的稳定名称。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -185,6 +196,13 @@ func (*GetMCPRouteRequest) Descriptor() ([]byte, []int) {
 func (x *GetMCPRouteRequest) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *GetMCPRouteRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -245,7 +263,9 @@ type ListMCPRoutesRequest struct {
 	// display_name 按展示名称文字包含匹配筛选。
 	DisplayName string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// gateway_name 精确筛选声明了指定 Gateway 引用的路由。
-	GatewayName   string `protobuf:"bytes,4,opt,name=gateway_name,json=gatewayName,proto3" json:"gateway_name,omitempty"`
+	GatewayName string `protobuf:"bytes,4,opt,name=gateway_name,json=gatewayName,proto3" json:"gateway_name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,5,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -308,6 +328,13 @@ func (x *ListMCPRoutesRequest) GetGatewayName() string {
 	return ""
 }
 
+func (x *ListMCPRoutesRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
 // ListMCPRoutesReply 表示一页路由。
 type ListMCPRoutesReply struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -366,7 +393,7 @@ func (x *ListMCPRoutesReply) GetTotalCount() int64 {
 // UpdateMCPRouteRequest 表示完整替换路由的可编辑配置。
 type UpdateMCPRouteRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称，不允许通过更新修改。
+	// name 是资源在所属命名空间内的稳定名称，不允许通过更新修改。
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// version 是读取路由时获得的版本，用于并发更新检查。
 	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
@@ -377,7 +404,9 @@ type UpdateMCPRouteRequest struct {
 	// backend_refs 首版只接受一个网络 Backend。
 	BackendRefs []*MCPBackendReference `protobuf:"bytes,5,rep,name=backend_refs,json=backendRefs,proto3" json:"backend_refs,omitempty"`
 	// display_name 是可修改且允许重复的展示名称，不改变资源引用。
-	DisplayName   string `protobuf:"bytes,6,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	DisplayName string `protobuf:"bytes,6,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,7,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -454,6 +483,13 @@ func (x *UpdateMCPRouteRequest) GetDisplayName() string {
 	return ""
 }
 
+func (x *UpdateMCPRouteRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
 // UpdateMCPRouteReply 表示更新后的路由。
 type UpdateMCPRouteReply struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -503,8 +539,10 @@ func (x *UpdateMCPRouteReply) GetRoute() *MCPRoute {
 // DeleteMCPRouteRequest 表示删除路由的请求。
 type DeleteMCPRouteRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// name 是资源在所属命名空间内的稳定名称。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -542,6 +580,13 @@ func (*DeleteMCPRouteRequest) Descriptor() ([]byte, []int) {
 func (x *DeleteMCPRouteRequest) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *DeleteMCPRouteRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -586,7 +631,7 @@ func (*DeleteMCPRouteReply) Descriptor() ([]byte, []int) {
 // MCPRoute 表示面向产品调用方的路由。
 type MCPRoute struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
+	// name 是资源在所属命名空间内的稳定名称。
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// parent_refs 引用入口及可选 Listener。
 	ParentRefs []*ParentReference `protobuf:"bytes,2,rep,name=parent_refs,json=parentRefs,proto3" json:"parent_refs,omitempty"`
@@ -599,7 +644,9 @@ type MCPRoute struct {
 	// version 是更新时必须提交的资源版本。
 	Version string `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`
 	// display_name 是供人阅读的名称，不用于资源引用。
-	DisplayName   string `protobuf:"bytes,7,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	DisplayName string `protobuf:"bytes,7,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// namespace 是资源所属的命名空间。
+	Namespace     string `protobuf:"bytes,8,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -683,7 +730,14 @@ func (x *MCPRoute) GetDisplayName() string {
 	return ""
 }
 
-// MCPBackendReference 引用网络 Backend，并声明上游 MCP 路径。
+func (x *MCPRoute) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+// MCPBackendReference 引用同一命名空间的网络 Backend，并声明上游 MCP 路径。
 type MCPBackendReference struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// name 是 Backend 的稳定名称，不要求引用已存在。
@@ -742,7 +796,7 @@ var File_admin_v1_mcproute_proto protoreflect.FileDescriptor
 
 const file_admin_v1_mcproute_proto_rawDesc = "" +
 	"\n" +
-	"\x17admin/v1/mcproute.proto\x12\badmin.v1\x1a\x16admin/v1/gateway.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfe\x01\n" +
+	"\x17admin/v1/mcproute.proto\x12\badmin.v1\x1a\x16admin/v1/gateway.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc8\x02\n" +
 	"\x15CreateMCPRouteRequest\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12F\n" +
 	"\vparent_refs\x18\x02 \x03(\v2\x19.admin.v1.ParentReferenceB\n" +
@@ -751,24 +805,27 @@ const file_admin_v1_mcproute_proto_rawDesc = "" +
 	"\x04path\x18\x03 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\x80\bH\x00R\x04path\x88\x01\x01\x12L\n" +
 	"\fbackend_refs\x18\x04 \x03(\v2\x1d.admin.v1.MCPBackendReferenceB\n" +
-	"\xbaH\a\x92\x01\x04\b\x01\x10\x01R\vbackendRefsB\a\n" +
+	"\xbaH\a\x92\x01\x04\b\x01\x10\x01R\vbackendRefs\x12H\n" +
+	"\tnamespace\x18\x05 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespaceB\a\n" +
 	"\x05_path\"?\n" +
 	"\x13CreateMCPRouteReply\x12(\n" +
-	"\x05route\x18\x01 \x01(\v2\x12.admin.v1.MCPRouteR\x05route\"1\n" +
+	"\x05route\x18\x01 \x01(\v2\x12.admin.v1.MCPRouteR\x05route\"{\n" +
 	"\x12GetMCPRouteRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\"<\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12H\n" +
+	"\tnamespace\x18\x02 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"<\n" +
 	"\x10GetMCPRouteReply\x12(\n" +
-	"\x05route\x18\x01 \x01(\v2\x12.admin.v1.MCPRouteR\x05route\"\xa9\x01\n" +
+	"\x05route\x18\x01 \x01(\v2\x12.admin.v1.MCPRouteR\x05route\"\xf3\x01\n" +
 	"\x14ListMCPRoutesRequest\x12'\n" +
 	"\tpage_size\x18\x01 \x01(\x05B\n" +
 	"\xbaH\a\x1a\x05\x18\xc8\x01(\x00R\bpageSize\x12\"\n" +
 	"\bpage_num\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\apageNum\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12!\n" +
-	"\fgateway_name\x18\x04 \x01(\tR\vgatewayName\"a\n" +
+	"\fgateway_name\x18\x04 \x01(\tR\vgatewayName\x12H\n" +
+	"\tnamespace\x18\x05 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"a\n" +
 	"\x12ListMCPRoutesReply\x12*\n" +
 	"\x06routes\x18\x01 \x03(\v2\x12.admin.v1.MCPRouteR\x06routes\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x03R\n" +
-	"totalCount\"\xbe\x02\n" +
+	"totalCount\"\x88\x03\n" +
 	"\x15UpdateMCPRouteRequest\x12\x1b\n" +
 	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12!\n" +
 	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12F\n" +
@@ -779,13 +836,15 @@ const file_admin_v1_mcproute_proto_rawDesc = "" +
 	"\xbaH\ar\x05\x10\x01\x18\x80\bH\x00R\x04path\x88\x01\x01\x12L\n" +
 	"\fbackend_refs\x18\x05 \x03(\v2\x1d.admin.v1.MCPBackendReferenceB\n" +
 	"\xbaH\a\x92\x01\x04\b\x01\x10\x01R\vbackendRefs\x12!\n" +
-	"\fdisplay_name\x18\x06 \x01(\tR\vdisplayNameB\a\n" +
+	"\fdisplay_name\x18\x06 \x01(\tR\vdisplayName\x12H\n" +
+	"\tnamespace\x18\a \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespaceB\a\n" +
 	"\x05_path\"?\n" +
 	"\x13UpdateMCPRouteReply\x12(\n" +
-	"\x05route\x18\x01 \x01(\v2\x12.admin.v1.MCPRouteR\x05route\"4\n" +
+	"\x05route\x18\x01 \x01(\v2\x12.admin.v1.MCPRouteR\x05route\"~\n" +
 	"\x15DeleteMCPRouteRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\"\x15\n" +
-	"\x13DeleteMCPRouteReply\"\xc4\x02\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12H\n" +
+	"\tnamespace\x18\x02 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"\x15\n" +
+	"\x13DeleteMCPRouteReply\"\xe2\x02\n" +
 	"\bMCPRoute\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12F\n" +
 	"\vparent_refs\x18\x02 \x03(\v2\x19.admin.v1.ParentReferenceB\n" +
@@ -796,19 +855,20 @@ const file_admin_v1_mcproute_proto_rawDesc = "" +
 	"\vcreate_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createTime\x12\x18\n" +
 	"\aversion\x18\x06 \x01(\tR\aversion\x12!\n" +
-	"\fdisplay_name\x18\a \x01(\tR\vdisplayNameB\a\n" +
+	"\fdisplay_name\x18\a \x01(\tR\vdisplayName\x12\x1c\n" +
+	"\tnamespace\x18\b \x01(\tR\tnamespaceB\a\n" +
 	"\x05_path\"`\n" +
 	"\x13MCPBackendReference\x12\x1b\n" +
 	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12#\n" +
 	"\x04path\x18\x02 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\x80\bH\x00R\x04path\x88\x01\x01B\a\n" +
-	"\x05_path2\xe4\x04\n" +
-	"\x0fMCPRouteService\x12u\n" +
-	"\x0eCreateMCPRoute\x12\x1f.admin.v1.CreateMCPRouteRequest\x1a\x1d.admin.v1.CreateMCPRouteReply\"#\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/api/admin/v1/mcp-routes\x12p\n" +
-	"\vGetMCPRoute\x12\x1c.admin.v1.GetMCPRouteRequest\x1a\x1a.admin.v1.GetMCPRouteReply\"'\x82\xd3\xe4\x93\x02!\x12\x1f/api/admin/v1/mcp-routes/{name}\x12o\n" +
-	"\rListMCPRoutes\x12\x1e.admin.v1.ListMCPRoutesRequest\x1a\x1c.admin.v1.ListMCPRoutesReply\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/api/admin/v1/mcp-routes\x12|\n" +
-	"\x0eUpdateMCPRoute\x12\x1f.admin.v1.UpdateMCPRouteRequest\x1a\x1d.admin.v1.UpdateMCPRouteReply\"*\x82\xd3\xe4\x93\x02$:\x01*\x1a\x1f/api/admin/v1/mcp-routes/{name}\x12y\n" +
-	"\x0eDeleteMCPRoute\x12\x1f.admin.v1.DeleteMCPRouteRequest\x1a\x1d.admin.v1.DeleteMCPRouteReply\"'\x82\xd3\xe4\x93\x02!*\x1f/api/admin/v1/mcp-routes/{name}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x05_path2\xdc\x05\n" +
+	"\x0fMCPRouteService\x12\x8c\x01\n" +
+	"\x0eCreateMCPRoute\x12\x1f.admin.v1.CreateMCPRouteRequest\x1a\x1d.admin.v1.CreateMCPRouteReply\":\x82\xd3\xe4\x93\x024:\x01*\"//api/admin/v1/namespaces/{namespace}/mcp-routes\x12\x87\x01\n" +
+	"\vGetMCPRoute\x12\x1c.admin.v1.GetMCPRouteRequest\x1a\x1a.admin.v1.GetMCPRouteReply\">\x82\xd3\xe4\x93\x028\x126/api/admin/v1/namespaces/{namespace}/mcp-routes/{name}\x12\x86\x01\n" +
+	"\rListMCPRoutes\x12\x1e.admin.v1.ListMCPRoutesRequest\x1a\x1c.admin.v1.ListMCPRoutesReply\"7\x82\xd3\xe4\x93\x021\x12//api/admin/v1/namespaces/{namespace}/mcp-routes\x12\x93\x01\n" +
+	"\x0eUpdateMCPRoute\x12\x1f.admin.v1.UpdateMCPRouteRequest\x1a\x1d.admin.v1.UpdateMCPRouteReply\"A\x82\xd3\xe4\x93\x02;:\x01*\x1a6/api/admin/v1/namespaces/{namespace}/mcp-routes/{name}\x12\x90\x01\n" +
+	"\x0eDeleteMCPRoute\x12\x1f.admin.v1.DeleteMCPRouteRequest\x1a\x1d.admin.v1.DeleteMCPRouteReply\">\x82\xd3\xe4\x93\x028*6/api/admin/v1/namespaces/{namespace}/mcp-routes/{name}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_mcproute_proto_rawDescOnce sync.Once

@@ -13,7 +13,7 @@ import (
 func ValidateModelRoute(route *gateway.ModelRoute) field.ErrorList {
 	errs := apivalidation.ValidateObjectMeta(
 		&route.ObjectMeta,
-		false,
+		true,
 		apivalidation.NameIsDNSSubdomain,
 		field.NewPath("metadata"),
 	)

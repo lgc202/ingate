@@ -20,7 +20,7 @@ const (
 func ValidateGateway(gateway *gateway.Gateway) field.ErrorList {
 	errs := apivalidation.ValidateObjectMeta(
 		&gateway.ObjectMeta,
-		false,
+		true,
 		apivalidation.NameIsDNSSubdomain,
 		field.NewPath("metadata"),
 	)

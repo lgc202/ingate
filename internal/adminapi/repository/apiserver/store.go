@@ -32,34 +32,34 @@ func New(kubeconfig string) (*Store, error) {
 	return &Store{client: client}, nil
 }
 
-// Gateways 返回 Gateway 资源客户端。
-func (s *Store) Gateways() gatewayclient.GatewayInterface {
-	return s.client.GatewayV1alpha1().Gateways()
+// Gateways 返回指定命名空间的 Gateway 资源客户端。
+func (s *Store) Gateways(namespace string) gatewayclient.GatewayInterface {
+	return s.client.GatewayV1alpha1().Gateways(namespace)
 }
 
-// HTTPRoutes 返回 HTTPRoute 资源客户端。
-func (s *Store) HTTPRoutes() gatewayclient.HTTPRouteInterface {
-	return s.client.GatewayV1alpha1().HTTPRoutes()
+// HTTPRoutes 返回指定命名空间的 HTTPRoute 资源客户端。
+func (s *Store) HTTPRoutes(namespace string) gatewayclient.HTTPRouteInterface {
+	return s.client.GatewayV1alpha1().HTTPRoutes(namespace)
 }
 
-// Backends 返回 Backend 资源客户端。
-func (s *Store) Backends() gatewayclient.BackendInterface {
-	return s.client.GatewayV1alpha1().Backends()
+// Backends 返回指定命名空间的 Backend 资源客户端。
+func (s *Store) Backends(namespace string) gatewayclient.BackendInterface {
+	return s.client.GatewayV1alpha1().Backends(namespace)
 }
 
-// AIBackends 返回 AIBackend 资源客户端。
-func (s *Store) AIBackends() gatewayclient.AIBackendInterface {
-	return s.client.GatewayV1alpha1().AIBackends()
+// AIBackends 返回指定命名空间的 AIBackend 资源客户端。
+func (s *Store) AIBackends(namespace string) gatewayclient.AIBackendInterface {
+	return s.client.GatewayV1alpha1().AIBackends(namespace)
 }
 
-// ModelRoutes 返回 ModelRoute 资源客户端。
-func (s *Store) ModelRoutes() gatewayclient.ModelRouteInterface {
-	return s.client.GatewayV1alpha1().ModelRoutes()
+// ModelRoutes 返回指定命名空间的 ModelRoute 资源客户端。
+func (s *Store) ModelRoutes(namespace string) gatewayclient.ModelRouteInterface {
+	return s.client.GatewayV1alpha1().ModelRoutes(namespace)
 }
 
-// MCPRoutes 返回 MCPRoute 资源客户端。
-func (s *Store) MCPRoutes() gatewayclient.MCPRouteInterface {
-	return s.client.GatewayV1alpha1().MCPRoutes()
+// MCPRoutes 返回指定命名空间的 MCPRoute 资源客户端。
+func (s *Store) MCPRoutes(namespace string) gatewayclient.MCPRouteInterface {
+	return s.client.GatewayV1alpha1().MCPRoutes(namespace)
 }
 
 func loadConfig(kubeconfig string) (*rest.Config, error) {

@@ -38,17 +38,20 @@ type ModelRouteServiceHTTPServer interface {
 
 func RegisterModelRouteServiceHTTPServer(s *http.Server, srv ModelRouteServiceHTTPServer) {
 	r := s.Route("/")
-	r.Handle("POST", "/api/admin/v1/model-routes", _ModelRouteService_CreateModelRoute0_HTTP_Handler(srv))
-	r.Handle("GET", "/api/admin/v1/model-routes/{name}", _ModelRouteService_GetModelRoute0_HTTP_Handler(srv))
-	r.Handle("GET", "/api/admin/v1/model-routes", _ModelRouteService_ListModelRoutes0_HTTP_Handler(srv))
-	r.Handle("PUT", "/api/admin/v1/model-routes/{name}", _ModelRouteService_UpdateModelRoute0_HTTP_Handler(srv))
-	r.Handle("DELETE", "/api/admin/v1/model-routes/{name}", _ModelRouteService_DeleteModelRoute0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/admin/v1/namespaces/{namespace}/model-routes", _ModelRouteService_CreateModelRoute0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/admin/v1/namespaces/{namespace}/model-routes/{name}", _ModelRouteService_GetModelRoute0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/admin/v1/namespaces/{namespace}/model-routes", _ModelRouteService_ListModelRoutes0_HTTP_Handler(srv))
+	r.Handle("PUT", "/api/admin/v1/namespaces/{namespace}/model-routes/{name}", _ModelRouteService_UpdateModelRoute0_HTTP_Handler(srv))
+	r.Handle("DELETE", "/api/admin/v1/namespaces/{namespace}/model-routes/{name}", _ModelRouteService_DeleteModelRoute0_HTTP_Handler(srv))
 }
 
 func _ModelRouteService_CreateModelRoute0_HTTP_Handler(srv ModelRouteServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in CreateModelRouteRequest
 		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationModelRouteServiceCreateModelRoute)
@@ -90,6 +93,9 @@ func _ModelRouteService_ListModelRoutes0_HTTP_Handler(srv ModelRouteServiceHTTPS
 	return func(ctx http.Context) error {
 		var in ListModelRoutesRequest
 		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationModelRouteServiceListModelRoutes)
@@ -173,7 +179,7 @@ func NewModelRouteServiceHTTPClient(client *http.Client) ModelRouteServiceHTTPCl
 // CreateModelRoute CreateModelRoute 创建路由。
 func (c *ModelRouteServiceHTTPClientImpl) CreateModelRoute(ctx context.Context, in *CreateModelRouteRequest, opts ...http.CallOption) (*CreateModelRouteReply, error) {
 	var out CreateModelRouteReply
-	pattern := "/api/admin/v1/model-routes"
+	pattern := "/api/admin/v1/namespaces/{namespace}/model-routes"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -191,7 +197,7 @@ func (c *ModelRouteServiceHTTPClientImpl) CreateModelRoute(ctx context.Context, 
 // DeleteModelRoute DeleteModelRoute 删除指定路由。
 func (c *ModelRouteServiceHTTPClientImpl) DeleteModelRoute(ctx context.Context, in *DeleteModelRouteRequest, opts ...http.CallOption) (*DeleteModelRouteReply, error) {
 	var out DeleteModelRouteReply
-	pattern := "/api/admin/v1/model-routes/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/model-routes/{name}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -208,7 +214,7 @@ func (c *ModelRouteServiceHTTPClientImpl) DeleteModelRoute(ctx context.Context, 
 // GetModelRoute GetModelRoute 读取指定路由。
 func (c *ModelRouteServiceHTTPClientImpl) GetModelRoute(ctx context.Context, in *GetModelRouteRequest, opts ...http.CallOption) (*GetModelRouteReply, error) {
 	var out GetModelRouteReply
-	pattern := "/api/admin/v1/model-routes/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/model-routes/{name}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -225,7 +231,7 @@ func (c *ModelRouteServiceHTTPClientImpl) GetModelRoute(ctx context.Context, in 
 // ListModelRoutes ListModelRoutes 分页列出路由。
 func (c *ModelRouteServiceHTTPClientImpl) ListModelRoutes(ctx context.Context, in *ListModelRoutesRequest, opts ...http.CallOption) (*ListModelRoutesReply, error) {
 	var out ListModelRoutesReply
-	pattern := "/api/admin/v1/model-routes"
+	pattern := "/api/admin/v1/namespaces/{namespace}/model-routes"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -242,7 +248,7 @@ func (c *ModelRouteServiceHTTPClientImpl) ListModelRoutes(ctx context.Context, i
 // UpdateModelRoute UpdateModelRoute 完整替换路由的可编辑配置。
 func (c *ModelRouteServiceHTTPClientImpl) UpdateModelRoute(ctx context.Context, in *UpdateModelRouteRequest, opts ...http.CallOption) (*UpdateModelRouteReply, error) {
 	var out UpdateModelRouteReply
-	pattern := "/api/admin/v1/model-routes/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/model-routes/{name}"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),

@@ -38,17 +38,20 @@ type MCPRouteServiceHTTPServer interface {
 
 func RegisterMCPRouteServiceHTTPServer(s *http.Server, srv MCPRouteServiceHTTPServer) {
 	r := s.Route("/")
-	r.Handle("POST", "/api/admin/v1/mcp-routes", _MCPRouteService_CreateMCPRoute0_HTTP_Handler(srv))
-	r.Handle("GET", "/api/admin/v1/mcp-routes/{name}", _MCPRouteService_GetMCPRoute0_HTTP_Handler(srv))
-	r.Handle("GET", "/api/admin/v1/mcp-routes", _MCPRouteService_ListMCPRoutes0_HTTP_Handler(srv))
-	r.Handle("PUT", "/api/admin/v1/mcp-routes/{name}", _MCPRouteService_UpdateMCPRoute0_HTTP_Handler(srv))
-	r.Handle("DELETE", "/api/admin/v1/mcp-routes/{name}", _MCPRouteService_DeleteMCPRoute0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/admin/v1/namespaces/{namespace}/mcp-routes", _MCPRouteService_CreateMCPRoute0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/admin/v1/namespaces/{namespace}/mcp-routes/{name}", _MCPRouteService_GetMCPRoute0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/admin/v1/namespaces/{namespace}/mcp-routes", _MCPRouteService_ListMCPRoutes0_HTTP_Handler(srv))
+	r.Handle("PUT", "/api/admin/v1/namespaces/{namespace}/mcp-routes/{name}", _MCPRouteService_UpdateMCPRoute0_HTTP_Handler(srv))
+	r.Handle("DELETE", "/api/admin/v1/namespaces/{namespace}/mcp-routes/{name}", _MCPRouteService_DeleteMCPRoute0_HTTP_Handler(srv))
 }
 
 func _MCPRouteService_CreateMCPRoute0_HTTP_Handler(srv MCPRouteServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in CreateMCPRouteRequest
 		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationMCPRouteServiceCreateMCPRoute)
@@ -90,6 +93,9 @@ func _MCPRouteService_ListMCPRoutes0_HTTP_Handler(srv MCPRouteServiceHTTPServer)
 	return func(ctx http.Context) error {
 		var in ListMCPRoutesRequest
 		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationMCPRouteServiceListMCPRoutes)
@@ -173,7 +179,7 @@ func NewMCPRouteServiceHTTPClient(client *http.Client) MCPRouteServiceHTTPClient
 // CreateMCPRoute CreateMCPRoute 创建路由。
 func (c *MCPRouteServiceHTTPClientImpl) CreateMCPRoute(ctx context.Context, in *CreateMCPRouteRequest, opts ...http.CallOption) (*CreateMCPRouteReply, error) {
 	var out CreateMCPRouteReply
-	pattern := "/api/admin/v1/mcp-routes"
+	pattern := "/api/admin/v1/namespaces/{namespace}/mcp-routes"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -191,7 +197,7 @@ func (c *MCPRouteServiceHTTPClientImpl) CreateMCPRoute(ctx context.Context, in *
 // DeleteMCPRoute DeleteMCPRoute 删除指定路由。
 func (c *MCPRouteServiceHTTPClientImpl) DeleteMCPRoute(ctx context.Context, in *DeleteMCPRouteRequest, opts ...http.CallOption) (*DeleteMCPRouteReply, error) {
 	var out DeleteMCPRouteReply
-	pattern := "/api/admin/v1/mcp-routes/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/mcp-routes/{name}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -208,7 +214,7 @@ func (c *MCPRouteServiceHTTPClientImpl) DeleteMCPRoute(ctx context.Context, in *
 // GetMCPRoute GetMCPRoute 读取指定路由。
 func (c *MCPRouteServiceHTTPClientImpl) GetMCPRoute(ctx context.Context, in *GetMCPRouteRequest, opts ...http.CallOption) (*GetMCPRouteReply, error) {
 	var out GetMCPRouteReply
-	pattern := "/api/admin/v1/mcp-routes/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/mcp-routes/{name}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -225,7 +231,7 @@ func (c *MCPRouteServiceHTTPClientImpl) GetMCPRoute(ctx context.Context, in *Get
 // ListMCPRoutes ListMCPRoutes 分页列出路由。
 func (c *MCPRouteServiceHTTPClientImpl) ListMCPRoutes(ctx context.Context, in *ListMCPRoutesRequest, opts ...http.CallOption) (*ListMCPRoutesReply, error) {
 	var out ListMCPRoutesReply
-	pattern := "/api/admin/v1/mcp-routes"
+	pattern := "/api/admin/v1/namespaces/{namespace}/mcp-routes"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -242,7 +248,7 @@ func (c *MCPRouteServiceHTTPClientImpl) ListMCPRoutes(ctx context.Context, in *L
 // UpdateMCPRoute UpdateMCPRoute 完整替换路由的可编辑配置。
 func (c *MCPRouteServiceHTTPClientImpl) UpdateMCPRoute(ctx context.Context, in *UpdateMCPRouteRequest, opts ...http.CallOption) (*UpdateMCPRouteReply, error) {
 	var out UpdateMCPRouteReply
-	pattern := "/api/admin/v1/mcp-routes/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/mcp-routes/{name}"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),

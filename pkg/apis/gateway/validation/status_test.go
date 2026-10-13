@@ -18,7 +18,10 @@ func TestValidateStatusUpdate(t *testing.T) {
 			name: "Gateway",
 			validate: func(condition metav1.Condition) field.ErrorList {
 				previous := &gatewayapi.Gateway{ObjectMeta: metav1.ObjectMeta{
-					Name: "edge", ResourceVersion: "1", Generation: 2,
+					Namespace:       "team-a",
+					Name:            "edge",
+					ResourceVersion: "1",
+					Generation:      2,
 				}}
 				next := previous.DeepCopy()
 				next.Status.Conditions = []metav1.Condition{condition}
@@ -29,7 +32,10 @@ func TestValidateStatusUpdate(t *testing.T) {
 			name: "HTTPRoute",
 			validate: func(condition metav1.Condition) field.ErrorList {
 				previous := &gatewayapi.HTTPRoute{ObjectMeta: metav1.ObjectMeta{
-					Name: "api", ResourceVersion: "1", Generation: 2,
+					Namespace:       "team-a",
+					Name:            "api",
+					ResourceVersion: "1",
+					Generation:      2,
 				}}
 				next := previous.DeepCopy()
 				next.Status.Parents = []gatewayapi.RouteParentStatus{{
@@ -44,7 +50,10 @@ func TestValidateStatusUpdate(t *testing.T) {
 			name: "Backend",
 			validate: func(condition metav1.Condition) field.ErrorList {
 				previous := &gatewayapi.Backend{ObjectMeta: metav1.ObjectMeta{
-					Name: "backend", ResourceVersion: "1", Generation: 2,
+					Namespace:       "team-a",
+					Name:            "backend",
+					ResourceVersion: "1",
+					Generation:      2,
 				}}
 				next := previous.DeepCopy()
 				next.Status.Conditions = []metav1.Condition{condition}

@@ -46,6 +46,7 @@ func (h *Handler) CreateBackend(
 	req *adminv1.CreateBackendRequest,
 ) (*adminv1.CreateBackendReply, error) {
 	created, err := h.service.Create(ctx, backendservice.CreateParams{
+		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
 		Endpoints:   endpointsFromProto(req.GetEndpoints()),
 	})
@@ -61,7 +62,7 @@ func (h *Handler) GetBackend(
 	ctx context.Context,
 	req *adminv1.GetBackendRequest,
 ) (*adminv1.GetBackendReply, error) {
-	backend, err := h.service.Get(ctx, req.GetName())
+	backend, err := h.service.Get(ctx, req.GetNamespace(), req.GetName())
 	if err != nil {
 		return nil, toTransportError(ctx, err)
 	}
@@ -75,6 +76,7 @@ func (h *Handler) ListBackends(
 	req *adminv1.ListBackendsRequest,
 ) (*adminv1.ListBackendsReply, error) {
 	page, err := h.service.List(ctx, backendservice.ListParams{
+		Namespace:   req.GetNamespace(),
 		PageSize:    req.GetPageSize(),
 		PageNum:     req.GetPageNum(),
 		DisplayName: req.GetDisplayName(),
@@ -97,6 +99,7 @@ func (h *Handler) UpdateBackend(
 	req *adminv1.UpdateBackendRequest,
 ) (*adminv1.UpdateBackendReply, error) {
 	updated, err := h.service.Update(ctx, backendservice.UpdateParams{
+		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
 		Name:        req.GetName(),
 		Version:     req.GetVersion(),
@@ -114,7 +117,7 @@ func (h *Handler) DeleteBackend(
 	ctx context.Context,
 	req *adminv1.DeleteBackendRequest,
 ) (*adminv1.DeleteBackendReply, error) {
-	if err := h.service.Delete(ctx, req.GetName()); err != nil {
+	if err := h.service.Delete(ctx, req.GetNamespace(), req.GetName()); err != nil {
 		return nil, toTransportError(ctx, err)
 	}
 
@@ -153,6 +156,7 @@ func backendToProto(backend repository.BackendInfo) *adminv1.Backend {
 	})
 
 	return &adminv1.Backend{
+		Namespace:   backend.Namespace,
 		Name:        backend.Name,
 		DisplayName: backend.DisplayName,
 		Endpoints:   endpoints,

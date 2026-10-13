@@ -19,7 +19,7 @@ import (
 func TestGetAttrs(t *testing.T) {
 	resource := &gatewayapi.Gateway{ObjectMeta: metav1.ObjectMeta{
 		Name:      "edge",
-		Namespace: "ignored",
+		Namespace: "team-a",
 		Labels:    map[string]string{"environment": "production"},
 	}}
 
@@ -31,15 +31,16 @@ func TestGetAttrs(t *testing.T) {
 	if diff := cmp.Diff(labels.Set{"environment": "production"}, gotLabels); diff != "" {
 		t.Errorf("getAttrs(%T) labels mismatch (-want +got):\n%s", resource, diff)
 	}
-	if diff := cmp.Diff(fields.Set{"metadata.name": "edge"}, gotFields); diff != "" {
+	if diff := cmp.Diff(fields.Set{"metadata.name": "edge", "metadata.namespace": "team-a"}, gotFields); diff != "" {
 		t.Errorf("getAttrs(%T) fields mismatch (-want +got):\n%s", resource, diff)
 	}
 }
 
 func TestMatcher(t *testing.T) {
 	resource := &gatewayapi.Gateway{ObjectMeta: metav1.ObjectMeta{
-		Name:   "edge",
-		Labels: map[string]string{"environment": "production"},
+		Namespace: "team-a",
+		Name:      "edge",
+		Labels:    map[string]string{"environment": "production"},
 	}}
 
 	tests := []struct {
@@ -53,6 +54,17 @@ func TestMatcher(t *testing.T) {
 			labelSelector: labels.SelectorFromSet(labels.Set{"environment": "production"}),
 			fieldSelector: fields.OneTermEqualSelector("metadata.name", "edge"),
 			want:          true,
+		},
+		{
+			name:          "matching namespace",
+			labelSelector: labels.Everything(),
+			fieldSelector: fields.OneTermEqualSelector("metadata.namespace", "team-a"),
+			want:          true,
+		},
+		{
+			name:          "different namespace",
+			labelSelector: labels.Everything(),
+			fieldSelector: fields.OneTermEqualSelector("metadata.namespace", "team-b"),
 		},
 		{
 			name:          "different label",

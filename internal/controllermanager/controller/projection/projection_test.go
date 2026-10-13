@@ -32,10 +32,10 @@ type projectionTestCase struct {
 	initialSyncName string
 	object          client.Object
 	newReconciler   func(client.Client, *mysql.Store) reconcile.Reconciler
-	expectCreate    func(sqlmock.Sqlmock, string, string)
-	expectUpdate    func(sqlmock.Sqlmock, string, string)
-	expectDelete    func(sqlmock.Sqlmock, string)
-	expectDeleteErr func(sqlmock.Sqlmock, string, error)
+	expectCreate    func(sqlmock.Sqlmock, types.NamespacedName, string)
+	expectUpdate    func(sqlmock.Sqlmock, types.NamespacedName, string)
+	expectDelete    func(sqlmock.Sqlmock, types.NamespacedName)
+	expectDeleteErr func(sqlmock.Sqlmock, types.NamespacedName, error)
 }
 
 func TestReconcileProjectsVersionAfterStatusOnlyUpdate(t *testing.T) {
@@ -44,9 +44,9 @@ func TestReconcileProjectsVersionAfterStatusOnlyUpdate(t *testing.T) {
 			store, mock := newProjectionTestStore(t)
 			apiClient := newProjectionTestClient(t, tc.object)
 			r := tc.newReconciler(apiClient, store)
-			tc.expectUpdate(mock, tc.object.GetName(), "8")
+			tc.expectUpdate(mock, client.ObjectKeyFromObject(tc.object), "8")
 
-			result, err := r.Reconcile(t.Context(), projectionRequest(tc.object.GetName()))
+			result, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(tc.object)})
 			if err != nil {
 				t.Fatalf("Reconcile(%q) error = %v, want nil", tc.object.GetName(), err)
 			}
@@ -96,8 +96,8 @@ func TestReconcileProjectsVersionAfterStatusOnlyUpdate(t *testing.T) {
 					current.GetName(), current.GetResourceVersion(), current.GetGeneration(), tc.object.GetGeneration())
 			}
 
-			tc.expectUpdate(mock, current.GetName(), current.GetResourceVersion())
-			if _, err := r.Reconcile(t.Context(), projectionRequest(current.GetName())); err != nil {
+			tc.expectUpdate(mock, client.ObjectKeyFromObject(current), current.GetResourceVersion())
+			if _, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(current)}); err != nil {
 				t.Errorf("Reconcile(%q, status-only update) error = %v, want nil", current.GetName(), err)
 			}
 		})
@@ -109,7 +109,7 @@ func TestReconcileDeletesMissingResource(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			store, mock := newProjectionTestStore(t)
 			r := tc.newReconciler(newProjectionTestClient(t), store)
-			tc.expectDelete(mock, "deleted")
+			tc.expectDelete(mock, types.NamespacedName{Namespace: "team-a", Name: "deleted"})
 
 			if _, err := r.Reconcile(t.Context(), projectionRequest("deleted")); err != nil {
 				t.Errorf("Reconcile(deleted) error = %v, want nil", err)
@@ -123,11 +123,15 @@ func TestInitialSyncFillsCurrentResourcesBeforeDeletingStaleRows(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			store, mock := newProjectionTestStore(t)
 			r := tc.newReconciler(newProjectionTestClient(t, tc.object), store)
-			tc.expectCreate(mock, tc.object.GetName(), "8")
-			expectProjectedNames(mock, tc.table, tc.object.GetName(), "stale")
-			tc.expectDelete(mock, "stale")
+			tc.expectCreate(mock, client.ObjectKeyFromObject(tc.object), "8")
+			expectProjectedKeys(
+				mock, tc.table,
+				client.ObjectKeyFromObject(tc.object),
+				types.NamespacedName{Namespace: "team-a", Name: "stale"},
+			)
+			tc.expectDelete(mock, types.NamespacedName{Namespace: "team-a", Name: "stale"})
 
-			if _, err := r.Reconcile(t.Context(), projectionRequest(tc.initialSyncName)); err != nil {
+			if _, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: types.NamespacedName{Name: tc.initialSyncName}}); err != nil {
 				t.Errorf("Reconcile(%q) error = %v, want nil", tc.initialSyncName, err)
 			}
 		})
@@ -139,11 +143,15 @@ func TestInitialSyncClearsStaleRowsWhenSourceIsEmpty(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			store, mock := newProjectionTestStore(t)
 			r := tc.newReconciler(newProjectionTestClient(t), store)
-			expectProjectedNames(mock, tc.table, "stale-a", "stale-b")
-			tc.expectDelete(mock, "stale-a")
-			tc.expectDelete(mock, "stale-b")
+			expectProjectedKeys(
+				mock, tc.table,
+				types.NamespacedName{Namespace: "team-a", Name: "stale-a"},
+				types.NamespacedName{Namespace: "team-a", Name: "stale-b"},
+			)
+			tc.expectDelete(mock, types.NamespacedName{Namespace: "team-a", Name: "stale-a"})
+			tc.expectDelete(mock, types.NamespacedName{Namespace: "team-a", Name: "stale-b"})
 
-			if _, err := r.Reconcile(t.Context(), projectionRequest(tc.initialSyncName)); err != nil {
+			if _, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: types.NamespacedName{Name: tc.initialSyncName}}); err != nil {
 				t.Errorf("Reconcile(%q, empty source) error = %v, want nil", tc.initialSyncName, err)
 			}
 		})
@@ -184,7 +192,7 @@ func TestInitialSyncListFailureDoesNotModifyProjection(t *testing.T) {
 			})
 			r := tc.newReconciler(failingClient, store)
 
-			_, err := r.Reconcile(t.Context(), projectionRequest(tc.initialSyncName))
+			_, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: types.NamespacedName{Name: tc.initialSyncName}})
 			if !errors.Is(err, listErr) {
 				t.Errorf("Reconcile(%q) error = %v, want API list failure", tc.initialSyncName, err)
 			}
@@ -198,9 +206,9 @@ func TestInitialSyncUpsertFailureStopsCleanupAndCanRetry(t *testing.T) {
 			store, mock := newProjectionTestStore(t)
 			r := tc.newReconciler(newProjectionTestClient(t, tc.object), store)
 			writeErr := errors.New("MySQL write unavailable")
-			expectProjectionLookupFailure(mock, tc.table, tc.object.GetName(), writeErr)
+			expectProjectionLookupFailure(mock, tc.table, client.ObjectKeyFromObject(tc.object), writeErr)
 
-			_, err := r.Reconcile(t.Context(), projectionRequest(tc.initialSyncName))
+			_, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: types.NamespacedName{Name: tc.initialSyncName}})
 			if !errors.Is(err, writeErr) {
 				t.Fatalf("Reconcile(%q) error = %v, want MySQL failure", tc.initialSyncName, err)
 			}
@@ -208,10 +216,14 @@ func TestInitialSyncUpsertFailureStopsCleanupAndCanRetry(t *testing.T) {
 				t.Fatalf("failed initial sync SQL expectations error = %v, want nil", err)
 			}
 
-			tc.expectCreate(mock, tc.object.GetName(), "8")
-			expectProjectedNames(mock, tc.table, tc.object.GetName(), "stale")
-			tc.expectDelete(mock, "stale")
-			if _, err := r.Reconcile(t.Context(), projectionRequest(tc.initialSyncName)); err != nil {
+			tc.expectCreate(mock, client.ObjectKeyFromObject(tc.object), "8")
+			expectProjectedKeys(
+				mock, tc.table,
+				client.ObjectKeyFromObject(tc.object),
+				types.NamespacedName{Namespace: "team-a", Name: "stale"},
+			)
+			tc.expectDelete(mock, types.NamespacedName{Namespace: "team-a", Name: "stale"})
+			if _, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: types.NamespacedName{Name: tc.initialSyncName}}); err != nil {
 				t.Errorf("Reconcile(%q, retry) error = %v, want nil", tc.initialSyncName, err)
 			}
 		})
@@ -224,12 +236,17 @@ func TestInitialSyncCleanupFailureCanRetryAfterPartialProgress(t *testing.T) {
 			store, mock := newProjectionTestStore(t)
 			r := tc.newReconciler(newProjectionTestClient(t, tc.object), store)
 			deleteErr := errors.New("MySQL delete unavailable")
-			tc.expectCreate(mock, tc.object.GetName(), "8")
-			expectProjectedNames(mock, tc.table, tc.object.GetName(), "stale-a", "stale-b")
-			tc.expectDelete(mock, "stale-a")
-			tc.expectDeleteErr(mock, "stale-b", deleteErr)
+			tc.expectCreate(mock, client.ObjectKeyFromObject(tc.object), "8")
+			expectProjectedKeys(
+				mock, tc.table,
+				client.ObjectKeyFromObject(tc.object),
+				types.NamespacedName{Namespace: "team-a", Name: "stale-a"},
+				types.NamespacedName{Namespace: "team-a", Name: "stale-b"},
+			)
+			tc.expectDelete(mock, types.NamespacedName{Namespace: "team-a", Name: "stale-a"})
+			tc.expectDeleteErr(mock, types.NamespacedName{Namespace: "team-a", Name: "stale-b"}, deleteErr)
 
-			_, err := r.Reconcile(t.Context(), projectionRequest(tc.initialSyncName))
+			_, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: types.NamespacedName{Name: tc.initialSyncName}})
 			if !errors.Is(err, deleteErr) {
 				t.Fatalf("Reconcile(%q) error = %v, want cleanup failure", tc.initialSyncName, err)
 			}
@@ -237,11 +254,54 @@ func TestInitialSyncCleanupFailureCanRetryAfterPartialProgress(t *testing.T) {
 				t.Fatalf("partially completed initial sync SQL expectations error = %v, want nil", err)
 			}
 
-			tc.expectUpdate(mock, tc.object.GetName(), "8")
-			expectProjectedNames(mock, tc.table, tc.object.GetName(), "stale-b")
-			tc.expectDelete(mock, "stale-b")
-			if _, err := r.Reconcile(t.Context(), projectionRequest(tc.initialSyncName)); err != nil {
+			tc.expectUpdate(mock, client.ObjectKeyFromObject(tc.object), "8")
+			expectProjectedKeys(
+				mock, tc.table,
+				client.ObjectKeyFromObject(tc.object),
+				types.NamespacedName{Namespace: "team-a", Name: "stale-b"},
+			)
+			tc.expectDelete(mock, types.NamespacedName{Namespace: "team-a", Name: "stale-b"})
+			if _, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: types.NamespacedName{Name: tc.initialSyncName}}); err != nil {
 				t.Errorf("Reconcile(%q, retry after partial cleanup) error = %v, want nil", tc.initialSyncName, err)
+			}
+		})
+	}
+}
+
+func TestReconcileDoesNotReadSameNameFromOtherNamespace(t *testing.T) {
+	for _, tc := range projectionTestCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			store, mock := newProjectionTestStore(t)
+			other := tc.object.DeepCopyObject().(client.Object)
+			other.SetNamespace("team-b")
+			apiClient := newProjectionTestClient(t, other)
+			r := tc.newReconciler(apiClient, store)
+			key := types.NamespacedName{Namespace: "team-a", Name: other.GetName()}
+			tc.expectDelete(mock, key)
+
+			if _, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: key}); err != nil {
+				t.Errorf("Reconcile(%s, only team-b exists) error = %v, want nil", key, err)
+			}
+		})
+	}
+}
+
+func TestInitialSyncSeparatesSameNameKeys(t *testing.T) {
+	for _, tc := range projectionTestCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			store, mock := newProjectionTestStore(t)
+			other := tc.object.DeepCopyObject().(client.Object)
+			other.SetNamespace("team-b")
+			r := tc.newReconciler(newProjectionTestClient(t, other), store)
+			current := client.ObjectKeyFromObject(other)
+			stale := types.NamespacedName{Namespace: "team-a", Name: other.GetName()}
+			tc.expectCreate(mock, current, "8")
+			expectProjectedKeys(mock, tc.table, stale, current)
+			tc.expectDelete(mock, stale)
+
+			request := ctrl.Request{NamespacedName: types.NamespacedName{Name: tc.initialSyncName}}
+			if _, err := r.Reconcile(t.Context(), request); err != nil {
+				t.Errorf("Reconcile(%s, stale=%s/current=%s) error = %v, want nil", tc.initialSyncName, stale, current, err)
 			}
 		})
 	}
@@ -249,7 +309,13 @@ func TestInitialSyncCleanupFailureCanRetryAfterPartialProgress(t *testing.T) {
 
 func projectionTestCases() []projectionTestCase {
 	createdAt := time.Date(2026, 9, 26, 1, 2, 3, 0, time.UTC)
-	metadata := metav1.ObjectMeta{Name: "current", ResourceVersion: "8", Generation: 1, CreationTimestamp: metav1.NewTime(createdAt)}
+	metadata := metav1.ObjectMeta{
+		Namespace:         "team-a",
+		Name:              "current",
+		ResourceVersion:   "8",
+		Generation:        1,
+		CreationTimestamp: metav1.NewTime(createdAt),
+	}
 	parentsJSON := `[{"name":"edge","sectionName":"http"}]`
 	rulesJSON := `[{"matches":[{"pathType":"PathPrefix","pathValue":"/api"}],"backendRefs":[{"name":"backend"}]}]`
 	modelRulesJSON := `[{"matches":[{"headers":[{"name":"x-ai-eg-model","type":"Exact","value":"model"}]}],"backendRefs":[{"name":"models","modelNameOverride":"provider-model"}]}]`
@@ -274,28 +340,28 @@ func projectionTestCases() []projectionTestCase {
 				},
 			},
 			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewModelRoute(c, s) },
-			expectCreate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "modelroutes", name, false)
-				mock.ExpectExec("INSERT INTO `modelroutes` (`name`,`display_name`,`version`,`created_at`,`updated_at`,`parents`,`rules`) VALUES (?,?,?,?,?,?,?)").
-					WithArgs(name, "模型路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, modelRulesJSON).
+			expectCreate: func(mock sqlmock.Sqlmock, key types.NamespacedName, version string) {
+				expectProjectionLookup(mock, "modelroutes", key, false)
+				mock.ExpectExec("INSERT INTO `modelroutes` (`namespace`,`name`,`display_name`,`version`,`created_at`,`updated_at`,`parents`,`rules`) VALUES (?,?,?,?,?,?,?,?)").
+					WithArgs(key.Namespace, key.Name, "模型路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, modelRulesJSON).
 					WillReturnResult(sqlmock.NewResult(41, 1))
 				mock.ExpectCommit()
 			},
-			expectUpdate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "modelroutes", name, true)
+			expectUpdate: func(mock sqlmock.Sqlmock, key types.NamespacedName, version string) {
+				expectProjectionLookup(mock, "modelroutes", key, true)
 				mock.ExpectExec("UPDATE `modelroutes` SET `display_name`=?,`version`=?,`created_at`=?,`updated_at`=?,`parents`=?,`rules`=? WHERE `id` = ?").
 					WithArgs("模型路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, modelRulesJSON, 41).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			},
-			expectDelete: func(mock sqlmock.Sqlmock, name string) {
+			expectDelete: func(mock sqlmock.Sqlmock, key types.NamespacedName) {
 				mock.ExpectBegin()
-				mock.ExpectExec("DELETE FROM `modelroutes` WHERE name = ?").WithArgs(name).WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec("DELETE FROM `modelroutes` WHERE namespace = ? AND name = ?").WithArgs(key.Namespace, key.Name).WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			},
-			expectDeleteErr: func(mock sqlmock.Sqlmock, name string, err error) {
+			expectDeleteErr: func(mock sqlmock.Sqlmock, key types.NamespacedName, err error) {
 				mock.ExpectBegin()
-				mock.ExpectExec("DELETE FROM `modelroutes` WHERE name = ?").WithArgs(name).WillReturnError(err)
+				mock.ExpectExec("DELETE FROM `modelroutes` WHERE namespace = ? AND name = ?").WithArgs(key.Namespace, key.Name).WillReturnError(err)
 				mock.ExpectRollback()
 			},
 		},
@@ -310,29 +376,29 @@ func projectionTestCases() []projectionTestCase {
 				},
 			},
 			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewAIBackend(c, s) },
-			expectCreate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "aibackends", name, false)
-				mock.ExpectExec("INSERT INTO `aibackends` (`name`,`display_name`,`backend_name`,`schema_name`,`schema_prefix`,`version`,`created_at`,`updated_at`) VALUES (?,?,?,?,?,?,?,?)").
-					WithArgs(name, "模型服务", "network", "OpenAI", "/v1", version, createdAt, sqlmock.AnyArg()).
+			expectCreate: func(mock sqlmock.Sqlmock, key types.NamespacedName, version string) {
+				expectProjectionLookup(mock, "aibackends", key, false)
+				mock.ExpectExec("INSERT INTO `aibackends` (`namespace`,`name`,`display_name`,`backend_name`,`schema_name`,`schema_prefix`,`version`,`created_at`,`updated_at`) VALUES (?,?,?,?,?,?,?,?,?)").
+					WithArgs(key.Namespace, key.Name, "模型服务", "network", "OpenAI", "/v1", version, createdAt, sqlmock.AnyArg()).
 					WillReturnResult(sqlmock.NewResult(41, 1))
 				mock.ExpectCommit()
 			},
-			expectUpdate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "aibackends", name, true)
+			expectUpdate: func(mock sqlmock.Sqlmock, key types.NamespacedName, version string) {
+				expectProjectionLookup(mock, "aibackends", key, true)
 				mock.ExpectExec("UPDATE `aibackends` SET `display_name`=?,`backend_name`=?,`schema_name`=?,`schema_prefix`=?,`version`=?,`created_at`=?,`updated_at`=? WHERE `id` = ?").
 					WithArgs("模型服务", "network", "OpenAI", "/v1", version, createdAt, sqlmock.AnyArg(), 41).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			},
-			expectDelete: func(mock sqlmock.Sqlmock, name string) {
+			expectDelete: func(mock sqlmock.Sqlmock, key types.NamespacedName) {
 				mock.ExpectBegin()
-				mock.ExpectExec("DELETE FROM `aibackends` WHERE name = ?").WithArgs(name).
+				mock.ExpectExec("DELETE FROM `aibackends` WHERE namespace = ? AND name = ?").WithArgs(key.Namespace, key.Name).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			},
-			expectDeleteErr: func(mock sqlmock.Sqlmock, name string, err error) {
+			expectDeleteErr: func(mock sqlmock.Sqlmock, key types.NamespacedName, err error) {
 				mock.ExpectBegin()
-				mock.ExpectExec("DELETE FROM `aibackends` WHERE name = ?").WithArgs(name).WillReturnError(err)
+				mock.ExpectExec("DELETE FROM `aibackends` WHERE namespace = ? AND name = ?").WithArgs(key.Namespace, key.Name).WillReturnError(err)
 				mock.ExpectRollback()
 			},
 		},
@@ -348,28 +414,28 @@ func projectionTestCases() []projectionTestCase {
 				},
 			},
 			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewMCPRoute(c, s) },
-			expectCreate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "mcproutes", name, false)
-				mock.ExpectExec("INSERT INTO `mcproutes` (`name`,`display_name`,`version`,`created_at`,`updated_at`,`parents`,`path`,`backend_name`,`backend_path`) VALUES (?,?,?,?,?,?,?,?,?)").
-					WithArgs(name, "工具路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, "/tools/mcp/", "network", "/upstream/mcp/").
+			expectCreate: func(mock sqlmock.Sqlmock, key types.NamespacedName, version string) {
+				expectProjectionLookup(mock, "mcproutes", key, false)
+				mock.ExpectExec("INSERT INTO `mcproutes` (`namespace`,`name`,`display_name`,`version`,`created_at`,`updated_at`,`parents`,`path`,`backend_name`,`backend_path`) VALUES (?,?,?,?,?,?,?,?,?,?)").
+					WithArgs(key.Namespace, key.Name, "工具路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, "/tools/mcp/", "network", "/upstream/mcp/").
 					WillReturnResult(sqlmock.NewResult(41, 1))
 				mock.ExpectCommit()
 			},
-			expectUpdate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "mcproutes", name, true)
+			expectUpdate: func(mock sqlmock.Sqlmock, key types.NamespacedName, version string) {
+				expectProjectionLookup(mock, "mcproutes", key, true)
 				mock.ExpectExec("UPDATE `mcproutes` SET `display_name`=?,`version`=?,`created_at`=?,`updated_at`=?,`parents`=?,`path`=?,`backend_name`=?,`backend_path`=? WHERE `id` = ?").
 					WithArgs("工具路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, "/tools/mcp/", "network", "/upstream/mcp/", 41).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			},
-			expectDelete: func(mock sqlmock.Sqlmock, name string) {
+			expectDelete: func(mock sqlmock.Sqlmock, key types.NamespacedName) {
 				mock.ExpectBegin()
-				mock.ExpectExec("DELETE FROM `mcproutes` WHERE name = ?").WithArgs(name).WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec("DELETE FROM `mcproutes` WHERE namespace = ? AND name = ?").WithArgs(key.Namespace, key.Name).WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			},
-			expectDeleteErr: func(mock sqlmock.Sqlmock, name string, err error) {
+			expectDeleteErr: func(mock sqlmock.Sqlmock, key types.NamespacedName, err error) {
 				mock.ExpectBegin()
-				mock.ExpectExec("DELETE FROM `mcproutes` WHERE name = ?").WithArgs(name).WillReturnError(err)
+				mock.ExpectExec("DELETE FROM `mcproutes` WHERE namespace = ? AND name = ?").WithArgs(key.Namespace, key.Name).WillReturnError(err)
 				mock.ExpectRollback()
 			},
 		},
@@ -385,28 +451,28 @@ func projectionTestCases() []projectionTestCase {
 				},
 			},
 			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewGateway(c, s) },
-			expectCreate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "gateways", name, false)
-				mock.ExpectExec("INSERT INTO `gateways` (`name`,`display_name`,`version`,`created_at`,`updated_at`) VALUES (?,?,?,?,?)").
-					WithArgs(name, "Edge", version, createdAt, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(41, 1))
+			expectCreate: func(mock sqlmock.Sqlmock, key types.NamespacedName, version string) {
+				expectProjectionLookup(mock, "gateways", key, false)
+				mock.ExpectExec("INSERT INTO `gateways` (`namespace`,`name`,`display_name`,`version`,`created_at`,`updated_at`) VALUES (?,?,?,?,?,?)").
+					WithArgs(key.Namespace, key.Name, "Edge", version, createdAt, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(41, 1))
 				expectGatewayListeners(mock)
 				mock.ExpectCommit()
 			},
-			expectUpdate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "gateways", name, true)
+			expectUpdate: func(mock sqlmock.Sqlmock, key types.NamespacedName, version string) {
+				expectProjectionLookup(mock, "gateways", key, true)
 				mock.ExpectExec("UPDATE `gateways` SET `created_at`=?,`display_name`=?,`version`=?,`updated_at`=? WHERE `id` = ?").
 					WithArgs(createdAt, "Edge", version, sqlmock.AnyArg(), 41).WillReturnResult(sqlmock.NewResult(0, 1))
 				expectGatewayListeners(mock)
 				mock.ExpectCommit()
 			},
-			expectDelete: func(mock sqlmock.Sqlmock, name string) {
-				expectProjectionLookup(mock, "gateways", name, true)
+			expectDelete: func(mock sqlmock.Sqlmock, key types.NamespacedName) {
+				expectProjectionLookup(mock, "gateways", key, true)
 				mock.ExpectExec("DELETE FROM `gateway_listeners` WHERE gateway_id = ?").WithArgs(41).WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectExec("DELETE FROM `gateways` WHERE `gateways`.`id` = ?").WithArgs(41).WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			},
-			expectDeleteErr: func(mock sqlmock.Sqlmock, name string, err error) {
-				expectProjectionLookupFailure(mock, "gateways", name, err)
+			expectDeleteErr: func(mock sqlmock.Sqlmock, key types.NamespacedName, err error) {
+				expectProjectionLookupFailure(mock, "gateways", key, err)
 			},
 		},
 		{
@@ -425,28 +491,28 @@ func projectionTestCases() []projectionTestCase {
 				},
 			},
 			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewHTTPRoute(c, s) },
-			expectCreate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "httproutes", name, false)
-				mock.ExpectExec("INSERT INTO `httproutes` (`name`,`display_name`,`version`,`created_at`,`updated_at`,`parents`,`rules`) VALUES (?,?,?,?,?,?,?)").
-					WithArgs(name, "订单路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, rulesJSON).
+			expectCreate: func(mock sqlmock.Sqlmock, key types.NamespacedName, version string) {
+				expectProjectionLookup(mock, "httproutes", key, false)
+				mock.ExpectExec("INSERT INTO `httproutes` (`namespace`,`name`,`display_name`,`version`,`created_at`,`updated_at`,`parents`,`rules`) VALUES (?,?,?,?,?,?,?,?)").
+					WithArgs(key.Namespace, key.Name, "订单路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, rulesJSON).
 					WillReturnResult(sqlmock.NewResult(41, 1))
 				mock.ExpectCommit()
 			},
-			expectUpdate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "httproutes", name, true)
+			expectUpdate: func(mock sqlmock.Sqlmock, key types.NamespacedName, version string) {
+				expectProjectionLookup(mock, "httproutes", key, true)
 				mock.ExpectExec("UPDATE `httproutes` SET `display_name`=?,`version`=?,`created_at`=?,`updated_at`=?,`parents`=?,`rules`=? WHERE `id` = ?").
 					WithArgs("订单路由", version, createdAt, sqlmock.AnyArg(), parentsJSON, rulesJSON, 41).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			},
-			expectDelete: func(mock sqlmock.Sqlmock, name string) {
+			expectDelete: func(mock sqlmock.Sqlmock, key types.NamespacedName) {
 				mock.ExpectBegin()
-				mock.ExpectExec("DELETE FROM `httproutes` WHERE name = ?").WithArgs(name).WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec("DELETE FROM `httproutes` WHERE namespace = ? AND name = ?").WithArgs(key.Namespace, key.Name).WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			},
-			expectDeleteErr: func(mock sqlmock.Sqlmock, name string, err error) {
+			expectDeleteErr: func(mock sqlmock.Sqlmock, key types.NamespacedName, err error) {
 				mock.ExpectBegin()
-				mock.ExpectExec("DELETE FROM `httproutes` WHERE name = ?").WithArgs(name).WillReturnError(err)
+				mock.ExpectExec("DELETE FROM `httproutes` WHERE namespace = ? AND name = ?").WithArgs(key.Namespace, key.Name).WillReturnError(err)
 				mock.ExpectRollback()
 			},
 		},
@@ -459,28 +525,28 @@ func projectionTestCases() []projectionTestCase {
 				}},
 			},
 			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewBackend(c, s) },
-			expectCreate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "backends", name, false)
-				mock.ExpectExec("INSERT INTO `backends` (`name`,`display_name`,`version`,`created_at`,`updated_at`) VALUES (?,?,?,?,?)").
-					WithArgs(name, "订单后端", version, createdAt, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(41, 1))
+			expectCreate: func(mock sqlmock.Sqlmock, key types.NamespacedName, version string) {
+				expectProjectionLookup(mock, "backends", key, false)
+				mock.ExpectExec("INSERT INTO `backends` (`namespace`,`name`,`display_name`,`version`,`created_at`,`updated_at`) VALUES (?,?,?,?,?,?)").
+					WithArgs(key.Namespace, key.Name, "订单后端", version, createdAt, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(41, 1))
 				expectBackendEndpoints(mock)
 				mock.ExpectCommit()
 			},
-			expectUpdate: func(mock sqlmock.Sqlmock, name, version string) {
-				expectProjectionLookup(mock, "backends", name, true)
+			expectUpdate: func(mock sqlmock.Sqlmock, key types.NamespacedName, version string) {
+				expectProjectionLookup(mock, "backends", key, true)
 				mock.ExpectExec("UPDATE `backends` SET `created_at`=?,`display_name`=?,`version`=?,`updated_at`=? WHERE `id` = ?").
 					WithArgs(createdAt, "订单后端", version, sqlmock.AnyArg(), 41).WillReturnResult(sqlmock.NewResult(0, 1))
 				expectBackendEndpoints(mock)
 				mock.ExpectCommit()
 			},
-			expectDelete: func(mock sqlmock.Sqlmock, name string) {
-				expectProjectionLookup(mock, "backends", name, true)
+			expectDelete: func(mock sqlmock.Sqlmock, key types.NamespacedName) {
+				expectProjectionLookup(mock, "backends", key, true)
 				mock.ExpectExec("DELETE FROM `backend_endpoints` WHERE backend_id = ?").WithArgs(41).WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectExec("DELETE FROM `backends` WHERE `backends`.`id` = ?").WithArgs(41).WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			},
-			expectDeleteErr: func(mock sqlmock.Sqlmock, name string, err error) {
-				expectProjectionLookupFailure(mock, "backends", name, err)
+			expectDeleteErr: func(mock sqlmock.Sqlmock, key types.NamespacedName, err error) {
+				expectProjectionLookupFailure(mock, "backends", key, err)
 			},
 		},
 	}
@@ -523,30 +589,30 @@ func newProjectionTestClient(t *testing.T, objects ...client.Object) client.With
 }
 
 func projectionRequest(name string) ctrl.Request {
-	return ctrl.Request{NamespacedName: types.NamespacedName{Name: name}}
+	return ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "team-a", Name: name}}
 }
 
-func expectProjectionLookup(mock sqlmock.Sqlmock, table, name string, exists bool) {
+func expectProjectionLookup(mock sqlmock.Sqlmock, table string, key types.NamespacedName, exists bool) {
 	mock.ExpectBegin()
 	rows := sqlmock.NewRows([]string{"id"})
 	if exists {
 		rows.AddRow(41)
 	}
-	mock.ExpectQuery("SELECT `id` FROM `"+table+"` WHERE name = ? LIMIT ?").WithArgs(name, 1).WillReturnRows(rows)
+	mock.ExpectQuery("SELECT `id` FROM `"+table+"` WHERE namespace = ? AND name = ? LIMIT ?").WithArgs(key.Namespace, key.Name, 1).WillReturnRows(rows)
 }
 
-func expectProjectionLookupFailure(mock sqlmock.Sqlmock, table, name string, err error) {
+func expectProjectionLookupFailure(mock sqlmock.Sqlmock, table string, key types.NamespacedName, err error) {
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT `id` FROM `"+table+"` WHERE name = ? LIMIT ?").WithArgs(name, 1).WillReturnError(err)
+	mock.ExpectQuery("SELECT `id` FROM `"+table+"` WHERE namespace = ? AND name = ? LIMIT ?").WithArgs(key.Namespace, key.Name, 1).WillReturnError(err)
 	mock.ExpectRollback()
 }
 
-func expectProjectedNames(mock sqlmock.Sqlmock, table string, names ...string) {
-	rows := sqlmock.NewRows([]string{"name"})
-	for _, name := range names {
-		rows.AddRow(name)
+func expectProjectedKeys(mock sqlmock.Sqlmock, table string, keys ...types.NamespacedName) {
+	rows := sqlmock.NewRows([]string{"namespace", "name"})
+	for _, key := range keys {
+		rows.AddRow(key.Namespace, key.Name)
 	}
-	mock.ExpectQuery("SELECT `name` FROM `" + table + "` ORDER BY name").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT `namespace`,`name` FROM `" + table + "` ORDER BY namespace, name").WillReturnRows(rows)
 }
 
 func expectGatewayListeners(mock sqlmock.Sqlmock) {

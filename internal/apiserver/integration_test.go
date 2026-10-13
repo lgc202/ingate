@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/storage/etcd3/testserver"
 	"k8s.io/client-go/dynamic"
@@ -123,14 +124,14 @@ func TestResourceHTTPContract(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.kind, func(t *testing.T) {
 			resource := gatewayv1alpha1.SchemeGroupVersion.WithResource(tt.resource)
-			testResourceHTTPContract(t, client.Resource(resource), tt.kind, tt.name, tt.spec, tt.updatedSpec)
+			testResourceHTTPContract(t, client.Resource(resource).Namespace("team-a"), client.Resource(resource).Namespace("team-b"), client.Resource(resource), tt.kind, tt.name, tt.spec, tt.updatedSpec)
 		})
 	}
 }
 
 func TestMCPRouteDefaultingAndValidation(t *testing.T) {
 	client := startGatewayAPI(t)
-	resources := client.Resource(gatewayv1alpha1.SchemeGroupVersion.WithResource("mcproutes"))
+	resources := client.Resource(gatewayv1alpha1.SchemeGroupVersion.WithResource("mcproutes")).Namespace("team-a")
 	route := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": gatewayv1alpha1.SchemeGroupVersion.String(),
 		"kind":       "MCPRoute",
@@ -199,7 +200,7 @@ func TestMCPRouteDefaultingAndValidation(t *testing.T) {
 
 func TestHTTPRouteDefaultingAndValidation(t *testing.T) {
 	client := startGatewayAPI(t)
-	resources := client.Resource(gatewayv1alpha1.SchemeGroupVersion.WithResource("httproutes"))
+	resources := client.Resource(gatewayv1alpha1.SchemeGroupVersion.WithResource("httproutes")).Namespace("team-a")
 	route := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": gatewayv1alpha1.SchemeGroupVersion.String(), "kind": "HTTPRoute",
 		"metadata": map[string]any{"name": "defaulted"},
@@ -240,7 +241,7 @@ func TestHTTPRouteDefaultingAndValidation(t *testing.T) {
 
 func TestAIBackendDefaultingAndValidation(t *testing.T) {
 	client := startGatewayAPI(t)
-	resources := client.Resource(gatewayv1alpha1.SchemeGroupVersion.WithResource("aibackends"))
+	resources := client.Resource(gatewayv1alpha1.SchemeGroupVersion.WithResource("aibackends")).Namespace("team-a")
 	backend := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": gatewayv1alpha1.SchemeGroupVersion.String(),
 		"kind":       "AIBackend",
@@ -279,7 +280,7 @@ func TestAIBackendDefaultingAndValidation(t *testing.T) {
 
 func TestModelRouteDefaultingAndValidation(t *testing.T) {
 	client := startGatewayAPI(t)
-	resources := client.Resource(gatewayv1alpha1.SchemeGroupVersion.WithResource("modelroutes"))
+	resources := client.Resource(gatewayv1alpha1.SchemeGroupVersion.WithResource("modelroutes")).Namespace("team-a")
 	route := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": gatewayv1alpha1.SchemeGroupVersion.String(),
 		"kind":       "ModelRoute",
@@ -335,7 +336,7 @@ func TestModelRouteDefaultingAndValidation(t *testing.T) {
 
 func testResourceHTTPContract(
 	t *testing.T,
-	resources dynamic.ResourceInterface,
+	resources, otherResources, allResources dynamic.ResourceInterface,
 	kind, name string,
 	spec, updatedSpec map[string]any,
 ) {
@@ -358,6 +359,39 @@ func testResourceHTTPContract(
 		t.Fatalf("Create(%s) metadata = %#v, want generation 1 and resourceVersion", kind, created.Object["metadata"])
 	}
 	assertConditions(t, created, 0)
+	if created.GetNamespace() != "team-a" {
+		t.Errorf("Create(%s).namespace = %q, want team-a", kind, created.GetNamespace())
+	}
+
+	shadow := created.DeepCopy()
+	shadow.SetNamespace("team-b")
+	shadow.SetResourceVersion("")
+	shadow.SetUID("")
+	shadow, err = otherResources.Create(ctx, shadow, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Create(%s, same name in team-b) error = %v, want nil", kind, err)
+	}
+	if shadow.GetUID() == created.GetUID() || shadow.GetUID() == "" {
+		t.Errorf("Create(%s, team-b).UID = %q, want distinct nonempty UID", kind, shadow.GetUID())
+	}
+	if _, err := resources.Create(ctx, shadow.DeepCopy(), metav1.CreateOptions{}); !apierrors.IsBadRequest(err) {
+		t.Errorf("Create(%s, mismatched namespace) error = %v, want BadRequest", kind, err)
+	}
+	if _, err := allResources.Create(ctx, created.DeepCopy(), metav1.CreateOptions{}); !apierrors.IsMethodNotSupported(err) {
+		t.Errorf("Create(%s, cluster URL) error = %v, want MethodNotSupported", kind, err)
+	}
+	if _, err := allResources.Get(ctx, name, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Errorf("Get(%s, cluster URL) error = %v, want NotFound", kind, err)
+	}
+	if _, err := allResources.Update(ctx, created.DeepCopy(), metav1.UpdateOptions{}); !apierrors.IsNotFound(err) {
+		t.Errorf("Update(%s, cluster URL) error = %v, want NotFound", kind, err)
+	}
+	if _, err := allResources.UpdateStatus(ctx, created.DeepCopy(), metav1.UpdateOptions{}); !apierrors.IsNotFound(err) {
+		t.Errorf("UpdateStatus(%s, cluster URL) error = %v, want NotFound", kind, err)
+	}
+	if err := allResources.Delete(ctx, name, metav1.DeleteOptions{}); !apierrors.IsNotFound(err) {
+		t.Errorf("Delete(%s, cluster URL) error = %v, want NotFound", kind, err)
+	}
 	duplicate := created.DeepCopy()
 	duplicate.SetName(name + "-duplicate")
 	duplicate.SetResourceVersion("")
@@ -396,6 +430,7 @@ func testResourceHTTPContract(
 	for _, selector := range []metav1.ListOptions{
 		{LabelSelector: "environment=other"},
 		{FieldSelector: "metadata.name=other"},
+		{FieldSelector: "metadata.namespace=team-b"},
 	} {
 		listed, err := resources.List(ctx, selector)
 		if err != nil {
@@ -406,8 +441,32 @@ func testResourceHTTPContract(
 		}
 	}
 
+	allListed, err := allResources.List(ctx, metav1.ListOptions{FieldSelector: "metadata.name=" + name})
+	if err != nil {
+		t.Fatalf("List(%s, all namespaces) error = %v, want nil", kind, err)
+	}
+	if len(allListed.Items) != 2 {
+		t.Fatalf("List(%s, all namespaces) items = %v, want two same-name objects", kind, allListed.Items)
+	}
+	selected, err := allResources.List(ctx, metav1.ListOptions{FieldSelector: "metadata.namespace=team-b"})
+	if err != nil {
+		t.Fatalf("List(%s, namespace selector) error = %v, want nil", kind, err)
+	}
+	if len(selected.Items) != 1 || selected.Items[0].GetNamespace() != "team-b" {
+		t.Errorf("List(%s, namespace selector) items = %v, want team-b only", kind, selected.Items)
+	}
+	allStream, err := allResources.Watch(ctx, metav1.ListOptions{
+		ResourceVersion: allListed.GetResourceVersion(),
+		FieldSelector:   "metadata.name=" + name,
+	})
+	if err != nil {
+		t.Fatalf("Watch(%s, all namespaces) error = %v, want nil", kind, err)
+	}
+	defer allStream.Stop()
+
 	stream, err := resources.Watch(ctx, metav1.ListOptions{
-		ResourceVersion: created.GetResourceVersion(), FieldSelector: "metadata.name=" + name,
+		ResourceVersion: created.GetResourceVersion(),
+		FieldSelector:   "metadata.name=" + name,
 	})
 	if err != nil {
 		t.Fatalf("Watch(%s) error = %v", kind, err)
@@ -431,9 +490,15 @@ func testResourceHTTPContract(
 	}
 	assertConditions(t, updated, 0)
 	expectResourceEvent(t, stream, watch.Modified, name, updated.GetResourceVersion())
+	expectResourceEvent(t, allStream, watch.Modified, name, updated.GetResourceVersion())
 
 	if _, err := resources.Update(ctx, created.DeepCopy(), metav1.UpdateOptions{}); !apierrors.IsConflict(err) {
 		t.Errorf("Update(%s, stale resourceVersion) error = %v, want Conflict", kind, err)
+	}
+	moved := updated.DeepCopy()
+	moved.SetNamespace("team-b")
+	if _, err := resources.Update(ctx, moved, metav1.UpdateOptions{}); !apierrors.IsBadRequest(err) {
+		t.Errorf("Update(%s, changed namespace) error = %v, want BadRequest", kind, err)
 	}
 
 	status := updated.DeepCopy()
@@ -455,11 +520,20 @@ func testResourceHTTPContract(
 	assertSpec(t, status, updatedSpec)
 	assertConditions(t, status, 1)
 	expectResourceEvent(t, stream, watch.Modified, name, status.GetResourceVersion())
+	expectResourceEvent(t, allStream, watch.Modified, name, status.GetResourceVersion())
 
 	if err := resources.Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
 		t.Fatalf("Delete(%s, %q) error = %v", kind, name, err)
 	}
 	expectResourceEvent(t, stream, watch.Deleted, name, "")
+	expectResourceEvent(t, allStream, watch.Deleted, name, "")
+	remaining, err := otherResources.Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Get(%s, team-b after team-a deletion) error = %v, want nil", kind, err)
+	}
+	if diff := cmp.Diff(shadow.Object, remaining.Object); diff != "" {
+		t.Errorf("team-a CRUD changed %s in team-b (-want +got):\n%s", kind, diff)
+	}
 	if _, err := resources.Get(ctx, name, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("Get(deleted %s, %q) error = %v, want NotFound", kind, name, err)
 	}
@@ -471,6 +545,17 @@ func startGatewayAPI(t *testing.T) dynamic.Interface {
 	client, err := dynamic.NewForConfig(startAPIServer(t))
 	if err != nil {
 		t.Fatalf("dynamic.NewForConfig() error = %v", err)
+	}
+	namespaces := client.Resource(schema.GroupVersionResource{Version: "v1", Resource: "namespaces"})
+	for _, namespace := range []string{"team-a", "team-b"} {
+		_, err := namespaces.Create(t.Context(), &unstructured.Unstructured{Object: map[string]any{
+			"apiVersion": "v1",
+			"kind":       "Namespace",
+			"metadata":   map[string]any{"name": namespace},
+		}}, metav1.CreateOptions{})
+		if err != nil {
+			t.Fatalf("Create(Namespace %q) error = %v, want nil", namespace, err)
+		}
 	}
 	return client
 }

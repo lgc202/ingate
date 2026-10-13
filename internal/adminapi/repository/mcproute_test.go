@@ -17,7 +17,7 @@ import (
 
 func TestMCPRouteUpdatePreservesAPIConflictCause(t *testing.T) {
 	seed := &gatewayv1alpha1.MCPRoute{
-		ObjectMeta: metav1.ObjectMeta{Name: "tools", ResourceVersion: "7"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "tools", ResourceVersion: "7"},
 		Spec: gatewayv1alpha1.MCPRouteSpec{
 			ParentRefs:  []gatewayv1alpha1.ParentReference{{Name: "edge"}},
 			Path:        ptr.To("/tools/mcp"),
@@ -30,7 +30,7 @@ func TestMCPRouteUpdatePreservesAPIConflictCause(t *testing.T) {
 	client.PrependReactor("update", "mcproutes", func(clienttesting.Action) (bool, runtime.Object, error) {
 		return true, nil, storageErr
 	})
-	routes := NewMCPRoute(client.GatewayV1alpha1().MCPRoutes(), nil)
+	routes := NewMCPRoute(client.GatewayV1alpha1(), nil)
 	next := seed.DeepCopy()
 	next.Spec.DisplayName = "新名称"
 	got, err := routes.Update(t.Context(), next)
@@ -40,7 +40,7 @@ func TestMCPRouteUpdatePreservesAPIConflictCause(t *testing.T) {
 	if diff := cmp.Diff(MCPRouteInfo{}, got); diff != "" {
 		t.Errorf("MCPRoute.Update(API race) returned partial result (-want +got):\n%s", diff)
 	}
-	stored, err := client.GatewayV1alpha1().MCPRoutes().Get(t.Context(), "tools", metav1.GetOptions{})
+	stored, err := client.GatewayV1alpha1().MCPRoutes("team-a").Get(t.Context(), "tools", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get(MCPRoute after API race) error = %v, want nil", err)
 	}
@@ -51,7 +51,7 @@ func TestMCPRouteUpdatePreservesAPIConflictCause(t *testing.T) {
 
 func TestMCPRouteInfoDoesNotAliasAPIObject(t *testing.T) {
 	route := &gatewayv1alpha1.MCPRoute{
-		ObjectMeta: metav1.ObjectMeta{Name: "tools"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "tools"},
 		Spec: gatewayv1alpha1.MCPRouteSpec{
 			ParentRefs:  []gatewayv1alpha1.ParentReference{{Name: "edge"}},
 			Path:        ptr.To("/tools/mcp"),

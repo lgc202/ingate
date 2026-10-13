@@ -12,9 +12,10 @@ import (
 
 func TestCreateGateway(t *testing.T) {
 	client := clientfake.NewSimpleClientset()
-	gateways := repository.NewGateway(client.GatewayV1alpha1().Gateways(), nil)
+	gateways := repository.NewGateway(client.GatewayV1alpha1(), nil)
 	handler := New(gatewayservice.New(gateways))
 	request := &adminv1.CreateGatewayRequest{
+		Namespace:   "team-a",
 		DisplayName: "Public Gateway",
 		Listeners: []*adminv1.Listener{{
 			Name:     "http",

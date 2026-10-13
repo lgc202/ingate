@@ -16,7 +16,7 @@ Controller 负责裁决并生成完整配置，Go 负责加载配置与授权凭
 
 ## 背景：当前缺的是存储与确认契约
 
-2026-10-13 状态补充：[网关 Registry](../../internal/apiserver/registry/gateway/storage.go) 已安装六种业务资源及其 status；[核心组](../../internal/apiserver/core.go) 的 Namespace 主资源、status 和 finalize 已提交。官方 NamespaceLifecycle 的 Ingate 本地数据源已提交；删除内核与 Manager 的 Namespace Watch、重试调度已提交为 `5cc450d5`，尚未验证真实自动删除联动。本轮 Backend 默认存储筛选的准备性重构待 review；六种业务资源的存储作用域仍未切换，没有 Secret 或运行配置 API。作用域目标以已确认的 [0013](../decisions/0013-namespaced-resources.md) 为准，本稿其余凭据与发布建议仍待 review。
+2026-10-13 状态补充：[网关 Registry](../../internal/apiserver/registry/gateway/storage.go) 已安装六种业务资源及其 status；[核心组](../../internal/apiserver/core.go) 的 Namespace 主资源、status 和 finalize 已提交。官方 NamespaceLifecycle 的 Ingate 本地数据源已提交；删除内核与 Manager 的 Namespace Watch、重试调度已提交为 `5cc450d5`，尚未验证真实自动删除联动。Backend 默认存储筛选重构已提交为 `17cfe8d5`；本轮六种业务资源的 Namespace 存储、管理和投影链路已切换，待 review，没有 Secret 或运行配置 API。作用域目标以已确认的 [0013](../decisions/0013-namespaced-resources.md) 为准，本稿其余凭据与发布建议仍待 review。
 
 当前 [Options](../../internal/apiserver/options.go) 沿用 RecommendedOptions；其上游采用委托认证与授权，并依赖 CoreAPI/Admission 的配置。已有 HTTPS Listener 不证明身份和资源权限已配置正确。[存储测试](../../internal/apiserver/integration_test.go) 为隔离存储，将这些选项设为 nil，不能作为密钥访问隔离的证据。
 
@@ -43,9 +43,9 @@ apiKey:
     namespace: ingate-system
 ```
 
-`namespace` 必须明确，不能从集群级 AIBackend 猜一个「同命名空间」。`ingate-system` 只是示例名称，不是已经存在的 Namespace。cluster-scoped 网关资源不因此自动变成 namespaced，也不因此具备租户隔离。
+上面的 `namespace` 属于尚未确认的凭据引用建议，不是新增字段的授权。已确认的六种业务资源只允许同空间引用；Secret 与安全策略尚未安装，后续应按该边界重新评审引用形状。`ingate-system` 只是示例名称，不是已经存在的 Namespace；Namespace 不自动产生租户权限隔离。
 
-采用标准 Secret 有基础设施代价。Ingate 若自行托管它，必须先设计并安装命名空间与生命周期、Secret 存储校验及转换、授权和存储加密；不能把现有 cluster-scoped Registry 复制后换个 Kind 就称为标准 Secret。若部署在完整 Kubernetes 上，也可以让宿主集群保存 Secret，但那需要独立客户端和权限，是另一个部署选择。本稿建议 Ingate 集中托管；不隐含要求已有外部 Kubernetes，也不在未确认范围时新增 Namespace/Secret 的实现。
+采用标准 Secret 有基础设施代价。Ingate 若自行托管它，Namespace 与生命周期基础已接入，仍必须设计并安装 Secret 存储校验及转换、授权和存储加密；不能只复制业务 Registry 后换个 Kind 就称为标准 Secret。若部署在完整 Kubernetes 上，也可以让宿主集群保存 Secret，但那需要独立客户端和权限，是另一个部署选择。本稿建议 Ingate 集中托管；不隐含要求已有外部 Kubernetes，也不在未确认范围时新增 Namespace/Secret 的实现。
 
 密钥管理界面和原生 Secret API 的可见性不同。管理端创建/替换密钥只返回名称、版本与维护信息，不回显密钥；普通列表和详情不返回 data。被授权的数据面通过原生 API 读取数据。不能声称 Secret 原生 GET 本身是「只写」接口；它对授权读取者会返回数据。
 

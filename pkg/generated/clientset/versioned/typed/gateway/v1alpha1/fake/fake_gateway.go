@@ -14,11 +14,11 @@ type fakeGateways struct {
 	Fake *FakeGatewayV1alpha1
 }
 
-func newFakeGateways(fake *FakeGatewayV1alpha1) gatewayv1alpha1.GatewayInterface {
+func newFakeGateways(fake *FakeGatewayV1alpha1, namespace string) gatewayv1alpha1.GatewayInterface {
 	return &fakeGateways{
 		gentype.NewFakeClientWithList[*v1alpha1.Gateway, *v1alpha1.GatewayList](
 			fake.Fake,
-			"",
+			namespace,
 			v1alpha1.SchemeGroupVersion.WithResource("gateways"),
 			v1alpha1.SchemeGroupVersion.WithKind("Gateway"),
 			func() *v1alpha1.Gateway { return &v1alpha1.Gateway{} },

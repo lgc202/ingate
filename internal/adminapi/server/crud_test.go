@@ -21,6 +21,7 @@ import (
 func TestGatewayCRUDHTTP(t *testing.T) {
 	seed := &gatewayv1alpha1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       "team-a",
 			Name:            "edge",
 			UID:             types.UID("gateway-instance"),
 			ResourceVersion: "7",
@@ -46,16 +47,16 @@ func TestGatewayCRUDHTTP(t *testing.T) {
 		"displayName": "重复展示名称",
 		"listeners": [{"name": "http", "protocol": "LISTENER_PROTOCOL_HTTP", "port": 8081}]
 	}`
-	response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/gateways", created)
+	response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/namespaces/team-a/gateways", created)
 	requireHTTPStatus(t, response, http.StatusOK)
 
 	updated := `{
 		"version": "stale",
 		"listeners": [{"name": "http", "protocol": "LISTENER_PROTOCOL_HTTP", "port": 9090}]
 	}`
-	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/gateways/edge", updated)
+	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/namespaces/team-a/gateways/edge", updated)
 	requireHTTPStatus(t, response, http.StatusConflict)
-	stored, err := client.GatewayV1alpha1().Gateways().Get(context.Background(), "edge", metav1.GetOptions{})
+	stored, err := client.GatewayV1alpha1().Gateways("team-a").Get(context.Background(), "edge", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("read Gateway after stale update: %v", err)
 	}
@@ -68,14 +69,14 @@ func TestGatewayCRUDHTTP(t *testing.T) {
 		"displayName": "Updated",
 		"listeners": [{"name": "http", "protocol": "LISTENER_PROTOCOL_HTTP", "port": 9090}]
 	}`
-	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/gateways/edge", updated)
+	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/namespaces/team-a/gateways/edge", updated)
 	requireHTTPStatus(t, response, http.StatusOK)
 	var updateReply adminv1.UpdateGatewayReply
 	decodeReply(t, response, &updateReply)
 	if updateReply.GetGateway().GetDisplayName() != "Updated" {
 		t.Errorf("UpdateGateway(edge) display name = %q, want Updated", updateReply.GetGateway().GetDisplayName())
 	}
-	stored, err = client.GatewayV1alpha1().Gateways().Get(context.Background(), "edge", metav1.GetOptions{})
+	stored, err = client.GatewayV1alpha1().Gateways("team-a").Get(context.Background(), "edge", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("read updated Gateway: %v", err)
 	}
@@ -89,9 +90,9 @@ func TestGatewayCRUDHTTP(t *testing.T) {
 		t.Errorf("UpdateGateway(rename) name/UID = %q/%q, want edge/%q", stored.Name, stored.UID, seed.UID)
 	}
 
-	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/gateways/edge", "")
+	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/namespaces/team-a/gateways/edge", "")
 	requireHTTPStatus(t, response, http.StatusOK)
-	_, err = client.GatewayV1alpha1().Gateways().Get(context.Background(), "edge", metav1.GetOptions{})
+	_, err = client.GatewayV1alpha1().Gateways("team-a").Get(context.Background(), "edge", metav1.GetOptions{})
 	if !apierrors.IsNotFound(err) {
 		t.Errorf("Get deleted Gateway(edge) error = %v, want NotFound", err)
 	}
@@ -111,6 +112,7 @@ func TestRemovedResourcePathsAreNotRegistered(t *testing.T) {
 func TestHTTPRouteCRUDHTTP(t *testing.T) {
 	seed := &gatewayv1alpha1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       "team-a",
 			Name:            "public",
 			UID:             types.UID("route-instance"),
 			ResourceVersion: "7",
@@ -136,11 +138,11 @@ func TestHTTPRouteCRUDHTTP(t *testing.T) {
 		"parentRefs": [{"name": "edge", "sectionName": "http"}],
 		"rules": [{"matches": [{"path": {"type": "PATH_MATCH_TYPE_EXACT", "value": "/new"}}], "backendRefs": [{"name": "backend"}]}]
 	}`
-	response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/http-routes", created)
+	response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/namespaces/team-a/http-routes", created)
 	requireHTTPStatus(t, response, http.StatusOK)
 	var createReply adminv1.CreateHTTPRouteReply
 	decodeReply(t, response, &createReply)
-	response = requestResource(httpServer, http.MethodPost, "/api/admin/v1/http-routes", created)
+	response = requestResource(httpServer, http.MethodPost, "/api/admin/v1/namespaces/team-a/http-routes", created)
 	requireHTTPStatus(t, response, http.StatusOK)
 	var secondReply adminv1.CreateHTTPRouteReply
 	decodeReply(t, response, &secondReply)
@@ -156,9 +158,9 @@ func TestHTTPRouteCRUDHTTP(t *testing.T) {
 		"parentRefs": [{"name": "edge", "sectionName": "http"}],
 		"rules": [{"matches": [{"path": {"type": "PATH_MATCH_TYPE_EXACT", "value": "/updated"}}], "backendRefs": [{"name": "backend"}]}]
 	}`
-	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/http-routes/public", updated)
+	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/namespaces/team-a/http-routes/public", updated)
 	requireHTTPStatus(t, response, http.StatusConflict)
-	stored, err := client.GatewayV1alpha1().HTTPRoutes().Get(context.Background(), "public", metav1.GetOptions{})
+	stored, err := client.GatewayV1alpha1().HTTPRoutes("team-a").Get(context.Background(), "public", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("read HTTPRoute after stale update: %v", err)
 	}
@@ -172,14 +174,14 @@ func TestHTTPRouteCRUDHTTP(t *testing.T) {
 		"parentRefs": [{"name": "edge", "sectionName": "http"}],
         "rules": [{"matches": [{"path": {"type": "PATH_MATCH_TYPE_EXACT", "value": "/updated"}}], "backendRefs": [{"name": "backend"}]}]
 	}`
-	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/http-routes/public", updated)
+	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/namespaces/team-a/http-routes/public", updated)
 	requireHTTPStatus(t, response, http.StatusOK)
 	var updateReply adminv1.UpdateHTTPRouteReply
 	decodeReply(t, response, &updateReply)
 	if updateReply.GetRoute().GetRules()[0].GetMatches()[0].GetPath().GetValue() != "/updated" {
 		t.Errorf("UpdateHTTPRoute(public) path = %q, want /updated", updateReply.GetRoute().GetRules()[0].GetMatches()[0].GetPath().GetValue())
 	}
-	stored, err = client.GatewayV1alpha1().HTTPRoutes().Get(context.Background(), "public", metav1.GetOptions{})
+	stored, err = client.GatewayV1alpha1().HTTPRoutes("team-a").Get(context.Background(), "public", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("read updated HTTPRoute: %v", err)
 	}
@@ -190,9 +192,9 @@ func TestHTTPRouteCRUDHTTP(t *testing.T) {
 		t.Errorf("UpdateHTTPRoute(rename) = %v, want same name/UID and updated display name", stored)
 	}
 
-	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/http-routes/public", "")
+	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/namespaces/team-a/http-routes/public", "")
 	requireHTTPStatus(t, response, http.StatusOK)
-	_, err = client.GatewayV1alpha1().HTTPRoutes().Get(context.Background(), "public", metav1.GetOptions{})
+	_, err = client.GatewayV1alpha1().HTTPRoutes("team-a").Get(context.Background(), "public", metav1.GetOptions{})
 	if !apierrors.IsNotFound(err) {
 		t.Errorf("Get deleted HTTPRoute(public) error = %v, want NotFound", err)
 	}
@@ -232,7 +234,7 @@ func TestHTTPRouteWriteRejectsUnsupportedAndConflictingInput(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			httpServer, client := crudTestServer(t, nil)
-			response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/http-routes", tt.body)
+			response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/namespaces/team-a/http-routes", tt.body)
 			requireHTTPStatus(t, response, tt.status)
 			if tt.status != http.StatusOK {
 				if actions := client.Actions(); len(actions) != 0 {
@@ -253,6 +255,7 @@ func TestHTTPRouteWriteRejectsUnsupportedAndConflictingInput(t *testing.T) {
 func TestBackendCRUDHTTP(t *testing.T) {
 	seed := &gatewayv1alpha1.Backend{
 		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       "team-a",
 			Name:            "backend",
 			UID:             types.UID("backend-instance"),
 			ResourceVersion: "7",
@@ -272,11 +275,11 @@ func TestBackendCRUDHTTP(t *testing.T) {
 		"displayName": "重复展示名称",
 		"endpoints": [{"address": "127.0.0.1", "port": 8081, "weight": 1}]
 	}`
-	response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/backends", created)
+	response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/namespaces/team-a/backends", created)
 	requireHTTPStatus(t, response, http.StatusOK)
 	var createReply adminv1.CreateBackendReply
 	decodeReply(t, response, &createReply)
-	response = requestResource(httpServer, http.MethodPost, "/api/admin/v1/backends", created)
+	response = requestResource(httpServer, http.MethodPost, "/api/admin/v1/namespaces/team-a/backends", created)
 	requireHTTPStatus(t, response, http.StatusOK)
 	var secondReply adminv1.CreateBackendReply
 	decodeReply(t, response, &secondReply)
@@ -291,9 +294,9 @@ func TestBackendCRUDHTTP(t *testing.T) {
 		"version": "stale",
 		"endpoints": [{"address": "127.0.0.1", "port": 9090, "weight": 1}]
 	}`
-	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/backends/backend", updated)
+	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/namespaces/team-a/backends/backend", updated)
 	requireHTTPStatus(t, response, http.StatusConflict)
-	stored, err := client.GatewayV1alpha1().Backends().Get(context.Background(), "backend", metav1.GetOptions{})
+	stored, err := client.GatewayV1alpha1().Backends("team-a").Get(context.Background(), "backend", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("read Backend after stale update: %v", err)
 	}
@@ -306,14 +309,14 @@ func TestBackendCRUDHTTP(t *testing.T) {
 		"displayName": "改名后的后端",
 		"endpoints": [{"address": "127.0.0.1", "port": 9090, "weight": 1}]
 	}`
-	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/backends/backend", updated)
+	response = requestResource(httpServer, http.MethodPut, "/api/admin/v1/namespaces/team-a/backends/backend", updated)
 	requireHTTPStatus(t, response, http.StatusOK)
 	var updateReply adminv1.UpdateBackendReply
 	decodeReply(t, response, &updateReply)
 	if updateReply.GetBackend().GetEndpoints()[0].GetPort() != 9090 {
 		t.Errorf("UpdateBackend(backend) port = %d, want 9090", updateReply.GetBackend().GetEndpoints()[0].GetPort())
 	}
-	stored, err = client.GatewayV1alpha1().Backends().Get(context.Background(), "backend", metav1.GetOptions{})
+	stored, err = client.GatewayV1alpha1().Backends("team-a").Get(context.Background(), "backend", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("read updated Backend: %v", err)
 	}
@@ -324,9 +327,9 @@ func TestBackendCRUDHTTP(t *testing.T) {
 		t.Errorf("UpdateBackend(rename) = %v, want same name/UID and updated display name", stored)
 	}
 
-	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/backends/backend", "")
+	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/namespaces/team-a/backends/backend", "")
 	requireHTTPStatus(t, response, http.StatusOK)
-	_, err = client.GatewayV1alpha1().Backends().Get(context.Background(), "backend", metav1.GetOptions{})
+	_, err = client.GatewayV1alpha1().Backends("team-a").Get(context.Background(), "backend", metav1.GetOptions{})
 	if !apierrors.IsNotFound(err) {
 		t.Errorf("Get deleted Backend(backend) error = %v, want NotFound", err)
 	}
@@ -337,8 +340,8 @@ func TestResourceCreateHTTPRejectsInvalidRequests(t *testing.T) {
 		name string
 		path string
 	}{
-		{name: "HTTPRoute", path: "/api/admin/v1/http-routes"},
-		{name: "Backend", path: "/api/admin/v1/backends"},
+		{name: "HTTPRoute", path: "/api/admin/v1/namespaces/team-a/http-routes"},
+		{name: "Backend", path: "/api/admin/v1/namespaces/team-a/backends"},
 	}
 
 	for _, tt := range tests {
@@ -361,7 +364,7 @@ func TestHTTPRouteJSONRejectsUnknownFieldsAcrossContentTypes(t *testing.T) {
 			httpServer, client := crudTestServer(t, nil)
 			// 使用 protobuf 原字段名，让宽松 encoding/json 也能识别必需字段。
 			body := `{"displayName":"订单路由","parent_refs":[{"name":"edge"}],"rules":[{"matches":[{"method":"POST"}],"backend_refs":[{"name":"backend"}]}]}`
-			request := httptest.NewRequest(http.MethodPost, "/api/admin/v1/http-routes", strings.NewReader(body))
+			request := httptest.NewRequest(http.MethodPost, "/api/admin/v1/namespaces/team-a/http-routes", strings.NewReader(body))
 			request.Header.Set("Content-Type", contentType)
 			response := httptest.NewRecorder()
 			httpServer.ServeHTTP(response, request)
@@ -378,7 +381,7 @@ func TestHTTPRouteJSONAcceptsSupportedContentTypes(t *testing.T) {
 		t.Run(contentType, func(t *testing.T) {
 			httpServer, _ := crudTestServer(t, nil)
 			body := `{"displayName":"订单路由","parent_refs":[{"name":"edge"}],"rules":[{"backend_refs":[{"name":"backend"}]}]}`
-			request := httptest.NewRequest(http.MethodPost, "/api/admin/v1/http-routes", strings.NewReader(body))
+			request := httptest.NewRequest(http.MethodPost, "/api/admin/v1/namespaces/team-a/http-routes", strings.NewReader(body))
 			request.Header.Set("Content-Type", contentType)
 			response := httptest.NewRecorder()
 			httpServer.ServeHTTP(response, request)
@@ -397,17 +400,17 @@ func crudTestServer(t *testing.T, seed any) (*kratoshttp.Server, *clientfake.Cli
 	case nil:
 		return httpServer, client
 	case *gatewayv1alpha1.Gateway:
-		_, err = client.GatewayV1alpha1().Gateways().Create(ctx, resource, metav1.CreateOptions{})
+		_, err = client.GatewayV1alpha1().Gateways("team-a").Create(ctx, resource, metav1.CreateOptions{})
 	case *gatewayv1alpha1.HTTPRoute:
-		_, err = client.GatewayV1alpha1().HTTPRoutes().Create(ctx, resource, metav1.CreateOptions{})
+		_, err = client.GatewayV1alpha1().HTTPRoutes("team-a").Create(ctx, resource, metav1.CreateOptions{})
 	case *gatewayv1alpha1.Backend:
-		_, err = client.GatewayV1alpha1().Backends().Create(ctx, resource, metav1.CreateOptions{})
+		_, err = client.GatewayV1alpha1().Backends("team-a").Create(ctx, resource, metav1.CreateOptions{})
 	case *gatewayv1alpha1.AIBackend:
-		_, err = client.GatewayV1alpha1().AIBackends().Create(ctx, resource, metav1.CreateOptions{})
+		_, err = client.GatewayV1alpha1().AIBackends("team-a").Create(ctx, resource, metav1.CreateOptions{})
 	case *gatewayv1alpha1.ModelRoute:
-		_, err = client.GatewayV1alpha1().ModelRoutes().Create(ctx, resource, metav1.CreateOptions{})
+		_, err = client.GatewayV1alpha1().ModelRoutes("team-a").Create(ctx, resource, metav1.CreateOptions{})
 	case *gatewayv1alpha1.MCPRoute:
-		_, err = client.GatewayV1alpha1().MCPRoutes().Create(ctx, resource, metav1.CreateOptions{})
+		_, err = client.GatewayV1alpha1().MCPRoutes("team-a").Create(ctx, resource, metav1.CreateOptions{})
 	default:
 		t.Fatalf("unsupported seed type %T", seed)
 	}

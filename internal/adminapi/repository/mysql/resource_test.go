@@ -35,9 +35,9 @@ func TestGetGatewayReadsListenersInOneTransaction(t *testing.T) {
 	recordReadOnlyTransaction(t, store)
 	createdAt := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
 	mock.ExpectBegin()
-	mock.ExpectQuery("FROM `gateways` WHERE name = ").WithArgs("edge", 1).WillReturnRows(
-		sqlmock.NewRows([]string{"id", "name", "display_name", "version", "created_at", "updated_at"}).
-			AddRow(1, "edge", "Edge", "7", createdAt, createdAt),
+	mock.ExpectQuery("FROM `gateways` WHERE namespace = \\? AND name = ").WithArgs("team-a", "edge", 1).WillReturnRows(
+		sqlmock.NewRows([]string{"namespace", "id", "name", "display_name", "version", "created_at", "updated_at"}).
+			AddRow("team-a", 1, "edge", "Edge", "7", createdAt, createdAt),
 	)
 	mock.ExpectQuery("FROM `gateway_listeners` WHERE gateway_id =").WithArgs(1).WillReturnRows(
 		sqlmock.NewRows([]string{"id", "gateway_id", "name", "protocol", "port", "hostname"}).
@@ -45,7 +45,7 @@ func TestGetGatewayReadsListenersInOneTransaction(t *testing.T) {
 	)
 	mock.ExpectCommit()
 
-	gateway, err := store.GetGateway(t.Context(), "edge")
+	gateway, err := store.GetGateway(t.Context(), "team-a", "edge")
 	if err != nil {
 		t.Fatalf("GetGateway(edge): %v", err)
 	}
@@ -62,13 +62,13 @@ func TestListGatewaysKeepsListenersWithTheirOwners(t *testing.T) {
 	store, mock := newResourceTestStore(t)
 	recordReadOnlyTransaction(t, store)
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `gateways`").
+	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `gateways` WHERE namespace = \\?").WithArgs("team-a").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(11))
-	mock.ExpectQuery("FROM `gateways` ORDER BY name LIMIT").WithArgs(4, 8).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "version"}).
-			AddRow(41, "alpha", "rev-7").
-			AddRow(7, "bravo", "rev-8").
-			AddRow(89, "charlie", "rev-9"))
+	mock.ExpectQuery("FROM `gateways` WHERE namespace = \\? ORDER BY name LIMIT").WithArgs("team-a", 4, 8).
+		WillReturnRows(sqlmock.NewRows([]string{"namespace", "id", "name", "version"}).
+			AddRow("team-a", 41, "alpha", "rev-7").
+			AddRow("team-a", 7, "bravo", "rev-8").
+			AddRow("team-a", 89, "charlie", "rev-9"))
 	// 子记录按父 ID 排序，不能按主对象在当前页的位置绑定。
 	mock.ExpectQuery("FROM `gateway_listeners` WHERE gateway_id IN .*ORDER BY gateway_id, name").
 		WithArgs(41, 7, 89).
@@ -78,7 +78,7 @@ func TestListGatewaysKeepsListenersWithTheirOwners(t *testing.T) {
 			AddRow(8, 41, "metrics", "HTTP", 8081, ""))
 	mock.ExpectCommit()
 
-	got, err := store.ListGateways(t.Context(), ResourceListParams{PageSize: 4, PageNum: 3})
+	got, err := store.ListGateways(t.Context(), ResourceListParams{Namespace: "team-a", PageSize: 4, PageNum: 3})
 	if err != nil {
 		t.Fatalf("ListGateways(page 3) error = %v, want nil", err)
 	}
@@ -87,9 +87,10 @@ func TestListGatewaysKeepsListenersWithTheirOwners(t *testing.T) {
 		TotalCount: 11,
 		Items: []Gateway{
 			{
-				ID:      41,
-				Name:    "alpha",
-				Version: "rev-7",
+				ID:        41,
+				Namespace: "team-a",
+				Name:      "alpha",
+				Version:   "rev-7",
 				Listeners: []GatewayListener{
 					{
 						ID:        4,
@@ -109,9 +110,10 @@ func TestListGatewaysKeepsListenersWithTheirOwners(t *testing.T) {
 				},
 			},
 			{
-				ID:      7,
-				Name:    "bravo",
-				Version: "rev-8",
+				ID:        7,
+				Namespace: "team-a",
+				Name:      "bravo",
+				Version:   "rev-8",
 				Listeners: []GatewayListener{
 					{
 						ID:        6,
@@ -124,9 +126,10 @@ func TestListGatewaysKeepsListenersWithTheirOwners(t *testing.T) {
 				},
 			},
 			{
-				ID:      89,
-				Name:    "charlie",
-				Version: "rev-9",
+				ID:        89,
+				Namespace: "team-a",
+				Name:      "charlie",
+				Version:   "rev-9",
 			},
 		},
 	}
@@ -139,13 +142,13 @@ func TestListBackendsGroupsAndOrdersEndpoints(t *testing.T) {
 	store, mock := newResourceTestStore(t)
 	recordReadOnlyTransaction(t, store)
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `backends`").
+	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `backends` WHERE namespace = \\?").WithArgs("team-a").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(11))
-	mock.ExpectQuery("FROM `backends` ORDER BY name LIMIT").WithArgs(4, 8).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "version"}).
-			AddRow(41, "alpha", "rev-7").
-			AddRow(7, "bravo", "rev-8").
-			AddRow(89, "charlie", "rev-9"))
+	mock.ExpectQuery("FROM `backends` WHERE namespace = \\? ORDER BY name LIMIT").WithArgs("team-a", 4, 8).
+		WillReturnRows(sqlmock.NewRows([]string{"namespace", "id", "name", "version"}).
+			AddRow("team-a", 41, "alpha", "rev-7").
+			AddRow("team-a", 7, "bravo", "rev-8").
+			AddRow("team-a", 89, "charlie", "rev-9"))
 	mock.ExpectQuery("FROM `backend_endpoints` WHERE backend_id IN .*ORDER BY backend_id, address, port").
 		WithArgs(41, 7, 89).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "backend_id", "address", "port", "weight"}).
@@ -155,7 +158,7 @@ func TestListBackendsGroupsAndOrdersEndpoints(t *testing.T) {
 			AddRow(9, 41, "10.0.0.2", 8080, 1))
 	mock.ExpectCommit()
 
-	got, err := store.ListBackends(t.Context(), ResourceListParams{PageSize: 4, PageNum: 3})
+	got, err := store.ListBackends(t.Context(), ResourceListParams{Namespace: "team-a", PageSize: 4, PageNum: 3})
 	if err != nil {
 		t.Fatalf("ListBackends(page 3) error = %v, want nil", err)
 	}
@@ -164,9 +167,10 @@ func TestListBackendsGroupsAndOrdersEndpoints(t *testing.T) {
 		TotalCount: 11,
 		Items: []Backend{
 			{
-				ID:      41,
-				Name:    "alpha",
-				Version: "rev-7",
+				ID:        41,
+				Namespace: "team-a",
+				Name:      "alpha",
+				Version:   "rev-7",
 				Endpoints: []BackendEndpoint{
 					{
 						ID:        4,
@@ -192,9 +196,10 @@ func TestListBackendsGroupsAndOrdersEndpoints(t *testing.T) {
 				},
 			},
 			{
-				ID:      7,
-				Name:    "bravo",
-				Version: "rev-8",
+				ID:        7,
+				Namespace: "team-a",
+				Name:      "bravo",
+				Version:   "rev-8",
 				Endpoints: []BackendEndpoint{
 					{
 						ID:        6,
@@ -206,9 +211,10 @@ func TestListBackendsGroupsAndOrdersEndpoints(t *testing.T) {
 				},
 			},
 			{
-				ID:      89,
-				Name:    "charlie",
-				Version: "rev-9",
+				ID:        89,
+				Namespace: "team-a",
+				Name:      "charlie",
+				Version:   "rev-9",
 			},
 		},
 	}
@@ -222,9 +228,9 @@ func TestGetBackendOrdersEndpointsByAddressAndPort(t *testing.T) {
 	recordReadOnlyTransaction(t, store)
 	createdAt := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
 	mock.ExpectBegin()
-	mock.ExpectQuery("FROM `backends` WHERE name = ").WithArgs("backend", 1).WillReturnRows(
-		sqlmock.NewRows([]string{"id", "name", "version", "created_at", "updated_at"}).
-			AddRow(1, "backend", "9", createdAt, createdAt),
+	mock.ExpectQuery("FROM `backends` WHERE namespace = \\? AND name = ").WithArgs("team-a", "backend", 1).WillReturnRows(
+		sqlmock.NewRows([]string{"namespace", "id", "name", "version", "created_at", "updated_at"}).
+			AddRow("team-a", 1, "backend", "9", createdAt, createdAt),
 	)
 	mock.ExpectQuery("FROM `backend_endpoints` WHERE backend_id = .*ORDER BY address, port").WithArgs(1).WillReturnRows(
 		sqlmock.NewRows([]string{"id", "backend_id", "address", "port", "weight"}).
@@ -233,7 +239,7 @@ func TestGetBackendOrdersEndpointsByAddressAndPort(t *testing.T) {
 	)
 	mock.ExpectCommit()
 
-	backend, err := store.GetBackend(t.Context(), "backend")
+	backend, err := store.GetBackend(t.Context(), "team-a", "backend")
 	if err != nil {
 		t.Fatalf("GetBackend(backend): %v", err)
 	}
@@ -264,12 +270,12 @@ func TestGetGatewayRollsBackListenerReadFailure(t *testing.T) {
 	recordReadOnlyTransaction(t, store)
 	wantErr := errors.New("listener read failed")
 	mock.ExpectBegin()
-	mock.ExpectQuery("FROM `gateways` WHERE name = ").WithArgs("edge", 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "version"}).AddRow(41, "edge", "rev-7"))
+	mock.ExpectQuery("FROM `gateways` WHERE namespace = \\? AND name = ").WithArgs("team-a", "edge", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"namespace", "id", "name", "version"}).AddRow("team-a", 41, "edge", "rev-7"))
 	mock.ExpectQuery("FROM `gateway_listeners` WHERE gateway_id =").WithArgs(41).WillReturnError(wantErr)
 	mock.ExpectRollback()
 
-	got, err := store.GetGateway(t.Context(), "edge")
+	got, err := store.GetGateway(t.Context(), "team-a", "edge")
 	if !errors.Is(err, wantErr) {
 		t.Errorf("GetGateway(edge, listener failure) error = %v, want wrapped %v", err, wantErr)
 	}

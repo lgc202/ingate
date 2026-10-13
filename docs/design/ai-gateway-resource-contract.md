@@ -1,10 +1,10 @@
 # 三类路由复用 Backend，以 AIBackend 定义模型服务访问契约
 
-- 状态：六种资源的声明、管理与投影及共享协调器组织调整均已提交；用户授权提交 Namespace 编译身份改造；不新增协议数据面业务
+- 状态：六种资源的声明、管理与投影、共享协调器及 Namespace 基础设施均已提交；本轮业务资源 Namespace 全链路切换待 review；不新增协议数据面业务
 - 作者：Ingate 开发协作
-- 更新日期：2026-10-12
+- 更新日期：2026-10-13
 - 讨论入口：本仓库文档 review，依据 [0010 决策](../decisions/0010-unified-ai-proxy-config-delivery.md)及用户确认的资源关系
-- 当前源码基线：`90045e8d`（共享协调器按资源组织），分支 `codex/rebuild-from-zero`；HTTP 替换前基线为 `56205b84321c`
+- 当前源码基线：`17cfe8d5`（Backend 默认存储筛选）；本轮 Namespace 全链路切换未提交，分支 `codex/rebuild-from-zero`；HTTP 替换前基线为 `56205b84321c`
 - 范围：资源契约、裁决边界、管理接口影响、实施顺序及 D1/D2 进度；不新增数据面业务
 
 ## 摘要
@@ -23,7 +23,7 @@
 
 基线裁决按 Gateway/Listener 和规范化路径判断冲突；阶段 B 的 [HTTPRoute 裁决](../../internal/controllermanager/controller/gateway/httproute.go)已保留同路径候选，按父引用独立附着。[Envoy 适配层](../../internal/controllermanager/dataplane/envoy/resources.go)按 Exact 优先、长 PathPrefix 优先稳定排序，IP/DNS 后端采用 EDS/STRICT_DNS。后端连接超时仍为 5 秒，没有上游 TLS 配置。改名不能填补这些协议和安全缺口。
 
-当前 Admin 接口保留 [0005](../decisions/0005-admin-resource-management.md)的 API Server 写入、MySQL 异步查询分工；[资源存储映射](../../internal/apiserver/registry/gateway/storage.go)已有六种资源及其 status。D2 已接入 AIBackend、ModelRoute、MCPRoute 管理与查询投影，均已按用户指示提交，未推送。没有 Namespace、Secret、运行时快照或租约资源。本文不假设完整 Kubernetes 已存在。
+当前 Admin 接口保留 [0005](../decisions/0005-admin-resource-management.md)的 API Server 写入、MySQL 异步查询分工；[资源存储映射](../../internal/apiserver/registry/gateway/storage.go)已有六种资源及其 status。D2 已接入 AIBackend、ModelRoute、MCPRoute 管理与查询投影，均已按用户指示提交，未推送。Namespace 原生 API 与生命周期已接入；六种业务资源的 Namespace 全链路切换已实现待 review。没有 Secret、运行时快照或租约资源。本文不假设完整 Kubernetes 已存在。
 
 本稿输入是已确认讨论和现有代码，没有另建 PRD，也没有新增计费、配额、Agent、工具聚合、插件市场或多租户业务需求。
 
@@ -35,14 +35,14 @@
 
 | Kind | API Server 资源名 | 当前管理端集合路径 |
 | --- | --- | --- |
-| Gateway | gateways | /api/admin/v1/gateways |
-| HTTPRoute | httproutes | /api/admin/v1/http-routes |
-| ModelRoute | modelroutes | /api/admin/v1/model-routes |
-| AIBackend | aibackends | /api/admin/v1/ai-backends |
-| MCPRoute | mcproutes | /api/admin/v1/mcp-routes |
-| Backend | backends | /api/admin/v1/backends |
+| Gateway | gateways | /api/admin/v1/namespaces/{namespace}/gateways |
+| HTTPRoute | httproutes | /api/admin/v1/namespaces/{namespace}/http-routes |
+| ModelRoute | modelroutes | /api/admin/v1/namespaces/{namespace}/model-routes |
+| AIBackend | aibackends | /api/admin/v1/namespaces/{namespace}/ai-backends |
+| MCPRoute | mcproutes | /api/admin/v1/namespaces/{namespace}/mcp-routes |
+| Backend | backends | /api/admin/v1/namespaces/{namespace}/backends |
 
-用户已确认改用 Namespace 作用域：管理请求显式指定空间，界面可默认选中一个空间，后端不固定空间；引用只在源对象的空间内解析。名称在同一 Kind、同一 Namespace 内唯一，不同空间可同名。目标管理路径为 `/api/admin/v1/namespaces/{namespace}/<resources>`，不保留旧 CRUD 兼容入口；上表仍是尚未切换的当前接口。具体范围和分步状态见 [0013](../decisions/0013-namespaced-resources.md)。Namespace 不是权限或网络隔离的替代品，本次不增加租户、ReferenceGrant 或跨空间授权。
+用户已确认改用 Namespace 作用域：管理请求显式指定空间，界面可默认选中一个空间，后端不固定空间；引用只在源对象的空间内解析。名称在同一 Kind、同一 Namespace 内唯一，不同空间可同名。管理路径为 `/api/admin/v1/namespaces/{namespace}/<resources>`，不保留旧 CRUD 兼容入口；上表已同步为本轮实现的接口，变更待 review。具体范围和分步状态见 [0013](../decisions/0013-namespaced-resources.md)。Namespace 不是权限或网络隔离的替代品，本次不增加租户、ReferenceGrant 或跨空间授权。
 
 资源名称沿用当前 DNS subdomain 规则；Listener 名称沿用 DNS label 规则。端点集合采用现有确定排序；路由规则列表保留声明顺序，因为它是 Gateway API 规定的最终同资源匹配裁决因素。更新仍使用原样的 `metadata.resourceVersion`，不把它解释成跨资源业务发布版本。
 
@@ -210,12 +210,13 @@ ModelRoute/MCPRoute 的 status 复用现有 `RouteParentStatus`；AIBackend 使�
 
 ## 示例：同一个模型服务提供两个对外模型
 
-以下是字段的构造示例，仅解释资源归属。当前 API Server 已接入 AIBackend、ModelRoute、MCPRoute 的声明与存储；模型和 MCP 请求运行链路仍未实现。域名和模型均为示意，没有访问真实提供商，没有创建凭据。
+以下是目标字段的构造示例，仅解释资源归属；其中 Backend.tls 仍是待确认、未实现的建议，不能把整段 YAML 当作当前可执行配置。四个对象显式属于 `team-a`，引用在该空间内解析；应用这些资源前需通过原生 Namespace API 创建这个空间，后端不会自动创建。当前 API Server 已接入 AIBackend、ModelRoute、MCPRoute 的声明与存储；模型和 MCP 请求运行链路仍未实现。域名和模型均为示意，没有访问真实提供商，没有创建凭据。
 
 ```yaml
 apiVersion: gateway.ingate.io/v1alpha1
 kind: Gateway
 metadata:
+  namespace: team-a
   name: public
 spec:
   listeners:
@@ -227,6 +228,7 @@ spec:
 apiVersion: gateway.ingate.io/v1alpha1
 kind: Backend
 metadata:
+  namespace: team-a
   name: model-network
 spec:
   endpoints:
@@ -240,6 +242,7 @@ spec:
 apiVersion: gateway.ingate.io/v1alpha1
 kind: AIBackend
 metadata:
+  namespace: team-a
   name: model-service
 spec:
   backendRef:
@@ -251,6 +254,7 @@ spec:
 apiVersion: gateway.ingate.io/v1alpha1
 kind: ModelRoute
 metadata:
+  namespace: team-a
   name: public-models
 spec:
   parentRefs:
@@ -277,7 +281,7 @@ spec:
           modelNameOverride: text-v3
 ```
 
-在后续运行实现中，调用方在已开放的标准模型接口发送 `model=coding`，匹配第一条规则并将上游模型覆盖为 `code-v2`；`model=summary` 使用同一 AIBackend 和 Backend，只覆盖为 `text-v3`。这份 ModelRoute 不绑定 Chat 或 Responses，也不声明客户端 schema；操作由标准路径决定。示例没有凭据或 TLS，当前只有声明存储、没有运行消费者，不能用于真实提供商或公网部署。
+在后续运行实现中，调用方在已开放的标准模型接口发送 `model=coding`，匹配第一条规则并将上游模型覆盖为 `code-v2`；`model=summary` 使用同一 AIBackend 和 Backend，只覆盖为 `text-v3`。这份 ModelRoute 不绑定 Chat 或 Responses，也不声明客户端 schema；操作由标准路径决定。示例没有凭据，所写 TLS 字段也未实现；当前只有声明存储、没有运行消费者，不能用于真实提供商或公网部署。
 
 HTTPRoute 和 MCPRoute 的引用分别如下；被引用 Backend 需另行定义，它们不使用上面的模型账号：
 
@@ -491,7 +495,7 @@ ParentReference 出现第二个实际管理协议消费者，从 httproute.proto
 
 ## 待确认事项：资源关系不再重选，剩余选择影响实现范围
 
-1. 自有 Group 和 HTTP 子集已确认并实现；原集群级作用域决定已由 [0013](../decisions/0013-namespaced-resources.md)替代为显式 Namespace、同空间引用。编译身份正在切换，存储、管理和投影尚未切换，不据此宣称已经提供 Namespace 管理。
+1. 自有 Group 和 HTTP 子集已确认并实现；原集群级作用域决定已由 [0013](../decisions/0013-namespaced-resources.md)替代为显式 Namespace、同空间引用。编译身份和 Namespace 基础设施已提交，本轮存储、管理和投影全链路切换待 review；具体验证与未覆盖范围见 0013。
 2. 官方 Header 匹配形状及 catch-all、AIBackend 首版 OpenAI/prefix、MCP 基础路径/单后端字段已确认，按 D1 实施，不先启动新服务。操作和真实提供商仍在 [模型操作与部署建议](ai-model-operations-and-deployment.md)中独立 review。
 3. BackendSecurityPolicy 的独立附着建议、凭据存储与权限、AI 客户端入站认证，以及内联 TLS 子集与出口部署边界；用户要求凭据参考官方，新增 [集中凭据与运行配置稿](ai-credentials-and-runtime-config.md)仍待 review，未完成前不接真实密钥或公网入口。
 4. MCP 的目标客户端与协议版本、Go SDK 的真实支持范围；先确定单后端代理，不把聚合当作已有需求。

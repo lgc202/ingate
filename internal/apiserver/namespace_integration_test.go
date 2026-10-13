@@ -16,7 +16,35 @@ import (
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/kube-openapi/pkg/spec3"
 	openapispec "k8s.io/kube-openapi/pkg/validation/spec"
+
+	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
+
+func TestGatewayDiscoveryNamespaceScope(t *testing.T) {
+	client, err := discovery.NewDiscoveryClientForConfig(startAPIServer(t))
+	if err != nil {
+		t.Fatalf("NewDiscoveryClientForConfig() error = %v, want nil", err)
+	}
+	resources, err := client.ServerResourcesForGroupVersion(gatewayv1alpha1.SchemeGroupVersion.String())
+	if err != nil {
+		t.Fatalf("ServerResourcesForGroupVersion(gateway) error = %v, want nil", err)
+	}
+	scopes := make(map[string]bool, len(resources.APIResources))
+	for _, resource := range resources.APIResources {
+		scopes[resource.Name] = resource.Namespaced
+	}
+	want := map[string]bool{
+		"gateways": true, "gateways/status": true,
+		"backends": true, "backends/status": true,
+		"httproutes": true, "httproutes/status": true,
+		"aibackends": true, "aibackends/status": true,
+		"modelroutes": true, "modelroutes/status": true,
+		"mcproutes": true, "mcproutes/status": true,
+	}
+	if diff := cmp.Diff(want, scopes); diff != "" {
+		t.Errorf("Discovery(gateway) namespace scope mismatch (-want +got):\n%s", diff)
+	}
+}
 
 func TestCoreAPIHTTPContract(t *testing.T) {
 	config := startAPIServer(t)

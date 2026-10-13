@@ -14,32 +14,32 @@ service ModelRouteService {
   // CreateModelRoute 创建路由。
   rpc CreateModelRoute(CreateModelRouteRequest) returns (CreateModelRouteReply) {
     option (google.api.http) = {
-      post: "/api/admin/v1/model-routes"
+      post: "/api/admin/v1/namespaces/{namespace}/model-routes"
       body: "*"
     };
   }
 
   // GetModelRoute 读取指定路由。
   rpc GetModelRoute(GetModelRouteRequest) returns (GetModelRouteReply) {
-    option (google.api.http) = {get: "/api/admin/v1/model-routes/{name}"};
+    option (google.api.http) = {get: "/api/admin/v1/namespaces/{namespace}/model-routes/{name}"};
   }
 
   // ListModelRoutes 分页列出路由。
   rpc ListModelRoutes(ListModelRoutesRequest) returns (ListModelRoutesReply) {
-    option (google.api.http) = {get: "/api/admin/v1/model-routes"};
+    option (google.api.http) = {get: "/api/admin/v1/namespaces/{namespace}/model-routes"};
   }
 
   // UpdateModelRoute 完整替换路由的可编辑配置。
   rpc UpdateModelRoute(UpdateModelRouteRequest) returns (UpdateModelRouteReply) {
     option (google.api.http) = {
-      put: "/api/admin/v1/model-routes/{name}"
+      put: "/api/admin/v1/namespaces/{namespace}/model-routes/{name}"
       body: "*"
     };
   }
 
   // DeleteModelRoute 删除指定路由。
   rpc DeleteModelRoute(DeleteModelRouteRequest) returns (DeleteModelRouteReply) {
-    option (google.api.http) = {delete: "/api/admin/v1/model-routes/{name}"};
+    option (google.api.http) = {delete: "/api/admin/v1/namespaces/{namespace}/model-routes/{name}"};
   }
 }
 
@@ -51,6 +51,12 @@ message CreateModelRouteRequest {
   repeated ParentReference parent_refs = 2 [(buf.validate.field).repeated = {min_items: 1, max_items: 16}];
   // rules 按列表顺序保存规则。
   repeated ModelRouteRule rules = 3 [(buf.validate.field).repeated = {min_items: 1, max_items: 15}];
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 4 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // CreateModelRouteReply 表示创建后的路由。
@@ -61,8 +67,14 @@ message CreateModelRouteReply {
 
 // GetModelRouteRequest 表示读取路由的请求。
 message GetModelRouteRequest {
-  // name 是资源的稳定名称。
+  // name 是资源在所属命名空间内的稳定名称。
   string name = 1 [(buf.validate.field).string.min_len = 1];
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // GetModelRouteReply 表示读取到的路由。
@@ -81,6 +93,12 @@ message ListModelRoutesRequest {
   string display_name = 3;
   // gateway_name 精确筛选声明了指定 Gateway 引用的路由。
   string gateway_name = 4;
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 5 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // ListModelRoutesReply 表示一页路由。
@@ -93,7 +111,7 @@ message ListModelRoutesReply {
 
 // UpdateModelRouteRequest 表示完整替换路由的可编辑配置。
 message UpdateModelRouteRequest {
-  // name 是资源的稳定名称，不允许通过更新修改。
+  // name 是资源在所属命名空间内的稳定名称，不允许通过更新修改。
   string name = 1 [(buf.validate.field).string.min_len = 1];
   // version 是读取路由时获得的版本，用于并发更新检查。
   string version = 2 [(buf.validate.field).string.min_len = 1];
@@ -103,6 +121,12 @@ message UpdateModelRouteRequest {
   repeated ModelRouteRule rules = 4 [(buf.validate.field).repeated = {min_items: 1, max_items: 15}];
   // display_name 是可修改且允许重复的展示名称，不改变资源引用。
   string display_name = 5;
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 6 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // UpdateModelRouteReply 表示更新后的路由。
@@ -113,8 +137,14 @@ message UpdateModelRouteReply {
 
 // DeleteModelRouteRequest 表示删除路由的请求。
 message DeleteModelRouteRequest {
-  // name 是资源的稳定名称。
+  // name 是资源在所属命名空间内的稳定名称。
   string name = 1 [(buf.validate.field).string.min_len = 1];
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // DeleteModelRouteReply 表示 API Server 已接受删除请求。
@@ -122,7 +152,7 @@ message DeleteModelRouteReply {}
 
 // ModelRoute 表示面向产品调用方的路由。
 message ModelRoute {
-  // name 是资源的稳定名称。
+  // name 是资源在所属命名空间内的稳定名称。
   string name = 1;
   // parent_refs 引用入口及可选 Listener。
   repeated ParentReference parent_refs = 2 [(buf.validate.field).repeated = {min_items: 1, max_items: 16}];
@@ -134,6 +164,8 @@ message ModelRoute {
   string version = 5;
   // display_name 是供人阅读的名称，不用于资源引用。
   string display_name = 6;
+  // namespace 是资源所属的命名空间。
+  string namespace = 7;
 }
 
 // ModelRouteRule 保存有序模型规则，不包含操作路径或 API 格式。
@@ -162,7 +194,7 @@ message HTTPHeaderMatch {
   string value = 3 [(buf.validate.field).string.min_len = 1];
 }
 
-// AIBackendReference 引用模型服务，并可覆盖出站模型名称。
+// AIBackendReference 引用同一命名空间的模型服务，并可覆盖出站模型名称。
 message AIBackendReference {
   // name 是 AIBackend 的稳定名称，不要求引用已存在。
   string name = 1 [(buf.validate.field).string.min_len = 1];

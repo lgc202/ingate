@@ -16,6 +16,7 @@ func TestMCPRouteToMySQLPreservesConfig(t *testing.T) {
 	createdAt := time.Date(2026, 10, 12, 9, 2, 3, 0, time.FixedZone("UTC+8", 8*60*60))
 	route := &gatewayv1alpha1.MCPRoute{
 		ObjectMeta: metav1.ObjectMeta{
+			Namespace:         "team-a",
 			Name:              "tools",
 			ResourceVersion:   "9",
 			CreationTimestamp: metav1.NewTime(createdAt),
@@ -33,6 +34,7 @@ func TestMCPRouteToMySQLPreservesConfig(t *testing.T) {
 	unchanged := route.DeepCopy()
 	got := mcpRouteToMySQL(route)
 	want := mysql.MCPRoute{
+		Namespace:   "team-a",
 		Name:        "tools",
 		DisplayName: "工具路由",
 		Version:     "9",

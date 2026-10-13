@@ -38,17 +38,20 @@ type AIBackendServiceHTTPServer interface {
 
 func RegisterAIBackendServiceHTTPServer(s *http.Server, srv AIBackendServiceHTTPServer) {
 	r := s.Route("/")
-	r.Handle("POST", "/api/admin/v1/ai-backends", _AIBackendService_CreateAIBackend0_HTTP_Handler(srv))
-	r.Handle("GET", "/api/admin/v1/ai-backends/{name}", _AIBackendService_GetAIBackend0_HTTP_Handler(srv))
-	r.Handle("GET", "/api/admin/v1/ai-backends", _AIBackendService_ListAIBackends0_HTTP_Handler(srv))
-	r.Handle("PUT", "/api/admin/v1/ai-backends/{name}", _AIBackendService_UpdateAIBackend0_HTTP_Handler(srv))
-	r.Handle("DELETE", "/api/admin/v1/ai-backends/{name}", _AIBackendService_DeleteAIBackend0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/admin/v1/namespaces/{namespace}/ai-backends", _AIBackendService_CreateAIBackend0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/admin/v1/namespaces/{namespace}/ai-backends/{name}", _AIBackendService_GetAIBackend0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/admin/v1/namespaces/{namespace}/ai-backends", _AIBackendService_ListAIBackends0_HTTP_Handler(srv))
+	r.Handle("PUT", "/api/admin/v1/namespaces/{namespace}/ai-backends/{name}", _AIBackendService_UpdateAIBackend0_HTTP_Handler(srv))
+	r.Handle("DELETE", "/api/admin/v1/namespaces/{namespace}/ai-backends/{name}", _AIBackendService_DeleteAIBackend0_HTTP_Handler(srv))
 }
 
 func _AIBackendService_CreateAIBackend0_HTTP_Handler(srv AIBackendServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in CreateAIBackendRequest
 		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationAIBackendServiceCreateAIBackend)
@@ -90,6 +93,9 @@ func _AIBackendService_ListAIBackends0_HTTP_Handler(srv AIBackendServiceHTTPServ
 	return func(ctx http.Context) error {
 		var in ListAIBackendsRequest
 		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationAIBackendServiceListAIBackends)
@@ -173,7 +179,7 @@ func NewAIBackendServiceHTTPClient(client *http.Client) AIBackendServiceHTTPClie
 // CreateAIBackend CreateAIBackend 创建模型服务。
 func (c *AIBackendServiceHTTPClientImpl) CreateAIBackend(ctx context.Context, in *CreateAIBackendRequest, opts ...http.CallOption) (*CreateAIBackendReply, error) {
 	var out CreateAIBackendReply
-	pattern := "/api/admin/v1/ai-backends"
+	pattern := "/api/admin/v1/namespaces/{namespace}/ai-backends"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -191,7 +197,7 @@ func (c *AIBackendServiceHTTPClientImpl) CreateAIBackend(ctx context.Context, in
 // DeleteAIBackend DeleteAIBackend 删除指定模型服务。
 func (c *AIBackendServiceHTTPClientImpl) DeleteAIBackend(ctx context.Context, in *DeleteAIBackendRequest, opts ...http.CallOption) (*DeleteAIBackendReply, error) {
 	var out DeleteAIBackendReply
-	pattern := "/api/admin/v1/ai-backends/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/ai-backends/{name}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -208,7 +214,7 @@ func (c *AIBackendServiceHTTPClientImpl) DeleteAIBackend(ctx context.Context, in
 // GetAIBackend GetAIBackend 读取指定模型服务。
 func (c *AIBackendServiceHTTPClientImpl) GetAIBackend(ctx context.Context, in *GetAIBackendRequest, opts ...http.CallOption) (*GetAIBackendReply, error) {
 	var out GetAIBackendReply
-	pattern := "/api/admin/v1/ai-backends/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/ai-backends/{name}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -225,7 +231,7 @@ func (c *AIBackendServiceHTTPClientImpl) GetAIBackend(ctx context.Context, in *G
 // ListAIBackends ListAIBackends 分页列出模型服务。
 func (c *AIBackendServiceHTTPClientImpl) ListAIBackends(ctx context.Context, in *ListAIBackendsRequest, opts ...http.CallOption) (*ListAIBackendsReply, error) {
 	var out ListAIBackendsReply
-	pattern := "/api/admin/v1/ai-backends"
+	pattern := "/api/admin/v1/namespaces/{namespace}/ai-backends"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -242,7 +248,7 @@ func (c *AIBackendServiceHTTPClientImpl) ListAIBackends(ctx context.Context, in 
 // UpdateAIBackend UpdateAIBackend 完整替换模型服务的可编辑配置。
 func (c *AIBackendServiceHTTPClientImpl) UpdateAIBackend(ctx context.Context, in *UpdateAIBackendRequest, opts ...http.CallOption) (*UpdateAIBackendReply, error) {
 	var out UpdateAIBackendReply
-	pattern := "/api/admin/v1/ai-backends/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/ai-backends/{name}"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),

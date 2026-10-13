@@ -79,7 +79,9 @@ type CreateGatewayRequest struct {
 	// display_name 是供人阅读的名称，不参与资源引用或流量匹配。
 	DisplayName string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// listeners 是网关对外暴露的监听入口。
-	Listeners     []*Listener `protobuf:"bytes,3,rep,name=listeners,proto3" json:"listeners,omitempty"`
+	Listeners []*Listener `protobuf:"bytes,3,rep,name=listeners,proto3" json:"listeners,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,4,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -126,6 +128,13 @@ func (x *CreateGatewayRequest) GetListeners() []*Listener {
 		return x.Listeners
 	}
 	return nil
+}
+
+func (x *CreateGatewayRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
 }
 
 // CreateGatewayReply 表示创建网关的结果。
@@ -177,8 +186,10 @@ func (x *CreateGatewayReply) GetGateway() *Gateway {
 // GetGatewayRequest 表示读取网关的请求。
 type GetGatewayRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// name 是资源在所属命名空间内的稳定名称。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -216,6 +227,13 @@ func (*GetGatewayRequest) Descriptor() ([]byte, []int) {
 func (x *GetGatewayRequest) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *GetGatewayRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -274,7 +292,9 @@ type ListGatewaysRequest struct {
 	// page_num 是从 1 开始的页码；为零时使用第一页。
 	PageNum int32 `protobuf:"varint,2,opt,name=page_num,json=pageNum,proto3" json:"page_num,omitempty"`
 	// display_name 按展示名称文字包含匹配筛选，空值表示不筛选。
-	DisplayName   string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	DisplayName string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,4,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -326,6 +346,13 @@ func (x *ListGatewaysRequest) GetPageNum() int32 {
 func (x *ListGatewaysRequest) GetDisplayName() string {
 	if x != nil {
 		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *ListGatewaysRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -388,14 +415,16 @@ func (x *ListGatewaysReply) GetTotalCount() int64 {
 // UpdateGatewayRequest 表示完整替换网关的可编辑配置。
 type UpdateGatewayRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称，不允许通过更新修改。
+	// name 是资源在所属命名空间内的稳定名称，不允许通过更新修改。
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// version 是读取网关时获得的版本，用于并发更新检查。
 	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
 	// display_name 是供人阅读的名称。
 	DisplayName string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// listeners 是网关对外暴露的监听入口。
-	Listeners     []*Listener `protobuf:"bytes,4,rep,name=listeners,proto3" json:"listeners,omitempty"`
+	Listeners []*Listener `protobuf:"bytes,4,rep,name=listeners,proto3" json:"listeners,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,5,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -458,6 +487,13 @@ func (x *UpdateGatewayRequest) GetListeners() []*Listener {
 	return nil
 }
 
+func (x *UpdateGatewayRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
 // UpdateGatewayReply 表示更新后的网关。
 type UpdateGatewayReply struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -507,8 +543,10 @@ func (x *UpdateGatewayReply) GetGateway() *Gateway {
 // DeleteGatewayRequest 表示删除网关的请求。
 type DeleteGatewayRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// name 是资源在所属命名空间内的稳定名称。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -546,6 +584,13 @@ func (*DeleteGatewayRequest) Descriptor() ([]byte, []int) {
 func (x *DeleteGatewayRequest) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *DeleteGatewayRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -590,7 +635,7 @@ func (*DeleteGatewayReply) Descriptor() ([]byte, []int) {
 // Gateway 表示面向产品调用方的网关。
 type Gateway struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
+	// name 是资源在所属命名空间内的稳定名称。
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// display_name 是供人阅读的名称。
 	DisplayName string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
@@ -599,7 +644,9 @@ type Gateway struct {
 	// create_time 是资源的创建时间。
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	// version 是更新时必须提交的资源版本。
-	Version       string `protobuf:"bytes,5,opt,name=version,proto3" json:"version,omitempty"`
+	Version string `protobuf:"bytes,5,opt,name=version,proto3" json:"version,omitempty"`
+	// namespace 是资源所属的命名空间。
+	Namespace     string `protobuf:"bytes,6,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -669,7 +716,14 @@ func (x *Gateway) GetVersion() string {
 	return ""
 }
 
-// ParentReference 引用 Gateway 及可选 Listener。
+func (x *Gateway) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+// ParentReference 引用同一命名空间的 Gateway 及可选 Listener。
 type ParentReference struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// name 是 Gateway 的稳定名称。
@@ -801,42 +855,48 @@ var File_admin_v1_gateway_proto protoreflect.FileDescriptor
 
 const file_admin_v1_gateway_proto_rawDesc = "" +
 	"\n" +
-	"\x16admin/v1/gateway.proto\x12\badmin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x81\x01\n" +
+	"\x16admin/v1/gateway.proto\x12\badmin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcb\x01\n" +
 	"\x14CreateGatewayRequest\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12:\n" +
-	"\tlisteners\x18\x03 \x03(\v2\x12.admin.v1.ListenerB\b\xbaH\x05\x92\x01\x02\b\x01R\tlistenersJ\x04\b\x01\x10\x02R\x04name\"A\n" +
+	"\tlisteners\x18\x03 \x03(\v2\x12.admin.v1.ListenerB\b\xbaH\x05\x92\x01\x02\b\x01R\tlisteners\x12H\n" +
+	"\tnamespace\x18\x04 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespaceJ\x04\b\x01\x10\x02R\x04name\"A\n" +
 	"\x12CreateGatewayReply\x12+\n" +
-	"\agateway\x18\x01 \x01(\v2\x11.admin.v1.GatewayR\agateway\"0\n" +
+	"\agateway\x18\x01 \x01(\v2\x11.admin.v1.GatewayR\agateway\"z\n" +
 	"\x11GetGatewayRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\">\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12H\n" +
+	"\tnamespace\x18\x02 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\">\n" +
 	"\x0fGetGatewayReply\x12+\n" +
-	"\agateway\x18\x01 \x01(\v2\x11.admin.v1.GatewayR\agateway\"\x85\x01\n" +
+	"\agateway\x18\x01 \x01(\v2\x11.admin.v1.GatewayR\agateway\"\xcf\x01\n" +
 	"\x13ListGatewaysRequest\x12'\n" +
 	"\tpage_size\x18\x01 \x01(\x05B\n" +
 	"\xbaH\a\x1a\x05\x18\xc8\x01(\x00R\bpageSize\x12\"\n" +
 	"\bpage_num\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\apageNum\x12!\n" +
-	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\"c\n" +
+	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12H\n" +
+	"\tnamespace\x18\x04 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"c\n" +
 	"\x11ListGatewaysReply\x12-\n" +
 	"\bgateways\x18\x01 \x03(\v2\x11.admin.v1.GatewayR\bgateways\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x03R\n" +
-	"totalCount\"\xb5\x01\n" +
+	"totalCount\"\xff\x01\n" +
 	"\x14UpdateGatewayRequest\x12\x1b\n" +
 	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12!\n" +
 	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12:\n" +
-	"\tlisteners\x18\x04 \x03(\v2\x12.admin.v1.ListenerB\b\xbaH\x05\x92\x01\x02\b\x01R\tlisteners\"A\n" +
+	"\tlisteners\x18\x04 \x03(\v2\x12.admin.v1.ListenerB\b\xbaH\x05\x92\x01\x02\b\x01R\tlisteners\x12H\n" +
+	"\tnamespace\x18\x05 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"A\n" +
 	"\x12UpdateGatewayReply\x12+\n" +
-	"\agateway\x18\x01 \x01(\v2\x11.admin.v1.GatewayR\agateway\"3\n" +
+	"\agateway\x18\x01 \x01(\v2\x11.admin.v1.GatewayR\agateway\"}\n" +
 	"\x14DeleteGatewayRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\"\x14\n" +
-	"\x12DeleteGatewayReply\"\xc9\x01\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12H\n" +
+	"\tnamespace\x18\x02 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"\x14\n" +
+	"\x12DeleteGatewayReply\"\xe7\x01\n" +
 	"\aGateway\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x120\n" +
 	"\tlisteners\x18\x03 \x03(\v2\x12.admin.v1.ListenerR\tlisteners\x12;\n" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createTime\x12\x18\n" +
-	"\aversion\x18\x05 \x01(\tR\aversion\"Q\n" +
+	"\aversion\x18\x05 \x01(\tR\aversion\x12\x1c\n" +
+	"\tnamespace\x18\x06 \x01(\tR\tnamespace\"Q\n" +
 	"\x0fParentReference\x12\x1b\n" +
 	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12!\n" +
 	"\fsection_name\x18\x02 \x01(\tR\vsectionName\"\x97\x02\n" +
@@ -847,14 +907,14 @@ const file_admin_v1_gateway_proto_rawDesc = "" +
 	"\bhostname\x18\x04 \x01(\tBN\xbaHK\xd8\x01\x01rF\x18\xfd\x012A^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$R\bhostname*Q\n" +
 	"\x10ListenerProtocol\x12!\n" +
 	"\x1dLISTENER_PROTOCOL_UNSPECIFIED\x10\x00\x12\x1a\n" +
-	"\x16LISTENER_PROTOCOL_HTTP\x10\x012\xca\x04\n" +
-	"\x0eGatewayService\x12p\n" +
-	"\rCreateGateway\x12\x1e.admin.v1.CreateGatewayRequest\x1a\x1c.admin.v1.CreateGatewayReply\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/api/admin/v1/gateways\x12k\n" +
+	"\x16LISTENER_PROTOCOL_HTTP\x10\x012\xc2\x05\n" +
+	"\x0eGatewayService\x12\x87\x01\n" +
+	"\rCreateGateway\x12\x1e.admin.v1.CreateGatewayRequest\x1a\x1c.admin.v1.CreateGatewayReply\"8\x82\xd3\xe4\x93\x022:\x01*\"-/api/admin/v1/namespaces/{namespace}/gateways\x12\x82\x01\n" +
 	"\n" +
-	"GetGateway\x12\x1b.admin.v1.GetGatewayRequest\x1a\x19.admin.v1.GetGatewayReply\"%\x82\xd3\xe4\x93\x02\x1f\x12\x1d/api/admin/v1/gateways/{name}\x12j\n" +
-	"\fListGateways\x12\x1d.admin.v1.ListGatewaysRequest\x1a\x1b.admin.v1.ListGatewaysReply\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/api/admin/v1/gateways\x12w\n" +
-	"\rUpdateGateway\x12\x1e.admin.v1.UpdateGatewayRequest\x1a\x1c.admin.v1.UpdateGatewayReply\"(\x82\xd3\xe4\x93\x02\":\x01*\x1a\x1d/api/admin/v1/gateways/{name}\x12t\n" +
-	"\rDeleteGateway\x12\x1e.admin.v1.DeleteGatewayRequest\x1a\x1c.admin.v1.DeleteGatewayReply\"%\x82\xd3\xe4\x93\x02\x1f*\x1d/api/admin/v1/gateways/{name}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"GetGateway\x12\x1b.admin.v1.GetGatewayRequest\x1a\x19.admin.v1.GetGatewayReply\"<\x82\xd3\xe4\x93\x026\x124/api/admin/v1/namespaces/{namespace}/gateways/{name}\x12\x81\x01\n" +
+	"\fListGateways\x12\x1d.admin.v1.ListGatewaysRequest\x1a\x1b.admin.v1.ListGatewaysReply\"5\x82\xd3\xe4\x93\x02/\x12-/api/admin/v1/namespaces/{namespace}/gateways\x12\x8e\x01\n" +
+	"\rUpdateGateway\x12\x1e.admin.v1.UpdateGatewayRequest\x1a\x1c.admin.v1.UpdateGatewayReply\"?\x82\xd3\xe4\x93\x029:\x01*\x1a4/api/admin/v1/namespaces/{namespace}/gateways/{name}\x12\x8b\x01\n" +
+	"\rDeleteGateway\x12\x1e.admin.v1.DeleteGatewayRequest\x1a\x1c.admin.v1.DeleteGatewayReply\"<\x82\xd3\xe4\x93\x026*4/api/admin/v1/namespaces/{namespace}/gateways/{name}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_gateway_proto_rawDescOnce sync.Once

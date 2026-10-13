@@ -38,17 +38,20 @@ type BackendServiceHTTPServer interface {
 
 func RegisterBackendServiceHTTPServer(s *http.Server, srv BackendServiceHTTPServer) {
 	r := s.Route("/")
-	r.Handle("POST", "/api/admin/v1/backends", _BackendService_CreateBackend0_HTTP_Handler(srv))
-	r.Handle("GET", "/api/admin/v1/backends/{name}", _BackendService_GetBackend0_HTTP_Handler(srv))
-	r.Handle("GET", "/api/admin/v1/backends", _BackendService_ListBackends0_HTTP_Handler(srv))
-	r.Handle("PUT", "/api/admin/v1/backends/{name}", _BackendService_UpdateBackend0_HTTP_Handler(srv))
-	r.Handle("DELETE", "/api/admin/v1/backends/{name}", _BackendService_DeleteBackend0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/admin/v1/namespaces/{namespace}/backends", _BackendService_CreateBackend0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/admin/v1/namespaces/{namespace}/backends/{name}", _BackendService_GetBackend0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/admin/v1/namespaces/{namespace}/backends", _BackendService_ListBackends0_HTTP_Handler(srv))
+	r.Handle("PUT", "/api/admin/v1/namespaces/{namespace}/backends/{name}", _BackendService_UpdateBackend0_HTTP_Handler(srv))
+	r.Handle("DELETE", "/api/admin/v1/namespaces/{namespace}/backends/{name}", _BackendService_DeleteBackend0_HTTP_Handler(srv))
 }
 
 func _BackendService_CreateBackend0_HTTP_Handler(srv BackendServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in CreateBackendRequest
 		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationBackendServiceCreateBackend)
@@ -90,6 +93,9 @@ func _BackendService_ListBackends0_HTTP_Handler(srv BackendServiceHTTPServer) fu
 	return func(ctx http.Context) error {
 		var in ListBackendsRequest
 		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationBackendServiceListBackends)
@@ -173,7 +179,7 @@ func NewBackendServiceHTTPClient(client *http.Client) BackendServiceHTTPClient {
 // CreateBackend CreateBackend 创建后端资源。
 func (c *BackendServiceHTTPClientImpl) CreateBackend(ctx context.Context, in *CreateBackendRequest, opts ...http.CallOption) (*CreateBackendReply, error) {
 	var out CreateBackendReply
-	pattern := "/api/admin/v1/backends"
+	pattern := "/api/admin/v1/namespaces/{namespace}/backends"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -191,7 +197,7 @@ func (c *BackendServiceHTTPClientImpl) CreateBackend(ctx context.Context, in *Cr
 // DeleteBackend DeleteBackend 删除指定后端资源。
 func (c *BackendServiceHTTPClientImpl) DeleteBackend(ctx context.Context, in *DeleteBackendRequest, opts ...http.CallOption) (*DeleteBackendReply, error) {
 	var out DeleteBackendReply
-	pattern := "/api/admin/v1/backends/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/backends/{name}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -208,7 +214,7 @@ func (c *BackendServiceHTTPClientImpl) DeleteBackend(ctx context.Context, in *De
 // GetBackend GetBackend 读取指定后端资源。
 func (c *BackendServiceHTTPClientImpl) GetBackend(ctx context.Context, in *GetBackendRequest, opts ...http.CallOption) (*GetBackendReply, error) {
 	var out GetBackendReply
-	pattern := "/api/admin/v1/backends/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/backends/{name}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -225,7 +231,7 @@ func (c *BackendServiceHTTPClientImpl) GetBackend(ctx context.Context, in *GetBa
 // ListBackends ListBackends 分页列出后端资源。
 func (c *BackendServiceHTTPClientImpl) ListBackends(ctx context.Context, in *ListBackendsRequest, opts ...http.CallOption) (*ListBackendsReply, error) {
 	var out ListBackendsReply
-	pattern := "/api/admin/v1/backends"
+	pattern := "/api/admin/v1/namespaces/{namespace}/backends"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -242,7 +248,7 @@ func (c *BackendServiceHTTPClientImpl) ListBackends(ctx context.Context, in *Lis
 // UpdateBackend UpdateBackend 完整替换后端资源的可编辑配置。
 func (c *BackendServiceHTTPClientImpl) UpdateBackend(ctx context.Context, in *UpdateBackendRequest, opts ...http.CallOption) (*UpdateBackendReply, error) {
 	var out UpdateBackendReply
-	pattern := "/api/admin/v1/backends/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/backends/{name}"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),

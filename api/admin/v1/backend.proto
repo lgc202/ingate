@@ -13,32 +13,32 @@ service BackendService {
   // CreateBackend 创建后端资源。
   rpc CreateBackend(CreateBackendRequest) returns (CreateBackendReply) {
     option (google.api.http) = {
-      post: "/api/admin/v1/backends"
+      post: "/api/admin/v1/namespaces/{namespace}/backends"
       body: "*"
     };
   }
 
   // GetBackend 读取指定后端资源。
   rpc GetBackend(GetBackendRequest) returns (GetBackendReply) {
-    option (google.api.http) = {get: "/api/admin/v1/backends/{name}"};
+    option (google.api.http) = {get: "/api/admin/v1/namespaces/{namespace}/backends/{name}"};
   }
 
   // ListBackends 分页列出后端资源。
   rpc ListBackends(ListBackendsRequest) returns (ListBackendsReply) {
-    option (google.api.http) = {get: "/api/admin/v1/backends"};
+    option (google.api.http) = {get: "/api/admin/v1/namespaces/{namespace}/backends"};
   }
 
   // UpdateBackend 完整替换后端资源的可编辑配置。
   rpc UpdateBackend(UpdateBackendRequest) returns (UpdateBackendReply) {
     option (google.api.http) = {
-      put: "/api/admin/v1/backends/{name}"
+      put: "/api/admin/v1/namespaces/{namespace}/backends/{name}"
       body: "*"
     };
   }
 
   // DeleteBackend 删除指定后端资源。
   rpc DeleteBackend(DeleteBackendRequest) returns (DeleteBackendReply) {
-    option (google.api.http) = {delete: "/api/admin/v1/backends/{name}"};
+    option (google.api.http) = {delete: "/api/admin/v1/namespaces/{namespace}/backends/{name}"};
   }
 }
 
@@ -48,6 +48,12 @@ message CreateBackendRequest {
   string display_name = 1;
   // endpoints 是后端地址及其相对权重；输入顺序没有业务含义。
   repeated Endpoint endpoints = 2 [(buf.validate.field).repeated.min_items = 1];
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 3 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // CreateBackendReply 表示创建后的后端资源。
@@ -58,8 +64,14 @@ message CreateBackendReply {
 
 // GetBackendRequest 表示读取后端资源的请求。
 message GetBackendRequest {
-  // name 是资源的稳定名称。
+  // name 是资源在所属命名空间内的稳定名称。
   string name = 1 [(buf.validate.field).string.min_len = 1];
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // GetBackendReply 表示读取到的后端资源。
@@ -76,6 +88,12 @@ message ListBackendsRequest {
   int32 page_num = 2 [(buf.validate.field).int32.gte = 0];
   // display_name 按展示名称文字包含匹配筛选。
   string display_name = 3;
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 4 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // ListBackendsReply 表示一页后端资源。
@@ -88,7 +106,7 @@ message ListBackendsReply {
 
 // UpdateBackendRequest 表示完整替换后端资源的可编辑配置。
 message UpdateBackendRequest {
-  // name 是资源的稳定名称，不允许通过更新修改。
+  // name 是资源在所属命名空间内的稳定名称，不允许通过更新修改。
   string name = 1 [(buf.validate.field).string.min_len = 1];
   // version 是读取后端资源时获得的版本，用于并发更新检查。
   string version = 2 [(buf.validate.field).string.min_len = 1];
@@ -96,6 +114,12 @@ message UpdateBackendRequest {
   repeated Endpoint endpoints = 3 [(buf.validate.field).repeated.min_items = 1];
   // display_name 是可修改且允许重复的展示名称，不改变资源引用。
   string display_name = 4;
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 5 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // UpdateBackendReply 表示更新后的后端资源。
@@ -106,8 +130,14 @@ message UpdateBackendReply {
 
 // DeleteBackendRequest 表示删除后端资源的请求。
 message DeleteBackendRequest {
-  // name 是资源的稳定名称。
+  // name 是资源在所属命名空间内的稳定名称。
   string name = 1 [(buf.validate.field).string.min_len = 1];
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // DeleteBackendReply 表示 API Server 已接受删除请求。
@@ -115,7 +145,7 @@ message DeleteBackendReply {}
 
 // Backend 表示面向产品调用方的后端资源。
 message Backend {
-  // name 是资源的稳定名称。
+  // name 是资源在所属命名空间内的稳定名称。
   string name = 1;
   // endpoints 是后端地址及其相对权重，按地址和端口排序返回。
   repeated Endpoint endpoints = 2;
@@ -125,9 +155,11 @@ message Backend {
   string version = 4;
   // display_name 是供人阅读的名称，不用于资源引用。
   string display_name = 5;
+  // namespace 是资源所属的命名空间。
+  string namespace = 6;
 }
 
-// BackendReference 引用网络后端。
+// BackendReference 引用同一命名空间的网络后端。
 message BackendReference {
   // name 是 Backend 的稳定名称。
   string name = 1 [(buf.validate.field).string.min_len = 1];

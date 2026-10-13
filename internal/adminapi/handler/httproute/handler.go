@@ -44,6 +44,7 @@ func (h *Handler) CreateHTTPRoute(
 	req *adminv1.CreateHTTPRouteRequest,
 ) (*adminv1.CreateHTTPRouteReply, error) {
 	created, err := h.service.Create(ctx, routeservice.CreateParams{
+		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
 		ParentRefs:  parentsFromProto(req.GetParentRefs()),
 		Rules:       rulesFromProto(req.GetRules()),
@@ -60,7 +61,7 @@ func (h *Handler) GetHTTPRoute(
 	ctx context.Context,
 	req *adminv1.GetHTTPRouteRequest,
 ) (*adminv1.GetHTTPRouteReply, error) {
-	route, err := h.service.Get(ctx, req.GetName())
+	route, err := h.service.Get(ctx, req.GetNamespace(), req.GetName())
 	if err != nil {
 		return nil, toTransportError(ctx, err)
 	}
@@ -74,6 +75,7 @@ func (h *Handler) ListHTTPRoutes(
 	req *adminv1.ListHTTPRoutesRequest,
 ) (*adminv1.ListHTTPRoutesReply, error) {
 	page, err := h.service.List(ctx, routeservice.ListParams{
+		Namespace:   req.GetNamespace(),
 		PageSize:    req.GetPageSize(),
 		PageNum:     req.GetPageNum(),
 		DisplayName: req.GetDisplayName(),
@@ -97,6 +99,7 @@ func (h *Handler) UpdateHTTPRoute(
 	req *adminv1.UpdateHTTPRouteRequest,
 ) (*adminv1.UpdateHTTPRouteReply, error) {
 	updated, err := h.service.Update(ctx, routeservice.UpdateParams{
+		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
 		Name:        req.GetName(),
 		Version:     req.GetVersion(),
@@ -115,7 +118,7 @@ func (h *Handler) DeleteHTTPRoute(
 	ctx context.Context,
 	req *adminv1.DeleteHTTPRouteRequest,
 ) (*adminv1.DeleteHTTPRouteReply, error) {
-	if err := h.service.Delete(ctx, req.GetName()); err != nil {
+	if err := h.service.Delete(ctx, req.GetNamespace(), req.GetName()); err != nil {
 		return nil, toTransportError(ctx, err)
 	}
 
@@ -170,6 +173,7 @@ func pathTypeFromProto(pathType adminv1.PathMatchType) gatewayv1alpha1.PathMatch
 
 func routeToProto(route repository.HTTPRouteInfo) *adminv1.HTTPRoute {
 	result := &adminv1.HTTPRoute{
+		Namespace:   route.Namespace,
 		Name:        route.Name,
 		DisplayName: route.DisplayName,
 		CreateTime:  timestamppb.New(route.CreateTime),

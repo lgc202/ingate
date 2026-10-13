@@ -15,7 +15,7 @@ import (
 func ValidateBackend(backend *gateway.Backend) field.ErrorList {
 	errs := apivalidation.ValidateObjectMeta(
 		&backend.ObjectMeta,
-		false,
+		true,
 		apivalidation.NameIsDNSSubdomain,
 		field.NewPath("metadata"),
 	)

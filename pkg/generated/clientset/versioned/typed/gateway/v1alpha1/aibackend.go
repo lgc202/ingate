@@ -16,7 +16,7 @@ import (
 // AIBackendsGetter has a method to return a AIBackendInterface.
 // A group's client should implement this interface.
 type AIBackendsGetter interface {
-	AIBackends() AIBackendInterface
+	AIBackends(namespace string) AIBackendInterface
 }
 
 // AIBackendInterface has methods to work with AIBackend resources.
@@ -40,13 +40,13 @@ type aIBackends struct {
 }
 
 // newAIBackends returns a AIBackends
-func newAIBackends(c *GatewayV1alpha1Client) *aIBackends {
+func newAIBackends(c *GatewayV1alpha1Client, namespace string) *aIBackends {
 	return &aIBackends{
 		gentype.NewClientWithList[*gatewayv1alpha1.AIBackend, *gatewayv1alpha1.AIBackendList](
 			"aibackends",
 			c.RESTClient(),
 			scheme.ParameterCodec,
-			"",
+			namespace,
 			func() *gatewayv1alpha1.AIBackend { return &gatewayv1alpha1.AIBackend{} },
 			func() *gatewayv1alpha1.AIBackendList { return &gatewayv1alpha1.AIBackendList{} },
 		),

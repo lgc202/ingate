@@ -1,7 +1,7 @@
 # API 网关完成度与 AI 网关开发条件
 
-- 评估日期：2026-10-10；2026-10-11 同步 ADS 反馈；2026-10-12 同步声明式资源及 AIBackend、ModelRoute、MCPRoute 管理与投影
-- 源码基线：`f054c54b` 已提交 MCPRoute 管理与查询投影；当前共享协调器组织调整待用户 review，未提交；HTTP 替换前评估基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
+- 评估日期：2026-10-10；2026-10-11 同步 ADS 反馈；2026-10-12 同步声明式资源及 AIBackend、ModelRoute、MCPRoute 管理与投影；2026-10-13 同步 Namespace 全链路切换
+- 源码基线：`f054c54b` 已提交 MCPRoute 管理与查询投影；共享协调器及 Namespace 基础设施已提交；当前六种资源 Namespace 全链路切换待用户 review，未提交；HTTP 替换前评估基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
 - 分支：`codex/rebuild-from-zero`
 - 范围：现有三个组件、资源契约、控制面到数据面的调用关系与已有测试；HTTPRoute/Backend 替换已实现，用户于 2026-10-11 授权提交，真实组件验收仍未完成
 - AI 方向：[0010 决策](decisions/0010-unified-ai-proxy-config-delivery.md)
@@ -21,11 +21,11 @@ Ingate 已具备 HTTP 网关的控制面主结构和最小转发配置实现：�
 
 ## 当前主路径与术语
 
-2026-10-13 增补：Namespace 内部类型、存储生命周期、按资源编码工厂和 OpenAPI 已提交；原生 `/api/v1/namespaces`、`/status`、`/finalize` 接入提交为 `e649d9f6`。真实 HTTPS 与隔离 etcd 检查覆盖 Discovery、v2/v3 文档、字段保护和手动 finalize。官方 NamespaceLifecycle 本地数据源提交为 `9182df44`；两个隔离 API Server 验证插件以 Ingate 的 Namespace 存在性和阶段为准，不采用宿主同名对象。官方删除内核、Manager 的 Namespace Watch、内容等待重排和失败重试已提交为 `5cc450d5`；没有执行真实 Manager Watch 与自动删除联动。本轮 Backend 存储改用框架默认属性与筛选，待 review，未切换作用域。六种业务资源的存储与管理链路仍是集群级，不由 Namespace 删除控制器清理；此前插件检查也不证明业务 HTTP 已支持命名空间请求。目标和实施记录见 [0013](decisions/0013-namespaced-resources.md)。
+2026-10-13 增补：Namespace 内部类型、存储生命周期、按资源编码工厂和 OpenAPI 已提交；原生 `/api/v1/namespaces`、`/status`、`/finalize` 接入提交为 `e649d9f6`。真实 HTTPS 与隔离 etcd 检查覆盖 Discovery、v2/v3 文档、字段保护和手动 finalize。官方 NamespaceLifecycle 本地数据源提交为 `9182df44`；两个隔离 API Server 验证插件以 Ingate 的 Namespace 存在性和阶段为准，不采用宿主同名对象。官方删除内核、Manager 的 Namespace Watch、内容等待重排和失败重试已提交为 `5cc450d5`；没有执行真实 Manager Watch 与自动删除联动。Backend 默认存储筛选重构提交为 `17cfe8d5`。本轮六种业务资源的存储、生成客户端、管理协议和 MySQL 投影已一并切换为 Namespace 作用域，待 review。隔离 HTTPS/etcd 已验证六种资源的同名跨空间 CRUD/status/Watch、空间字段筛选与 Discovery；Lifecycle 用例已通过真实 Gateway HTTP 创建验证本地存在性与 Terminating 拒绝。真实 Manager 自动删除和实库投影仍未联动验收。目标和实施记录见 [0013](decisions/0013-namespaced-resources.md)。
 
 ![当前 API 网关架构](diagrams/api-current-architecture.svg)
 
-Gateway 定义 HTTP Listener；HTTPRoute 通过 parentRefs 绑定入口，通过有序 rules/matches 选择 Backend；Backend 保存地址、端口和权重。三者都是集群级 `gateway.ingate.io/v1alpha1` 资源，不是 Kubernetes Gateway API 的全部实现，也不是目前已经安装的 CRD。
+Gateway 定义 HTTP Listener；HTTPRoute 通过 parentRefs 绑定入口，通过有序 rules/matches 选择 Backend；Backend 保存地址、端口和权重。三者都是命名空间级 `gateway.ingate.io/v1alpha1` 资源，不是 Kubernetes Gateway API 的全部实现，也不是目前已经安装的 CRD。
 
 Admin API 按 Handler → Service → Repository 处理请求。创建、更新、删除写入 Ingate API Server；读取和列表来自 Controller 异步维护的 MySQL 查询模型。刚写入的资源可能暂时读不到，更新令牌可能滞后，不能据此认为写入失败；现有契约不承诺读后立即一致。
 

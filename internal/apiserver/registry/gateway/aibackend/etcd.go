@@ -131,5 +131,5 @@ func getAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 		return nil, nil, fmt.Errorf("expected *gateway.AIBackend, got %T", obj)
 	}
 
-	return labels.Set(backend.Labels), generic.ObjectMetaFieldsSet(&backend.ObjectMeta, false), nil
+	return labels.Set(backend.Labels), generic.ObjectMetaFieldsSet(&backend.ObjectMeta, true), nil
 }

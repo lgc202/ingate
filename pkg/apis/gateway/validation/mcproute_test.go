@@ -22,10 +22,16 @@ func TestValidateMCPRoute(t *testing.T) {
 	}{
 		{name: "unresolved references", mutate: func(*gateway.MCPRoute) {}},
 		{
-			name:      "namespace",
-			mutate:    func(r *gateway.MCPRoute) { r.Namespace = "default" },
+			name:      "missing namespace",
+			mutate:    func(r *gateway.MCPRoute) { r.Namespace = "" },
 			wantField: "metadata.namespace",
-			wantType:  field.ErrorTypeForbidden,
+			wantType:  field.ErrorTypeRequired,
+		},
+		{
+			name:      "invalid namespace",
+			mutate:    func(r *gateway.MCPRoute) { r.Namespace = "Team.A" },
+			wantField: "metadata.namespace",
+			wantType:  field.ErrorTypeInvalid,
 		},
 		{
 			name:      "no parent",
@@ -200,7 +206,7 @@ func TestMCPRouteStatusRejectsDuplicateParents(t *testing.T) {
 
 func validMCPRoute() *gateway.MCPRoute {
 	return &gateway.MCPRoute{
-		ObjectMeta: metav1.ObjectMeta{Name: "tools"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "tools"},
 		Spec: gateway.MCPRouteSpec{
 			DisplayName: "工具入口",
 			ParentRefs:  []gateway.ParentReference{{Name: "missing-gateway"}},

@@ -15,12 +15,13 @@ import (
 
 // ModelRoute 将写入交给 API Server，将查询交给 MySQL 投影。
 type ModelRoute struct {
-	client gatewayclient.ModelRouteInterface
+	client gatewayclient.ModelRoutesGetter
 	store  *mysql.Store
 }
 
 // ModelRouteListParams 保存路由分页、展示名称包含匹配和 Gateway 精确筛选条件。
 type ModelRouteListParams struct {
+	Namespace   string
 	PageSize    int32
 	PageNum     int32
 	DisplayName string
@@ -29,6 +30,7 @@ type ModelRouteListParams struct {
 
 // ModelRouteInfo 保存管理查询及创建、更新响应所需的模型路由信息，不表示完整的 Kubernetes 资源。
 type ModelRouteInfo struct {
+	Namespace   string
 	Name        string
 	DisplayName string
 	ParentRefs  []gatewayv1alpha1.ParentReference
@@ -44,7 +46,7 @@ type ModelRoutePage struct {
 }
 
 // NewModelRoute 创建 ModelRoute Repository。
-func NewModelRoute(client gatewayclient.ModelRouteInterface, store *mysql.Store) *ModelRoute {
+func NewModelRoute(client gatewayclient.ModelRoutesGetter, store *mysql.Store) *ModelRoute {
 	return &ModelRoute{client: client, store: store}
 }
 
@@ -53,7 +55,7 @@ func (r *ModelRoute) Create(
 	ctx context.Context,
 	route *gatewayv1alpha1.ModelRoute,
 ) (ModelRouteInfo, error) {
-	created, err := r.client.Create(ctx, route.DeepCopy(), metav1.CreateOptions{})
+	created, err := r.client.ModelRoutes(route.Namespace).Create(ctx, route.DeepCopy(), metav1.CreateOptions{})
 	if err != nil {
 		return ModelRouteInfo{}, translateResourceError(err)
 	}
@@ -64,9 +66,9 @@ func (r *ModelRoute) Create(
 // Get 从 MySQL 查询模型读取指定 ModelRoute。
 func (r *ModelRoute) Get(
 	ctx context.Context,
-	name string,
+	namespace, name string,
 ) (ModelRouteInfo, error) {
-	route, err := r.store.GetModelRoute(ctx, name)
+	route, err := r.store.GetModelRoute(ctx, namespace, name)
 	if err != nil {
 		if errors.Is(err, mysql.ErrNotFound) {
 			return ModelRouteInfo{}, fmt.Errorf("%w: %w", ErrNotFound, err)
@@ -83,6 +85,7 @@ func (r *ModelRoute) List(
 	params ModelRouteListParams,
 ) (ModelRoutePage, error) {
 	result, err := r.store.ListModelRoutes(ctx, mysql.ModelRouteListParams{
+		Namespace:   params.Namespace,
 		PageSize:    params.PageSize,
 		PageNum:     params.PageNum,
 		DisplayName: params.DisplayName,
@@ -105,7 +108,7 @@ func (r *ModelRoute) Update(
 	ctx context.Context,
 	route *gatewayv1alpha1.ModelRoute,
 ) (ModelRouteInfo, error) {
-	current, err := r.client.Get(ctx, route.Name, metav1.GetOptions{})
+	current, err := r.client.ModelRoutes(route.Namespace).Get(ctx, route.Name, metav1.GetOptions{})
 	if err != nil {
 		return ModelRouteInfo{}, translateResourceError(err)
 	}
@@ -115,7 +118,7 @@ func (r *ModelRoute) Update(
 	}
 
 	current.Spec = *route.Spec.DeepCopy()
-	updated, err := r.client.Update(ctx, current, metav1.UpdateOptions{})
+	updated, err := r.client.ModelRoutes(route.Namespace).Update(ctx, current, metav1.UpdateOptions{})
 	if err != nil {
 		return ModelRouteInfo{}, translateResourceError(err)
 	}
@@ -124,13 +127,14 @@ func (r *ModelRoute) Update(
 }
 
 // Delete 删除指定 ModelRoute。
-func (r *ModelRoute) Delete(ctx context.Context, name string) error {
-	return translateResourceError(r.client.Delete(ctx, name, metav1.DeleteOptions{}))
+func (r *ModelRoute) Delete(ctx context.Context, namespace, name string) error {
+	return translateResourceError(r.client.ModelRoutes(namespace).Delete(ctx, name, metav1.DeleteOptions{}))
 }
 
 func modelRouteFromAPI(route *gatewayv1alpha1.ModelRoute) ModelRouteInfo {
 	spec := route.Spec.DeepCopy()
 	return ModelRouteInfo{
+		Namespace:   route.Namespace,
 		Name:        route.Name,
 		DisplayName: spec.DisplayName,
 		ParentRefs:  spec.ParentRefs,
@@ -142,6 +146,7 @@ func modelRouteFromAPI(route *gatewayv1alpha1.ModelRoute) ModelRouteInfo {
 
 func modelRouteFromMySQL(route mysql.ModelRoute) ModelRouteInfo {
 	result := ModelRouteInfo{
+		Namespace:   route.Namespace,
 		Name:        route.Name,
 		DisplayName: route.DisplayName,
 		CreateTime:  route.CreatedAt,

@@ -19,8 +19,9 @@ type Store struct {
 	db *gorm.DB
 }
 
-// ResourceListParams 保存资源列表的分页与展示名称筛选。
+// ResourceListParams 限定一个命名空间内的分页与展示名称筛选。
 type ResourceListParams struct {
+	Namespace   string
 	PageSize    int32
 	PageNum     int32
 	DisplayName string

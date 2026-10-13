@@ -56,7 +56,7 @@ func (h *Handler) GetGateway(
 	ctx context.Context,
 	req *adminv1.GetGatewayRequest,
 ) (*adminv1.GetGatewayReply, error) {
-	gateway, err := h.service.Get(ctx, req.GetName())
+	gateway, err := h.service.Get(ctx, req.GetNamespace(), req.GetName())
 	if err != nil {
 		return nil, toTransportError(ctx, err)
 	}
@@ -70,6 +70,7 @@ func (h *Handler) ListGateways(
 	req *adminv1.ListGatewaysRequest,
 ) (*adminv1.ListGatewaysReply, error) {
 	page, err := h.service.List(ctx, gatewayservice.ListParams{
+		Namespace:   req.GetNamespace(),
 		PageSize:    req.GetPageSize(),
 		PageNum:     req.GetPageNum(),
 		DisplayName: req.GetDisplayName(),
@@ -92,6 +93,7 @@ func (h *Handler) UpdateGateway(
 	req *adminv1.UpdateGatewayRequest,
 ) (*adminv1.UpdateGatewayReply, error) {
 	updated, err := h.service.Update(ctx, gatewayservice.UpdateParams{
+		Namespace:   req.GetNamespace(),
 		Name:        req.GetName(),
 		Version:     req.GetVersion(),
 		DisplayName: req.GetDisplayName(),
@@ -109,7 +111,7 @@ func (h *Handler) DeleteGateway(
 	ctx context.Context,
 	req *adminv1.DeleteGatewayRequest,
 ) (*adminv1.DeleteGatewayReply, error) {
-	if err := h.service.Delete(ctx, req.GetName()); err != nil {
+	if err := h.service.Delete(ctx, req.GetNamespace(), req.GetName()); err != nil {
 		return nil, toTransportError(ctx, err)
 	}
 
@@ -118,6 +120,7 @@ func (h *Handler) DeleteGateway(
 
 func createParamsFromProto(req *adminv1.CreateGatewayRequest) gatewayservice.CreateParams {
 	return gatewayservice.CreateParams{
+		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
 		Listeners:   listenersFromProto(req.GetListeners()),
 	}
@@ -156,6 +159,7 @@ func gatewayToProto(gateway repository.GatewayInfo) *adminv1.Gateway {
 	}
 
 	return &adminv1.Gateway{
+		Namespace:   gateway.Namespace,
 		Name:        gateway.Name,
 		DisplayName: gateway.DisplayName,
 		Listeners:   listeners,

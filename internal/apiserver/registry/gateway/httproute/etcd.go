@@ -131,5 +131,5 @@ func getAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 		return nil, nil, fmt.Errorf("expected *gateway.HTTPRoute, got %T", obj)
 	}
 
-	return labels.Set(route.Labels), generic.ObjectMetaFieldsSet(&route.ObjectMeta, false), nil
+	return labels.Set(route.Labels), generic.ObjectMetaFieldsSet(&route.ObjectMeta, true), nil
 }

@@ -38,17 +38,20 @@ type GatewayServiceHTTPServer interface {
 
 func RegisterGatewayServiceHTTPServer(s *http.Server, srv GatewayServiceHTTPServer) {
 	r := s.Route("/")
-	r.Handle("POST", "/api/admin/v1/gateways", _GatewayService_CreateGateway0_HTTP_Handler(srv))
-	r.Handle("GET", "/api/admin/v1/gateways/{name}", _GatewayService_GetGateway0_HTTP_Handler(srv))
-	r.Handle("GET", "/api/admin/v1/gateways", _GatewayService_ListGateways0_HTTP_Handler(srv))
-	r.Handle("PUT", "/api/admin/v1/gateways/{name}", _GatewayService_UpdateGateway0_HTTP_Handler(srv))
-	r.Handle("DELETE", "/api/admin/v1/gateways/{name}", _GatewayService_DeleteGateway0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/admin/v1/namespaces/{namespace}/gateways", _GatewayService_CreateGateway0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/admin/v1/namespaces/{namespace}/gateways/{name}", _GatewayService_GetGateway0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/admin/v1/namespaces/{namespace}/gateways", _GatewayService_ListGateways0_HTTP_Handler(srv))
+	r.Handle("PUT", "/api/admin/v1/namespaces/{namespace}/gateways/{name}", _GatewayService_UpdateGateway0_HTTP_Handler(srv))
+	r.Handle("DELETE", "/api/admin/v1/namespaces/{namespace}/gateways/{name}", _GatewayService_DeleteGateway0_HTTP_Handler(srv))
 }
 
 func _GatewayService_CreateGateway0_HTTP_Handler(srv GatewayServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in CreateGatewayRequest
 		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationGatewayServiceCreateGateway)
@@ -90,6 +93,9 @@ func _GatewayService_ListGateways0_HTTP_Handler(srv GatewayServiceHTTPServer) fu
 	return func(ctx http.Context) error {
 		var in ListGatewaysRequest
 		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationGatewayServiceListGateways)
@@ -173,7 +179,7 @@ func NewGatewayServiceHTTPClient(client *http.Client) GatewayServiceHTTPClient {
 // CreateGateway CreateGateway 创建一个 Gateway。
 func (c *GatewayServiceHTTPClientImpl) CreateGateway(ctx context.Context, in *CreateGatewayRequest, opts ...http.CallOption) (*CreateGatewayReply, error) {
 	var out CreateGatewayReply
-	pattern := "/api/admin/v1/gateways"
+	pattern := "/api/admin/v1/namespaces/{namespace}/gateways"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -191,7 +197,7 @@ func (c *GatewayServiceHTTPClientImpl) CreateGateway(ctx context.Context, in *Cr
 // DeleteGateway DeleteGateway 删除指定网关。
 func (c *GatewayServiceHTTPClientImpl) DeleteGateway(ctx context.Context, in *DeleteGatewayRequest, opts ...http.CallOption) (*DeleteGatewayReply, error) {
 	var out DeleteGatewayReply
-	pattern := "/api/admin/v1/gateways/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/gateways/{name}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -208,7 +214,7 @@ func (c *GatewayServiceHTTPClientImpl) DeleteGateway(ctx context.Context, in *De
 // GetGateway GetGateway 读取指定网关。
 func (c *GatewayServiceHTTPClientImpl) GetGateway(ctx context.Context, in *GetGatewayRequest, opts ...http.CallOption) (*GetGatewayReply, error) {
 	var out GetGatewayReply
-	pattern := "/api/admin/v1/gateways/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/gateways/{name}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -225,7 +231,7 @@ func (c *GatewayServiceHTTPClientImpl) GetGateway(ctx context.Context, in *GetGa
 // ListGateways ListGateways 分页列出网关。
 func (c *GatewayServiceHTTPClientImpl) ListGateways(ctx context.Context, in *ListGatewaysRequest, opts ...http.CallOption) (*ListGatewaysReply, error) {
 	var out ListGatewaysReply
-	pattern := "/api/admin/v1/gateways"
+	pattern := "/api/admin/v1/namespaces/{namespace}/gateways"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
@@ -242,7 +248,7 @@ func (c *GatewayServiceHTTPClientImpl) ListGateways(ctx context.Context, in *Lis
 // UpdateGateway UpdateGateway 完整替换网关的可编辑配置。
 func (c *GatewayServiceHTTPClientImpl) UpdateGateway(ctx context.Context, in *UpdateGatewayRequest, opts ...http.CallOption) (*UpdateGatewayReply, error) {
 	var out UpdateGatewayReply
-	pattern := "/api/admin/v1/gateways/{name}"
+	pattern := "/api/admin/v1/namespaces/{namespace}/gateways/{name}"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),

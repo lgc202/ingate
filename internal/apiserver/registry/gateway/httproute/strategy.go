@@ -49,9 +49,9 @@ func NewStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
 	return statusStrategy{strategy: NewStrategy(typer)}
 }
 
-// NamespaceScoped 表示 HTTPRoute 是集群级资源。
+// NamespaceScoped 表示 HTTPRoute 是命名空间级资源。
 func (strategy) NamespaceScoped() bool {
-	return false
+	return true
 }
 
 // GetResetFields 声明主资源入口不允许修改 Status。

@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // AIBackend 保存模型服务的单行查询投影，不保存凭据或资源状态。
 type AIBackend struct {
 	ID           uint64    `gorm:"column:id;primaryKey;autoIncrement"`
+	Namespace    string    `gorm:"column:namespace"`
 	Name         string    `gorm:"column:name"`
 	DisplayName  string    `gorm:"column:display_name"`
 	BackendName  string    `gorm:"column:backend_name"`
@@ -37,7 +39,9 @@ func (AIBackend) TableName() string {
 func (s *Store) UpsertAIBackend(ctx context.Context, backend AIBackend) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row AIBackend
-		err := tx.Select("id").Where("name = ?", backend.Name).Take(&row).Error
+		err := tx.Select("id").
+			Where("namespace = ? AND name = ?", backend.Namespace, backend.Name).
+			Take(&row).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			if err := tx.Create(&backend).Error; err != nil {
 				return fmt.Errorf("create AIBackend projection: %w", err)
@@ -59,28 +63,30 @@ func (s *Store) UpsertAIBackend(ctx context.Context, backend AIBackend) error {
 }
 
 // DeleteAIBackend 删除整个模型服务投影，不存在时成功返回。
-func (s *Store) DeleteAIBackend(ctx context.Context, name string) error {
-	if err := s.db.WithContext(ctx).Where("name = ?", name).Delete(&AIBackend{}).Error; err != nil {
+func (s *Store) DeleteAIBackend(ctx context.Context, namespace, name string) error {
+	query := s.db.WithContext(ctx).Where("namespace = ? AND name = ?", namespace, name)
+	if err := query.Delete(&AIBackend{}).Error; err != nil {
 		return fmt.Errorf("delete AIBackend projection: %w", err)
 	}
 
 	return nil
 }
 
-// ListAIBackendNames 返回已投影的稳定名称，供启动对账使用。
-func (s *Store) ListAIBackendNames(ctx context.Context) ([]string, error) {
-	var names []string
-	if err := s.db.WithContext(ctx).Model(&AIBackend{}).Order("name").Pluck("name", &names).Error; err != nil {
-		return nil, fmt.Errorf("list AIBackend names: %w", err)
+// ListAIBackendKeys 返回所有已投影对象的空间和名称，供启动对账使用。
+func (s *Store) ListAIBackendKeys(ctx context.Context) ([]types.NamespacedName, error) {
+	var keys []types.NamespacedName
+	query := s.db.WithContext(ctx).Model(&AIBackend{}).
+		Select("namespace", "name").Order("namespace, name")
+	if err := query.Find(&keys).Error; err != nil {
+		return nil, fmt.Errorf("list AIBackend keys: %w", err)
 	}
-
-	return names, nil
+	return keys, nil
 }
 
 // GetAIBackend 读取完整模型服务投影。
-func (s *Store) GetAIBackend(ctx context.Context, name string) (AIBackend, error) {
+func (s *Store) GetAIBackend(ctx context.Context, namespace, name string) (AIBackend, error) {
 	var backend AIBackend
-	err := s.db.WithContext(ctx).Where("name = ?", name).Take(&backend).Error
+	err := s.db.WithContext(ctx).Where("namespace = ? AND name = ?", namespace, name).Take(&backend).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return AIBackend{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 	}
@@ -91,11 +97,14 @@ func (s *Store) GetAIBackend(ctx context.Context, name string) (AIBackend, error
 	return backend, nil
 }
 
-// ListAIBackends 在同一快照中按稳定名称分页，筛选和总数使用相同条件。
+// ListAIBackends 在指定命名空间的同一快照中按稳定名称分页，筛选和总数使用相同条件。
 func (s *Store) ListAIBackends(ctx context.Context, params ResourceListParams) (AIBackendPage, error) {
 	var result AIBackendPage
 	err := s.readOnlyTransaction(ctx, func(tx *gorm.DB) error {
-		query := filterDisplayName(tx.Model(&AIBackend{}), params.DisplayName)
+		query := filterDisplayName(
+			tx.Model(&AIBackend{}).Where("namespace = ?", params.Namespace),
+			params.DisplayName,
+		)
 
 		if err := query.Count(&result.TotalCount).Error; err != nil {
 			return fmt.Errorf("count AIBackends: %w", err)

@@ -16,7 +16,7 @@ func TestValidateRequestsRejectsInvalidGateway(t *testing.T) {
 		return nil, nil
 	})
 
-	_, err := ValidateRequests()(next)(context.Background(), &adminv1.CreateGatewayRequest{})
+	_, err := ValidateRequests()(next)(context.Background(), &adminv1.CreateGatewayRequest{Namespace: "team-a"})
 	if code := kratoserrors.Code(err); code != 400 {
 		t.Errorf("ValidateRequests(empty CreateGatewayRequest) code = %d, want 400; error = %v", code, err)
 	}
@@ -32,6 +32,7 @@ func TestValidateRequestsAllowsValidGateway(t *testing.T) {
 		return nil, nil
 	})
 	request := &adminv1.CreateGatewayRequest{
+		Namespace:   "team-a",
 		DisplayName: "Public Gateway",
 		Listeners: []*adminv1.Listener{{
 			Name:     "http",

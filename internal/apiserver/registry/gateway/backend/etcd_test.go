@@ -62,7 +62,7 @@ func TestRESTDefaultAttributes(t *testing.T) {
 		Namespace: "team-a",
 		Labels:    map[string]string{"environment": "production"},
 	}}
-	// 作用域仍是集群级；带 Namespace 的夹具仅用于确认属性不会提前切换。
+	// Store 根据命名空间级 Strategy 选择原生默认属性函数。
 	predicate := mainREST.PredicateFunc(labels.Everything(), fields.Everything())
 
 	for _, tt := range []struct {
@@ -83,7 +83,7 @@ func TestRESTDefaultAttributes(t *testing.T) {
 			if diff := cmp.Diff(labels.Set{"environment": "production"}, gotLabels); diff != "" {
 				t.Errorf("attributes(%T) labels mismatch (-want +got):\n%s", backend, diff)
 			}
-			if diff := cmp.Diff(fields.Set{"metadata.name": "network"}, gotFields); diff != "" {
+			if diff := cmp.Diff(fields.Set{"metadata.name": "network", "metadata.namespace": "team-a"}, gotFields); diff != "" {
 				t.Errorf("attributes(%T) fields mismatch (-want +got):\n%s", backend, diff)
 			}
 			if _, _, err := tt.attrs(&runtime.Unknown{}); err == nil {
@@ -96,8 +96,9 @@ func TestRESTDefaultAttributes(t *testing.T) {
 func TestRESTDefaultSelection(t *testing.T) {
 	mainREST, _ := newRESTForTest(t)
 	backend := &gatewayapi.Backend{ObjectMeta: metav1.ObjectMeta{
-		Name:   "network",
-		Labels: map[string]string{"environment": "production"},
+		Namespace: "team-a",
+		Name:      "network",
+		Labels:    map[string]string{"environment": "production"},
 	}}
 
 	tests := []struct {
@@ -111,6 +112,17 @@ func TestRESTDefaultSelection(t *testing.T) {
 			labelSelector: labels.SelectorFromSet(labels.Set{"environment": "production"}),
 			fieldSelector: fields.OneTermEqualSelector("metadata.name", "network"),
 			want:          true,
+		},
+		{
+			name:          "matching namespace",
+			labelSelector: labels.Everything(),
+			fieldSelector: fields.OneTermEqualSelector("metadata.namespace", "team-a"),
+			want:          true,
+		},
+		{
+			name:          "different namespace",
+			labelSelector: labels.Everything(),
+			fieldSelector: fields.OneTermEqualSelector("metadata.namespace", "team-b"),
 		},
 		{
 			name:          "different label",

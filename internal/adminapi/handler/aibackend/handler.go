@@ -45,6 +45,7 @@ func (h *Handler) CreateAIBackend(
 	req *adminv1.CreateAIBackendRequest,
 ) (*adminv1.CreateAIBackendReply, error) {
 	created, err := h.service.Create(ctx, aibackendservice.CreateParams{
+		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
 		BackendRef:  gatewayv1alpha1.BackendReference{Name: req.GetBackendRef().GetName()},
 		Schema:      schemaFromProto(req.GetSchema()),
@@ -61,7 +62,7 @@ func (h *Handler) GetAIBackend(
 	ctx context.Context,
 	req *adminv1.GetAIBackendRequest,
 ) (*adminv1.GetAIBackendReply, error) {
-	backend, err := h.service.Get(ctx, req.GetName())
+	backend, err := h.service.Get(ctx, req.GetNamespace(), req.GetName())
 	if err != nil {
 		return nil, toTransportError(ctx, err)
 	}
@@ -75,6 +76,7 @@ func (h *Handler) ListAIBackends(
 	req *adminv1.ListAIBackendsRequest,
 ) (*adminv1.ListAIBackendsReply, error) {
 	page, err := h.service.List(ctx, aibackendservice.ListParams{
+		Namespace:   req.GetNamespace(),
 		PageSize:    req.GetPageSize(),
 		PageNum:     req.GetPageNum(),
 		DisplayName: req.GetDisplayName(),
@@ -97,6 +99,7 @@ func (h *Handler) UpdateAIBackend(
 	req *adminv1.UpdateAIBackendRequest,
 ) (*adminv1.UpdateAIBackendReply, error) {
 	updated, err := h.service.Update(ctx, aibackendservice.UpdateParams{
+		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
 		Name:        req.GetName(),
 		Version:     req.GetVersion(),
@@ -115,7 +118,7 @@ func (h *Handler) DeleteAIBackend(
 	ctx context.Context,
 	req *adminv1.DeleteAIBackendRequest,
 ) (*adminv1.DeleteAIBackendReply, error) {
-	if err := h.service.Delete(ctx, req.GetName()); err != nil {
+	if err := h.service.Delete(ctx, req.GetNamespace(), req.GetName()); err != nil {
 		return nil, toTransportError(ctx, err)
 	}
 
@@ -131,6 +134,7 @@ func schemaFromProto(schema *adminv1.APISchema) gatewayv1alpha1.APISchema {
 
 func backendToProto(backend repository.AIBackendInfo) *adminv1.AIBackend {
 	return &adminv1.AIBackend{
+		Namespace:   backend.Namespace,
 		Name:        backend.Name,
 		DisplayName: backend.DisplayName,
 		BackendRef:  &adminv1.BackendReference{Name: backend.BackendRef.Name},

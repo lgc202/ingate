@@ -13,32 +13,32 @@ service GatewayService {
   // CreateGateway 创建一个 Gateway。
   rpc CreateGateway(CreateGatewayRequest) returns (CreateGatewayReply) {
     option (google.api.http) = {
-      post: "/api/admin/v1/gateways"
+      post: "/api/admin/v1/namespaces/{namespace}/gateways"
       body: "*"
     };
   }
 
   // GetGateway 读取指定网关。
   rpc GetGateway(GetGatewayRequest) returns (GetGatewayReply) {
-    option (google.api.http) = {get: "/api/admin/v1/gateways/{name}"};
+    option (google.api.http) = {get: "/api/admin/v1/namespaces/{namespace}/gateways/{name}"};
   }
 
   // ListGateways 分页列出网关。
   rpc ListGateways(ListGatewaysRequest) returns (ListGatewaysReply) {
-    option (google.api.http) = {get: "/api/admin/v1/gateways"};
+    option (google.api.http) = {get: "/api/admin/v1/namespaces/{namespace}/gateways"};
   }
 
   // UpdateGateway 完整替换网关的可编辑配置。
   rpc UpdateGateway(UpdateGatewayRequest) returns (UpdateGatewayReply) {
     option (google.api.http) = {
-      put: "/api/admin/v1/gateways/{name}"
+      put: "/api/admin/v1/namespaces/{namespace}/gateways/{name}"
       body: "*"
     };
   }
 
   // DeleteGateway 删除指定网关。
   rpc DeleteGateway(DeleteGatewayRequest) returns (DeleteGatewayReply) {
-    option (google.api.http) = {delete: "/api/admin/v1/gateways/{name}"};
+    option (google.api.http) = {delete: "/api/admin/v1/namespaces/{namespace}/gateways/{name}"};
   }
 }
 
@@ -50,6 +50,12 @@ message CreateGatewayRequest {
   string display_name = 2;
   // listeners 是网关对外暴露的监听入口。
   repeated Listener listeners = 3 [(buf.validate.field).repeated.min_items = 1];
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 4 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // CreateGatewayReply 表示创建网关的结果。
@@ -60,8 +66,14 @@ message CreateGatewayReply {
 
 // GetGatewayRequest 表示读取网关的请求。
 message GetGatewayRequest {
-  // name 是资源的稳定名称。
+  // name 是资源在所属命名空间内的稳定名称。
   string name = 1 [(buf.validate.field).string.min_len = 1];
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // GetGatewayReply 表示读取到的网关。
@@ -78,6 +90,12 @@ message ListGatewaysRequest {
   int32 page_num = 2 [(buf.validate.field).int32.gte = 0];
   // display_name 按展示名称文字包含匹配筛选，空值表示不筛选。
   string display_name = 3;
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 4 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // ListGatewaysReply 表示一页网关。
@@ -90,7 +108,7 @@ message ListGatewaysReply {
 
 // UpdateGatewayRequest 表示完整替换网关的可编辑配置。
 message UpdateGatewayRequest {
-  // name 是资源的稳定名称，不允许通过更新修改。
+  // name 是资源在所属命名空间内的稳定名称，不允许通过更新修改。
   string name = 1 [(buf.validate.field).string.min_len = 1];
   // version 是读取网关时获得的版本，用于并发更新检查。
   string version = 2 [(buf.validate.field).string.min_len = 1];
@@ -98,6 +116,12 @@ message UpdateGatewayRequest {
   string display_name = 3;
   // listeners 是网关对外暴露的监听入口。
   repeated Listener listeners = 4 [(buf.validate.field).repeated.min_items = 1];
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 5 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // UpdateGatewayReply 表示更新后的网关。
@@ -108,8 +132,14 @@ message UpdateGatewayReply {
 
 // DeleteGatewayRequest 表示删除网关的请求。
 message DeleteGatewayRequest {
-  // name 是资源的稳定名称。
+  // name 是资源在所属命名空间内的稳定名称。
   string name = 1 [(buf.validate.field).string.min_len = 1];
+  // namespace 是本次操作的目标命名空间，必须显式指定。
+  string namespace = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 63
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  }];
 }
 
 // DeleteGatewayReply 表示 API Server 已接受删除请求。
@@ -117,7 +147,7 @@ message DeleteGatewayReply {}
 
 // Gateway 表示面向产品调用方的网关。
 message Gateway {
-  // name 是资源的稳定名称。
+  // name 是资源在所属命名空间内的稳定名称。
   string name = 1;
   // display_name 是供人阅读的名称。
   string display_name = 2;
@@ -127,9 +157,11 @@ message Gateway {
   google.protobuf.Timestamp create_time = 4;
   // version 是更新时必须提交的资源版本。
   string version = 5;
+  // namespace 是资源所属的命名空间。
+  string namespace = 6;
 }
 
-// ParentReference 引用 Gateway 及可选 Listener。
+// ParentReference 引用同一命名空间的 Gateway 及可选 Listener。
 message ParentReference {
   // name 是 Gateway 的稳定名称。
   string name = 1 [(buf.validate.field).string.min_len = 1];

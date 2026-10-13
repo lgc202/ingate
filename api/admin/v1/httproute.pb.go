@@ -85,7 +85,9 @@ type CreateHTTPRouteRequest struct {
 	// parent_refs 引用入口及可选 Listener。
 	ParentRefs []*ParentReference `protobuf:"bytes,2,rep,name=parent_refs,json=parentRefs,proto3" json:"parent_refs,omitempty"`
 	// rules 按列表顺序保存规则。
-	Rules         []*HTTPRouteRule `protobuf:"bytes,3,rep,name=rules,proto3" json:"rules,omitempty"`
+	Rules []*HTTPRouteRule `protobuf:"bytes,3,rep,name=rules,proto3" json:"rules,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,4,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -141,6 +143,13 @@ func (x *CreateHTTPRouteRequest) GetRules() []*HTTPRouteRule {
 	return nil
 }
 
+func (x *CreateHTTPRouteRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
 // CreateHTTPRouteReply 表示创建后的路由。
 type CreateHTTPRouteReply struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -190,8 +199,10 @@ func (x *CreateHTTPRouteReply) GetRoute() *HTTPRoute {
 // GetHTTPRouteRequest 表示读取路由的请求。
 type GetHTTPRouteRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// name 是资源在所属命名空间内的稳定名称。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -229,6 +240,13 @@ func (*GetHTTPRouteRequest) Descriptor() ([]byte, []int) {
 func (x *GetHTTPRouteRequest) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *GetHTTPRouteRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -289,7 +307,9 @@ type ListHTTPRoutesRequest struct {
 	// display_name 按展示名称文字包含匹配筛选。
 	DisplayName string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// gateway_name 精确筛选附着到指定稳定 Gateway 名称的路由。
-	GatewayName   string `protobuf:"bytes,4,opt,name=gateway_name,json=gatewayName,proto3" json:"gateway_name,omitempty"`
+	GatewayName string `protobuf:"bytes,4,opt,name=gateway_name,json=gatewayName,proto3" json:"gateway_name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,5,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -352,6 +372,13 @@ func (x *ListHTTPRoutesRequest) GetGatewayName() string {
 	return ""
 }
 
+func (x *ListHTTPRoutesRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
 // ListHTTPRoutesReply 表示一页路由。
 type ListHTTPRoutesReply struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -410,7 +437,7 @@ func (x *ListHTTPRoutesReply) GetTotalCount() int64 {
 // UpdateHTTPRouteRequest 表示完整替换路由的可编辑配置。
 type UpdateHTTPRouteRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称，不允许通过更新修改。
+	// name 是资源在所属命名空间内的稳定名称，不允许通过更新修改。
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// version 是读取路由时获得的版本，用于并发更新检查。
 	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
@@ -419,7 +446,9 @@ type UpdateHTTPRouteRequest struct {
 	// rules 按列表顺序保存规则。
 	Rules []*HTTPRouteRule `protobuf:"bytes,4,rep,name=rules,proto3" json:"rules,omitempty"`
 	// display_name 是可修改且允许重复的展示名称，不改变资源引用。
-	DisplayName   string `protobuf:"bytes,5,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	DisplayName string `protobuf:"bytes,5,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,6,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -489,6 +518,13 @@ func (x *UpdateHTTPRouteRequest) GetDisplayName() string {
 	return ""
 }
 
+func (x *UpdateHTTPRouteRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
 // UpdateHTTPRouteReply 表示更新后的路由。
 type UpdateHTTPRouteReply struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -538,8 +574,10 @@ func (x *UpdateHTTPRouteReply) GetRoute() *HTTPRoute {
 // DeleteHTTPRouteRequest 表示删除路由的请求。
 type DeleteHTTPRouteRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// name 是资源在所属命名空间内的稳定名称。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -577,6 +615,13 @@ func (*DeleteHTTPRouteRequest) Descriptor() ([]byte, []int) {
 func (x *DeleteHTTPRouteRequest) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *DeleteHTTPRouteRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -621,7 +666,7 @@ func (*DeleteHTTPRouteReply) Descriptor() ([]byte, []int) {
 // HTTPRoute 表示面向产品调用方的路由。
 type HTTPRoute struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
+	// name 是资源在所属命名空间内的稳定名称。
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// parent_refs 引用入口及可选 Listener。
 	ParentRefs []*ParentReference `protobuf:"bytes,2,rep,name=parent_refs,json=parentRefs,proto3" json:"parent_refs,omitempty"`
@@ -632,7 +677,9 @@ type HTTPRoute struct {
 	// version 是更新时必须提交的资源版本。
 	Version string `protobuf:"bytes,5,opt,name=version,proto3" json:"version,omitempty"`
 	// display_name 是供人阅读的名称，不用于资源引用。
-	DisplayName   string `protobuf:"bytes,6,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	DisplayName string `protobuf:"bytes,6,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// namespace 是资源所属的命名空间。
+	Namespace     string `protobuf:"bytes,7,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -705,6 +752,13 @@ func (x *HTTPRoute) GetVersion() string {
 func (x *HTTPRoute) GetDisplayName() string {
 	if x != nil {
 		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *HTTPRoute) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -878,40 +932,45 @@ var File_admin_v1_httproute_proto protoreflect.FileDescriptor
 
 const file_admin_v1_httproute_proto_rawDesc = "" +
 	"\n" +
-	"\x18admin/v1/httproute.proto\x12\badmin.v1\x1a\x16admin/v1/backend.proto\x1a\x16admin/v1/gateway.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xba\x01\n" +
+	"\x18admin/v1/httproute.proto\x12\badmin.v1\x1a\x16admin/v1/backend.proto\x1a\x16admin/v1/gateway.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x84\x02\n" +
 	"\x16CreateHTTPRouteRequest\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12D\n" +
 	"\vparent_refs\x18\x02 \x03(\v2\x19.admin.v1.ParentReferenceB\b\xbaH\x05\x92\x01\x02\b\x01R\n" +
 	"parentRefs\x127\n" +
-	"\x05rules\x18\x03 \x03(\v2\x17.admin.v1.HTTPRouteRuleB\b\xbaH\x05\x92\x01\x02\b\x01R\x05rules\"A\n" +
+	"\x05rules\x18\x03 \x03(\v2\x17.admin.v1.HTTPRouteRuleB\b\xbaH\x05\x92\x01\x02\b\x01R\x05rules\x12H\n" +
+	"\tnamespace\x18\x04 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"A\n" +
 	"\x14CreateHTTPRouteReply\x12)\n" +
-	"\x05route\x18\x01 \x01(\v2\x13.admin.v1.HTTPRouteR\x05route\"2\n" +
+	"\x05route\x18\x01 \x01(\v2\x13.admin.v1.HTTPRouteR\x05route\"|\n" +
 	"\x13GetHTTPRouteRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\">\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12H\n" +
+	"\tnamespace\x18\x02 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\">\n" +
 	"\x11GetHTTPRouteReply\x12)\n" +
-	"\x05route\x18\x01 \x01(\v2\x13.admin.v1.HTTPRouteR\x05route\"\xaa\x01\n" +
+	"\x05route\x18\x01 \x01(\v2\x13.admin.v1.HTTPRouteR\x05route\"\xf4\x01\n" +
 	"\x15ListHTTPRoutesRequest\x12'\n" +
 	"\tpage_size\x18\x01 \x01(\x05B\n" +
 	"\xbaH\a\x1a\x05\x18\xc8\x01(\x00R\bpageSize\x12\"\n" +
 	"\bpage_num\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\apageNum\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12!\n" +
-	"\fgateway_name\x18\x04 \x01(\tR\vgatewayName\"c\n" +
+	"\fgateway_name\x18\x04 \x01(\tR\vgatewayName\x12H\n" +
+	"\tnamespace\x18\x05 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"c\n" +
 	"\x13ListHTTPRoutesReply\x12+\n" +
 	"\x06routes\x18\x01 \x03(\v2\x13.admin.v1.HTTPRouteR\x06routes\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x03R\n" +
-	"totalCount\"\xfa\x01\n" +
+	"totalCount\"\xc4\x02\n" +
 	"\x16UpdateHTTPRouteRequest\x12\x1b\n" +
 	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12!\n" +
 	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12D\n" +
 	"\vparent_refs\x18\x03 \x03(\v2\x19.admin.v1.ParentReferenceB\b\xbaH\x05\x92\x01\x02\b\x01R\n" +
 	"parentRefs\x127\n" +
 	"\x05rules\x18\x04 \x03(\v2\x17.admin.v1.HTTPRouteRuleB\b\xbaH\x05\x92\x01\x02\b\x01R\x05rules\x12!\n" +
-	"\fdisplay_name\x18\x05 \x01(\tR\vdisplayName\"A\n" +
+	"\fdisplay_name\x18\x05 \x01(\tR\vdisplayName\x12H\n" +
+	"\tnamespace\x18\x06 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"A\n" +
 	"\x14UpdateHTTPRouteReply\x12)\n" +
-	"\x05route\x18\x01 \x01(\v2\x13.admin.v1.HTTPRouteR\x05route\"5\n" +
+	"\x05route\x18\x01 \x01(\v2\x13.admin.v1.HTTPRouteR\x05route\"\x7f\n" +
 	"\x16DeleteHTTPRouteRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\"\x16\n" +
-	"\x14DeleteHTTPRouteReply\"\x98\x02\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12H\n" +
+	"\tnamespace\x18\x02 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"\x16\n" +
+	"\x14DeleteHTTPRouteReply\"\xb6\x02\n" +
 	"\tHTTPRoute\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12D\n" +
 	"\vparent_refs\x18\x02 \x03(\v2\x19.admin.v1.ParentReferenceB\b\xbaH\x05\x92\x01\x02\b\x01R\n" +
@@ -920,7 +979,8 @@ const file_admin_v1_httproute_proto_rawDesc = "" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createTime\x12\x18\n" +
 	"\aversion\x18\x05 \x01(\tR\aversion\x12!\n" +
-	"\fdisplay_name\x18\x06 \x01(\tR\vdisplayName\"X\n" +
+	"\fdisplay_name\x18\x06 \x01(\tR\vdisplayName\x12\x1c\n" +
+	"\tnamespace\x18\a \x01(\tR\tnamespace\"X\n" +
 	"\tPathMatch\x125\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x17.admin.v1.PathMatchTypeB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04type\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\"\xa2\x01\n" +
@@ -934,13 +994,13 @@ const file_admin_v1_httproute_proto_rawDesc = "" +
 	"\rPathMatchType\x12\x1f\n" +
 	"\x1bPATH_MATCH_TYPE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15PATH_MATCH_TYPE_EXACT\x10\x01\x12\x1a\n" +
-	"\x16PATH_MATCH_TYPE_PREFIX\x10\x022\xfa\x04\n" +
-	"\x10HTTPRouteService\x12y\n" +
-	"\x0fCreateHTTPRoute\x12 .admin.v1.CreateHTTPRouteRequest\x1a\x1e.admin.v1.CreateHTTPRouteReply\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/api/admin/v1/http-routes\x12t\n" +
-	"\fGetHTTPRoute\x12\x1d.admin.v1.GetHTTPRouteRequest\x1a\x1b.admin.v1.GetHTTPRouteReply\"(\x82\xd3\xe4\x93\x02\"\x12 /api/admin/v1/http-routes/{name}\x12s\n" +
-	"\x0eListHTTPRoutes\x12\x1f.admin.v1.ListHTTPRoutesRequest\x1a\x1d.admin.v1.ListHTTPRoutesReply\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/admin/v1/http-routes\x12\x80\x01\n" +
-	"\x0fUpdateHTTPRoute\x12 .admin.v1.UpdateHTTPRouteRequest\x1a\x1e.admin.v1.UpdateHTTPRouteReply\"+\x82\xd3\xe4\x93\x02%:\x01*\x1a /api/admin/v1/http-routes/{name}\x12}\n" +
-	"\x0fDeleteHTTPRoute\x12 .admin.v1.DeleteHTTPRouteRequest\x1a\x1e.admin.v1.DeleteHTTPRouteReply\"(\x82\xd3\xe4\x93\x02\"* /api/admin/v1/http-routes/{name}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x16PATH_MATCH_TYPE_PREFIX\x10\x022\xf1\x05\n" +
+	"\x10HTTPRouteService\x12\x90\x01\n" +
+	"\x0fCreateHTTPRoute\x12 .admin.v1.CreateHTTPRouteRequest\x1a\x1e.admin.v1.CreateHTTPRouteReply\";\x82\xd3\xe4\x93\x025:\x01*\"0/api/admin/v1/namespaces/{namespace}/http-routes\x12\x8b\x01\n" +
+	"\fGetHTTPRoute\x12\x1d.admin.v1.GetHTTPRouteRequest\x1a\x1b.admin.v1.GetHTTPRouteReply\"?\x82\xd3\xe4\x93\x029\x127/api/admin/v1/namespaces/{namespace}/http-routes/{name}\x12\x8a\x01\n" +
+	"\x0eListHTTPRoutes\x12\x1f.admin.v1.ListHTTPRoutesRequest\x1a\x1d.admin.v1.ListHTTPRoutesReply\"8\x82\xd3\xe4\x93\x022\x120/api/admin/v1/namespaces/{namespace}/http-routes\x12\x97\x01\n" +
+	"\x0fUpdateHTTPRoute\x12 .admin.v1.UpdateHTTPRouteRequest\x1a\x1e.admin.v1.UpdateHTTPRouteReply\"B\x82\xd3\xe4\x93\x02<:\x01*\x1a7/api/admin/v1/namespaces/{namespace}/http-routes/{name}\x12\x94\x01\n" +
+	"\x0fDeleteHTTPRoute\x12 .admin.v1.DeleteHTTPRouteRequest\x1a\x1e.admin.v1.DeleteHTTPRouteReply\"?\x82\xd3\xe4\x93\x029*7/api/admin/v1/namespaces/{namespace}/http-routes/{name}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_httproute_proto_rawDescOnce sync.Once

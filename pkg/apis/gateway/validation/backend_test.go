@@ -11,7 +11,7 @@ import (
 
 func TestValidateBackend(t *testing.T) {
 	base := gateway.Backend{
-		ObjectMeta: metav1.ObjectMeta{Name: "backend-1"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "backend-1"},
 		Spec: gateway.BackendSpec{
 			Endpoints: []gateway.Endpoint{{Address: "api.example.com", Port: 8080, Weight: 1}},
 		},
@@ -23,6 +23,16 @@ func TestValidateBackend(t *testing.T) {
 		wantFields []string
 	}{
 		{name: "valid"},
+		{
+			name:       "missing namespace",
+			update:     func(b *gateway.Backend) { b.Namespace = "" },
+			wantFields: []string{"metadata.namespace"},
+		},
+		{
+			name:       "invalid namespace",
+			update:     func(b *gateway.Backend) { b.Namespace = "Team.A" },
+			wantFields: []string{"metadata.namespace"},
+		},
 		{
 			name:       "empty endpoints",
 			update:     func(u *gateway.Backend) { u.Spec.Endpoints = nil },

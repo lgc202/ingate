@@ -17,12 +17,13 @@ import (
 
 // HTTPRoute 将写入交给 API Server，将查询交给 MySQL 投影。
 type HTTPRoute struct {
-	client gatewayclient.HTTPRouteInterface
+	client gatewayclient.HTTPRoutesGetter
 	store  *mysql.Store
 }
 
 // HTTPRouteListParams 保存路由分页、展示名称包含匹配和 Gateway 精确筛选条件。
 type HTTPRouteListParams struct {
+	Namespace   string
 	PageSize    int32
 	PageNum     int32
 	DisplayName string
@@ -31,6 +32,7 @@ type HTTPRouteListParams struct {
 
 // HTTPRouteInfo 保存管理查询及创建、更新响应所需的 HTTP 路由信息，不表示完整的 Kubernetes 资源。
 type HTTPRouteInfo struct {
+	Namespace   string
 	Name        string
 	DisplayName string
 	ParentRefs  []gatewayv1alpha1.ParentReference
@@ -46,7 +48,7 @@ type HTTPRoutePage struct {
 }
 
 // NewHTTPRoute 创建 HTTPRoute Repository。
-func NewHTTPRoute(client gatewayclient.HTTPRouteInterface, store *mysql.Store) *HTTPRoute {
+func NewHTTPRoute(client gatewayclient.HTTPRoutesGetter, store *mysql.Store) *HTTPRoute {
 	return &HTTPRoute{client: client, store: store}
 }
 
@@ -61,7 +63,7 @@ func (r *HTTPRoute) Create(
 		return HTTPRouteInfo{}, err
 	}
 
-	created, err := r.client.Create(ctx, candidate, metav1.CreateOptions{})
+	created, err := r.client.HTTPRoutes(route.Namespace).Create(ctx, candidate, metav1.CreateOptions{})
 	if err != nil {
 		return HTTPRouteInfo{}, translateResourceError(err)
 	}
@@ -72,9 +74,9 @@ func (r *HTTPRoute) Create(
 // Get 从 MySQL 查询模型读取指定 HTTPRoute。
 func (r *HTTPRoute) Get(
 	ctx context.Context,
-	name string,
+	namespace, name string,
 ) (HTTPRouteInfo, error) {
-	route, err := r.store.GetHTTPRoute(ctx, name)
+	route, err := r.store.GetHTTPRoute(ctx, namespace, name)
 	if err != nil {
 		if errors.Is(err, mysql.ErrNotFound) {
 			return HTTPRouteInfo{}, fmt.Errorf("%w: %w", ErrNotFound, err)
@@ -91,6 +93,7 @@ func (r *HTTPRoute) List(
 	params HTTPRouteListParams,
 ) (HTTPRoutePage, error) {
 	result, err := r.store.ListHTTPRoutes(ctx, mysql.HTTPRouteListParams{
+		Namespace:   params.Namespace,
 		PageSize:    params.PageSize,
 		PageNum:     params.PageNum,
 		DisplayName: params.DisplayName,
@@ -113,7 +116,7 @@ func (r *HTTPRoute) Update(
 	ctx context.Context,
 	route *gatewayv1alpha1.HTTPRoute,
 ) (HTTPRouteInfo, error) {
-	current, err := r.client.Get(ctx, route.Name, metav1.GetOptions{})
+	current, err := r.client.HTTPRoutes(route.Namespace).Get(ctx, route.Name, metav1.GetOptions{})
 	if err != nil {
 		return HTTPRouteInfo{}, translateResourceError(err)
 	}
@@ -129,7 +132,7 @@ func (r *HTTPRoute) Update(
 	}
 
 	current.Spec = candidate.Spec
-	updated, err := r.client.Update(ctx, current, metav1.UpdateOptions{})
+	updated, err := r.client.HTTPRoutes(route.Namespace).Update(ctx, current, metav1.UpdateOptions{})
 	if err != nil {
 		return HTTPRouteInfo{}, translateResourceError(err)
 	}
@@ -138,8 +141,8 @@ func (r *HTTPRoute) Update(
 }
 
 // Delete 删除指定 HTTPRoute。
-func (r *HTTPRoute) Delete(ctx context.Context, name string) error {
-	return translateResourceError(r.client.Delete(ctx, name, metav1.DeleteOptions{}))
+func (r *HTTPRoute) Delete(ctx context.Context, namespace, name string) error {
+	return translateResourceError(r.client.HTTPRoutes(namespace).Delete(ctx, name, metav1.DeleteOptions{}))
 }
 
 func validateRoute(route *gatewayv1alpha1.HTTPRoute) error {
@@ -156,6 +159,7 @@ func validateRoute(route *gatewayv1alpha1.HTTPRoute) error {
 func routeFromAPI(route *gatewayv1alpha1.HTTPRoute) HTTPRouteInfo {
 	spec := route.DeepCopy().Spec
 	return HTTPRouteInfo{
+		Namespace:   route.Namespace,
 		Name:        route.Name,
 		DisplayName: spec.DisplayName,
 		ParentRefs:  spec.ParentRefs,
@@ -167,6 +171,7 @@ func routeFromAPI(route *gatewayv1alpha1.HTTPRoute) HTTPRouteInfo {
 
 func routeFromMySQL(route mysql.HTTPRoute) HTTPRouteInfo {
 	result := HTTPRouteInfo{
+		Namespace:   route.Namespace,
 		Name:        route.Name,
 		DisplayName: route.DisplayName,
 		CreateTime:  route.CreatedAt,

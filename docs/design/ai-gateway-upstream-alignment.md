@@ -1,8 +1,8 @@
 # AI 网关上游设计对照：采用、裁剪与必要差异
 
-- 状态：六种资源关系、HTTP 子集及模型/MCP 基础字段已确认；六种资源声明及三种新增资源的管理与投影均已提交，共享协调器组织调整待用户 review；不授权新服务、安装组件或新增依赖
+- 状态：六种资源关系、HTTP 子集及模型/MCP 基础字段已确认；资源声明、管理与投影、共享协调器及 Namespace 基础设施均已提交，本轮业务资源 Namespace 全链路切换待用户 review；不授权新服务、安装组件或新增依赖
 - 最近核对日期：2026-10-12；通用 HTTP/TLS 与 MCP 运行行为的此前核对日期为 2026-10-10
-- 当前 Ingate 基线：`f054c54b`（MCPRoute 管理与查询投影）；HTTP 替换前基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
+- 当前 Ingate 基线：`17cfe8d5`（Backend 默认存储筛选）；Namespace 全链路切换未提交；HTTP 替换前基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
 - 对应设计：[资源契约与替换计划](ai-gateway-resource-contract.md)
 
 ## 结论与来源选择
@@ -27,11 +27,11 @@ GitHub 标签的提交已只读解析；Envoy Gateway 使用 annotated tag，表
 | sectionName | [ParentReference](https://github.com/kubernetes-sigs/gateway-api/blob/8bb74df00e56ec8f944d48c25e6c1c9c2f6848e3/apis/v1/shared_types.go#L92)允许省略，引用整个 parent；至少一个合格 Listener 接纳即附着成功 | 撤掉必填要求。省略时后续新增 Listener 可能接纳，管理端显示有效附着范围 |
 | 规则 name | [HTTPRouteRule](https://github.com/kubernetes-sigs/gateway-api/blob/8bb74df00e56ec8f944d48c25e6c1c9c2f6848e3/apis/v1/httproute_types.go#L148)可选 | 撤掉强制名字及按规则名排序；未命名规则使用内部列表索引，不产生公共规则 ID |
 | 缺省 matches/path | [匹配定义](https://github.com/kubernetes-sigs/gateway-api/blob/8bb74df00e56ec8f944d48c25e6c1c9c2f6848e3/apis/v1/httproute_types.go#L154)采用 PathPrefix `/` | 撤掉「无 matches 拒绝」。这是扩大匹配范围的显式新契约，不能在界面中隐藏有效默认值 |
-| 匹配优先级 | [优先级定义](https://github.com/kubernetes-sigs/gateway-api/blob/8bb74df00e56ec8f944d48c25e6c1c9c2f6848e3/apis/v1/httproute_types.go#L186)先具体匹配，再跨资源创建时间/namespace-name，同资源最终按第一条规则 | 已实现路径条件采用 Exact、最长路径段前缀；集群级资源省略 namespace 比较。相同 HTTP match 保留候选而非整体删除资源 |
+| 匹配优先级 | [优先级定义](https://github.com/kubernetes-sigs/gateway-api/blob/8bb74df00e56ec8f944d48c25e6c1c9c2f6848e3/apis/v1/httproute_types.go#L186)先具体匹配，再跨资源创建时间/namespace-name，同资源最终按第一条规则 | 已实现路径条件采用 Exact、最长路径段前缀；同名跨空间资源使用 Namespace/name 比较，沿 0013 实现。相同 HTTP match 保留候选而非整体删除资源 |
 | 引用失效 | [HTTPBackendRef 语义](https://github.com/kubernetes-sigs/gateway-api/blob/8bb74df00e56ec8f944d48c25e6c1c9c2f6848e3/apis/v1/httproute_types.go#L269)要求命中无效目标返回错误，不自动把其流量分配给有效目标 | 保留匹配，生成错误动作；不能删除规则后落到 `/` 兜底。当前 Ingate 排除缺少引用 Route 的行为会改变 |
 | 路由状态 | [RouteParentStatus](https://github.com/kubernetes-sigs/gateway-api/blob/8bb74df00e56ec8f944d48c25e6c1c9c2f6848e3/apis/v1/shared_types.go#L481)及标准 Conditions | 采用 parentRef/controllerName/conditions；Accepted 与 ResolvedRefs 分开，不自造逐规则 status 协议或 BackendMissing 同义 Reason |
 
-Header、Query、Method、filters、跨 namespace 引用等未批准能力不能因上游类型存在就自动开放。需要这些能力时采用对应原义并补反例，不创建任意条件字典。自有 Group、cluster scope、单目标切片和必需 parentRefs 意味着这是明确子集，不是 Gateway API 全量一致性实现。
+Header、Query、Method、filters、跨 namespace 引用等未批准能力不能因上游类型存在就自动开放。需要这些能力时采用对应原义并补反例，不创建任意条件字典。自有 Group、单目标切片和必需 parentRefs 意味着这是明确子集，不是 Gateway API 全量一致性实现。
 
 ### 同一条失效规则的三层证据
 
@@ -69,7 +69,7 @@ Agent Router [AIServiceBackendSpec](https://github.com/theagentrouter/agent-rout
 
 上述依据不能由过时注释替代。AIServiceBackendSpec 的 APISchema 注释仍提及 AIGatewayRouteSpec.APISchema，但该版本实际 route 定义不存在该字段；shared_types 的省略 prefix 描述也不能替代 Controller 的默认处理。
 
-名称变化、cluster scope、displayName、单目标、只开放模型 Exact 匹配以及标准 parent Conditions，仍是明确的 Ingate 子集。沿用结构不等于完整实现官方 Header 路由、模型发现、InferencePool、多目标重试、转换或计费。后台生成 name、重复 displayName 和必要时显示资源 ID 沿用本项目已确认契约，不重新发明身份系统。
+名称变化、displayName、单目标、只开放模型 Exact 匹配以及标准 parent Conditions，仍是明确的 Ingate 子集。沿用结构不等于完整实现官方 Header 路由、模型发现、InferencePool、多目标重试、转换或计费。后台生成 name、重复 displayName 和必要时显示资源 ID 沿用本项目已确认契约，不重新发明身份系统。
 
 ### 不照搬实现中的每一处行为
 

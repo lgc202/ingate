@@ -12,7 +12,7 @@ import (
 
 func TestModelRouteProjectionPreservesOrderAndCatchAll(t *testing.T) {
 	route := &gatewayv1alpha1.ModelRoute{
-		ObjectMeta: metav1.ObjectMeta{Name: "models", ResourceVersion: "9"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "models", ResourceVersion: "9"},
 		Spec: gatewayv1alpha1.ModelRouteSpec{
 			ParentRefs: []gatewayv1alpha1.ParentReference{
 				{Name: "edge", SectionName: "z"},
@@ -38,7 +38,8 @@ func TestModelRouteProjectionPreservesOrderAndCatchAll(t *testing.T) {
 	before := route.DeepCopy()
 	got := modelRouteToMySQL(route)
 	want := mysql.ModelRoute{
-		Name: "models",
+		Namespace: "team-a",
+		Name:      "models",
 		Parents: []mysql.ModelRouteParent{
 			{Name: "edge", SectionName: "z"},
 			{Name: "edge", SectionName: "a"},

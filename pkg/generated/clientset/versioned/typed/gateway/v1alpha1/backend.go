@@ -16,7 +16,7 @@ import (
 // BackendsGetter has a method to return a BackendInterface.
 // A group's client should implement this interface.
 type BackendsGetter interface {
-	Backends() BackendInterface
+	Backends(namespace string) BackendInterface
 }
 
 // BackendInterface has methods to work with Backend resources.
@@ -40,13 +40,13 @@ type backends struct {
 }
 
 // newBackends returns a Backends
-func newBackends(c *GatewayV1alpha1Client) *backends {
+func newBackends(c *GatewayV1alpha1Client, namespace string) *backends {
 	return &backends{
 		gentype.NewClientWithList[*gatewayv1alpha1.Backend, *gatewayv1alpha1.BackendList](
 			"backends",
 			c.RESTClient(),
 			scheme.ParameterCodec,
-			"",
+			namespace,
 			func() *gatewayv1alpha1.Backend { return &gatewayv1alpha1.Backend{} },
 			func() *gatewayv1alpha1.BackendList { return &gatewayv1alpha1.BackendList{} },
 		),

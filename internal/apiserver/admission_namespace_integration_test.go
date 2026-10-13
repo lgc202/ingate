@@ -17,9 +17,10 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
+	gatewayclient "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 )
 
-// namespaceLifecycleCapture 捕获框架实际装配的插件，供测试调用，不替换生产准入链。
+// namespaceLifecycleCapture 确认额外初始化器仍被框架调用，不替换生产准入链。
 type namespaceLifecycleCapture struct {
 	plugin *lifecycle.Lifecycle
 }
@@ -91,6 +92,11 @@ func TestNamespaceLifecycleLoopback(t *testing.T) {
 		t.Fatalf("Delete(local Namespace shared) error = %v", err)
 	}
 
+	gateways, err := gatewayclient.NewForConfig(localConfig)
+	if err != nil {
+		t.Fatalf("create local gateway client error = %v", err)
+	}
+
 	tests := []struct {
 		namespace  string
 		wantReason metav1.StatusReason
@@ -100,30 +106,21 @@ func TestNamespaceLifecycleLoopback(t *testing.T) {
 		{namespace: "shared", wantReason: metav1.StatusReasonForbidden},
 	}
 	for _, tt := range tests {
-		// List/Watch 和实时查询走真实 HTTPS，业务属性则直接交给捕获的官方插件；
-		// 当前 Gateway 仍是集群级，此处不能通过其 HTTP 入口验证 namespaced 创建。
-		attributes := admission.NewAttributesRecord(
-			&gatewayv1alpha1.Gateway{},
-			nil,
-			gatewayv1alpha1.SchemeGroupVersion.WithKind("Gateway"),
-			tt.namespace,
-			"edge",
-			gatewayv1alpha1.SchemeGroupVersion.WithResource("gateways"),
-			"",
-			admission.Create,
-			nil,
-			false,
-			nil,
-		)
-		err := capture.plugin.Admit(ctx, attributes, nil)
+		// 请求通过真实 Gateway HTTP 存储入口及框架装配的准入链。
+		_, err := gateways.GatewayV1alpha1().Gateways(tt.namespace).Create(ctx, &gatewayv1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Namespace: tt.namespace, Name: "edge"},
+			Spec: gatewayv1alpha1.GatewaySpec{
+				Listeners: []gatewayv1alpha1.Listener{{Name: "http", Protocol: gatewayv1alpha1.ProtocolHTTP, Port: 8080}},
+			},
+		}, metav1.CreateOptions{})
 		if tt.wantReason == "" {
 			if err != nil {
-				t.Errorf("Admit(%q) error = %v, want nil", tt.namespace, err)
+				t.Errorf("Create(Gateway in %q) error = %v, want nil", tt.namespace, err)
 			}
 			continue
 		}
 		if got := apierrors.ReasonForError(err); got != tt.wantReason {
-			t.Errorf("Admit(%q) reason = %q, want %q (error = %v)", tt.namespace, got, tt.wantReason, err)
+			t.Errorf("Create(Gateway in %q) reason = %q, want %q (error = %v)", tt.namespace, got, tt.wantReason, err)
 		}
 	}
 }

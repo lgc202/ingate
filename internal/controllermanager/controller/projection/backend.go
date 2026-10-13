@@ -40,29 +40,29 @@ func (r *BackendReconciler) SetupWithManager(manager ctrl.Manager) error {
 		Complete(r)
 }
 
-// Reconcile 按名称同步一个 Backend，或执行启动全量对账。
+// Reconcile 按命名空间和名称同步一个 Backend，或执行启动全量对账。
 func (r *BackendReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	if request.Name == backendInitialSyncName {
+	if request.Namespace == "" && request.Name == backendInitialSyncName {
 		return ctrl.Result{}, r.syncAll(ctx)
 	}
 
-	return ctrl.Result{}, r.syncBackend(ctx, request.Name)
+	return ctrl.Result{}, r.syncBackend(ctx, request.NamespacedName)
 }
 
-func (r *BackendReconciler) syncBackend(ctx context.Context, name string) error {
+func (r *BackendReconciler) syncBackend(ctx context.Context, key types.NamespacedName) error {
 	var backend gatewayv1alpha1.Backend
-	if err := r.client.Get(ctx, types.NamespacedName{Name: name}, &backend); err != nil {
+	if err := r.client.Get(ctx, key, &backend); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return fmt.Errorf("get Backend %q: %w", name, err)
+			return fmt.Errorf("get Backend %q: %w", key.String(), err)
 		}
-		if err := r.store.DeleteBackend(ctx, name); err != nil {
-			return fmt.Errorf("delete Backend %q from MySQL: %w", name, err)
+		if err := r.store.DeleteBackend(ctx, key.Namespace, key.Name); err != nil {
+			return fmt.Errorf("delete Backend %q from MySQL: %w", key.String(), err)
 		}
 		return nil
 	}
 
 	if err := r.store.UpsertBackend(ctx, backendToMySQL(&backend)); err != nil {
-		return fmt.Errorf("sync Backend %q to MySQL: %w", name, err)
+		return fmt.Errorf("sync Backend %q to MySQL: %w", key.String(), err)
 	}
 
 	return nil
@@ -74,26 +74,26 @@ func (r *BackendReconciler) syncAll(ctx context.Context) error {
 		return fmt.Errorf("list Backends for initial sync: %w", err)
 	}
 
-	current := make(map[string]struct{}, len(backends.Items))
+	current := make(map[types.NamespacedName]struct{}, len(backends.Items))
 	for i := range backends.Items {
 		backend := &backends.Items[i]
 		if err := r.store.UpsertBackend(ctx, backendToMySQL(backend)); err != nil {
-			return fmt.Errorf("sync Backend %q to MySQL: %w", backend.Name, err)
+			return fmt.Errorf("sync Backend %q to MySQL: %w", client.ObjectKeyFromObject(backend).String(), err)
 		}
-		current[backend.Name] = struct{}{}
+		current[client.ObjectKeyFromObject(backend)] = struct{}{}
 	}
 
-	storedNames, err := r.store.ListBackendNames(ctx)
+	storedKeys, err := r.store.ListBackendKeys(ctx)
 	if err != nil {
 		return err
 	}
 
-	for _, name := range storedNames {
-		if _, exists := current[name]; exists {
+	for _, key := range storedKeys {
+		if _, exists := current[key]; exists {
 			continue
 		}
-		if err := r.store.DeleteBackend(ctx, name); err != nil {
-			return fmt.Errorf("delete stale Backend %q from MySQL: %w", name, err)
+		if err := r.store.DeleteBackend(ctx, key.Namespace, key.Name); err != nil {
+			return fmt.Errorf("delete stale Backend %q from MySQL: %w", key.String(), err)
 		}
 	}
 
@@ -111,6 +111,7 @@ func backendToMySQL(backend *gatewayv1alpha1.Backend) mysql.Backend {
 	}
 
 	return mysql.Backend{
+		Namespace:   backend.Namespace,
 		Name:        backend.Name,
 		DisplayName: backend.Spec.DisplayName,
 		Version:     backend.ResourceVersion,

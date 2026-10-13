@@ -15,6 +15,7 @@ func TestGetAIBackend(t *testing.T) {
 	store, mock := newResourceTestStore(t)
 	want := AIBackend{
 		ID:           41,
+		Namespace:    "team-a",
 		Name:         "models",
 		DisplayName:  "模型服务",
 		BackendName:  "network",
@@ -23,11 +24,11 @@ func TestGetAIBackend(t *testing.T) {
 		Version:      "9",
 		CreatedAt:    time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC),
 	}
-	mock.ExpectQuery("FROM `aibackends` WHERE name =").WithArgs("models", 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "display_name", "backend_name", "schema_name", "schema_prefix", "version", "created_at"}).
-			AddRow(want.ID, want.Name, want.DisplayName, want.BackendName, want.SchemaName, want.SchemaPrefix, want.Version, want.CreatedAt))
+	mock.ExpectQuery("FROM `aibackends` WHERE namespace = \\? AND name =").WithArgs("team-a", "models", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"namespace", "id", "name", "display_name", "backend_name", "schema_name", "schema_prefix", "version", "created_at"}).
+			AddRow("team-a", want.ID, want.Name, want.DisplayName, want.BackendName, want.SchemaName, want.SchemaPrefix, want.Version, want.CreatedAt))
 
-	got, err := store.GetAIBackend(t.Context(), "models")
+	got, err := store.GetAIBackend(t.Context(), "team-a", "models")
 	if err != nil {
 		t.Fatalf("GetAIBackend(models) error = %v, want nil", err)
 	}
@@ -38,9 +39,9 @@ func TestGetAIBackend(t *testing.T) {
 
 func TestGetAIBackendNotFound(t *testing.T) {
 	store, mock := newResourceTestStore(t)
-	mock.ExpectQuery("FROM `aibackends` WHERE name =").WithArgs("missing", 1).
+	mock.ExpectQuery("FROM `aibackends` WHERE namespace = \\? AND name =").WithArgs("team-a", "missing", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}))
-	got, err := store.GetAIBackend(t.Context(), "missing")
+	got, err := store.GetAIBackend(t.Context(), "team-a", "missing")
 	if !errors.Is(err, ErrNotFound) || !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Errorf("GetAIBackend(missing) error = %v, want ErrNotFound and GORM cause", err)
 	}
@@ -52,6 +53,7 @@ func TestGetAIBackendNotFound(t *testing.T) {
 func TestUpsertAIBackendReplacesEmptyValues(t *testing.T) {
 	store, mock := newResourceTestStore(t)
 	backend := AIBackend{
+		Namespace:   "team-a",
 		Name:        "models",
 		BackendName: "other-network",
 		SchemaName:  "OpenAI",
@@ -59,7 +61,7 @@ func TestUpsertAIBackendReplacesEmptyValues(t *testing.T) {
 		CreatedAt:   time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC),
 	}
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT `id` FROM `aibackends` WHERE name =").WithArgs("models", 1).
+	mock.ExpectQuery("SELECT `id` FROM `aibackends` WHERE namespace = \\? AND name =").WithArgs("team-a", "models", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(41))
 	mock.ExpectExec(regexp.QuoteMeta("UPDATE `aibackends` SET `display_name`=?,`backend_name`=?,`schema_name`=?,`schema_prefix`=?,`version`=?,`created_at`=?,`updated_at`=? WHERE `id` = ?")).
 		WithArgs("", "other-network", "OpenAI", "", "9", backend.CreatedAt, sqlmock.AnyArg(), 41).
@@ -74,11 +76,11 @@ func TestUpsertAIBackendRollsBackWriteFailure(t *testing.T) {
 	store, mock := newResourceTestStore(t)
 	wantErr := errors.New("write unavailable")
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT `id` FROM `aibackends` WHERE name =").WithArgs("models", 1).
+	mock.ExpectQuery("SELECT `id` FROM `aibackends` WHERE namespace = \\? AND name =").WithArgs("team-a", "models", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(41))
 	mock.ExpectExec("UPDATE `aibackends` SET").WillReturnError(wantErr)
 	mock.ExpectRollback()
-	if err := store.UpsertAIBackend(t.Context(), AIBackend{Name: "models"}); !errors.Is(err, wantErr) {
+	if err := store.UpsertAIBackend(t.Context(), AIBackend{Namespace: "team-a", Name: "models"}); !errors.Is(err, wantErr) {
 		t.Errorf("UpsertAIBackend(write failure) error = %v, want wrapped %v", err, wantErr)
 	}
 }
@@ -89,6 +91,7 @@ func TestListAIBackendsFiltersAndPaginates(t *testing.T) {
 	want := AIBackendPage{
 		TotalCount: 3,
 		Items: []AIBackend{{
+			Namespace:    "team-a",
 			Name:         "second",
 			DisplayName:  "模型%_!",
 			BackendName:  "network",
@@ -99,14 +102,14 @@ func TestListAIBackendsFiltersAndPaginates(t *testing.T) {
 	}
 	condition := "display_name LIKE ? ESCAPE '!'"
 	mock.ExpectBegin()
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `aibackends` WHERE " + condition)).
-		WithArgs("%模型!%!_!!%").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `aibackends` WHERE "+condition+" ORDER BY name LIMIT ? OFFSET ?")).
-		WithArgs("%模型!%!_!!%", 1, 1).
-		WillReturnRows(sqlmock.NewRows([]string{"name", "display_name", "backend_name", "schema_name", "schema_prefix", "version"}).
-			AddRow("second", "模型%_!", "network", "OpenAI", "/v1", "9"))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `aibackends` WHERE namespace = ? AND "+condition)).
+		WithArgs("team-a", "%模型!%!_!!%").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `aibackends` WHERE namespace = ? AND "+condition+" ORDER BY name LIMIT ? OFFSET ?")).
+		WithArgs("team-a", "%模型!%!_!!%", 1, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"namespace", "name", "display_name", "backend_name", "schema_name", "schema_prefix", "version"}).
+			AddRow("team-a", "second", "模型%_!", "network", "OpenAI", "/v1", "9"))
 	mock.ExpectCommit()
-	got, err := store.ListAIBackends(t.Context(), ResourceListParams{PageSize: 1, PageNum: 2, DisplayName: "模型%_!"})
+	got, err := store.ListAIBackends(t.Context(), ResourceListParams{Namespace: "team-a", PageSize: 1, PageNum: 2, DisplayName: "模型%_!"})
 	if err != nil {
 		t.Fatalf("ListAIBackends(filtered page 2) error = %v, want nil", err)
 	}
@@ -119,11 +122,11 @@ func TestListAIBackendsReturnsNoPartialPageOnFailure(t *testing.T) {
 	store, mock := newResourceTestStore(t)
 	wantErr := errors.New("page unavailable")
 	mock.ExpectBegin()
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `aibackends`")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `aibackends` WHERE namespace = ?")).WithArgs("team-a").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
-	mock.ExpectQuery("FROM `aibackends` ORDER BY name LIMIT").WithArgs(50).WillReturnError(wantErr)
+	mock.ExpectQuery("FROM `aibackends` WHERE namespace = \\? ORDER BY name LIMIT").WithArgs("team-a", 50).WillReturnError(wantErr)
 	mock.ExpectRollback()
-	got, err := store.ListAIBackends(t.Context(), ResourceListParams{PageSize: 50, PageNum: 1})
+	got, err := store.ListAIBackends(t.Context(), ResourceListParams{Namespace: "team-a", PageSize: 50, PageNum: 1})
 	if !errors.Is(err, wantErr) {
 		t.Errorf("ListAIBackends(page failure) error = %v, want wrapped %v", err, wantErr)
 	}
@@ -135,12 +138,12 @@ func TestListAIBackendsReturnsNoPartialPageOnFailure(t *testing.T) {
 func TestListAIBackendsNoMatch(t *testing.T) {
 	store, mock := newResourceTestStore(t)
 	mock.ExpectBegin()
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `aibackends` WHERE display_name LIKE ? ESCAPE '!'")).
-		WithArgs("%missing%").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `aibackends` WHERE display_name LIKE ? ESCAPE '!' ORDER BY name LIMIT ?")).
-		WithArgs("%missing%", 50).WillReturnRows(sqlmock.NewRows([]string{"name"}))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `aibackends` WHERE namespace = ? AND display_name LIKE ? ESCAPE '!'")).
+		WithArgs("team-a", "%missing%").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `aibackends` WHERE namespace = ? AND display_name LIKE ? ESCAPE '!' ORDER BY name LIMIT ?")).
+		WithArgs("team-a", "%missing%", 50).WillReturnRows(sqlmock.NewRows([]string{"name"}))
 	mock.ExpectCommit()
-	got, err := store.ListAIBackends(t.Context(), ResourceListParams{PageSize: 50, PageNum: 1, DisplayName: "missing"})
+	got, err := store.ListAIBackends(t.Context(), ResourceListParams{Namespace: "team-a", PageSize: 50, PageNum: 1, DisplayName: "missing"})
 	if err != nil {
 		t.Fatalf("ListAIBackends(no match) error = %v, want nil", err)
 	}

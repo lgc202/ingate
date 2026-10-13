@@ -16,12 +16,13 @@ import (
 
 // MCPRoute 将写入交给 API Server，将查询交给 MySQL 投影。
 type MCPRoute struct {
-	client gatewayclient.MCPRouteInterface
+	client gatewayclient.MCPRoutesGetter
 	store  *mysql.Store
 }
 
 // MCPRouteListParams 保存路由分页、展示名称包含匹配和 Gateway 精确筛选条件。
 type MCPRouteListParams struct {
+	Namespace   string
 	PageSize    int32
 	PageNum     int32
 	DisplayName string
@@ -30,6 +31,7 @@ type MCPRouteListParams struct {
 
 // MCPRouteInfo 保存管理查询及创建、更新响应所需的 MCP 路由信息，不表示完整的 Kubernetes 资源。
 type MCPRouteInfo struct {
+	Namespace   string
 	Name        string
 	DisplayName string
 	ParentRefs  []gatewayv1alpha1.ParentReference
@@ -46,7 +48,7 @@ type MCPRoutePage struct {
 }
 
 // NewMCPRoute 创建 MCPRoute Repository。
-func NewMCPRoute(client gatewayclient.MCPRouteInterface, store *mysql.Store) *MCPRoute {
+func NewMCPRoute(client gatewayclient.MCPRoutesGetter, store *mysql.Store) *MCPRoute {
 	return &MCPRoute{client: client, store: store}
 }
 
@@ -55,7 +57,7 @@ func (r *MCPRoute) Create(
 	ctx context.Context,
 	route *gatewayv1alpha1.MCPRoute,
 ) (MCPRouteInfo, error) {
-	created, err := r.client.Create(ctx, route.DeepCopy(), metav1.CreateOptions{})
+	created, err := r.client.MCPRoutes(route.Namespace).Create(ctx, route.DeepCopy(), metav1.CreateOptions{})
 	if err != nil {
 		return MCPRouteInfo{}, translateResourceError(err)
 	}
@@ -66,9 +68,9 @@ func (r *MCPRoute) Create(
 // Get 从 MySQL 查询模型读取指定 MCPRoute。
 func (r *MCPRoute) Get(
 	ctx context.Context,
-	name string,
+	namespace, name string,
 ) (MCPRouteInfo, error) {
-	route, err := r.store.GetMCPRoute(ctx, name)
+	route, err := r.store.GetMCPRoute(ctx, namespace, name)
 	if err != nil {
 		if errors.Is(err, mysql.ErrNotFound) {
 			return MCPRouteInfo{}, fmt.Errorf("%w: %w", ErrNotFound, err)
@@ -85,6 +87,7 @@ func (r *MCPRoute) List(
 	params MCPRouteListParams,
 ) (MCPRoutePage, error) {
 	result, err := r.store.ListMCPRoutes(ctx, mysql.MCPRouteListParams{
+		Namespace:   params.Namespace,
 		PageSize:    params.PageSize,
 		PageNum:     params.PageNum,
 		DisplayName: params.DisplayName,
@@ -107,7 +110,7 @@ func (r *MCPRoute) Update(
 	ctx context.Context,
 	route *gatewayv1alpha1.MCPRoute,
 ) (MCPRouteInfo, error) {
-	current, err := r.client.Get(ctx, route.Name, metav1.GetOptions{})
+	current, err := r.client.MCPRoutes(route.Namespace).Get(ctx, route.Name, metav1.GetOptions{})
 	if err != nil {
 		return MCPRouteInfo{}, translateResourceError(err)
 	}
@@ -117,7 +120,7 @@ func (r *MCPRoute) Update(
 	}
 
 	current.Spec = *route.Spec.DeepCopy()
-	updated, err := r.client.Update(ctx, current, metav1.UpdateOptions{})
+	updated, err := r.client.MCPRoutes(route.Namespace).Update(ctx, current, metav1.UpdateOptions{})
 	if err != nil {
 		return MCPRouteInfo{}, translateResourceError(err)
 	}
@@ -126,13 +129,14 @@ func (r *MCPRoute) Update(
 }
 
 // Delete 删除指定 MCPRoute。
-func (r *MCPRoute) Delete(ctx context.Context, name string) error {
-	return translateResourceError(r.client.Delete(ctx, name, metav1.DeleteOptions{}))
+func (r *MCPRoute) Delete(ctx context.Context, namespace, name string) error {
+	return translateResourceError(r.client.MCPRoutes(namespace).Delete(ctx, name, metav1.DeleteOptions{}))
 }
 
 func mcpRouteFromAPI(route *gatewayv1alpha1.MCPRoute) MCPRouteInfo {
 	spec := route.Spec.DeepCopy()
 	return MCPRouteInfo{
+		Namespace:   route.Namespace,
 		Name:        route.Name,
 		DisplayName: spec.DisplayName,
 		ParentRefs:  spec.ParentRefs,
@@ -145,6 +149,7 @@ func mcpRouteFromAPI(route *gatewayv1alpha1.MCPRoute) MCPRouteInfo {
 
 func mcpRouteFromMySQL(route mysql.MCPRoute) MCPRouteInfo {
 	result := MCPRouteInfo{
+		Namespace:   route.Namespace,
 		Name:        route.Name,
 		DisplayName: route.DisplayName,
 		Path:        ptr.To(route.Path),

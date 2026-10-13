@@ -20,9 +20,9 @@ import (
 
 func TestGatewayCreate(t *testing.T) {
 	client := clientfake.NewSimpleClientset()
-	gateways := NewGateway(client.GatewayV1alpha1().Gateways(), nil)
+	gateways := NewGateway(client.GatewayV1alpha1(), nil)
 
-	created, err := gateways.Create(context.Background(), &gatewayv1alpha1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: "public-gateway"}})
+	created, err := gateways.Create(context.Background(), &gatewayv1alpha1.Gateway{ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "public-gateway"}})
 	if err != nil {
 		t.Fatalf("Gateway.Create(public-gateway) error = %v, want nil", err)
 	}
@@ -38,9 +38,9 @@ func TestGatewayCreateAlreadyExists(t *testing.T) {
 	client.PrependReactor("create", "gateways", func(clienttesting.Action) (bool, runtime.Object, error) {
 		return true, nil, storageErr
 	})
-	gateways := NewGateway(client.GatewayV1alpha1().Gateways(), nil)
+	gateways := NewGateway(client.GatewayV1alpha1(), nil)
 
-	_, err := gateways.Create(context.Background(), &gatewayv1alpha1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: "public-gateway"}})
+	_, err := gateways.Create(context.Background(), &gatewayv1alpha1.Gateway{ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "public-gateway"}})
 	if !errors.Is(err, ErrAlreadyExists) {
 		t.Errorf("Gateway.Create(public-gateway) error = %v, want ErrAlreadyExists", err)
 	}
@@ -49,8 +49,8 @@ func TestGatewayCreateAlreadyExists(t *testing.T) {
 func TestGatewayReadsQueryModelAndUpdatesAPIServer(t *testing.T) {
 	ctx := context.Background()
 	client := clientfake.NewSimpleClientset()
-	if _, err := client.GatewayV1alpha1().Gateways().Create(ctx, &gatewayv1alpha1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{Name: "edge", ResourceVersion: "8"},
+	if _, err := client.GatewayV1alpha1().Gateways("team-a").Create(ctx, &gatewayv1alpha1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "edge", ResourceVersion: "8"},
 	}, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("seed API Server Gateway: %v", err)
 	}
@@ -78,18 +78,18 @@ func TestGatewayReadsQueryModelAndUpdatesAPIServer(t *testing.T) {
 		t.Fatalf("gorm.Open() error = %v, want nil", err)
 	}
 	store := mysql.New(gormDB)
-	gateways := NewGateway(client.GatewayV1alpha1().Gateways(), store)
+	gateways := NewGateway(client.GatewayV1alpha1(), store)
 
 	query.ExpectBegin()
-	query.ExpectQuery("FROM `gateways` WHERE name = ").WillReturnRows(
-		sqlmock.NewRows([]string{"id", "name", "version"}).AddRow(1, "edge", "7"),
+	query.ExpectQuery("FROM `gateways` WHERE namespace = \\? AND name = ").WithArgs("team-a", "edge", 1).WillReturnRows(
+		sqlmock.NewRows([]string{"namespace", "id", "name", "version"}).AddRow("team-a", 1, "edge", "7"),
 	)
 	query.ExpectQuery("FROM `gateway_listeners` WHERE gateway_id =").WillReturnRows(
 		sqlmock.NewRows([]string{"id", "gateway_id", "name", "protocol", "port", "hostname"}),
 	)
 	query.ExpectCommit()
 
-	got, err := gateways.Get(ctx, "edge")
+	got, err := gateways.Get(ctx, "team-a", "edge")
 	if err != nil {
 		t.Fatalf("Get Gateway from query model: %v", err)
 	}
@@ -98,23 +98,23 @@ func TestGatewayReadsQueryModelAndUpdatesAPIServer(t *testing.T) {
 	}
 
 	query.ExpectBegin()
-	query.ExpectQuery("SELECT count\\(\\*\\) FROM `gateways`").WillReturnRows(
+	query.ExpectQuery("SELECT count\\(\\*\\) FROM `gateways` WHERE namespace = \\?").WithArgs("team-a").WillReturnRows(
 		sqlmock.NewRows([]string{"count"}).AddRow(1),
 	)
-	query.ExpectQuery("FROM `gateways` ORDER BY name LIMIT").WillReturnRows(
-		sqlmock.NewRows([]string{"id", "name", "version"}).AddRow(1, "edge", "7"),
+	query.ExpectQuery("FROM `gateways` WHERE namespace = \\? ORDER BY name LIMIT").WithArgs("team-a", 20).WillReturnRows(
+		sqlmock.NewRows([]string{"namespace", "id", "name", "version"}).AddRow("team-a", 1, "edge", "7"),
 	)
 	query.ExpectQuery("FROM `gateway_listeners` WHERE gateway_id IN").WillReturnRows(
 		sqlmock.NewRows([]string{"id", "gateway_id", "name", "protocol", "port", "hostname"}),
 	)
 	query.ExpectCommit()
 
-	page, err := gateways.List(ctx, ResourceListParams{PageSize: 20, PageNum: 1})
+	page, err := gateways.List(ctx, ResourceListParams{Namespace: "team-a", PageSize: 20, PageNum: 1})
 	if err != nil || page.TotalCount != 1 || len(page.Items) != 1 || len(client.Actions()) != 0 {
 		t.Errorf("List = %d items, total %d, err %v, API actions %d; want 1, 1, nil, 0", len(page.Items), page.TotalCount, err, len(client.Actions()))
 	}
 
-	_, err = gateways.Update(ctx, &gatewayv1alpha1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: "edge", ResourceVersion: "7"}})
+	_, err = gateways.Update(ctx, &gatewayv1alpha1.Gateway{ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "edge", ResourceVersion: "7"}})
 	if !errors.Is(err, ErrConflict) {
 		t.Errorf("Update with stale projected version error = %v, want ErrConflict", err)
 	}

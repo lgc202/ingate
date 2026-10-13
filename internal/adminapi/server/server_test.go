@@ -45,7 +45,7 @@ func TestCreateGatewayHTTP(t *testing.T) {
 
 	response := postGateway(httpServer, createGatewayBody, "application/json")
 	if response.Code != http.StatusOK {
-		t.Fatalf("POST /api/admin/v1/gateways status = %d, want 200; body = %s", response.Code, response.Body.String())
+		t.Fatalf("POST /api/admin/v1/namespaces/team-a/gateways status = %d, want 200; body = %s", response.Code, response.Body.String())
 	}
 
 	var reply adminv1.CreateGatewayReply
@@ -67,7 +67,7 @@ func TestCreateGatewayHTTPProtoJSON(t *testing.T) {
 
 	response := postGateway(httpServer, createGatewayBody, "application/protojson")
 	if response.Code != http.StatusOK {
-		t.Fatalf("POST /api/admin/v1/gateways with ProtoJSON status = %d, want 200; body = %s", response.Code, response.Body.String())
+		t.Fatalf("POST /api/admin/v1/namespaces/team-a/gateways with ProtoJSON status = %d, want 200; body = %s", response.Code, response.Body.String())
 	}
 
 	var reply adminv1.CreateGatewayReply
@@ -156,7 +156,7 @@ func TestAdminAPIAuthenticationSelection(t *testing.T) {
 	if actions := client.Actions(); len(actions) != 0 {
 		t.Errorf("POST Gateway without Session caused %d API Server calls, want 0", len(actions))
 	}
-	for _, path := range []string{"/api/admin/v1/http-routes", "/api/admin/v1/backends"} {
+	for _, path := range []string{"/api/admin/v1/namespaces/team-a/http-routes", "/api/admin/v1/namespaces/team-a/backends"} {
 		response = requestResource(httpServer, http.MethodPost, path, `{}`)
 		if response.Code != http.StatusUnauthorized {
 			t.Errorf("POST %s without Session status = %d, want 401", path, response.Code)
@@ -205,12 +205,12 @@ func newTestServersWithStore(
 	store *mysqlstore.Store,
 ) (*kratoshttp.Server, *kratosgrpc.Server, *clientfake.Clientset) {
 	client := clientfake.NewSimpleClientset()
-	gateways := repository.NewGateway(client.GatewayV1alpha1().Gateways(), store)
-	routes := repository.NewHTTPRoute(client.GatewayV1alpha1().HTTPRoutes(), store)
-	backends := repository.NewBackend(client.GatewayV1alpha1().Backends(), store)
-	aiBackends := repository.NewAIBackend(client.GatewayV1alpha1().AIBackends(), store)
-	modelRoutes := repository.NewModelRoute(client.GatewayV1alpha1().ModelRoutes(), store)
-	mcpRoutes := repository.NewMCPRoute(client.GatewayV1alpha1().MCPRoutes(), store)
+	gateways := repository.NewGateway(client.GatewayV1alpha1(), store)
+	routes := repository.NewHTTPRoute(client.GatewayV1alpha1(), store)
+	backends := repository.NewBackend(client.GatewayV1alpha1(), store)
+	aiBackends := repository.NewAIBackend(client.GatewayV1alpha1(), store)
+	modelRoutes := repository.NewModelRoute(client.GatewayV1alpha1(), store)
+	mcpRoutes := repository.NewMCPRoute(client.GatewayV1alpha1(), store)
 
 	gatewayHandler := gatewayhandler.New(gatewayservice.New(gateways))
 	routeHandler := routehandler.New(routeservice.New(routes))
@@ -246,7 +246,7 @@ func newTestServersWithStore(
 }
 
 func postGateway(httpServer *kratoshttp.Server, body, mediaType string) *httptest.ResponseRecorder {
-	request := httptest.NewRequest(http.MethodPost, "/api/admin/v1/gateways", strings.NewReader(body))
+	request := httptest.NewRequest(http.MethodPost, "/api/admin/v1/namespaces/team-a/gateways", strings.NewReader(body))
 	request.Header.Set("Content-Type", mediaType)
 	request.Header.Set("Accept", mediaType)
 

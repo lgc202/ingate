@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // ModelRoute 保存单行路由投影，JSON 数组保留配置的声明顺序。
 type ModelRoute struct {
 	ID          uint64             `gorm:"column:id;primaryKey;autoIncrement"`
+	Namespace   string             `gorm:"column:namespace"`
 	Name        string             `gorm:"column:name"`
 	DisplayName string             `gorm:"column:display_name"`
 	Version     string             `gorm:"column:version"`
@@ -52,8 +54,9 @@ type ModelRouteBackendRef struct {
 	ModelNameOverride string `json:"modelNameOverride,omitempty"`
 }
 
-// ModelRouteListParams 限定路由列表的分页和常用筛选条件。
+// ModelRouteListParams 限定一个命名空间内路由列表的分页和常用筛选条件。
 type ModelRouteListParams struct {
+	Namespace   string
 	PageSize    int32
 	PageNum     int32
 	DisplayName string
@@ -75,7 +78,9 @@ func (ModelRoute) TableName() string {
 func (s *Store) UpsertModelRoute(ctx context.Context, route ModelRoute) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row ModelRoute
-		err := tx.Select("id").Where("name = ?", route.Name).Take(&row).Error
+		err := tx.Select("id").
+			Where("namespace = ? AND name = ?", route.Namespace, route.Name).
+			Take(&row).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			if err := tx.Create(&route).Error; err != nil {
 				return fmt.Errorf("create ModelRoute projection: %w", err)
@@ -97,28 +102,30 @@ func (s *Store) UpsertModelRoute(ctx context.Context, route ModelRoute) error {
 }
 
 // DeleteModelRoute 删除整个路由投影，不存在时成功返回。
-func (s *Store) DeleteModelRoute(ctx context.Context, name string) error {
-	if err := s.db.WithContext(ctx).Where("name = ?", name).Delete(&ModelRoute{}).Error; err != nil {
+func (s *Store) DeleteModelRoute(ctx context.Context, namespace, name string) error {
+	query := s.db.WithContext(ctx).Where("namespace = ? AND name = ?", namespace, name)
+	if err := query.Delete(&ModelRoute{}).Error; err != nil {
 		return fmt.Errorf("delete ModelRoute projection: %w", err)
 	}
 
 	return nil
 }
 
-// ListModelRouteNames 返回已投影的稳定名称，供启动对账使用。
-func (s *Store) ListModelRouteNames(ctx context.Context) ([]string, error) {
-	var names []string
-	if err := s.db.WithContext(ctx).Model(&ModelRoute{}).Order("name").Pluck("name", &names).Error; err != nil {
-		return nil, fmt.Errorf("list ModelRoute names: %w", err)
+// ListModelRouteKeys 返回所有已投影对象的空间和名称，供启动对账使用。
+func (s *Store) ListModelRouteKeys(ctx context.Context) ([]types.NamespacedName, error) {
+	var keys []types.NamespacedName
+	query := s.db.WithContext(ctx).Model(&ModelRoute{}).
+		Select("namespace", "name").Order("namespace, name")
+	if err := query.Find(&keys).Error; err != nil {
+		return nil, fmt.Errorf("list ModelRoute keys: %w", err)
 	}
-
-	return names, nil
+	return keys, nil
 }
 
 // GetModelRoute 读取完整路由投影，JSON 解码失败时不返回部分配置。
-func (s *Store) GetModelRoute(ctx context.Context, name string) (ModelRoute, error) {
+func (s *Store) GetModelRoute(ctx context.Context, namespace, name string) (ModelRoute, error) {
 	var route ModelRoute
-	err := s.db.WithContext(ctx).Where("name = ?", name).Take(&route).Error
+	err := s.db.WithContext(ctx).Where("namespace = ? AND name = ?", namespace, name).Take(&route).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ModelRoute{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 	}
@@ -129,11 +136,14 @@ func (s *Store) GetModelRoute(ctx context.Context, name string) (ModelRoute, err
 	return route, nil
 }
 
-// ListModelRoutes 在同一快照中按稳定名称分页，筛选和总数使用相同条件。
+// ListModelRoutes 在指定命名空间的同一快照中按稳定名称分页，筛选和总数使用相同条件。
 func (s *Store) ListModelRoutes(ctx context.Context, params ModelRouteListParams) (ModelRoutePage, error) {
 	var result ModelRoutePage
 	err := s.readOnlyTransaction(ctx, func(tx *gorm.DB) error {
-		query := filterDisplayName(tx.Model(&ModelRoute{}), params.DisplayName)
+		query := filterDisplayName(
+			tx.Model(&ModelRoute{}).Where("namespace = ?", params.Namespace),
+			params.DisplayName,
+		)
 		if params.GatewayName != "" {
 			query = query.Where("JSON_CONTAINS(parents, JSON_OBJECT('name', ?))", params.GatewayName)
 		}

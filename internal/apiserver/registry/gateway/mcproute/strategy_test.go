@@ -15,8 +15,11 @@ import (
 func TestStrategyProtectsStatusAndGeneration(t *testing.T) {
 	strategy := NewStrategy(runtime.NewScheme())
 	ctx := t.Context()
-	if strategy.NamespaceScoped() || strategy.AllowCreateOnUpdate(ctx) || strategy.AllowUnconditionalUpdate(ctx) {
-		t.Error("MCPRoute strategy permits namespace, create-on-update or unconditional update, want all false")
+	if !strategy.NamespaceScoped() {
+		t.Error("NamespaceScoped() = false, want true")
+	}
+	if strategy.AllowCreateOnUpdate(ctx) || strategy.AllowUnconditionalUpdate(ctx) {
+		t.Error("MCPRoute strategy permits create-on-update or unconditional update, want both false")
 	}
 
 	route := testMCPRoute()
@@ -122,7 +125,7 @@ func TestResetFields(t *testing.T) {
 
 func testMCPRoute() *gatewayapi.MCPRoute {
 	return &gatewayapi.MCPRoute{
-		ObjectMeta: metav1.ObjectMeta{Name: "tools"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "tools"},
 		Spec: gatewayapi.MCPRouteSpec{
 			ParentRefs:  []gatewayapi.ParentReference{{Name: "edge"}},
 			BackendRefs: []gatewayapi.MCPBackendReference{{Name: "tool-service"}},

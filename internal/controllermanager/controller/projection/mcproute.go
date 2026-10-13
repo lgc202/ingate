@@ -40,29 +40,29 @@ func (r *MCPRouteReconciler) SetupWithManager(manager ctrl.Manager) error {
 		Complete(r)
 }
 
-// Reconcile 按名称同步一个 MCPRoute，或执行启动全量对账。
+// Reconcile 按命名空间和名称同步一个 MCPRoute，或执行启动全量对账。
 func (r *MCPRouteReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	if request.Name == mcpRouteInitialSyncName {
+	if request.Namespace == "" && request.Name == mcpRouteInitialSyncName {
 		return ctrl.Result{}, r.syncAll(ctx)
 	}
 
-	return ctrl.Result{}, r.syncMCPRoute(ctx, request.Name)
+	return ctrl.Result{}, r.syncMCPRoute(ctx, request.NamespacedName)
 }
 
-func (r *MCPRouteReconciler) syncMCPRoute(ctx context.Context, name string) error {
+func (r *MCPRouteReconciler) syncMCPRoute(ctx context.Context, key types.NamespacedName) error {
 	var route gatewayv1alpha1.MCPRoute
-	if err := r.client.Get(ctx, types.NamespacedName{Name: name}, &route); err != nil {
+	if err := r.client.Get(ctx, key, &route); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return fmt.Errorf("get MCPRoute %q: %w", name, err)
+			return fmt.Errorf("get MCPRoute %q: %w", key.String(), err)
 		}
-		if err := r.store.DeleteMCPRoute(ctx, name); err != nil {
-			return fmt.Errorf("delete MCPRoute %q from MySQL: %w", name, err)
+		if err := r.store.DeleteMCPRoute(ctx, key.Namespace, key.Name); err != nil {
+			return fmt.Errorf("delete MCPRoute %q from MySQL: %w", key.String(), err)
 		}
 		return nil
 	}
 
 	if err := r.store.UpsertMCPRoute(ctx, mcpRouteToMySQL(&route)); err != nil {
-		return fmt.Errorf("sync MCPRoute %q to MySQL: %w", name, err)
+		return fmt.Errorf("sync MCPRoute %q to MySQL: %w", key.String(), err)
 	}
 
 	return nil
@@ -74,26 +74,26 @@ func (r *MCPRouteReconciler) syncAll(ctx context.Context) error {
 		return fmt.Errorf("list MCPRoutes for initial sync: %w", err)
 	}
 
-	current := make(map[string]struct{}, len(routes.Items))
+	current := make(map[types.NamespacedName]struct{}, len(routes.Items))
 	for i := range routes.Items {
 		route := &routes.Items[i]
 		if err := r.store.UpsertMCPRoute(ctx, mcpRouteToMySQL(route)); err != nil {
-			return fmt.Errorf("sync MCPRoute %q to MySQL: %w", route.Name, err)
+			return fmt.Errorf("sync MCPRoute %q to MySQL: %w", client.ObjectKeyFromObject(route).String(), err)
 		}
-		current[route.Name] = struct{}{}
+		current[client.ObjectKeyFromObject(route)] = struct{}{}
 	}
 
-	storedNames, err := r.store.ListMCPRouteNames(ctx)
+	storedKeys, err := r.store.ListMCPRouteKeys(ctx)
 	if err != nil {
 		return err
 	}
 
-	for _, name := range storedNames {
-		if _, exists := current[name]; exists {
+	for _, key := range storedKeys {
+		if _, exists := current[key]; exists {
 			continue
 		}
-		if err := r.store.DeleteMCPRoute(ctx, name); err != nil {
-			return fmt.Errorf("delete stale MCPRoute %q from MySQL: %w", name, err)
+		if err := r.store.DeleteMCPRoute(ctx, key.Namespace, key.Name); err != nil {
+			return fmt.Errorf("delete stale MCPRoute %q from MySQL: %w", key.String(), err)
 		}
 	}
 
@@ -105,6 +105,7 @@ func mcpRouteToMySQL(route *gatewayv1alpha1.MCPRoute) mysql.MCPRoute {
 	ref := route.Spec.BackendRefs[0]
 
 	result := mysql.MCPRoute{
+		Namespace:   route.Namespace,
 		Name:        route.Name,
 		DisplayName: route.Spec.DisplayName,
 		Path:        *route.Spec.Path,

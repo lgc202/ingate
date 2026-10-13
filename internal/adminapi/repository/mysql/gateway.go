@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // Gateway 对应 MySQL gateways 表及其 Listener 集合。
 type Gateway struct {
 	ID          uint64            `gorm:"column:id;primaryKey;autoIncrement"`
+	Namespace   string            `gorm:"column:namespace"`
 	Name        string            `gorm:"column:name"`
 	DisplayName string            `gorm:"column:display_name"`
 	Version     string            `gorm:"column:version"`
@@ -77,10 +79,10 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway Gateway) error {
 }
 
 // DeleteGateway 删除 Gateway 及其 Listener；不存在时不报错。
-func (s *Store) DeleteGateway(ctx context.Context, name string) error {
+func (s *Store) DeleteGateway(ctx context.Context, namespace, name string) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var gateway Gateway
-		err := tx.Select("id").Where("name = ?", name).Take(&gateway).Error
+		err := tx.Select("id").Where("namespace = ? AND name = ?", namespace, name).Take(&gateway).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
@@ -99,21 +101,22 @@ func (s *Store) DeleteGateway(ctx context.Context, name string) error {
 	})
 }
 
-// ListGatewayNames 返回所有已投影 Gateway 的名称，供启动对账使用。
-func (s *Store) ListGatewayNames(ctx context.Context) ([]string, error) {
-	var names []string
-	query := s.db.WithContext(ctx).Model(&Gateway{}).Order("name")
-	if err := query.Pluck("name", &names).Error; err != nil {
-		return nil, fmt.Errorf("list gateway names: %w", err)
+// ListGatewayKeys 返回所有已投影对象的空间和名称，供启动对账使用。
+func (s *Store) ListGatewayKeys(ctx context.Context) ([]types.NamespacedName, error) {
+	var keys []types.NamespacedName
+	query := s.db.WithContext(ctx).Model(&Gateway{}).
+		Select("namespace", "name").Order("namespace, name")
+	if err := query.Find(&keys).Error; err != nil {
+		return nil, fmt.Errorf("list Gateway keys: %w", err)
 	}
-	return names, nil
+	return keys, nil
 }
 
 // GetGateway 在同一个只读事务中读取 Gateway 和 Listener。
-func (s *Store) GetGateway(ctx context.Context, name string) (Gateway, error) {
+func (s *Store) GetGateway(ctx context.Context, namespace, name string) (Gateway, error) {
 	var gateway Gateway
 	err := s.readOnlyTransaction(ctx, func(tx *gorm.DB) error {
-		err := tx.Where("name = ?", name).Take(&gateway).Error
+		err := tx.Where("namespace = ? AND name = ?", namespace, name).Take(&gateway).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("%w: %w", ErrNotFound, err)
 		}
@@ -135,11 +138,14 @@ func (s *Store) GetGateway(ctx context.Context, name string) (Gateway, error) {
 	return gateway, nil
 }
 
-// ListGateways 按名称分页读取 Gateway 与 Listener。
+// ListGateways 在指定命名空间内按名称分页读取 Gateway 与 Listener。
 func (s *Store) ListGateways(ctx context.Context, params ResourceListParams) (GatewayPage, error) {
 	var result GatewayPage
 	err := s.readOnlyTransaction(ctx, func(tx *gorm.DB) error {
-		query := filterDisplayName(tx.Model(&Gateway{}), params.DisplayName)
+		query := filterDisplayName(
+			tx.Model(&Gateway{}).Where("namespace = ?", params.Namespace),
+			params.DisplayName,
+		)
 		if err := query.Count(&result.TotalCount).Error; err != nil {
 			return fmt.Errorf("count gateways: %w", err)
 		}
@@ -181,9 +187,12 @@ func (s *Store) ListGateways(ctx context.Context, params ResourceListParams) (Ga
 
 func upsertGatewayRow(tx *gorm.DB, gateway Gateway) (uint64, error) {
 	var row Gateway
-	err := tx.Select("id").Where("name = ?", gateway.Name).Take(&row).Error
+	err := tx.Select("id").
+		Where("namespace = ? AND name = ?", gateway.Namespace, gateway.Name).
+		Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		row = Gateway{
+			Namespace:   gateway.Namespace,
 			Name:        gateway.Name,
 			DisplayName: gateway.DisplayName,
 			Version:     gateway.Version,

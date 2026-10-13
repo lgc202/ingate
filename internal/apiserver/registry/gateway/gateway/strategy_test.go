@@ -18,8 +18,8 @@ func TestStrategyPolicy(t *testing.T) {
 	strategy := NewStrategy(runtime.NewScheme())
 	ctx := context.Background()
 
-	if strategy.NamespaceScoped() {
-		t.Error("NamespaceScoped() = true, want false")
+	if !strategy.NamespaceScoped() {
+		t.Error("NamespaceScoped() = false, want true")
 	}
 	if strategy.AllowCreateOnUpdate(ctx) {
 		t.Error("AllowCreateOnUpdate() = true, want false")
@@ -169,7 +169,7 @@ func TestResetFields(t *testing.T) {
 
 func testGateway() *gatewayapi.Gateway {
 	return &gatewayapi.Gateway{
-		ObjectMeta: metav1.ObjectMeta{Name: "edge"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "edge"},
 		Spec: gatewayapi.GatewaySpec{
 			Listeners: []gatewayapi.Listener{{Name: "http", Protocol: gatewayapi.ProtocolHTTP, Port: 80}},
 		},

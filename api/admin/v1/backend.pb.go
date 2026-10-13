@@ -30,7 +30,9 @@ type CreateBackendRequest struct {
 	// display_name 是可修改且允许重复的展示名称；技术标识由服务端生成。
 	DisplayName string `protobuf:"bytes,1,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// endpoints 是后端地址及其相对权重；输入顺序没有业务含义。
-	Endpoints     []*Endpoint `protobuf:"bytes,2,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
+	Endpoints []*Endpoint `protobuf:"bytes,2,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,3,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -77,6 +79,13 @@ func (x *CreateBackendRequest) GetEndpoints() []*Endpoint {
 		return x.Endpoints
 	}
 	return nil
+}
+
+func (x *CreateBackendRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
 }
 
 // CreateBackendReply 表示创建后的后端资源。
@@ -128,8 +137,10 @@ func (x *CreateBackendReply) GetBackend() *Backend {
 // GetBackendRequest 表示读取后端资源的请求。
 type GetBackendRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// name 是资源在所属命名空间内的稳定名称。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -167,6 +178,13 @@ func (*GetBackendRequest) Descriptor() ([]byte, []int) {
 func (x *GetBackendRequest) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *GetBackendRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -225,7 +243,9 @@ type ListBackendsRequest struct {
 	// page_num 是从 1 开始的页码；为零时使用第一页。
 	PageNum int32 `protobuf:"varint,2,opt,name=page_num,json=pageNum,proto3" json:"page_num,omitempty"`
 	// display_name 按展示名称文字包含匹配筛选。
-	DisplayName   string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	DisplayName string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,4,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -277,6 +297,13 @@ func (x *ListBackendsRequest) GetPageNum() int32 {
 func (x *ListBackendsRequest) GetDisplayName() string {
 	if x != nil {
 		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *ListBackendsRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -339,14 +366,16 @@ func (x *ListBackendsReply) GetTotalCount() int64 {
 // UpdateBackendRequest 表示完整替换后端资源的可编辑配置。
 type UpdateBackendRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称，不允许通过更新修改。
+	// name 是资源在所属命名空间内的稳定名称，不允许通过更新修改。
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// version 是读取后端资源时获得的版本，用于并发更新检查。
 	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
 	// endpoints 是后端地址及其相对权重；输入顺序没有业务含义。
 	Endpoints []*Endpoint `protobuf:"bytes,3,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
 	// display_name 是可修改且允许重复的展示名称，不改变资源引用。
-	DisplayName   string `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	DisplayName string `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,5,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -409,6 +438,13 @@ func (x *UpdateBackendRequest) GetDisplayName() string {
 	return ""
 }
 
+func (x *UpdateBackendRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
 // UpdateBackendReply 表示更新后的后端资源。
 type UpdateBackendReply struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -458,8 +494,10 @@ func (x *UpdateBackendReply) GetBackend() *Backend {
 // DeleteBackendRequest 表示删除后端资源的请求。
 type DeleteBackendRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// name 是资源在所属命名空间内的稳定名称。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// namespace 是本次操作的目标命名空间，必须显式指定。
+	Namespace     string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -497,6 +535,13 @@ func (*DeleteBackendRequest) Descriptor() ([]byte, []int) {
 func (x *DeleteBackendRequest) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *DeleteBackendRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -541,7 +586,7 @@ func (*DeleteBackendReply) Descriptor() ([]byte, []int) {
 // Backend 表示面向产品调用方的后端资源。
 type Backend struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name 是资源的稳定名称。
+	// name 是资源在所属命名空间内的稳定名称。
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// endpoints 是后端地址及其相对权重，按地址和端口排序返回。
 	Endpoints []*Endpoint `protobuf:"bytes,2,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
@@ -550,7 +595,9 @@ type Backend struct {
 	// version 是更新时必须提交的资源版本。
 	Version string `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
 	// display_name 是供人阅读的名称，不用于资源引用。
-	DisplayName   string `protobuf:"bytes,5,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	DisplayName string `protobuf:"bytes,5,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// namespace 是资源所属的命名空间。
+	Namespace     string `protobuf:"bytes,6,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -620,7 +667,14 @@ func (x *Backend) GetDisplayName() string {
 	return ""
 }
 
-// BackendReference 引用网络后端。
+func (x *Backend) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+// BackendReference 引用同一命名空间的网络后端。
 type BackendReference struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// name 是 Backend 的稳定名称。
@@ -734,55 +788,61 @@ var File_admin_v1_backend_proto protoreflect.FileDescriptor
 
 const file_admin_v1_backend_proto_rawDesc = "" +
 	"\n" +
-	"\x16admin/v1/backend.proto\x12\badmin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"u\n" +
+	"\x16admin/v1/backend.proto\x12\badmin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbf\x01\n" +
 	"\x14CreateBackendRequest\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12:\n" +
-	"\tendpoints\x18\x02 \x03(\v2\x12.admin.v1.EndpointB\b\xbaH\x05\x92\x01\x02\b\x01R\tendpoints\"A\n" +
+	"\tendpoints\x18\x02 \x03(\v2\x12.admin.v1.EndpointB\b\xbaH\x05\x92\x01\x02\b\x01R\tendpoints\x12H\n" +
+	"\tnamespace\x18\x03 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"A\n" +
 	"\x12CreateBackendReply\x12+\n" +
-	"\abackend\x18\x01 \x01(\v2\x11.admin.v1.BackendR\abackend\"0\n" +
+	"\abackend\x18\x01 \x01(\v2\x11.admin.v1.BackendR\abackend\"z\n" +
 	"\x11GetBackendRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\">\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12H\n" +
+	"\tnamespace\x18\x02 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\">\n" +
 	"\x0fGetBackendReply\x12+\n" +
-	"\abackend\x18\x01 \x01(\v2\x11.admin.v1.BackendR\abackend\"\x85\x01\n" +
+	"\abackend\x18\x01 \x01(\v2\x11.admin.v1.BackendR\abackend\"\xcf\x01\n" +
 	"\x13ListBackendsRequest\x12'\n" +
 	"\tpage_size\x18\x01 \x01(\x05B\n" +
 	"\xbaH\a\x1a\x05\x18\xc8\x01(\x00R\bpageSize\x12\"\n" +
 	"\bpage_num\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\apageNum\x12!\n" +
-	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\"c\n" +
+	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12H\n" +
+	"\tnamespace\x18\x04 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"c\n" +
 	"\x11ListBackendsReply\x12-\n" +
 	"\bbackends\x18\x01 \x03(\v2\x11.admin.v1.BackendR\bbackends\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x03R\n" +
-	"totalCount\"\xb5\x01\n" +
+	"totalCount\"\xff\x01\n" +
 	"\x14UpdateBackendRequest\x12\x1b\n" +
 	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12!\n" +
 	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12:\n" +
 	"\tendpoints\x18\x03 \x03(\v2\x12.admin.v1.EndpointB\b\xbaH\x05\x92\x01\x02\b\x01R\tendpoints\x12!\n" +
-	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\"A\n" +
+	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\x12H\n" +
+	"\tnamespace\x18\x05 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"A\n" +
 	"\x12UpdateBackendReply\x12+\n" +
-	"\abackend\x18\x01 \x01(\v2\x11.admin.v1.BackendR\abackend\"3\n" +
+	"\abackend\x18\x01 \x01(\v2\x11.admin.v1.BackendR\abackend\"}\n" +
 	"\x14DeleteBackendRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\"\x14\n" +
-	"\x12DeleteBackendReply\"\xc9\x01\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12H\n" +
+	"\tnamespace\x18\x02 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"\x14\n" +
+	"\x12DeleteBackendReply\"\xe7\x01\n" +
 	"\aBackend\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x120\n" +
 	"\tendpoints\x18\x02 \x03(\v2\x12.admin.v1.EndpointR\tendpoints\x12;\n" +
 	"\vcreate_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createTime\x12\x18\n" +
 	"\aversion\x18\x04 \x01(\tR\aversion\x12!\n" +
-	"\fdisplay_name\x18\x05 \x01(\tR\vdisplayName\"/\n" +
+	"\fdisplay_name\x18\x05 \x01(\tR\vdisplayName\x12\x1c\n" +
+	"\tnamespace\x18\x06 \x01(\tR\tnamespace\"/\n" +
 	"\x10BackendReference\x12\x1b\n" +
 	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\"o\n" +
 	"\bEndpoint\x12!\n" +
 	"\aaddress\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aaddress\x12\x1f\n" +
 	"\x04port\x18\x02 \x01(\x05B\v\xbaH\b\x1a\x06\x18\xff\xff\x03(\x01R\x04port\x12\x1f\n" +
-	"\x06weight\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x01R\x06weight2\xca\x04\n" +
-	"\x0eBackendService\x12p\n" +
-	"\rCreateBackend\x12\x1e.admin.v1.CreateBackendRequest\x1a\x1c.admin.v1.CreateBackendReply\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/api/admin/v1/backends\x12k\n" +
+	"\x06weight\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x01R\x06weight2\xc2\x05\n" +
+	"\x0eBackendService\x12\x87\x01\n" +
+	"\rCreateBackend\x12\x1e.admin.v1.CreateBackendRequest\x1a\x1c.admin.v1.CreateBackendReply\"8\x82\xd3\xe4\x93\x022:\x01*\"-/api/admin/v1/namespaces/{namespace}/backends\x12\x82\x01\n" +
 	"\n" +
-	"GetBackend\x12\x1b.admin.v1.GetBackendRequest\x1a\x19.admin.v1.GetBackendReply\"%\x82\xd3\xe4\x93\x02\x1f\x12\x1d/api/admin/v1/backends/{name}\x12j\n" +
-	"\fListBackends\x12\x1d.admin.v1.ListBackendsRequest\x1a\x1b.admin.v1.ListBackendsReply\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/api/admin/v1/backends\x12w\n" +
-	"\rUpdateBackend\x12\x1e.admin.v1.UpdateBackendRequest\x1a\x1c.admin.v1.UpdateBackendReply\"(\x82\xd3\xe4\x93\x02\":\x01*\x1a\x1d/api/admin/v1/backends/{name}\x12t\n" +
-	"\rDeleteBackend\x12\x1e.admin.v1.DeleteBackendRequest\x1a\x1c.admin.v1.DeleteBackendReply\"%\x82\xd3\xe4\x93\x02\x1f*\x1d/api/admin/v1/backends/{name}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"GetBackend\x12\x1b.admin.v1.GetBackendRequest\x1a\x19.admin.v1.GetBackendReply\"<\x82\xd3\xe4\x93\x026\x124/api/admin/v1/namespaces/{namespace}/backends/{name}\x12\x81\x01\n" +
+	"\fListBackends\x12\x1d.admin.v1.ListBackendsRequest\x1a\x1b.admin.v1.ListBackendsReply\"5\x82\xd3\xe4\x93\x02/\x12-/api/admin/v1/namespaces/{namespace}/backends\x12\x8e\x01\n" +
+	"\rUpdateBackend\x12\x1e.admin.v1.UpdateBackendRequest\x1a\x1c.admin.v1.UpdateBackendReply\"?\x82\xd3\xe4\x93\x029:\x01*\x1a4/api/admin/v1/namespaces/{namespace}/backends/{name}\x12\x8b\x01\n" +
+	"\rDeleteBackend\x12\x1e.admin.v1.DeleteBackendRequest\x1a\x1c.admin.v1.DeleteBackendReply\"<\x82\xd3\xe4\x93\x026*4/api/admin/v1/namespaces/{namespace}/backends/{name}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_backend_proto_rawDescOnce sync.Once

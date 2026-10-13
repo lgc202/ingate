@@ -40,29 +40,29 @@ func (r *AIBackendReconciler) SetupWithManager(manager ctrl.Manager) error {
 		Complete(r)
 }
 
-// Reconcile 按名称同步一个 AIBackend，或执行启动全量对账。
+// Reconcile 按命名空间和名称同步一个 AIBackend，或执行启动全量对账。
 func (r *AIBackendReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	if request.Name == aiBackendInitialSyncName {
+	if request.Namespace == "" && request.Name == aiBackendInitialSyncName {
 		return ctrl.Result{}, r.syncAll(ctx)
 	}
 
-	return ctrl.Result{}, r.syncAIBackend(ctx, request.Name)
+	return ctrl.Result{}, r.syncAIBackend(ctx, request.NamespacedName)
 }
 
-func (r *AIBackendReconciler) syncAIBackend(ctx context.Context, name string) error {
+func (r *AIBackendReconciler) syncAIBackend(ctx context.Context, key types.NamespacedName) error {
 	var backend gatewayv1alpha1.AIBackend
-	if err := r.client.Get(ctx, types.NamespacedName{Name: name}, &backend); err != nil {
+	if err := r.client.Get(ctx, key, &backend); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return fmt.Errorf("get AIBackend %q: %w", name, err)
+			return fmt.Errorf("get AIBackend %q: %w", key.String(), err)
 		}
-		if err := r.store.DeleteAIBackend(ctx, name); err != nil {
-			return fmt.Errorf("delete AIBackend %q from MySQL: %w", name, err)
+		if err := r.store.DeleteAIBackend(ctx, key.Namespace, key.Name); err != nil {
+			return fmt.Errorf("delete AIBackend %q from MySQL: %w", key.String(), err)
 		}
 		return nil
 	}
 
 	if err := r.store.UpsertAIBackend(ctx, aiBackendToMySQL(&backend)); err != nil {
-		return fmt.Errorf("sync AIBackend %q to MySQL: %w", name, err)
+		return fmt.Errorf("sync AIBackend %q to MySQL: %w", key.String(), err)
 	}
 
 	return nil
@@ -74,26 +74,26 @@ func (r *AIBackendReconciler) syncAll(ctx context.Context) error {
 		return fmt.Errorf("list AIBackends for initial sync: %w", err)
 	}
 
-	current := make(map[string]struct{}, len(backends.Items))
+	current := make(map[types.NamespacedName]struct{}, len(backends.Items))
 	for i := range backends.Items {
 		backend := &backends.Items[i]
 		if err := r.store.UpsertAIBackend(ctx, aiBackendToMySQL(backend)); err != nil {
-			return fmt.Errorf("sync AIBackend %q to MySQL: %w", backend.Name, err)
+			return fmt.Errorf("sync AIBackend %q to MySQL: %w", client.ObjectKeyFromObject(backend).String(), err)
 		}
-		current[backend.Name] = struct{}{}
+		current[client.ObjectKeyFromObject(backend)] = struct{}{}
 	}
 
-	storedNames, err := r.store.ListAIBackendNames(ctx)
+	storedKeys, err := r.store.ListAIBackendKeys(ctx)
 	if err != nil {
 		return err
 	}
 
-	for _, name := range storedNames {
-		if _, exists := current[name]; exists {
+	for _, key := range storedKeys {
+		if _, exists := current[key]; exists {
 			continue
 		}
-		if err := r.store.DeleteAIBackend(ctx, name); err != nil {
-			return fmt.Errorf("delete stale AIBackend %q from MySQL: %w", name, err)
+		if err := r.store.DeleteAIBackend(ctx, key.Namespace, key.Name); err != nil {
+			return fmt.Errorf("delete stale AIBackend %q from MySQL: %w", key.String(), err)
 		}
 	}
 
@@ -102,6 +102,7 @@ func (r *AIBackendReconciler) syncAll(ctx context.Context) error {
 
 func aiBackendToMySQL(backend *gatewayv1alpha1.AIBackend) mysql.AIBackend {
 	return mysql.AIBackend{
+		Namespace:    backend.Namespace,
 		Name:         backend.Name,
 		DisplayName:  backend.Spec.DisplayName,
 		BackendName:  backend.Spec.BackendRef.Name,

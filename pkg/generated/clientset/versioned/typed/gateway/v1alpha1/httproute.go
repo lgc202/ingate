@@ -16,7 +16,7 @@ import (
 // HTTPRoutesGetter has a method to return a HTTPRouteInterface.
 // A group's client should implement this interface.
 type HTTPRoutesGetter interface {
-	HTTPRoutes() HTTPRouteInterface
+	HTTPRoutes(namespace string) HTTPRouteInterface
 }
 
 // HTTPRouteInterface has methods to work with HTTPRoute resources.
@@ -40,13 +40,13 @@ type hTTPRoutes struct {
 }
 
 // newHTTPRoutes returns a HTTPRoutes
-func newHTTPRoutes(c *GatewayV1alpha1Client) *hTTPRoutes {
+func newHTTPRoutes(c *GatewayV1alpha1Client, namespace string) *hTTPRoutes {
 	return &hTTPRoutes{
 		gentype.NewClientWithList[*gatewayv1alpha1.HTTPRoute, *gatewayv1alpha1.HTTPRouteList](
 			"httproutes",
 			c.RESTClient(),
 			scheme.ParameterCodec,
-			"",
+			namespace,
 			func() *gatewayv1alpha1.HTTPRoute { return &gatewayv1alpha1.HTTPRoute{} },
 			func() *gatewayv1alpha1.HTTPRouteList { return &gatewayv1alpha1.HTTPRouteList{} },
 		),

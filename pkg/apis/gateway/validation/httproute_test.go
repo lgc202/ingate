@@ -11,7 +11,7 @@ import (
 
 func TestValidateHTTPRoute(t *testing.T) {
 	base := gateway.HTTPRoute{
-		ObjectMeta: metav1.ObjectMeta{Name: "route-1"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "route-1"},
 		Spec: gateway.HTTPRouteSpec{
 			ParentRefs: []gateway.ParentReference{{Name: "gateway-1", SectionName: "http"}},
 			Rules: []gateway.HTTPRouteRule{{
@@ -27,6 +27,16 @@ func TestValidateHTTPRoute(t *testing.T) {
 		wantFields []string
 	}{
 		{name: "valid"},
+		{
+			name:       "missing namespace",
+			update:     func(r *gateway.HTTPRoute) { r.Namespace = "" },
+			wantFields: []string{"metadata.namespace"},
+		},
+		{
+			name:       "invalid namespace",
+			update:     func(r *gateway.HTTPRoute) { r.Namespace = "Team.A" },
+			wantFields: []string{"metadata.namespace"},
+		},
 		{name: "default match", update: func(r *gateway.HTTPRoute) { r.Spec.Rules[0].Matches = nil }},
 		{name: "missing parents", update: func(r *gateway.HTTPRoute) { r.Spec.ParentRefs = nil }, wantFields: []string{"spec.parentRefs"}},
 		{

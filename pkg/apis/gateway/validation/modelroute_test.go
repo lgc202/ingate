@@ -36,10 +36,16 @@ func TestValidateModelRoute(t *testing.T) {
 			mutate: func(r *gateway.ModelRoute) { r.Spec.Rules[0].Matches[0].Headers[0].Value = " Coding " },
 		},
 		{
-			name:      "namespace",
-			mutate:    func(r *gateway.ModelRoute) { r.Namespace = "default" },
+			name:      "missing namespace",
+			mutate:    func(r *gateway.ModelRoute) { r.Namespace = "" },
 			wantField: "metadata.namespace",
-			wantType:  field.ErrorTypeForbidden,
+			wantType:  field.ErrorTypeRequired,
+		},
+		{
+			name:      "invalid namespace",
+			mutate:    func(r *gateway.ModelRoute) { r.Namespace = "Team.A" },
+			wantField: "metadata.namespace",
+			wantType:  field.ErrorTypeInvalid,
 		},
 		{
 			name:      "no parent",
@@ -320,7 +326,7 @@ func TestModelRouteStatusRejectsDuplicateParents(t *testing.T) {
 
 func validModelRoute() *gateway.ModelRoute {
 	return &gateway.ModelRoute{
-		ObjectMeta: metav1.ObjectMeta{Name: "models"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "models"},
 		Spec: gateway.ModelRouteSpec{
 			DisplayName: "模型路由",
 			ParentRefs:  []gateway.ParentReference{{Name: "missing-gateway"}},

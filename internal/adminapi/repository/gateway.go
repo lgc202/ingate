@@ -15,12 +15,13 @@ import (
 
 // Gateway 将写入交给 API Server，将查询交给 MySQL 投影。
 type Gateway struct {
-	client gatewayclient.GatewayInterface
+	client gatewayclient.GatewaysGetter
 	store  *mysql.Store
 }
 
 // ResourceListParams 保存网关或后端列表的分页与展示名称包含匹配条件。
 type ResourceListParams struct {
+	Namespace   string
 	PageSize    int32
 	PageNum     int32
 	DisplayName string
@@ -28,6 +29,7 @@ type ResourceListParams struct {
 
 // GatewayInfo 保存管理查询及创建、更新响应所需的网关信息，不表示完整的 Kubernetes 资源。
 type GatewayInfo struct {
+	Namespace   string
 	Name        string
 	DisplayName string
 	Listeners   []gatewayv1alpha1.Listener
@@ -42,7 +44,7 @@ type GatewayPage struct {
 }
 
 // NewGateway 创建 Gateway Repository。
-func NewGateway(client gatewayclient.GatewayInterface, store *mysql.Store) *Gateway {
+func NewGateway(client gatewayclient.GatewaysGetter, store *mysql.Store) *Gateway {
 	return &Gateway{client: client, store: store}
 }
 
@@ -51,7 +53,7 @@ func (r *Gateway) Create(
 	ctx context.Context,
 	gateway *gatewayv1alpha1.Gateway,
 ) (GatewayInfo, error) {
-	created, err := r.client.Create(ctx, gateway.DeepCopy(), metav1.CreateOptions{})
+	created, err := r.client.Gateways(gateway.Namespace).Create(ctx, gateway.DeepCopy(), metav1.CreateOptions{})
 	if err != nil {
 		return GatewayInfo{}, translateResourceError(err)
 	}
@@ -62,9 +64,9 @@ func (r *Gateway) Create(
 // Get 从 MySQL 查询模型读取指定 Gateway。
 func (r *Gateway) Get(
 	ctx context.Context,
-	name string,
+	namespace, name string,
 ) (GatewayInfo, error) {
-	gateway, err := r.store.GetGateway(ctx, name)
+	gateway, err := r.store.GetGateway(ctx, namespace, name)
 	if err != nil {
 		if errors.Is(err, mysql.ErrNotFound) {
 			return GatewayInfo{}, fmt.Errorf("%w: %w", ErrNotFound, err)
@@ -81,6 +83,7 @@ func (r *Gateway) List(
 	params ResourceListParams,
 ) (GatewayPage, error) {
 	result, err := r.store.ListGateways(ctx, mysql.ResourceListParams{
+		Namespace:   params.Namespace,
 		PageSize:    params.PageSize,
 		PageNum:     params.PageNum,
 		DisplayName: params.DisplayName,
@@ -102,7 +105,7 @@ func (r *Gateway) Update(
 	ctx context.Context,
 	gateway *gatewayv1alpha1.Gateway,
 ) (GatewayInfo, error) {
-	current, err := r.client.Get(ctx, gateway.Name, metav1.GetOptions{})
+	current, err := r.client.Gateways(gateway.Namespace).Get(ctx, gateway.Name, metav1.GetOptions{})
 	if err != nil {
 		return GatewayInfo{}, translateResourceError(err)
 	}
@@ -112,7 +115,7 @@ func (r *Gateway) Update(
 	}
 
 	current.Spec = gateway.DeepCopy().Spec
-	updated, err := r.client.Update(ctx, current, metav1.UpdateOptions{})
+	updated, err := r.client.Gateways(gateway.Namespace).Update(ctx, current, metav1.UpdateOptions{})
 	if err != nil {
 		return GatewayInfo{}, translateResourceError(err)
 	}
@@ -121,13 +124,14 @@ func (r *Gateway) Update(
 }
 
 // Delete 删除指定 Gateway。
-func (r *Gateway) Delete(ctx context.Context, name string) error {
-	return translateResourceError(r.client.Delete(ctx, name, metav1.DeleteOptions{}))
+func (r *Gateway) Delete(ctx context.Context, namespace, name string) error {
+	return translateResourceError(r.client.Gateways(namespace).Delete(ctx, name, metav1.DeleteOptions{}))
 }
 
 func gatewayFromAPI(gateway *gatewayv1alpha1.Gateway) GatewayInfo {
 	spec := gateway.DeepCopy().Spec
 	return GatewayInfo{
+		Namespace:   gateway.Namespace,
 		Name:        gateway.Name,
 		DisplayName: spec.DisplayName,
 		Listeners:   spec.Listeners,
@@ -148,6 +152,7 @@ func gatewayFromMySQL(gateway mysql.Gateway) GatewayInfo {
 	}
 
 	return GatewayInfo{
+		Namespace:   gateway.Namespace,
 		Name:        gateway.Name,
 		DisplayName: gateway.DisplayName,
 		Listeners:   listeners,

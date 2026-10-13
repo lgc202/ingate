@@ -16,7 +16,7 @@ import (
 // GatewaysGetter has a method to return a GatewayInterface.
 // A group's client should implement this interface.
 type GatewaysGetter interface {
-	Gateways() GatewayInterface
+	Gateways(namespace string) GatewayInterface
 }
 
 // GatewayInterface has methods to work with Gateway resources.
@@ -40,13 +40,13 @@ type gateways struct {
 }
 
 // newGateways returns a Gateways
-func newGateways(c *GatewayV1alpha1Client) *gateways {
+func newGateways(c *GatewayV1alpha1Client, namespace string) *gateways {
 	return &gateways{
 		gentype.NewClientWithList[*gatewayv1alpha1.Gateway, *gatewayv1alpha1.GatewayList](
 			"gateways",
 			c.RESTClient(),
 			scheme.ParameterCodec,
-			"",
+			namespace,
 			func() *gatewayv1alpha1.Gateway { return &gatewayv1alpha1.Gateway{} },
 			func() *gatewayv1alpha1.GatewayList { return &gatewayv1alpha1.GatewayList{} },
 		),

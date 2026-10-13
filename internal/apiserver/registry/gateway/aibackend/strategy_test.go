@@ -15,8 +15,8 @@ import (
 func TestStrategy(t *testing.T) {
 	strategy := NewStrategy(runtime.NewScheme())
 	ctx := t.Context()
-	if strategy.NamespaceScoped() {
-		t.Error("NamespaceScoped() = true, want false")
+	if !strategy.NamespaceScoped() {
+		t.Error("NamespaceScoped() = false, want true")
 	}
 	if strategy.AllowCreateOnUpdate(ctx) {
 		t.Error("AllowCreateOnUpdate() = true, want false")
@@ -128,7 +128,7 @@ func TestResetFields(t *testing.T) {
 
 func testAIBackend() *gatewayapi.AIBackend {
 	return &gatewayapi.AIBackend{
-		ObjectMeta: metav1.ObjectMeta{Name: "model-service"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "model-service"},
 		Spec: gatewayapi.AIBackendSpec{
 			BackendRef: gatewayapi.BackendReference{Name: "model-network"},
 			Schema:     gatewayapi.APISchema{Name: gatewayapi.APISchemaOpenAI, Prefix: "/v1"},

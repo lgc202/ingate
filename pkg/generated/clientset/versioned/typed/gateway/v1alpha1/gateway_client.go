@@ -25,28 +25,28 @@ type GatewayV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *GatewayV1alpha1Client) AIBackends() AIBackendInterface {
-	return newAIBackends(c)
+func (c *GatewayV1alpha1Client) AIBackends(namespace string) AIBackendInterface {
+	return newAIBackends(c, namespace)
 }
 
-func (c *GatewayV1alpha1Client) Backends() BackendInterface {
-	return newBackends(c)
+func (c *GatewayV1alpha1Client) Backends(namespace string) BackendInterface {
+	return newBackends(c, namespace)
 }
 
-func (c *GatewayV1alpha1Client) Gateways() GatewayInterface {
-	return newGateways(c)
+func (c *GatewayV1alpha1Client) Gateways(namespace string) GatewayInterface {
+	return newGateways(c, namespace)
 }
 
-func (c *GatewayV1alpha1Client) HTTPRoutes() HTTPRouteInterface {
-	return newHTTPRoutes(c)
+func (c *GatewayV1alpha1Client) HTTPRoutes(namespace string) HTTPRouteInterface {
+	return newHTTPRoutes(c, namespace)
 }
 
-func (c *GatewayV1alpha1Client) MCPRoutes() MCPRouteInterface {
-	return newMCPRoutes(c)
+func (c *GatewayV1alpha1Client) MCPRoutes(namespace string) MCPRouteInterface {
+	return newMCPRoutes(c, namespace)
 }
 
-func (c *GatewayV1alpha1Client) ModelRoutes() ModelRouteInterface {
-	return newModelRoutes(c)
+func (c *GatewayV1alpha1Client) ModelRoutes(namespace string) ModelRouteInterface {
+	return newModelRoutes(c, namespace)
 }
 
 // NewForConfig creates a new GatewayV1alpha1Client for the given config.

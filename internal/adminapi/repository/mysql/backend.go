@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // Backend 对应 MySQL backends 表及其 Endpoint 集合。
 type Backend struct {
 	ID          uint64            `gorm:"column:id;primaryKey;autoIncrement"`
+	Namespace   string            `gorm:"column:namespace"`
 	Name        string            `gorm:"column:name"`
 	DisplayName string            `gorm:"column:display_name"`
 	Version     string            `gorm:"column:version"`
@@ -75,10 +77,10 @@ func (s *Store) UpsertBackend(ctx context.Context, backend Backend) error {
 }
 
 // DeleteBackend 删除 Backend 及其 Endpoint；不存在时不报错。
-func (s *Store) DeleteBackend(ctx context.Context, name string) error {
+func (s *Store) DeleteBackend(ctx context.Context, namespace, name string) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var backend Backend
-		err := tx.Select("id").Where("name = ?", name).Take(&backend).Error
+		err := tx.Select("id").Where("namespace = ? AND name = ?", namespace, name).Take(&backend).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
@@ -97,21 +99,22 @@ func (s *Store) DeleteBackend(ctx context.Context, name string) error {
 	})
 }
 
-// ListBackendNames 返回所有已投影 Backend 的名称，供启动对账使用。
-func (s *Store) ListBackendNames(ctx context.Context) ([]string, error) {
-	var names []string
-	query := s.db.WithContext(ctx).Model(&Backend{}).Order("name")
-	if err := query.Pluck("name", &names).Error; err != nil {
-		return nil, fmt.Errorf("list backend names: %w", err)
+// ListBackendKeys 返回所有已投影对象的空间和名称，供启动对账使用。
+func (s *Store) ListBackendKeys(ctx context.Context) ([]types.NamespacedName, error) {
+	var keys []types.NamespacedName
+	query := s.db.WithContext(ctx).Model(&Backend{}).
+		Select("namespace", "name").Order("namespace, name")
+	if err := query.Find(&keys).Error; err != nil {
+		return nil, fmt.Errorf("list Backend keys: %w", err)
 	}
-	return names, nil
+	return keys, nil
 }
 
 // GetBackend 在同一个只读事务中读取 Backend 和 Endpoint。
-func (s *Store) GetBackend(ctx context.Context, name string) (Backend, error) {
+func (s *Store) GetBackend(ctx context.Context, namespace, name string) (Backend, error) {
 	var backend Backend
 	err := s.readOnlyTransaction(ctx, func(tx *gorm.DB) error {
-		err := tx.Where("name = ?", name).Take(&backend).Error
+		err := tx.Where("namespace = ? AND name = ?", namespace, name).Take(&backend).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("%w: %w", ErrNotFound, err)
 		}
@@ -133,11 +136,14 @@ func (s *Store) GetBackend(ctx context.Context, name string) (Backend, error) {
 	return backend, nil
 }
 
-// ListBackends 按名称分页读取 Backend 与 Endpoint。
+// ListBackends 在指定命名空间内按名称分页读取 Backend 与 Endpoint。
 func (s *Store) ListBackends(ctx context.Context, params ResourceListParams) (BackendPage, error) {
 	var result BackendPage
 	err := s.readOnlyTransaction(ctx, func(tx *gorm.DB) error {
-		query := filterDisplayName(tx.Model(&Backend{}), params.DisplayName)
+		query := filterDisplayName(
+			tx.Model(&Backend{}).Where("namespace = ?", params.Namespace),
+			params.DisplayName,
+		)
 		if err := query.Count(&result.TotalCount).Error; err != nil {
 			return fmt.Errorf("count backends: %w", err)
 		}
@@ -179,9 +185,12 @@ func (s *Store) ListBackends(ctx context.Context, params ResourceListParams) (Ba
 
 func upsertBackendRow(tx *gorm.DB, backend Backend) (uint64, error) {
 	var row Backend
-	err := tx.Select("id").Where("name = ?", backend.Name).Take(&row).Error
+	err := tx.Select("id").
+		Where("namespace = ? AND name = ?", backend.Namespace, backend.Name).
+		Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		row = Backend{
+			Namespace:   backend.Namespace,
 			Name:        backend.Name,
 			DisplayName: backend.DisplayName,
 			Version:     backend.Version,

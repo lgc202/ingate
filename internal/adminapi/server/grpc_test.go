@@ -28,7 +28,7 @@ func TestCreateGatewayGRPC(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := client.CreateGateway(ctx, &adminv1.CreateGatewayRequest{})
+	_, err := client.CreateGateway(ctx, &adminv1.CreateGatewayRequest{Namespace: "team-a"})
 	if code := status.Code(err); code != codes.InvalidArgument {
 		t.Errorf("CreateGateway(empty) code = %s, want InvalidArgument; error = %v", code, err)
 	}
@@ -37,6 +37,7 @@ func TestCreateGatewayGRPC(t *testing.T) {
 	}
 
 	request := &adminv1.CreateGatewayRequest{
+		Namespace:   "team-a",
 		DisplayName: "订单网关",
 		Listeners: []*adminv1.Listener{{
 			Name:     "http",
@@ -88,7 +89,7 @@ func TestHTTPRouteAndBackendGRPC(t *testing.T) {
 	defer cancel()
 
 	routes := adminv1.NewHTTPRouteServiceClient(connection)
-	_, err := routes.CreateHTTPRoute(ctx, &adminv1.CreateHTTPRouteRequest{})
+	_, err := routes.CreateHTTPRoute(ctx, &adminv1.CreateHTTPRouteRequest{Namespace: "team-a"})
 	if code := status.Code(err); code != codes.InvalidArgument {
 		t.Errorf("CreateHTTPRoute(empty) code = %s, want InvalidArgument", code)
 	}
@@ -97,6 +98,7 @@ func TestHTTPRouteAndBackendGRPC(t *testing.T) {
 	}
 
 	route, err := routes.CreateHTTPRoute(ctx, &adminv1.CreateHTTPRouteRequest{
+		Namespace:   "team-a",
 		DisplayName: "订单路由",
 		ParentRefs:  []*adminv1.ParentReference{{Name: "edge", SectionName: "http"}},
 		Rules: []*adminv1.HTTPRouteRule{{
@@ -115,6 +117,7 @@ func TestHTTPRouteAndBackendGRPC(t *testing.T) {
 
 	backends := adminv1.NewBackendServiceClient(connection)
 	createdBackend, err := backends.CreateBackend(ctx, &adminv1.CreateBackendRequest{
+		Namespace:   "team-a",
 		DisplayName: "订单后端",
 		Endpoints: []*adminv1.Endpoint{{
 			Address: "127.0.0.1",

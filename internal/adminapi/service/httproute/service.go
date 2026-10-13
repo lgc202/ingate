@@ -28,6 +28,7 @@ var (
 
 // CreateParams 保存创建 HTTPRoute 所需的参数。
 type CreateParams struct {
+	Namespace   string
 	DisplayName string
 	ParentRefs  []gatewayv1alpha1.ParentReference
 	Rules       []gatewayv1alpha1.HTTPRouteRule
@@ -35,6 +36,7 @@ type CreateParams struct {
 
 // UpdateParams 保存完整替换 HTTPRoute 可编辑配置所需的参数。
 type UpdateParams struct {
+	Namespace   string
 	Name        string
 	Version     string
 	DisplayName string
@@ -44,6 +46,7 @@ type UpdateParams struct {
 
 // ListParams 保存分页、展示名称包含匹配和 Gateway 精确筛选条件。
 type ListParams struct {
+	Namespace   string
 	PageSize    int32
 	PageNum     int32
 	DisplayName string
@@ -66,7 +69,10 @@ func (s *Service) Create(
 	params CreateParams,
 ) (repository.HTTPRouteInfo, error) {
 	route := &gatewayv1alpha1.HTTPRoute{
-		ObjectMeta: metav1.ObjectMeta{Name: "httproute-" + strings.ToLower(rand.Text())},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: params.Namespace,
+			Name:      "httproute-" + strings.ToLower(rand.Text()),
+		},
 		Spec: gatewayv1alpha1.HTTPRouteSpec{
 			DisplayName: params.DisplayName,
 			ParentRefs:  params.ParentRefs,
@@ -85,9 +91,9 @@ func (s *Service) Create(
 // Get 读取指定 HTTPRoute。
 func (s *Service) Get(
 	ctx context.Context,
-	name string,
+	namespace, name string,
 ) (repository.HTTPRouteInfo, error) {
-	route, err := s.routes.Get(ctx, name)
+	route, err := s.routes.Get(ctx, namespace, name)
 	if err != nil {
 		return repository.HTTPRouteInfo{}, translateRepositoryError(err)
 	}
@@ -108,6 +114,7 @@ func (s *Service) List(
 	}
 
 	page, err := s.routes.List(ctx, repository.HTTPRouteListParams{
+		Namespace:   params.Namespace,
 		PageSize:    params.PageSize,
 		PageNum:     params.PageNum,
 		DisplayName: params.DisplayName,
@@ -127,6 +134,7 @@ func (s *Service) Update(
 ) (repository.HTTPRouteInfo, error) {
 	route := &gatewayv1alpha1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       params.Namespace,
 			Name:            params.Name,
 			ResourceVersion: params.Version,
 		},
@@ -146,8 +154,8 @@ func (s *Service) Update(
 }
 
 // Delete 删除指定 HTTPRoute。
-func (s *Service) Delete(ctx context.Context, name string) error {
-	return translateRepositoryError(s.routes.Delete(ctx, name))
+func (s *Service) Delete(ctx context.Context, namespace, name string) error {
+	return translateRepositoryError(s.routes.Delete(ctx, namespace, name))
 }
 
 func translateRepositoryError(err error) error {

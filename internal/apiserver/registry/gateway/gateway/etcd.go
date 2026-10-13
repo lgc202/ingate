@@ -123,7 +123,7 @@ func getAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 		return nil, nil, fmt.Errorf("expected *gateway.Gateway, got %T", obj)
 	}
 
-	return labels.Set(gateway.Labels), generic.ObjectMetaFieldsSet(&gateway.ObjectMeta, false), nil
+	return labels.Set(gateway.Labels), generic.ObjectMetaFieldsSet(&gateway.ObjectMeta, true), nil
 }
 
 func matcher(label labels.Selector, field fields.Selector) storage.SelectionPredicate {

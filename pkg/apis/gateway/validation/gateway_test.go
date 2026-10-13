@@ -11,7 +11,7 @@ import (
 
 func TestValidateGateway(t *testing.T) {
 	base := gateway.Gateway{
-		ObjectMeta: metav1.ObjectMeta{Name: "gateway-1"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "gateway-1"},
 		Spec: gateway.GatewaySpec{
 			Listeners: []gateway.Listener{{Name: "http", Protocol: gateway.ProtocolHTTP, Port: 8080}},
 		},
@@ -23,6 +23,16 @@ func TestValidateGateway(t *testing.T) {
 		wantFields []string
 	}{
 		{name: "valid", wantFields: nil},
+		{
+			name:       "missing namespace",
+			update:     func(g *gateway.Gateway) { g.Namespace = "" },
+			wantFields: []string{"metadata.namespace"},
+		},
+		{
+			name:       "invalid namespace",
+			update:     func(g *gateway.Gateway) { g.Namespace = "Team.A" },
+			wantFields: []string{"metadata.namespace"},
+		},
 		{
 			name:       "empty listeners",
 			update:     func(g *gateway.Gateway) { g.Spec.Listeners = nil },

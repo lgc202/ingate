@@ -1,13 +1,14 @@
 -- +goose Up
 CREATE TABLE gateways (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
-    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '网关唯一标识',
+    namespace VARCHAR(63) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '所属命名空间',
+    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '命名空间内的网关标识',
     display_name LONGTEXT NOT NULL COMMENT '网关名称',
     version VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '对象版本，用于并发更新校验',
     created_at DATETIME(6) NOT NULL COMMENT '网关创建时间',
     updated_at DATETIME(6) NOT NULL COMMENT '记录更新时间',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_gateways_name (name)
+    UNIQUE KEY uk_gateways_namespace_name (namespace, name)
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '网关资源';
 
 CREATE TABLE gateway_listeners (
@@ -23,7 +24,8 @@ CREATE TABLE gateway_listeners (
 
 CREATE TABLE httproutes (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
-    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '路由唯一标识',
+    namespace VARCHAR(63) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '所属命名空间',
+    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '命名空间内的路由标识',
     display_name LONGTEXT NOT NULL COMMENT '路由名称',
     parents JSON NOT NULL COMMENT '网关引用配置',
     rules JSON NOT NULL COMMENT '路由规则配置',
@@ -31,18 +33,19 @@ CREATE TABLE httproutes (
     created_at DATETIME(6) NOT NULL COMMENT '路由创建时间',
     updated_at DATETIME(6) NOT NULL COMMENT '记录更新时间',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_httproutes_name (name)
+    UNIQUE KEY uk_httproutes_namespace_name (namespace, name)
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = 'HTTP 路由';
 
 CREATE TABLE backends (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
-    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '后端唯一标识',
+    namespace VARCHAR(63) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '所属命名空间',
+    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '命名空间内的后端标识',
     display_name LONGTEXT NOT NULL COMMENT '后端名称',
     version VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '对象版本，用于并发更新校验',
     created_at DATETIME(6) NOT NULL COMMENT '后端创建时间',
     updated_at DATETIME(6) NOT NULL COMMENT '记录更新时间',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_backends_name (name)
+    UNIQUE KEY uk_backends_namespace_name (namespace, name)
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '后端资源';
 
 CREATE TABLE backend_endpoints (
@@ -57,7 +60,8 @@ CREATE TABLE backend_endpoints (
 
 CREATE TABLE aibackends (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
-    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '模型服务唯一标识',
+    namespace VARCHAR(63) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '所属命名空间',
+    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '命名空间内的模型服务标识',
     display_name LONGTEXT NOT NULL COMMENT '模型服务名称',
     backend_name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '网络后端标识',
     schema_name VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '上游 API 格式',
@@ -66,12 +70,13 @@ CREATE TABLE aibackends (
     created_at DATETIME(6) NOT NULL COMMENT '模型服务创建时间',
     updated_at DATETIME(6) NOT NULL COMMENT '记录更新时间',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_aibackends_name (name)
+    UNIQUE KEY uk_aibackends_namespace_name (namespace, name)
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '模型服务';
 
 CREATE TABLE modelroutes (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
-    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '模型路由唯一标识',
+    namespace VARCHAR(63) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '所属命名空间',
+    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '命名空间内的模型路由标识',
     display_name LONGTEXT NOT NULL COMMENT '模型路由名称',
     parents JSON NOT NULL COMMENT '网关引用配置',
     rules JSON NOT NULL COMMENT '模型路由规则配置',
@@ -79,12 +84,13 @@ CREATE TABLE modelroutes (
     created_at DATETIME(6) NOT NULL COMMENT '模型路由创建时间',
     updated_at DATETIME(6) NOT NULL COMMENT '记录更新时间',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_modelroutes_name (name)
+    UNIQUE KEY uk_modelroutes_namespace_name (namespace, name)
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '模型路由';
 
 CREATE TABLE mcproutes (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
-    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT 'MCP 路由唯一标识',
+    namespace VARCHAR(63) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '所属命名空间',
+    name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '命名空间内的 MCP 路由标识',
     display_name LONGTEXT NOT NULL COMMENT 'MCP 路由名称',
     parents JSON NOT NULL COMMENT '网关引用配置',
     path VARCHAR(1024) NOT NULL COMMENT '入口 MCP 路径',
@@ -94,7 +100,7 @@ CREATE TABLE mcproutes (
     created_at DATETIME(6) NOT NULL COMMENT 'MCP 路由创建时间',
     updated_at DATETIME(6) NOT NULL COMMENT '记录更新时间',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_mcproutes_name (name)
+    UNIQUE KEY uk_mcproutes_namespace_name (namespace, name)
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = 'MCP 路由';
 
 -- +goose Down
