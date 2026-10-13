@@ -177,6 +177,57 @@ GoCanon MCP 来源和快照仍为 `336a025-dirty`，revision `336a025bf2d761d1ea
 
 用户授权提交并继续。提交前再次按声明顺序、错误路径、注释和生命周期边界审查全部手写文件，并复核生成目录与依赖未变。没有接入 Namespace 删除控制器、切换业务存储/Admin/MySQL、验证完整默认准入链或真实网关整链路；现有空间仍需显式 finalize。下一切片接入删除协调器，业务作用域切换之后才能验收空间内资源自动清理。
 
+## 第七小步：Namespace 删除控制器
+
+第六小步已提交为 `9182df44`，未推送。本步将 [deletion](../../internal/controllermanager/controller/namespace/deletion/deleter.go) 的删除内核和 [Reconciler](../../internal/controllermanager/controller/namespace/controller.go) 一并接入现有 Manager，形成一个待 review 的切片。不增加 API、配置或依赖；Manager 启动后协调正在删除的 Namespace，通过原生 finalize 释放自身 finalizer。六种业务资源尚未切换为命名空间级，不属于本步清理内容。
+
+来源固定为 Kubernetes `v1.37.0`，标签解引用后的提交为 `f54c212e3a2f75d674b717a9b29052b20b60aefc`。移植代码保留上游 Apache 2.0 文件头；许可证仍见 [KUBERNETES-LICENSE](../KUBERNETES-LICENSE)。直接使用已经锁定的 client-go v0.37.0 的 Namespace、Metadata、Discovery 和 Retry，不依赖 Kubernetes 主仓库。
+
+| 本地文件 | 上游文件与保留语义 | 必要适配 |
+| --- | --- | --- |
+| [deleter.go](../../internal/controllermanager/controller/namespace/deletion/deleter.go)、[operations.go](../../internal/controllermanager/controller/namespace/deletion/operations.go) | [namespaced_resources_deleter.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/controller/namespace/deletion/namespaced_resources_deleter.go)：发现资源、Background 批量删除及逐项回退、再次 List 检查、等待内容 finalizer、只移除自身 Namespace finalizer、冲突和 UID 防护 | 构造只保存依赖，不做 Discovery 或 Fatal；每轮发现并显式过滤集群级对象及子资源；没有 Pod API，省去 Pod 终止和排序分支；原生有界 RetryOnConflict 每次重读并核对 UID；失败返回调用方，Conditions 写入失败也阻止 finalize；聚合错误补充 GVR/空间上下文并保留原因；不导出未消费的接口 |
+| [conditions.go](../../internal/controllermanager/controller/namespace/deletion/conditions.go) | [status_condition_utils.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/controller/namespace/deletion/status_condition_utils.go)：五类 Namespace Conditions、稳定消息、失败恢复、只在真假变化时更新时间 | 保留官方 Type/Reason/Message 契约；按调用顺序组织声明，补充中文约束注释；不机械套用网关资源的 observedGeneration，因为原生 NamespaceCondition 没有该字段 |
+| [controller.go](../../internal/controllermanager/controller/namespace/controller.go) | [namespace_controller.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/controller/namespace/namespace_controller.go)：删除缓冲、内容等待与失败重试 | 保留官方缓冲时长和内容等待公式，沿 OneX 的职责划分适配 controller-runtime；使用现有 Manager 的缓存、Watch、队列、单 worker 和退出，不复制上游 Informer/worker 生命周期；事件过滤避免 status 写回自触发；缓冲起点及失败退避差异见下文 |
+
+### Manager 接线与重试
+
+运行入口沿用 `Options.Config → Config.New → SetupWithManager → Manager.Start(ctx)`。[Options](../../internal/controllermanager/options.go) 的私有 Scheme 注册公开的 core/v1 类型，供 Namespace Watch 使用；不注册 API Server 内部存储类型，也不因此安装其它核心组 API。[组合根](../../internal/controllermanager/manager.go) 使用同一份 Ingate REST Config 创建原生 Namespace、Metadata 和 Discovery 客户端；不使用宿主 Kubernetes 的连接。构造和注册阶段不读取 API，不启动工作任务，缓存同步及运行退出由 Manager 负责。
+
+`Reconcile(ctx, ctrl.Request) (ctrl.Result, error)` 保留框架签名，按 Namespace 的集群级对象键读取缓存；删除内核使用直接客户端重读对象和执行写入。Watch 接纳初始 List 中已在删除的 Namespace，以及删除时间、UID 或两类 finalizer 变化；活动对象、仅 status/label 变化及已消失对象不触发内容清理。队列以对象键去重；单 worker 是当前运行选择，不代表跨 Manager 互斥或 HA。
+
+协调流程为：`Namespace 删除事件 → 缓冲检查 → Discovery → 删除并检查内容 → status/finalize → 完成或重排`。沿用官方 5 秒删除缓冲；本地按 API 记录的 deletionTimestamp 计算剩余时间，已超过缓冲期的对象可立即协调，不像上游每次事件都重新 AddAfter 5 秒。这个缓冲给准入缓存传播留出时间，不保证跨资源原子性。内容 finalizer 等待使用官方 `Estimate/2+1` 秒的重排公式：15 秒估计对应 8 秒后检查，返回 nil error，不进入失败退避或重复错误日志。其它错误保留原因和空间身份，交给 controller-runtime 的默认失败重试；没有移植上游自定义的 60 秒退避上限，也不承诺完成期限。
+
+GoCanon 0078 已完整读取，但当前 MCP 没有暴露 `gocanon_plan_controller`/`gocanon_add_controller`，且追加入口要求项目内直接声明的类型和生成基线，不能直接消费 SDK 的 Namespace 类型并改写现有手写 Manager。因此本步按已接受的 Manager 生命周期和原生 Builder API 手写接线，不创建伪资源类型、额外注册表或另一套 Controller 框架。
+
+### 删除语义与验证边界
+
+`New` 要求三个依赖指向同一个 Ingate API Server；不持有请求 Context、工作队列或运行协程。`Delete` 先读取 Namespace，忽略不存在、尚未进入删除或已经清空 spec.finalizers 的对象；通过 status 标记 Terminating，再清理 Discovery 中的空间级主资源。部分发现失败允许已知类型取得进展，但返回错误，不释放 Namespace finalizer。重复执行依靠原生 API 的 NotFound、resourceVersion 冲突和 UID 检查收敛，不承诺跨资源事务。
+
+资源 finalizer 尚未完成时返回 `ResourcesRemainingError`；15 秒仅为官方等待估计，既不保证完成时间，也不会按该估计在 Delete 内等待；短时冲突退避仍由 RetryOnConflict 执行。无 finalizer 的意外残留仍视为失败。沿用官方对不支持 List 的资源处理，不据此声称对任意发现资源都能完成残留验证；Ingate 的持久主资源提供 List。操作不支持缓存保持官方的单实例生命周期语义，不承诺运行中 API 动词变更的重新探测。UID 防护针对 Namespace 更新/finalize，不额外宣称每次内容 Delete 都带 UID 前置条件。
+
+测试使用官方 fake Namespace 与 Metadata 客户端，覆盖构造不联网、空/活动/已完成空间、批量删除、缺失动词和 HTTP 405 回退、另一空间同名对象保留、集群级及子资源过滤、内容 finalizer 等待、部分发现失败、非法版本、读取/删除/状态失败、无 finalizer 残留、同 UID 冲突恢复、有界冲突、同名 Namespace 重建及取消。Conditions 测试覆盖相同错误不重复更新、时间戳稳定、恢复清除和保留其它控制器状态。fake 不自动模拟批量删除及对象 finalizer；对应用例显式注入这些行为，不能当作真实 API Server 或 GC 证据。锁定版本 fake Finalize 的动作是 create/finalize，真实客户端发送 PUT；测试已按 SDK 事实校正探针，初次探针错误导致的失败不记作通过。
+
+Namespace、Metadata 和 Discovery 都传递协调请求的 Context。Discovery 直接绑定锁定版本 client-go 的 `ServerPreferredNamespacedResourcesWithContext`；独立使用其原生构造器，保留默认请求超时。测试覆盖调用前取消、发现回调收到原 Context 及回调取消后原因保留、finalizer 不释放；没有通过真实 Discovery HTTP 请求验证取消时延。
+
+控制器用例覆盖不存在/活动/已完成空间不访问删除客户端、首次删除缓冲、空空间完成、内容等待重排、读取及删除原因保留，以及 status/label 事件过滤的正反例。启动选项用临时 kubeconfig 验证私有 Scheme 识别 Namespace/NamespaceList 及原 Gateway，不识别内部 Namespace；`Config.New` 测试验证 Manager 可构造注册，没有启动缓存或 Watch。controller-runtime fake 要求删除对象具有 metadata finalizer，测试夹具额外设置该字段仅为满足 fake 约束，不改变生产 Namespace 契约。
+
+GoCanon MCP 再次核对规则源 `/Users/lgc202/workspace/source/lgc202/gocanon`、revision `336a025bf2d761d1eac3cf7f5991d152e6d3d7e9`、快照 `336a025-dirty`，服务构建时间为 `2026-10-13T02:16:17Z`。由于 dirty 不固定未提交内容，已重新完整读取开发入口、索引和本次适用的 Controller、RUNTIME、命名/函数、错误、防御及测试规范；草案仍只作 review 依据，已接受的 Manager 生命周期和仓库 AGENTS 单独执行。审查范围包含全部 11 个新增、修改的手写 Go 文件及四个文档，按声明顺序、逐函数职责、错误路径、注释及语义空行检查，不以自动扫描替代人工判断。技术写作审查将固定版本依据、必要适配和未验证项分开记录。
+
+删除内核初次 lint 发现错误文本大小写和泛型集合 API 调用问题，修正后检查通过，不将失败轮次记作通过。Manager 接线及测试补充后，`gofmt -l cmd internal pkg`、`git diff --check`、全部未跟踪文件的原生 Git 空白检查、`golangci-lint run ./...`（0 issues）、`go vet ./...`、`go test ./... -count=1`、`go build ./...` 和 `go test -race ./internal/controllermanager/controller/namespace/... -count=1` 均完成，未报告问题。未跟踪文件与 `/dev/null` 的 no-index 检查退出码 1 表示有差异，没有空白错误诊断；不把它误报为命令退出码 0。race 只证明本轮运行未报告数据竞争，不证明资源泄漏、任意并发调用或真实组件联动。
+
+本步 API 类型、存储契约、生成产物和依赖未变，不重新生成代码或执行新的存储 integration。Manager Watch 已注册，但没有执行真实 Watch/Metadata HTTP/Discovery 与自动删除联动、生产认证授权及实库/Envoy 整链路验证；六种业务资源仍为集群级。保留变更等待用户 review。下一步切换六种业务资源的存储作用域及相应机械产物，再按已确认契约调整 Admin/MySQL；不增加跨空间引用或 Secret 功能。
+
+### 用户 review 后的规范修正
+
+用户指出代码不符合规范后重新审查，确认上轮人工审查遗漏了包装错误匹配、操作上下文、局部命名和复杂表达式排版。此前检查命令通过的结果仍成立，但不足以支持上一轮的手写代码审查结论。本轮只修正当前切片，不推进业务作用域或新增功能。
+
+- 按 ERROR-009，将 Discovery 结构化错误的直接类型断言改为 `errors.AsType`，包装后仍生成官方的失败组数量说明；增加包装错误的状态协议反例测试。
+- 按 ERROR-005/008，读取 Namespace、标记 Terminating、Discovery、内容 List/Delete 和 finalize 失败增加具体步骤信息，保留 `%w` 原因；Reconciler 不再重复添加删除内核已提供的空间身份。未新增错误分类或错误日志。
+- 按 GO-NAME-008、GO-FUNC-012/014，将 `m`、`ns` 等宽作用域名称换为实际角色，Namespace 状态更新方法放在删除内容方法前；移除只有长度判断的 `finalized` 辅助函数，零值声明和读取、变更、写入阶段分别组织。
+- 按 GO-FUNC-011 和 Go 函数、排版审查技能，长匿名函数签名完整换行，复杂测试字面量按字段展开，发现回调从构造调用中提取为具名局部变量。短且清楚的表达式保持原样，不按固定字符数或每个 return 插入空行。
+
+新增用例仅验证 Namespace 读取/finalize 错误原因保留，以及包装后的 Discovery Conditions；已有冲突、有界重试、UID 防护和筛选反例继续运行。状态 Type/Reason、正常等待和调度方式不变；诊断错误文本新增步骤和残留数量。本轮修正后，格式及已跟踪/未跟踪文件的空白检查未报告问题，lint（0 issues）、vet、全仓普通测试、构建和 Namespace 定向 race 重新通过，不使用上轮结果替代本轮验证。按技术写作审查将具体遗漏、修正行为和验证边界分开记录；真实组件联动仍未执行，变更保持未提交。
+
 ## 已提交编译身份改造的审查和验证边界
 
 使用 GoCanon MCP，规则源 `/Users/lgc202/workspace/source/lgc202/gocanon`，快照 `f478423-dirty`，revision `f4784239c945ba61e90bdfa588ce01f69b9403f5`。完整读取开发入口与规范索引，按 Controller Manager、命名、函数、错误、防御和测试规范审查；草案只作为审查依据，不当作已发布能力。

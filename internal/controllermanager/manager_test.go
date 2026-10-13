@@ -3,6 +3,7 @@ package controllermanager
 import (
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -13,6 +14,9 @@ import (
 
 func TestConfigNew(t *testing.T) {
 	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Core AddToScheme() error = %v, want nil", err)
+	}
 	if err := gatewayv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("Gateway AddToScheme() error = %v, want nil", err)
 	}

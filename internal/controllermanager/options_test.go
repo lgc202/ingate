@@ -1,0 +1,46 @@
+package controllermanager
+
+import (
+	"path/filepath"
+	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
+)
+
+func TestOptionsConfigRegistersExternalTypes(t *testing.T) {
+	options := NewOptions()
+	options.Kubeconfig = filepath.Join(t.TempDir(), "kubeconfig")
+	kubeconfig := clientcmdapi.Config{
+		Clusters:       map[string]*clientcmdapi.Cluster{"ingate": {Server: "https://127.0.0.1:6443"}},
+		Contexts:       map[string]*clientcmdapi.Context{"ingate": {Cluster: "ingate"}},
+		CurrentContext: "ingate",
+	}
+	if err := clientcmd.WriteToFile(kubeconfig, options.Kubeconfig); err != nil {
+		t.Fatalf("WriteToFile(temporary kubeconfig) error = %v, want nil", err)
+	}
+
+	config, err := options.Config()
+	if err != nil {
+		t.Fatalf("Options.Config(temporary kubeconfig) error = %v, want nil", err)
+	}
+	for _, kind := range []schema.GroupVersionKind{
+		corev1.SchemeGroupVersion.WithKind("Namespace"),
+		corev1.SchemeGroupVersion.WithKind("NamespaceList"),
+		gatewayv1alpha1.SchemeGroupVersion.WithKind("Gateway"),
+	} {
+		if !config.ManagerOptions.Scheme.Recognizes(kind) {
+			t.Errorf("Options.Config() Scheme.Recognizes(%s) = false, want true", kind)
+		}
+	}
+	internalNamespace := corev1.SchemeGroupVersion.WithKind("Namespace")
+	internalNamespace.Version = runtime.APIVersionInternal
+	if config.ManagerOptions.Scheme.Recognizes(internalNamespace) {
+		t.Errorf("Options.Config() Scheme.Recognizes(%s) = true, want external types only", internalNamespace)
+	}
+}

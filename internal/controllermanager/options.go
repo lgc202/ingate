@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/pflag"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -64,6 +65,9 @@ func (o *Options) Config() (*Config, error) {
 	restConfig = rest.AddUserAgent(restConfig, componentName)
 
 	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		return nil, fmt.Errorf("register core API types: %w", err)
+	}
 	if err := gatewayv1alpha1.AddToScheme(scheme); err != nil {
 		return nil, fmt.Errorf("register Gateway API types: %w", err)
 	}

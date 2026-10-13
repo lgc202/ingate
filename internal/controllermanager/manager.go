@@ -1,15 +1,20 @@
-// Package controllermanager 组装共享数据面、资源查询投影与 xDS 服务。
+// Package controllermanager 组装 Namespace 清理、共享数据面、资源查询投影与 xDS 服务。
 package controllermanager
 
 import (
 	"fmt"
 
+	"k8s.io/client-go/discovery"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
 	mysqlstore "github.com/lgc202/ingate/internal/adminapi/repository/mysql"
 	gatewaycontroller "github.com/lgc202/ingate/internal/controllermanager/controller/gateway"
+	namespacecontroller "github.com/lgc202/ingate/internal/controllermanager/controller/namespace"
+	"github.com/lgc202/ingate/internal/controllermanager/controller/namespace/deletion"
 	"github.com/lgc202/ingate/internal/controllermanager/controller/projection"
 	"github.com/lgc202/ingate/internal/controllermanager/dataplane/envoy"
 )
@@ -41,6 +46,9 @@ func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
 	if err := reconciler.SetupWithManager(manager); err != nil {
 		return nil, fmt.Errorf("setup Gateway controller: %w", err)
 	}
+	if err := setupNamespaceController(manager); err != nil {
+		return nil, fmt.Errorf("setup Namespace controller: %w", err)
+	}
 
 	if err := projection.NewGateway(manager.GetClient(), store).SetupWithManager(manager); err != nil {
 		return nil, fmt.Errorf("setup Gateway projection controller: %w", err)
@@ -66,4 +74,30 @@ func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
 	}
 
 	return manager, nil
+}
+
+// setupNamespaceController 让发现、Namespace 写入和内容删除都使用 Manager 的 Ingate 连接配置。
+// 原生客户端构造不发起请求；不使用 API Server 的宿主 Kubernetes 连接。
+func setupNamespaceController(manager ctrl.Manager) error {
+	config := manager.GetConfig()
+	coreClient, err := corev1client.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("create Namespace client: %w", err)
+	}
+
+	metadataClient, err := metadata.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("create namespace metadata client: %w", err)
+	}
+
+	// 独立使用原生 Discovery 构造器，保留其请求超时默认值，不另建超时或发现框架。
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		return fmt.Errorf("create namespace discovery client: %w", err)
+	}
+
+	discoverResources := discoveryClient.ServerPreferredNamespacedResourcesWithContext
+	deleter := deletion.New(coreClient.Namespaces(), metadataClient, discoverResources)
+	reconciler := namespacecontroller.New(manager.GetClient(), deleter)
+	return reconciler.SetupWithManager(manager)
 }
