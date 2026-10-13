@@ -5,13 +5,10 @@ import (
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
-	"k8s.io/apiserver/pkg/storage"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
 	gatewayapi "github.com/lgc202/ingate/pkg/apis/gateway"
@@ -47,7 +44,6 @@ func NewREST(
 		NewListFunc: func() runtime.Object {
 			return &gatewayapi.BackendList{}
 		},
-		PredicateFunc:             matcher,
 		DefaultQualifiedResource:  gatewayapi.Resource("backends"),
 		SingularQualifiedResource: gatewayapi.Resource("backend"),
 		CreateStrategy:            strategy,
@@ -57,10 +53,8 @@ func NewREST(
 		TableConvertor:            rest.NewDefaultTableConvertor(gatewayapi.Resource("backends")),
 	}
 
-	options := &generic.StoreOptions{
-		RESTOptions: optionsGetter,
-		AttrFunc:    getAttrs,
-	}
+	// Backend 只有标准 metadata 筛选字段，属性和 Predicate 由 Store 按 Strategy 作用域完成。
+	options := &generic.StoreOptions{RESTOptions: optionsGetter}
 	if err := store.CompleteWithOptions(options); err != nil {
 		return nil, nil, fmt.Errorf("complete Backend REST storage: %w", err)
 	}
@@ -115,21 +109,4 @@ func (r *StatusREST) ConvertToTable(
 	options runtime.Object,
 ) (*metav1.Table, error) {
 	return r.store.ConvertToTable(ctx, obj, options)
-}
-
-func matcher(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
-	return storage.SelectionPredicate{
-		Label:    label,
-		Field:    field,
-		GetAttrs: getAttrs,
-	}
-}
-
-func getAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
-	backend, ok := obj.(*gatewayapi.Backend)
-	if !ok {
-		return nil, nil, fmt.Errorf("expected *gateway.Backend, got %T", obj)
-	}
-
-	return labels.Set(backend.Labels), generic.ObjectMetaFieldsSet(&backend.ObjectMeta, false), nil
 }

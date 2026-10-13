@@ -21,7 +21,7 @@ Ingate 已具备 HTTP 网关的控制面主结构和最小转发配置实现：�
 
 ## 当前主路径与术语
 
-2026-10-13 增补：Namespace 内部类型、存储生命周期、按资源编码工厂和 OpenAPI 已提交；原生 `/api/v1/namespaces`、`/status`、`/finalize` 接入提交为 `e649d9f6`。真实 HTTPS 与隔离 etcd 检查覆盖 Discovery、v2/v3 文档、字段保护和手动 finalize。官方 NamespaceLifecycle 本地数据源提交为 `9182df44`；两个隔离 API Server 验证插件以 Ingate 的 Namespace 存在性和阶段为准，不采用宿主同名对象。本轮新增官方删除内核，接入 Manager 的 Namespace Watch、内容等待重排和失败重试，待 review；没有执行真实 Manager Watch 与自动删除联动。六种业务资源的存储与管理链路仍是集群级，不由 Namespace 删除控制器清理；此前插件检查也不证明业务 HTTP 已支持命名空间请求。目标和实施记录见 [0013](decisions/0013-namespaced-resources.md)。
+2026-10-13 增补：Namespace 内部类型、存储生命周期、按资源编码工厂和 OpenAPI 已提交；原生 `/api/v1/namespaces`、`/status`、`/finalize` 接入提交为 `e649d9f6`。真实 HTTPS 与隔离 etcd 检查覆盖 Discovery、v2/v3 文档、字段保护和手动 finalize。官方 NamespaceLifecycle 本地数据源提交为 `9182df44`；两个隔离 API Server 验证插件以 Ingate 的 Namespace 存在性和阶段为准，不采用宿主同名对象。官方删除内核、Manager 的 Namespace Watch、内容等待重排和失败重试已提交为 `5cc450d5`；没有执行真实 Manager Watch 与自动删除联动。本轮 Backend 存储改用框架默认属性与筛选，待 review，未切换作用域。六种业务资源的存储与管理链路仍是集群级，不由 Namespace 删除控制器清理；此前插件检查也不证明业务 HTTP 已支持命名空间请求。目标和实施记录见 [0013](decisions/0013-namespaced-resources.md)。
 
 ![当前 API 网关架构](diagrams/api-current-architecture.svg)
 

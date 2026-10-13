@@ -16,7 +16,7 @@ Controller 负责裁决并生成完整配置，Go 负责加载配置与授权凭
 
 ## 背景：当前缺的是存储与确认契约
 
-2026-10-13 状态补充：[网关 Registry](../../internal/apiserver/registry/gateway/storage.go) 已安装六种业务资源及其 status；[核心组](../../internal/apiserver/core.go) 的 Namespace 主资源、status 和 finalize 已提交。官方 NamespaceLifecycle 的 Ingate 本地数据源已提交；本轮接入删除内核与 Manager 的 Namespace Watch、重试调度，待 review，尚未验证真实自动删除联动。六种业务资源的存储作用域仍未切换，没有 Secret 或运行配置 API。作用域目标以已确认的 [0013](../decisions/0013-namespaced-resources.md) 为准，本稿其余凭据与发布建议仍待 review。
+2026-10-13 状态补充：[网关 Registry](../../internal/apiserver/registry/gateway/storage.go) 已安装六种业务资源及其 status；[核心组](../../internal/apiserver/core.go) 的 Namespace 主资源、status 和 finalize 已提交。官方 NamespaceLifecycle 的 Ingate 本地数据源已提交；删除内核与 Manager 的 Namespace Watch、重试调度已提交为 `5cc450d5`，尚未验证真实自动删除联动。本轮 Backend 默认存储筛选的准备性重构待 review；六种业务资源的存储作用域仍未切换，没有 Secret 或运行配置 API。作用域目标以已确认的 [0013](../decisions/0013-namespaced-resources.md) 为准，本稿其余凭据与发布建议仍待 review。
 
 当前 [Options](../../internal/apiserver/options.go) 沿用 RecommendedOptions；其上游采用委托认证与授权，并依赖 CoreAPI/Admission 的配置。已有 HTTPS Listener 不证明身份和资源权限已配置正确。[存储测试](../../internal/apiserver/integration_test.go) 为隔离存储，将这些选项设为 nil，不能作为密钥访问隔离的证据。
 
