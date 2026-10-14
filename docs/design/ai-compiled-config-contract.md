@@ -1,6 +1,6 @@
 # AI 编译配置：沿用官方编译分层，使用标准 ConfigMap 保存非敏感结果
 
-- 状态：契约已于 2026-10-13 经用户确认；原生 ConfigMap API 已通过用户 review 并获准本地提交，编译与数据面尚未实现
+- 状态：契约已于 2026-10-13 经用户确认；原生 ConfigMap API 已提交，内部类型与编解码切片已通过用户 review 并获准本地提交，编译与数据面尚未实现
 - 作者：Ingate 开发协作
 - 日期：2026-10-13
 - Ingate 基线：`cda0478e`，分支 `codex/rebuild-from-zero`
@@ -50,7 +50,7 @@ ConfigMap 标准只校验其自身字段，不会理解字符串里的路由表�
 
 ### payload 的具体字段
 
-建议内部强类型配置放在 `internal/aiproxy/config`，不导入 Kubernetes API 类型；这是未来 Controller 与 Proxy 的共享数据契约，不是现在创建一个空服务。核心组 ConfigMap 存储仍在 `internal/apiserver/registry/core`，编译与写入留在现有共享协调器中，不按六种资源各建一个配置写入者。
+内部强类型配置放在 [internal/pkg/aidataplane](../../internal/pkg/aidataplane/types.go)，与服务启动配置 `conf.Bootstrap` 区分，不导入 Kubernetes API 类型；这是 Controller 与未来 Proxy 的共享数据契约，不属于任一组件的内部实现，也不创建空服务。沿用仓库的内部共享包目录，不增加 infra 分类层：本包定义数据契约，不承担基础设施适配。核心组 ConfigMap 存储仍在 `internal/apiserver/registry/core`，编译与写入留在现有共享协调器中，不按六种资源各建一个配置写入者。
 
 | 字段 | 类型与有效值 | 来源、消费与边界 |
 | --- | --- | --- |
@@ -238,7 +238,7 @@ Namespace 生命周期应包含标准 ConfigMap，不增加一个「AI ConfigMap
 按小步推进，每步审查全部手写改动，等待用户 review 后再提交：
 
 1. 原生 ConfigMap API：复用项目锁定 Kubernetes 版本的官方校验、转换和 Generic Store，核对 CRUD/List/Watch、resourceVersion、immutable、1 MiB 和 NamespaceLifecycle；本步已通过用户 review 并获准本地提交，不生成空 Proxy 服务、不新增依赖。
-2. 内部强类型配置与编码校验：按本稿 payload 实现，不导入 Kubernetes API 类型；核对确定性 revision、必填/未知/重复字段、引用、空配置及错误路径。本步尚未实现。
+2. 内部强类型配置与编解码校验：按本稿 payload 实现，不导入 Kubernetes API 类型；生产端类型、结构/引用校验、确定性 revision、空配置与严格解码已实现，已通过用户 review 并获准本地提交。检查必填/未知/重复 JSON 成员及传入 revision，不以普通 json.Unmarshal 冒充完整加载校验。
 3. 在现有共享协调器接入 AI 依赖解析、确定排序、完整编译与 ConfigMap 幂等写入。证明精确/catch-all、同名多 Namespace、不同 override、失效目标、全量删除、写冲突和超限不会被误当成功；核对受管对象漂移与删除状态 Watch。不改变 HTTP/xDS 内容及既有错误/状态行为，验证 AI 专属失败不阻止 HTTP 更新。
 4. 编译存储完成后，再按已批准的协议和运行边界实现 Proxy 消费与 Envoy AI 入口/出口；不能因 payload 已存入 etcd 就提前开放真实流量。
 
@@ -268,6 +268,30 @@ Namespace 生命周期应包含标准 ConfigMap，不增加一个「AI ConfigMap
 | Scheme、转换与 DeepCopy | 原生核心产物来自锁定版本依赖，Ingate 不再生成副本；`scripts/generate-api.sh` 只维护自有 Gateway 产物，调用方仍使用标准 core/v1 客户端 |
 
 不增加第三方源码目录；主仓库锁定为 v1.37.0，公开模块保持 v0.37.0。保留 [KUBERNETES-LICENSE](../KUBERNETES-LICENSE)，因为 Namespace 删除内核等仍有受控移植实现。本轮构建与存储验证结果见 0014；下文记录的是此前移植切片的验证，不代替迁移验证。
+
+## 内部配置类型与编解码切片
+
+2026-10-14，原生核心资源迁移已提交为 `c2eac979`。后续小步新增 [types.go](../../internal/pkg/aidataplane/types.go)、[encode.go](../../internal/pkg/aidataplane/encode.go)、[decode.go](../../internal/pkg/aidataplane/decode.go) 与 [validation.go](../../internal/pkg/aidataplane/validation.go)，仅实现本稿共享编译数据契约，已通过用户 review 并获准本地提交。经用户确认，共享契约从 AI Proxy 组件目录迁入 internal/pkg/aidataplane，包名为 aidataplane；保留 JSON 字段与内容版本，不创建 conf 或服务入口。Controller 的领域编译和 ConfigMap 写入、Proxy 的加载及运行视图交换仍留在各自组件，不移入共享包；当前没有生产调用方，不保留旧路径兼容包。
+
+Encode 要求调用方提供已默认化、已排序的 v1 强类型配置；检查非 nil 数组、集合内标识唯一性、协议/匹配枚举、路径、端口/权重、重复端点及非空引用存在性，再按固定字段顺序紧凑编码、排除 revision 计算 SHA-256，重新编码携带内容版本。传入旧 revision 不参与计算、不写回调用方；模型名、prefix 和 MCP 尾斜杠保持原值。编码器不排序、删路由或自动填默认值，空 backendName 的失效匹配仍保留。域内附着与引用解析、优先级、只汇总被 AI 使用的后端由后续编译器负责，不能由编码校验反推出已完成领域裁决。
+
+已重新读取官方固定提交的 filterapi.Config 与 Backend/APISchema 原文，采用其类型分离和规则级协议绑定；不复制 Models、Auth、CEL 等未确认能力。DNS 校验复用已有发布模块的 Kubernetes validation 工具，不复制 DNS 正则，不增加模块依赖，也不导入核心/网关 API 类型。
+
+[golden 用例](../../internal/pkg/aidataplane/testdata/v1.json) 使用缩进方便 review；测试读取后用标准 json.Compact 仅移除展示空白，再核对字段顺序、字面量和 revision，不重新序列化无序 map。空配置另有固定哈希。测试覆盖重复编码、输入不变、保留输入路由顺序、有效内容改变时 revision 改变，以及非法枚举、数组为 nil、标识重复、悬空引用、无效路径和端点的反例。失效目标/空模型条件用完整对象比较，名称反例同步调整引用，避免因另一项引用错误使名称校验失效仍被误判通过。
+
+Decode 复用已有 sigs.k8s.io/json 的大小写敏感解码、重复字段和未知字段检查；同时处理普通解析错误与额外 strictErrors，不因解析成功就忽略严格检查结果。不编写通用 JSON 解析器、反射校验框架或自定义字段 DSL。模块版本不变，仅从间接依赖调整为直接依赖，go.sum 不变。
+
+强类型语义校验拒绝必填字段的非法零值及 nil 集合。允许空字符串的 hostname、两类 backendName 和 modelNameOverride 在原配置类型中使用 *string：nil 表示缺失/null，指向空字符串的值合法。只保留这一份字段定义，编码端和解码端共用 validate；删除函数内的嵌套匿名字段投影和第二次 JSON 解码。Controller 构造时必须显式提供这四个值，不能靠 Go 字符串零值隐式补齐；后续消费者使用通过校验的指针值，不再重复判空。该调整不改变 JSON 字段、合法输出内容或 revision，当前也没有需迁移的生产调用方。不增加解码 DTO、反射校验框架或自定义 JSON 方法。
+
+本次修正针对字段定义重复造成的维护成本，而不是仅将匿名结构体改名。以原有合法输出、必填字段缺失/null 反例和空字符串正例验证行为；生产端另验证四个字段为 nil 时拒绝发布。通过结构校验后，检查 revision 的长度、小写十六进制格式与重编码哈希；编解码共用 contentRevision，不对原始文本直接求哈希。失败返回 nil，不交付部分配置；成功结果属于本次调用方，没有全局缓存或运行视图交换。
+
+解码测试覆盖 golden/空配置往返、缩进/对象成员顺序/等价转义不改变语义，示例中每种对象逐字段缺失/null，以及嵌套未知字段、同值重复字段、转义后重复键、类型错误、尾随 JSON、非法 UTF-8 与 revision 篡改。四种允许为空的必填字符串另有编解码往返正例，确保不把合法空值误当作缺失。字段和语义反例先补上剩余强类型内容的正确哈希，避免仅凭哈希不匹配让错误实现也通过；revision 缺失/null 单独验证。另检查严格错误的 FieldError 原因保留，以及两次解码结果和原始字节之间没有共享可变状态；所有权用例修改指针指向的字符串，而不只是重新赋一个指针。
+
+此处没有文件加载、ConfigMap 写入或 Proxy 服务。ConfigMap 对完整对象的大小、所属 Namespace、权限与并发版本校验仍留在后续写入切片。原有 HTTP/xDS、API Server 与查询投影未修改。
+
+本切片已核对状态、已跟踪差异及全部未跟踪文件，按 GO-FUNC-012/013/014 检查声明顺序与语义分段，并逐函数检查职责、命名、签名、错误保留及注释。`gofmt -l cmd internal pkg`、已跟踪与八个新增文件的空白检查、`golangci-lint run ./...`、`go vet ./...`、`go test ./... -count=1` 和 `go build ./...` 均通过。辅助命名与错误脚本通过；辅助注释脚本将没有单独包注释的 encode.go、decode.go、validation.go 报为缺失，人工确认包注释在 types.go 唯一定义，不复制注释来消除该误报。
+
+未修改公开 API 类型、存储契约或生成源，所以本切片未再次生成或运行 API integration；迁移提交前的隔离 integration 已于本日复跑通过。没有运行 Manager/Envoy/Proxy 联调，也没有证明配置已写入 etcd；新代码尚无生产调用方。GoCanon MCP 来源与快照仍为 `/Users/lgc202/workspace/source/lgc202/gocanon`、`08260b7-dirty`，本契约不属于现有组件或 Spec/Status 资源生成器的生成范围。
 
 ## 审查与验证边界
 

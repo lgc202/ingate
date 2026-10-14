@@ -4,6 +4,7 @@
 
 1. 同时查看 `git status --short`、`git diff --name-only` 和 `git ls-files --others --exclude-standard`。逐个审查新增与修改的手写文件；单独使用 `git diff` 会漏掉未跟踪文件。生成文件只核对生成结果与可重复性，不按手写代码逐行审查。
 2. 先按 GoCanon 的 GO-FUNC-012 检查类型、方法和辅助函数的声明顺序，再逐函数检查职责、命名、参数与返回值、错误路径、注释是否仍符合实现。赋值与对应的错误检查保持相邻；只在语义阶段变化处用空行分隔，不机械地要求每个 `return` 前空行。这对应 GO-FUNC-013、GO-FUNC-014。
+   功能审查结束后，再做一遍独立的换行与空行复查：逐函数区分输入准备/解码、校验、依赖调用、结果转换和状态登记，测试区分输入准备、被测操作和结果断言。不得因 lint 通过跳过这一步；连续错误检查或同阶段断言不机械分隔。
 3. 检查测试断言能否在目标行为失效时真正失败。涉及筛选、鉴权或冲突检测时，不只验证成功输入，还要验证至少一个不匹配或冲突输入。
 4. 检查本次实现是否使包注释、决策文档和示例过时。运行 `gofmt -l cmd internal pkg`、`git diff --check`、`golangci-lint run ./...`、`go vet ./...`、`go test ./...` 和 `go build ./...`；`git diff --check` 不覆盖未跟踪文件。变更 API Server 存储契约时再运行 `go test -tags=integration ./internal/apiserver`，变更 API 类型时重新生成并核对生成文件。
 

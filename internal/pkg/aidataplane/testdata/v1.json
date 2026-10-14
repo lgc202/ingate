@@ -1,0 +1,69 @@
+{
+  "formatVersion": "v1",
+  "revision": "29e071533c8e5e4bb2f5c78460aeacd14bad01ffe4e7ee0a5450e5ab23a3cc0a",
+  "listeners": [
+    {
+      "port": 8080,
+      "hosts": [
+        {
+          "name": "gateway/team-a/public/listener/api",
+          "hostname": "gateway.example.com",
+          "modelRoutes": [
+            {
+              "name": "team-a/coding/rule/0/match/0",
+              "headers": [
+                {
+                  "name": "x-ai-eg-model",
+                  "type": "Exact",
+                  "value": "coding"
+                }
+              ],
+              "backendName": "team-a/model-service/route/coding/rule/0/ref/0"
+            }
+          ],
+          "mcpRoutes": [
+            {
+              "name": "team-a/tools",
+              "path": "/mcp",
+              "backendName": "team-a/tools-network",
+              "backendPath": "/stream"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "backends": [
+    {
+      "name": "team-a/model-service/route/coding/rule/0/ref/0",
+      "schema": {
+        "name": "OpenAI",
+        "prefix": "/v1"
+      },
+      "modelNameOverride": "code-v2",
+      "networkBackendName": "team-a/model-network"
+    }
+  ],
+  "networkBackends": [
+    {
+      "name": "team-a/model-network",
+      "endpoints": [
+        {
+          "address": "model.internal.example",
+          "port": 8081,
+          "weight": 1
+        }
+      ]
+    },
+    {
+      "name": "team-a/tools-network",
+      "endpoints": [
+        {
+          "address": "tools.internal.example",
+          "port": 8082,
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}
