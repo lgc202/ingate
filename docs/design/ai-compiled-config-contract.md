@@ -1,6 +1,6 @@
 # AI 编译配置：沿用官方编译分层，使用标准 ConfigMap 保存非敏感结果
 
-- 状态：契约已于 2026-10-13 经用户确认；原生 ConfigMap API、内部编解码、纯编译及写入边界已提交，完整读取、受限 Watch 与协调发布接线已通过 review 并获准本地提交，AI 数据面尚未实现
+- 状态：契约已于 2026-10-13 经用户确认；原生 ConfigMap API、内部编解码、纯编译及写入边界已提交，完整读取、受限 Watch 与协调发布接线已提交为 `fcc9650b`，AI 数据面尚未实现
 - 作者：Ingate 开发协作
 - 日期：2026-10-13
 - Ingate 基线：`cda0478e`，分支 `codex/rebuild-from-zero`
@@ -37,6 +37,8 @@ Ingate 的模型和 MCP 都进入 Go HTTP Proxy，而官方模型使用 ExtProc�
 ## 设计：配置载体与所有者
 
 固定对象名 `ingate-shared-data-plane-ai`，固定 key `config.json`；Namespace 由部署配置显式提供，不固定为某个租户空间、不自动创建。本文使用 `ingate-system` 作为示例值，不是已有 Namespace。对象名对应当前唯一的 `ingate-shared-data-plane`，不增加可由用户编辑的 dataPlaneId。
+
+控制面 Namespace 由安装流程或部署者通过 Ingate 原生 API 预先创建；Controller Manager 只创建和更新其中的 ConfigMap，Namespace Controller 不承担初始化职责。[初始化清单与手动顺序](../control-plane-initialization.md)已通过用户 review 并获准本地提交，尚未执行真实安装。
 
 一个共享协调器拥有该对象的 `data["config.json"]`；API Server 仍提供标准 ConfigMap 原生接口，没有 AI 配置 Admin CRUD、MySQL 投影表或 ConfigMap status。其他身份不得修改该 key；权限部署必须另行验证，`managed-by` 标签本身不是授权。建议标注 `app.kubernetes.io/managed-by: ingate-controller-manager` 用于诊断，已有同名对象若不是约定的受管对象，应报冲突而不是静默接管。
 

@@ -1,0 +1,6 @@
+# 应用于 Ingate API Server，不是宿主 Kubernetes 集群。
+# 改名时同步修改 Controller Manager 的 --ai-config-namespace。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingate-system
