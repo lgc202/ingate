@@ -14,6 +14,7 @@
 - [HTTP 资源替换实现记录](decisions/0011-http-resource-contract.md)：阶段 B 范围、验证与未覆盖项。
 - [Namespace 与同空间引用](decisions/0013-namespaced-resources.md)：编译身份、Namespace 存储、OpenAPI、原生 HTTP API、本地 NamespaceLifecycle 和删除控制器已提交；Backend 默认存储筛选重构已提交；六种资源的存储、管理 API 与查询投影已一起切换 Namespace，并经用户 review 提交为 `cda0478e`。
 - [重构审查记录](refactoring-review.md)：此前重构的验证结果与保留缺口，不代表当前端到端验收。
+- [原生核心资源直接复用](decisions/0014-upstream-core-resources.md)：参考 OneX 接入 Kubernetes Namespace/ConfigMap 类型与存储；实现已通过用户 review 并获准本地提交，不扩展原生 API 集合。
 
 ## 已有决策
 
@@ -32,5 +33,6 @@
 | [0011](decisions/0011-http-resource-contract.md) | HTTPRoute/Backend 替换及标准行为子集 |
 | [0012](decisions/0012-resource-names-and-query-schema.md) | 资源名称、搜索和查询模型修正 |
 | [0013](decisions/0013-namespaced-resources.md) | 显式 Namespace、同空间引用与共享数据面 |
+| [0014](decisions/0014-upstream-core-resources.md) | 原生 Namespace/ConfigMap 的上游直接复用 |
 
 各文档保留自己的状态；加入索引不表示草案或历史待评审项已经获得确认。

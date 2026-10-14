@@ -7,8 +7,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	coreapi "k8s.io/kubernetes/pkg/apis/core"
 
-	coreapi "github.com/lgc202/ingate/pkg/apis/core"
 	"github.com/lgc202/ingate/pkg/apis/gateway"
 	"github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
@@ -49,8 +50,30 @@ func TestNewScheme(t *testing.T) {
 	}
 
 	for _, kind := range []string{"Pod", "Secret", "Service"} {
-		if gvk := corev1.SchemeGroupVersion.WithKind(kind); scheme.Recognizes(gvk) {
-			t.Errorf("Scheme.Recognizes(%s) = true, want false", gvk)
+		if gvk := corev1.SchemeGroupVersion.WithKind(kind); !scheme.Recognizes(gvk) {
+			t.Errorf("Scheme.Recognizes(%s) = false, want upstream core type registration", gvk)
 		}
+	}
+}
+
+func TestNewSchemeIsolation(t *testing.T) {
+	first, err := newScheme()
+	if err != nil {
+		t.Fatalf("newScheme(first) error = %v", err)
+	}
+	second, err := newScheme()
+	if err != nil {
+		t.Fatalf("newScheme(second) error = %v", err)
+	}
+	if first == second || first == legacyscheme.Scheme || second == legacyscheme.Scheme {
+		t.Error("newScheme() reused an instance, want separate private schemes")
+	}
+
+	gvk := v1alpha1.SchemeGroupVersion.WithKind("Gateway")
+	if !first.Recognizes(gvk) || !second.Recognizes(gvk) {
+		t.Errorf("private Scheme recognizes %s = %t/%t, want true/true", gvk, first.Recognizes(gvk), second.Recognizes(gvk))
+	}
+	if legacyscheme.Scheme.Recognizes(gvk) {
+		t.Errorf("upstream global Scheme recognizes %s = true, want no business registration", gvk)
 	}
 }

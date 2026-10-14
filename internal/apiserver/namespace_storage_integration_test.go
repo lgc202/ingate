@@ -20,27 +20,26 @@ import (
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/storage/etcd3/testserver"
+	coreapi "k8s.io/kubernetes/pkg/apis/core"
+	namespacestorage "k8s.io/kubernetes/pkg/registry/core/namespace/storage"
 	"k8s.io/utils/ptr"
-
-	namespacestorage "github.com/lgc202/ingate/internal/apiserver/registry/core/namespace"
-	coreapi "github.com/lgc202/ingate/pkg/apis/core"
 )
 
 // TestNamespaceStorageWrites 验证三类存储入口的字段保护和实际 etcd 筛选。
 func TestNamespaceStorageWrites(t *testing.T) {
-	ctx := genericapirequest.WithNamespace(t.Context(), "")
+	ctx := namespaceStorageContext(t, "")
 	mainREST, statusREST, finalizeREST := newNamespaceStorage(t)
 	namespace := createNamespace(t, mainREST, &coreapi.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "team-a", Labels: map[string]string{"owner": "platform"}},
-		Spec:       corev1.NamespaceSpec{Finalizers: []corev1.FinalizerName{"example.com/cleanup"}},
+		Spec:       coreapi.NamespaceSpec{Finalizers: []coreapi.FinalizerName{"example.com/cleanup"}},
 	})
 	if namespace.UID == "" || namespace.ResourceVersion == "" || namespace.CreationTimestamp.IsZero() {
 		t.Errorf("Create() metadata lacks server identity/version/time: %+v", namespace.ObjectMeta)
 	}
-	if namespace.Status.Phase != corev1.NamespaceActive || namespace.Labels[corev1.LabelMetadataName] != namespace.Name {
+	if namespace.Status.Phase != coreapi.NamespaceActive || namespace.Labels[corev1.LabelMetadataName] != namespace.Name {
 		t.Errorf("Create() phase/labels = %q/%v, want Active and name label", namespace.Status.Phase, namespace.Labels)
 	}
-	wantFinalizers := []corev1.FinalizerName{"example.com/cleanup", corev1.FinalizerKubernetes}
+	wantFinalizers := []coreapi.FinalizerName{"example.com/cleanup", coreapi.FinalizerKubernetes}
 	if diff := cmp.Diff(wantFinalizers, namespace.Spec.Finalizers); diff != "" {
 		t.Errorf("Create() spec.finalizers mismatch (-want +got):\n%s", diff)
 	}
@@ -48,17 +47,17 @@ func TestNamespaceStorageWrites(t *testing.T) {
 	ordinary := namespace.DeepCopy()
 	ordinary.Labels["owner"] = "other"
 	ordinary.Spec.Finalizers = nil
-	ordinary.Status.Phase = corev1.NamespaceTerminating
+	ordinary.Status.Phase = coreapi.NamespaceTerminating
 	namespace = updateNamespace(t, mainREST, ordinary)
-	if namespace.Status.Phase != corev1.NamespaceActive || !cmp.Equal(namespace.Spec.Finalizers, wantFinalizers) {
+	if namespace.Status.Phase != coreapi.NamespaceActive || !cmp.Equal(namespace.Spec.Finalizers, wantFinalizers) {
 		t.Errorf("ordinary Update() changed protected phase/finalizers: %q/%v", namespace.Status.Phase, namespace.Spec.Finalizers)
 	}
 
 	invalidStatus := namespace.DeepCopy()
-	invalidStatus.Status.Phase = corev1.NamespaceTerminating
+	invalidStatus.Status.Phase = coreapi.NamespaceTerminating
 	info := rest.DefaultUpdatedObjectInfo(invalidStatus)
 	_, _, err := statusREST.Update(
-		ctx,
+		namespaceStorageContext(t, "status"),
 		namespace.Name,
 		info,
 		rest.ValidateAllObjectFunc,
@@ -71,9 +70,9 @@ func TestNamespaceStorageWrites(t *testing.T) {
 	}
 	status := namespace.DeepCopy()
 	status.Spec.Finalizers = nil
-	wantConditions := []corev1.NamespaceCondition{{
-		Type:               corev1.NamespaceDeletionDiscoveryFailure,
-		Status:             corev1.ConditionFalse,
+	wantConditions := []coreapi.NamespaceCondition{{
+		Type:               coreapi.NamespaceDeletionDiscoveryFailure,
+		Status:             coreapi.ConditionFalse,
 		LastTransitionTime: metav1.NewTime(time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC)),
 		Reason:             "Discovered",
 		Message:            "all resources discovered",
@@ -162,11 +161,11 @@ func TestNamespaceStorageWrites(t *testing.T) {
 
 // TestNamespaceStorageDelete 验证冲突、dry-run 和两类 finalizer 对删除的限制。
 func TestNamespaceStorageDelete(t *testing.T) {
-	ctx := genericapirequest.WithNamespace(t.Context(), "")
+	ctx := namespaceStorageContext(t, "")
 	mainREST, _, finalizeREST := newNamespaceStorage(t)
 	namespace := createNamespace(t, mainREST, &coreapi.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "team-a", Finalizers: []string{"example.com/metadata-cleanup"}},
-		Spec:       corev1.NamespaceSpec{Finalizers: []corev1.FinalizerName{"example.com/cleanup"}},
+		Spec:       coreapi.NamespaceSpec{Finalizers: []coreapi.FinalizerName{"example.com/cleanup"}},
 	})
 	for _, preconditions := range []*metav1.Preconditions{
 		{UID: ptr.To(types.UID("wrong"))},
@@ -183,36 +182,38 @@ func TestNamespaceStorageDelete(t *testing.T) {
 	}
 
 	options := &metav1.DeleteOptions{DryRun: []string{metav1.DryRunAll}}
-	before := options.DeepCopy()
+	wantOptions := options.DeepCopy()
+	wantOptions.Preconditions = &metav1.Preconditions{UID: &namespace.UID}
 	obj, deleted, err := mainREST.Delete(ctx, namespace.Name, rest.ValidateAllObjectFunc, options)
 	if err != nil {
 		t.Fatalf("Delete(dry-run) error = %v", err)
 	}
 	dryRun := obj.(*coreapi.Namespace)
-	if deleted || dryRun.DeletionTimestamp.IsZero() || dryRun.Status.Phase != corev1.NamespaceTerminating {
+	if deleted || dryRun.DeletionTimestamp.IsZero() || dryRun.Status.Phase != coreapi.NamespaceTerminating {
 		t.Errorf("Delete(dry-run) deleted/phase/timestamp = %t/%q/%v, want false/Terminating/nonzero",
 			deleted, dryRun.Status.Phase, dryRun.DeletionTimestamp)
 	}
-	if diff := cmp.Diff(before, options); diff != "" {
-		t.Errorf("Delete mutated options (-want +got):\n%s", diff)
+	if diff := cmp.Diff(wantOptions, options); diff != "" {
+		t.Errorf("Delete(dry-run) options mismatch (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(namespace, getNamespace(t, mainREST, namespace.Name)); diff != "" {
 		t.Errorf("dry-run persisted changes (-want +got):\n%s", diff)
 	}
 
 	options = &metav1.DeleteOptions{Preconditions: &metav1.Preconditions{ResourceVersion: &namespace.ResourceVersion}}
-	before = options.DeepCopy()
+	wantOptions = options.DeepCopy()
+	wantOptions.Preconditions.UID = &namespace.UID
 	obj, deleted, err = mainREST.Delete(ctx, namespace.Name, rest.ValidateAllObjectFunc, options)
 	if err != nil {
 		t.Fatalf("Delete() error = %v", err)
 	}
 	namespace = obj.(*coreapi.Namespace)
-	if deleted || namespace.DeletionTimestamp.IsZero() || namespace.Status.Phase != corev1.NamespaceTerminating {
+	if deleted || namespace.DeletionTimestamp.IsZero() || namespace.Status.Phase != coreapi.NamespaceTerminating {
 		t.Errorf("Delete() deleted/phase/timestamp = %t/%q/%v, want false/Terminating/nonzero",
 			deleted, namespace.Status.Phase, namespace.DeletionTimestamp)
 	}
-	if diff := cmp.Diff(before, options); diff != "" {
-		t.Errorf("Delete mutated preconditions (-want +got):\n%s", diff)
+	if diff := cmp.Diff(wantOptions, options); diff != "" {
+		t.Errorf("Delete() preconditions mismatch (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(namespace, getNamespace(t, mainREST, namespace.Name)); diff != "" {
 		t.Errorf("termination state not persisted (-want +got):\n%s", diff)
@@ -225,7 +226,7 @@ func TestNamespaceStorageDelete(t *testing.T) {
 	}
 
 	partial := namespace.DeepCopy()
-	partial.Spec.Finalizers = []corev1.FinalizerName{"example.com/cleanup"}
+	partial.Spec.Finalizers = []coreapi.FinalizerName{"example.com/cleanup"}
 	namespace = updateNamespace(t, finalizeREST, partial)
 	if _, err := mainREST.Get(ctx, namespace.Name, &metav1.GetOptions{}); err != nil {
 		t.Fatalf("Get(custom spec finalizer remaining) error = %v, want present", err)
@@ -250,7 +251,7 @@ func TestNamespaceStorageDelete(t *testing.T) {
 
 // TestNamespaceStorageFinalize 验证最后一个 spec finalizer 的更新可以完成物理删除。
 func TestNamespaceStorageFinalize(t *testing.T) {
-	ctx := genericapirequest.WithNamespace(t.Context(), "")
+	ctx := namespaceStorageContext(t, "")
 	mainREST, _, finalizeREST := newNamespaceStorage(t)
 	namespace := createNamespace(t, mainREST, &coreapi.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "team-a"}})
 	obj, _, err := mainREST.Delete(ctx, namespace.Name, rest.ValidateAllObjectFunc, nil)
@@ -278,7 +279,7 @@ func TestNamespaceStorageFinalize(t *testing.T) {
 
 // TestNamespaceStorageDeleteValidation 验证删除校验失败不会写入 Terminating。
 func TestNamespaceStorageDeleteValidation(t *testing.T) {
-	ctx := genericapirequest.WithNamespace(t.Context(), "")
+	ctx := namespaceStorageContext(t, "")
 	mainREST, _, _ := newNamespaceStorage(t)
 	namespace := createNamespace(t, mainREST, &coreapi.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "team-a"}})
 	resource := coreapi.SchemeGroupVersion.WithResource("namespaces").GroupResource()
@@ -318,7 +319,7 @@ func newNamespaceStorage(
 	}
 
 	getter := etcdOptions.CreateRESTOptionsGetter(factory, nil)
-	mainREST, statusREST, finalizeREST, err := namespacestorage.NewREST(options.scheme, getter)
+	mainREST, statusREST, finalizeREST, err := namespacestorage.NewREST(getter)
 	if err != nil {
 		t.Fatalf("NewREST(Namespace) error = %v", err)
 	}
@@ -332,7 +333,7 @@ func createNamespace(
 	namespace *coreapi.Namespace,
 ) *coreapi.Namespace {
 	t.Helper()
-	ctx := genericapirequest.WithNamespace(t.Context(), "")
+	ctx := namespaceStorageContext(t, "")
 
 	obj, err := storage.Create(ctx, namespace, rest.ValidateAllObjectFunc, &metav1.CreateOptions{})
 	if err != nil {
@@ -343,7 +344,7 @@ func createNamespace(
 
 func getNamespace(t *testing.T, storage *namespacestorage.REST, name string) *coreapi.Namespace {
 	t.Helper()
-	ctx := genericapirequest.WithNamespace(t.Context(), "")
+	ctx := namespaceStorageContext(t, "")
 
 	obj, err := storage.Get(ctx, name, &metav1.GetOptions{})
 	if err != nil {
@@ -358,9 +359,19 @@ func updateNamespace(
 	namespace *coreapi.Namespace,
 ) *coreapi.Namespace {
 	t.Helper()
-	ctx := genericapirequest.WithNamespace(t.Context(), "")
 
+	var subresource string
+
+	switch storage.(type) {
+	case *namespacestorage.StatusREST:
+		subresource = "status"
+	case *namespacestorage.FinalizeREST:
+		subresource = "finalize"
+	}
+
+	ctx := namespaceStorageContext(t, subresource)
 	info := rest.DefaultUpdatedObjectInfo(namespace)
+
 	obj, created, err := storage.Update(
 		ctx,
 		namespace.Name,
@@ -377,4 +388,18 @@ func updateNamespace(
 		t.Errorf("%T.Update(Namespace) created object, want false", storage)
 	}
 	return obj.(*coreapi.Namespace)
+}
+
+// namespaceStorageContext 补齐 Generic API Server 为原生声明式校验提供的请求信息。
+func namespaceStorageContext(t *testing.T, subresource string) context.Context {
+	t.Helper()
+
+	ctx := genericapirequest.WithNamespace(t.Context(), "")
+	return genericapirequest.WithRequestInfo(ctx, &genericapirequest.RequestInfo{
+		IsResourceRequest: true,
+		APIGroup:          corev1.GroupName,
+		APIVersion:        corev1.SchemeGroupVersion.Version,
+		Resource:          "namespaces",
+		Subresource:       subresource,
+	})
 }

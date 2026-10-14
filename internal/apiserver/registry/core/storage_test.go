@@ -53,7 +53,7 @@ func TestNewStorageFailureCleanup(t *testing.T) {
 				}, nil
 			})
 
-			result, err := NewStorage(runtime.NewScheme(), getter)
+			result, err := NewStorage(getter)
 			if !errors.Is(err, failure) {
 				t.Errorf("NewStorage(%s failure) error = %v, want wrapped setup error", tt.resource, err)
 			}

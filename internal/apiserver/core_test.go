@@ -6,9 +6,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/registry/rest"
-
-	configmapstorage "github.com/lgc202/ingate/internal/apiserver/registry/core/configmap"
-	namespacestorage "github.com/lgc202/ingate/internal/apiserver/registry/core/namespace"
+	configmapstorage "k8s.io/kubernetes/pkg/registry/core/configmap/storage"
+	namespacestorage "k8s.io/kubernetes/pkg/registry/core/namespace/storage"
 )
 
 func TestCoreAPIGroupInfo(t *testing.T) {
@@ -39,8 +38,10 @@ func TestCoreAPIGroupInfo(t *testing.T) {
 			t.Errorf("coreAPIGroupInfo() storage[%q] = %v, want %v", name, got, want)
 		}
 	}
-	if scheme.Recognizes(corev1.SchemeGroupVersion.WithKind("Pod")) {
-		t.Error("coreAPIGroupInfo() scheme recognizes Pod, want only supported core resources")
+	for _, resource := range []string{"pods", "secrets", "services"} {
+		if _, installed := versionedStorage[resource]; installed {
+			t.Errorf("coreAPIGroupInfo() installs %q, want only Namespace/ConfigMap storage", resource)
+		}
 	}
 
 	values, err := info.ParameterCodec.EncodeParameters(

@@ -6,6 +6,8 @@
 
 ## 已确认契约
 
+2026-10-13 补充：作用域及同空间引用保持不变；原生核心资源的实现方式已由用户确认改为 [0014 直接复用上游](0014-upstream-core-resources.md)。下文移植文件与验证记录保留为历史；本轮删除的旧实现可在 `e3ced8e0` 中查看，不再代表当前代码布局。
+
 Gateway、HTTPRoute、ModelRoute、AIBackend、MCPRoute、Backend 使用 Namespace 作用域，不固定到一个后台空间。对象身份为同一 Kind 内的 `(namespace, name)`；不同空间允许相同技术名称，展示名称继续允许重复和修改。
 
 管理请求必须显式指定 Namespace。管理 HTTP 集合路径采用 `/api/admin/v1/namespaces/{namespace}/<resources>`，详情、更新、删除再附加资源 name；gRPC 请求同样传递 Namespace。界面可以默认选中一个空间，但不得由后端偷偷把缺省空间或全空间查询当作请求目标。本仓库没有前端，这项默认选择尚未实现。
@@ -68,9 +70,9 @@ OneX 本地参考提交为 `10119504e12c316569337b0dbca04fb192c7d7ea`：其 Name
 
 | 本地文件 | Kubernetes v1.37.0 上游文件 | 本地适配 |
 | --- | --- | --- |
-| [内部对象](../../pkg/apis/core/types.go) | [pkg/apis/core/types.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/types.go) 的 Namespace/NamespaceList | 保留内部 runtime.Object；Spec/Status、finalizer、阶段和条件类型使用公开的 core/v1 定义；DeepCopy/Conversion 由 v0.37.0 官方工具生成 |
-| [字段校验](../../pkg/apis/core/validation/namespace.go) | [pkg/apis/core/validation/validation.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/validation/validation.go) 的 Namespace 函数、metadata 包装与 finalizer 校验 | metadata 和语法检查调用 apimachinery；保留 metadata/spec 两类 finalizer 的标准名称限制；以公开常量替代主仓库 helper；阶段错误路径使用实际 JSON 字段 `status.phase`，而非上游的 `status.Phase`，错误说明文字简化 |
-| [写入策略](../../internal/apiserver/registry/core/namespace/strategy.go) | [pkg/registry/core/namespace/strategy.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/registry/core/namespace/strategy.go) 的主资源/status/finalize 策略 | 构造器注入私有 ObjectTyper，不使用 legacyscheme 或全局 Strategy；不接入主仓库 DeclarativeValidation，现行校验由 validation 包显式完成；用 slices.Contains 补入缺失的 finalizer；按 GoCanon 顺序组织声明 |
+| 内部对象（历史文件 `pkg/apis/core/types.go`） | [pkg/apis/core/types.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/types.go) 的 Namespace/NamespaceList | 保留内部 runtime.Object；Spec/Status、finalizer、阶段和条件类型使用公开的 core/v1 定义；DeepCopy/Conversion 由 v0.37.0 官方工具生成 |
+| 字段校验（历史文件 `pkg/apis/core/validation/namespace.go`） | [pkg/apis/core/validation/validation.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/validation/validation.go) 的 Namespace 函数、metadata 包装与 finalizer 校验 | metadata 和语法检查调用 apimachinery；保留 metadata/spec 两类 finalizer 的标准名称限制；以公开常量替代主仓库 helper；阶段错误路径使用实际 JSON 字段 `status.phase`，而非上游的 `status.Phase`，错误说明文字简化 |
+| 写入策略（历史文件 `internal/apiserver/registry/core/namespace/strategy.go`） | [pkg/registry/core/namespace/strategy.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/registry/core/namespace/strategy.go) 的主资源/status/finalize 策略 | 构造器注入私有 ObjectTyper，不使用 legacyscheme 或全局 Strategy；不接入主仓库 DeclarativeValidation，现行校验由 validation 包显式完成；用 slices.Contains 补入缺失的 finalizer；按 GoCanon 顺序组织声明 |
 
 上述文件基于上游源码适配，保留适用的上游版权、许可证和本地修改声明。目录调整不改变代码来源；不能把修改过的移植代码直接视为完全原创。升级时先比较固定版本文件与目标版本，再审查对应 Strategy、校验、转换和契约测试，不直接覆盖本地实现。后续默认值、REST Storage、字段选择器和删除控制器接入时补充本表；生成代码只能修改类型标记或生成脚本后重新生成。
 
@@ -90,10 +92,10 @@ DELETE 对当前对象补入 UID 前置条件，首次请求在同一次 etcd CA
 
 | 本地文件 | Kubernetes v1.37.0 上游文件 | 本地适配 |
 | --- | --- | --- |
-| [默认值](../../pkg/apis/core/v1/defaults.go) | [pkg/apis/core/v1/defaults.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/v1/defaults.go) 的 Namespace/NamespaceStatus 默认值 | 在私有 Scheme 中按仓库现有方式仅注册 Namespace 和 NamespaceList；空 phase 默认为 Active；名称标签与 Strategy Canonicalize 一致，不在默认值中补入 spec.finalizers |
-| [字段转换](../../pkg/apis/core/v1/field_labels.go) | [pkg/apis/core/v1/conversion.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/v1/conversion.go) 的 Namespace 字段转换 | 只接纳 metadata.name/status.phase；不增加 namespace 字段或旧 name 别名 |
-| [选择器](../../internal/apiserver/registry/core/namespace/selection.go) | [pkg/registry/core/namespace/strategy.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/registry/core/namespace/strategy.go) 的 GetAttrs/MatchNamespace/NamespaceToSelectableFields | 改为包内 helper；不保留上游为历史错误兼容的 name 别名 |
-| [REST 存储](../../internal/apiserver/registry/core/namespace/etcd.go)、[特殊删除](../../internal/apiserver/registry/core/namespace/delete.go) | [pkg/registry/core/namespace/storage/storage.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/registry/core/namespace/storage/storage.go) | 注入私有 Scheme，去掉未使用的主 REST status 字段；使用已发布的默认 TableConvertor，不移植主仓库打印器；复制 DeleteOptions，保留原有 metadata finalizer 顺序；沿用标准 DeleteOptions 传播语义，包括公开结构尚保留的 OrphanDependents，不保留旧业务 API |
+| 默认值（历史文件 `pkg/apis/core/v1/defaults.go`） | [pkg/apis/core/v1/defaults.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/v1/defaults.go) 的 Namespace/NamespaceStatus 默认值 | 在私有 Scheme 中按仓库现有方式仅注册 Namespace 和 NamespaceList；空 phase 默认为 Active；名称标签与 Strategy Canonicalize 一致，不在默认值中补入 spec.finalizers |
+| 字段转换（历史文件 `pkg/apis/core/v1/field_labels.go`） | [pkg/apis/core/v1/conversion.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/v1/conversion.go) 的 Namespace 字段转换 | 只接纳 metadata.name/status.phase；不增加 namespace 字段或旧 name 别名 |
+| 选择器（历史文件 `internal/apiserver/registry/core/namespace/selection.go`） | [pkg/registry/core/namespace/strategy.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/registry/core/namespace/strategy.go) 的 GetAttrs/MatchNamespace/NamespaceToSelectableFields | 改为包内 helper；不保留上游为历史错误兼容的 name 别名 |
+| REST 存储（历史文件 `internal/apiserver/registry/core/namespace/etcd.go`）、特殊删除（历史文件 `internal/apiserver/registry/core/namespace/delete.go`） | [pkg/registry/core/namespace/storage/storage.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/registry/core/namespace/storage/storage.go) | 注入私有 Scheme，去掉未使用的主 REST status 字段；使用已发布的默认 TableConvertor，不移植主仓库打印器；复制 DeleteOptions，保留原有 metadata finalizer 顺序；沿用标准 DeleteOptions 传播语义，包括公开结构尚保留的 OrphanDependents，不保留旧业务 API |
 
 存储构造器接收资源专属的 RESTOptionsGetter；集成测试只创建自有隔离 etcd，不复用运行数据。实际 API 安装仍需接入正确的核心组存储编码、OpenAPI 和本地 NamespaceLifecycle 数据源，删除控制器之后再接线。本步验证不能当作完整 Namespace HTTP API 或空间删除流程已可用。
 

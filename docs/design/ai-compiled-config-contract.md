@@ -256,17 +256,18 @@ Namespace 生命周期应包含标准 ConfigMap，不增加一个「AI ConfigMap
 
 ## 原生 ConfigMap 实现记录
 
-这一步不创建示例 ConfigMap 或 Namespace，不接 Controller 写入，不修改 HTTP 编译或转发，也不新增 Admin API、MySQL 表、Secret 或依赖。标准 ConfigMap 不包含 Spec/Status，不维护业务 Generation；原生 API 允许无条件 Update，后续配置写入者仍必须携带 resourceVersion 防止覆盖并发修改。
+2026-10-13 迁移补充：用户已确认按 [0014](../decisions/0014-upstream-core-resources.md) 直接复用上游核心实现，并于 2026-10-14 完成 review、授权本地提交；此前移植 API 已提交为 `e3ced8e0`。payload、写入与后续 Proxy 边界不变。
+
+此前 API 切片不创建示例 ConfigMap 或 Namespace，不接 Controller 写入，不修改 HTTP 编译或转发，也不新增 Admin API、MySQL 表或 Secret。本轮仅增加 0014 指定的上游依赖，其他边界保持。标准 ConfigMap 不包含 Spec/Status，不维护业务 Generation；原生 API 允许无条件 Update，后续配置写入者仍必须携带 resourceVersion 防止覆盖并发修改。
 
 | 本地实现 | 官方来源与适配边界 |
 | --- | --- |
-| [内部类型](../../pkg/apis/core/types.go)与标准 core/v1 注册 | Kubernetes [v1.37.0 core/types.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/types.go)；仅安装支持的类型，不注册整个核心组 |
-| [字段校验](../../pkg/apis/core/validation/configmap.go) | Kubernetes [v1.37.0 validation.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/validation/validation.go) 的 ConfigMap 校验；复用公开 metadata/key 校验和大小常量，保留 immutable 限制，不解析 payload |
-| [写入策略](../../internal/apiserver/registry/core/configmap/strategy.go) | Kubernetes [ConfigMap Strategy](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/registry/core/configmap/strategy.go)；注入私有 ObjectTyper，保留显式校验，不引入主仓库 DeclarativeValidation |
-| [REST 存储](../../internal/apiserver/registry/core/configmap/etcd.go) | Kubernetes [ConfigMap storage](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/registry/core/configmap/storage/storage.go)；使用公开 Generic Store、默认 metadata 选择器与默认 TableConvertor，不复制主仓库 printers |
-| Scheme、转换与 DeepCopy | 沿用现有显式注册和 `scripts/generate-api.sh`；没有手写生成产物或另造客户端，外部调用使用标准 core/v1 客户端 |
+| 内部类型与标准 core/v1 注册 | 直接使用 Kubernetes [v1.37.0 core/types.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/types.go)，在私有 Scheme 安装上游核心类型，不因此安装其它资源 REST API |
+| 字段校验与写入策略 | 直接使用上游 [validation.go](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/apis/core/validation/validation.go) 与 [ConfigMap Strategy](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/registry/core/configmap/strategy.go)；不维护本地副本，不解析 payload |
+| [核心存储装配](../../internal/apiserver/registry/core/storage.go) | 直接调用上游 [ConfigMap storage.NewREST](https://github.com/kubernetes/kubernetes/blob/v1.37.0/pkg/registry/core/configmap/storage/storage.go)，包括标准选择器及 Table 打印器 |
+| Scheme、转换与 DeepCopy | 原生核心产物来自锁定版本依赖，Ingate 不再生成副本；`scripts/generate-api.sh` 只维护自有 Gateway 产物，调用方仍使用标准 core/v1 客户端 |
 
-来源文件保留 Apache 2.0 文件头，许可证见 [KUBERNETES-LICENSE](../KUBERNETES-LICENSE)。不增加第三方源码目录，不依赖 `k8s.io/kubernetes` 主仓库；公开模块版本仍为项目锁定的 v0.37.0。
+不增加第三方源码目录；主仓库锁定为 v1.37.0，公开模块保持 v0.37.0。保留 [KUBERNETES-LICENSE](../KUBERNETES-LICENSE)，因为 Namespace 删除内核等仍有受控移植实现。本轮构建与存储验证结果见 0014；下文记录的是此前移植切片的验证，不代替迁移验证。
 
 ## 审查与验证边界
 

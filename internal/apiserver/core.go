@@ -18,7 +18,7 @@ func installCoreAPIGroup(
 	scheme *runtime.Scheme,
 	optionsGetter generic.RESTOptionsGetter,
 ) error {
-	storage, err := coreregistry.NewStorage(scheme, optionsGetter)
+	storage, err := coreregistry.NewStorage(optionsGetter)
 	if err != nil {
 		return fmt.Errorf("create core API group storage: %w", err)
 	}

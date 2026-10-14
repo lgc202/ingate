@@ -14,8 +14,8 @@ import (
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/util/compatibility"
 	flowcontrolrequest "k8s.io/apiserver/pkg/util/flowcontrol/request"
+	coreapi "k8s.io/kubernetes/pkg/apis/core"
 
-	coreapi "github.com/lgc202/ingate/pkg/apis/core"
 	gatewayapi "github.com/lgc202/ingate/pkg/apis/gateway"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
@@ -29,8 +29,8 @@ func TestStorageFactoryCodecs(t *testing.T) {
 
 	namespace := &coreapi.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "team-a", Labels: map[string]string{corev1.LabelMetadataName: "team-a"}},
-		Spec:       corev1.NamespaceSpec{Finalizers: []corev1.FinalizerName{corev1.FinalizerKubernetes}},
-		Status:     corev1.NamespaceStatus{Phase: corev1.NamespaceActive},
+		Spec:       coreapi.NamespaceSpec{Finalizers: []coreapi.FinalizerName{coreapi.FinalizerKubernetes}},
+		Status:     coreapi.NamespaceStatus{Phase: coreapi.NamespaceActive},
 	}
 	gateway := &gatewayapi.Gateway{ObjectMeta: metav1.ObjectMeta{Name: "edge"}}
 	tests := []struct {
@@ -65,6 +65,7 @@ func TestStorageFactoryCodecs(t *testing.T) {
 			resource: corev1.SchemeGroupVersion.WithResource("configmaps").GroupResource(),
 			object: &coreapi.ConfigMapList{Items: []coreapi.ConfigMap{{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "runtime"},
+				Data:       map[string]string{},
 				BinaryData: map[string][]byte{"bytes": {0, 255}},
 			}}},
 			storageGVK: corev1.SchemeGroupVersion.WithKind("ConfigMapList"),

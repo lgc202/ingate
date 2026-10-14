@@ -6,8 +6,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	coreinstall "k8s.io/kubernetes/pkg/apis/core/install"
 
-	coreinstall "github.com/lgc202/ingate/pkg/apis/core/install"
 	gatewayinstall "github.com/lgc202/ingate/pkg/apis/gateway/install"
 )
 
@@ -19,10 +19,9 @@ func newScheme() (*runtime.Scheme, error) {
 	}
 	metav1.AddToGroupVersion(scheme, metav1.SchemeGroupVersion)
 
-	// 仅注册支持的核心资源和标准请求选项，不引入整个 Kubernetes 核心资源集合。
-	if err := coreinstall.Install(scheme); err != nil {
-		return nil, fmt.Errorf("register core API types: %w", err)
-	}
+	// 上游原生存储需要其核心内部类型、转换及默认值；类型注册不安装 REST API。
+	// 原生 Strategy 使用上游内置 Scheme，业务类型仍只注册到本实例。
+	coreinstall.Install(scheme)
 
 	if err := gatewayinstall.Install(scheme); err != nil {
 		return nil, fmt.Errorf("register Gateway API types: %w", err)
