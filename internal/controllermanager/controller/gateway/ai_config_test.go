@@ -30,7 +30,7 @@ func TestAIConfigWriterCreatesAndRevokes(t *testing.T) {
 	want := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:       "control-plane",
-			Name:            aiConfigMapName,
+			Name:            AIConfigMapName,
 			Labels:          map[string]string{aiConfigManagedByKey: aiConfigManagedByValue},
 			ResourceVersion: got.ResourceVersion,
 		},
@@ -287,8 +287,8 @@ func TestAIConfigWriterRejectsInvalidArguments(t *testing.T) {
 }
 
 func TestAIConfigWriterReturnsAPIErrors(t *testing.T) {
-	conflict := apierrors.NewConflict(schema.GroupResource{Resource: "configmaps"}, aiConfigMapName, errors.New("stale version"))
-	alreadyExists := apierrors.NewAlreadyExists(schema.GroupResource{Resource: "configmaps"}, aiConfigMapName)
+	conflict := apierrors.NewConflict(schema.GroupResource{Resource: "configmaps"}, AIConfigMapName, errors.New("stale version"))
+	alreadyExists := apierrors.NewAlreadyExists(schema.GroupResource{Resource: "configmaps"}, AIConfigMapName)
 	tests := []struct {
 		name     string
 		stage    string
@@ -369,7 +369,7 @@ func managedAIConfigMap(data string) corev1.ConfigMap {
 	return corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:       "control-plane",
-			Name:            aiConfigMapName,
+			Name:            AIConfigMapName,
 			Labels:          map[string]string{aiConfigManagedByKey: aiConfigManagedByValue},
 			ResourceVersion: "42",
 		},
@@ -381,7 +381,7 @@ func storedAIConfigMap(t *testing.T, apiClient client.Reader) corev1.ConfigMap {
 	t.Helper()
 
 	var configMap corev1.ConfigMap
-	if err := apiClient.Get(t.Context(), client.ObjectKey{Namespace: "control-plane", Name: aiConfigMapName}, &configMap); err != nil {
+	if err := apiClient.Get(t.Context(), client.ObjectKey{Namespace: "control-plane", Name: AIConfigMapName}, &configMap); err != nil {
 		t.Fatalf("Get(AI ConfigMap) error = %v", err)
 	}
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -129,7 +130,7 @@ func TestReconcileUpdatesStatusOnlyWhenAcceptanceChanges(t *testing.T) {
 	var updates int
 	apiClient := fake.NewClientBuilder().
 		WithScheme(newTestScheme(t)).
-		WithObjects(&gateway, &route).
+		WithObjects(&gateway, &route, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "control-plane"}}).
 		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.HTTPRoute{}).
 		WithInterceptorFuncs(interceptor.Funcs{
 			SubResourceUpdate: func(
@@ -144,7 +145,7 @@ func TestReconcileUpdatesStatusOnlyWhenAcceptanceChanges(t *testing.T) {
 			},
 		}).
 		Build()
-	r := New(apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }))
+	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }))
 
 	for range 2 {
 		if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
@@ -216,7 +217,7 @@ func TestHTTPRouteParentStatusesPreserveOwnershipAndTransitionTime(t *testing.T)
 	}
 	apiClient := newFakeClient(t, &route)
 	before := route.DeepCopy()
-	r := New(apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }))
+	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }))
 	parents := []httpRouteParentResolution{
 		{
 			routeKey:  client.ObjectKeyFromObject(&route),

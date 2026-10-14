@@ -14,7 +14,7 @@ func TestReadResources(t *testing.T) {
 	route := routeResource("route", 2, "edge", "http", "backend", gatewayv1alpha1.PathMatchPrefix)
 	backend := backendResource("backend")
 	apiClient := newFakeClient(t, &gateway, &route, &backend)
-	r := New(apiClient, nil)
+	r := newTestReconciler(t, apiClient, nil)
 
 	got, err := r.readResources(t.Context())
 	if err != nil {
@@ -23,8 +23,8 @@ func TestReadResources(t *testing.T) {
 	if diff := cmp.Diff([]gatewayv1alpha1.Gateway{gateway}, got.gateways.Items); diff != "" {
 		t.Errorf("readResources() Gateways mismatch (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff([]gatewayv1alpha1.HTTPRoute{route}, got.httpRoutes.Items); diff != "" {
-		t.Errorf("readResources() HTTPRoutes mismatch (-want +got):\n%s", diff)
+	if len(got.httpRoutes.Items) != 0 {
+		t.Errorf("readResources() HTTPRoutes = %+v, want no protocol-specific input", got.httpRoutes.Items)
 	}
 	if diff := cmp.Diff([]gatewayv1alpha1.Backend{backend}, got.backends.Items); diff != "" {
 		t.Errorf("readResources() Backends mismatch (-want +got):\n%s", diff)

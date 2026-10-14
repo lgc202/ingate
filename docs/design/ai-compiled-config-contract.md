@@ -1,6 +1,6 @@
 # AI 编译配置：沿用官方编译分层，使用标准 ConfigMap 保存非敏感结果
 
-- 状态：契约已于 2026-10-13 经用户确认；原生 ConfigMap API、内部编解码和纯编译入口已提交，ConfigMap 写入边界待 review，协调发布与 AI 数据面尚未实现
+- 状态：契约已于 2026-10-13 经用户确认；原生 ConfigMap API、内部编解码、纯编译及写入边界已提交，完整读取、受限 Watch 与协调发布接线已通过 review 并获准本地提交，AI 数据面尚未实现
 - 作者：Ingate 开发协作
 - 日期：2026-10-13
 - Ingate 基线：`cda0478e`，分支 `codex/rebuild-from-zero`
@@ -32,7 +32,7 @@ Ingate 的模型和 MCP 都进入 Go HTTP Proxy，而官方模型使用 ExtProc�
 | [配置分片写入器](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/controller/filter_config_bundle.go)及 [加载器](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/filterapi/watcher.go)：分片与索引 Secret，校验内容后加载 | 官方不是一份无限大的配置文件；我们先限定单 ConfigMap，超限拒绝，不提前照搬分片和 kubelet 文件投射 |
 | 官方 Backend.Auth 可以包含编译后的实际凭据 | 不能把整个官方 Config 放入 ConfigMap；本稿没有 auth 字段，凭据另按 Secret 安全方案评审 |
 
-当前 Ingate [共享协调器](../../internal/controllermanager/controller/gateway/controller.go)的协调路径只编译 Gateway、HTTPRoute、Backend；[核心存储](../../internal/apiserver/registry/core/storage.go)现已安装 Namespace 与 ConfigMap。AIBackend、ModelRoute、MCPRoute 已有声明、管理和查询投影，当前新增的纯编译入口见下文；协调路径尚未生成或保存本稿配置，没有 Secret 存储或 AI 转发能力。
+当前 Ingate [共享协调器](../../internal/controllermanager/controller/gateway/controller.go)已接入六种领域资源，分别编译 HTTP/xDS 与 AI/ConfigMap 输出；[核心存储](../../internal/apiserver/registry/core/storage.go)已安装 Namespace 与 ConfigMap。编译存储接线已通过用户 review，但尚未验证真实 Manager → API Server/etcd 链路，没有 Secret 存储或 AI 转发能力。
 
 ## 设计：配置载体与所有者
 
@@ -233,7 +233,7 @@ Namespace 生命周期应包含标准 ConfigMap，不增加一个「AI ConfigMap
 
 ## 兼容性与实施
 
-这是新能力，没有旧 AI 配置兼容要求。格式 `v1` 的标识是解码契约，不是承诺保留旧方案。原有 HTTP 发布、业务资源与管理查询保持现有行为。本稿替代凭据草案中的“先建空载体、以后定 payload”实施顺序；AIProxyConfig、双版本和本地健康准入仍是历史候选/后续议题，不成为本轮新增资源的授权。
+这是新能力，没有旧 AI 配置兼容要求。格式 `v1` 的标识是解码契约，不是承诺保留旧方案。原有 HTTP 编译内容、接纳状态语义、业务资源与管理查询保持现有行为；协调接线新增必填控制面 Namespace 参数，Reconcile 也可能返回 AI 路径错误。本稿替代凭据草案中的“先建空载体、以后定 payload”实施顺序；AIProxyConfig、双版本和本地健康准入仍是历史候选/后续议题，不成为本轮新增资源的授权。
 
 按小步推进，每步审查全部手写改动，等待用户 review 后再提交：
 
@@ -244,7 +244,7 @@ Namespace 生命周期应包含标准 ConfigMap，不增加一个「AI ConfigMap
 
 前三步只提供配置存储和编译能力。原生 API 存储契约变更仍执行仓库要求的隔离 integration；真实 Manager/Envoy/Proxy 联调按用户指定的统一测试阶段进行，不混淆两者。
 
-第三步先拆出纯编译和 ConfigMap 写入边界，当前实现范围见下文；完整输入读取、Watch、两路发布错误隔离与运行接线留在下一切片。
+第三步已提交纯编译和 ConfigMap 写入边界；完整输入读取、受限 Watch、两路发布错误隔离与运行接线已通过用户 review 并获准本地提交，范围见下文。
 
 ### 接流量前必须另行确定的契约
 
@@ -303,7 +303,7 @@ Decode 复用已有 sigs.k8s.io/json 的大小写敏感解码、重复字段和�
 
 [纯编译测试](../../internal/controllermanager/controller/gateway/ai_compile_test.go) 从本稿已有领域示例生成共享 golden，核对输出字节与 revision，而不新增示例业务。另覆盖精确/catch-all 排序、OR 展开、父引用重叠去重、多规则 override、同名多 Namespace、共享端口、输入/端点排列不影响版本、同空间引用失败、目标缺失/删除时保留高优先级匹配、路由/Gateway 删除后的完整撤销、单后端约束、非法 payload 与路径错误原因保留。比较完整结果或目标顺序，不仅检查输出数量。
 
-当前 readResources、Reconcile、Watch、HTTP 发布和状态行为均未接入 AI 路径；纯入口只由测试调用，不能把 resources 中新增的 AI 字段视为已经完成读取。这里不解决跨 Kind 网络入口裁决，不写入 ConfigMap，也不宣称配置已经保存到 etcd。完整 AI 输入、标准 Watch 和运行接线仍留待后续，并须独立处理 HTTP/AI 发布失败；写入边界的实现见下一节，跨组件激活仍需前文列出的运行契约。
+纯编译切片提交时，readResources、Reconcile、Watch、HTTP 发布和状态行为均未接入 AI 路径；入口只由测试调用，不能把 resources 中新增的 AI 字段视为已经完成读取。该切片不解决跨 Kind 网络入口裁决，不写入 ConfigMap，也不宣称配置已经保存到 etcd。后续写入边界和协调接线的实现见下文，跨组件激活仍需前文列出的运行契约。
 
 本切片已按 GoCanon 的 Controller 规范草案及已确认编译契约，逐文件检查声明顺序、职责、签名、错误原因与注释，再独立复查语义空行。按用户 review 将资源快照变量命名为 snapshot，并沿用项目 Go 1.27 的 new(expr) 创建已初始化的值指针，保留 ptr.Deref。`gofmt -l cmd internal pkg`、已跟踪与四个未跟踪 Go 文件的空白检查、`golangci-lint run ./...`、`go vet ./...`、`go test ./... -count=1` 和 `go build ./...` 均通过。没有改动公开 API、存储或生成源，不重复生成和 API integration；未运行真实 Manager/Envoy/Proxy 联调。纯编译切片已通过用户 review 并获准本地提交。
 
@@ -317,9 +317,27 @@ Namespace 显式提供，不设置缺省空间、不自动创建。空字节拒�
 
 [写入边界测试](../../internal/controllermanager/controller/gateway/ai_config_test.go) 使用标准 fake client 和 interceptor，核对创建/完整撤销、无关字段保留、原 resourceVersion、Context、独立读取依赖、幂等与 immutable、不接管、不自动创建 Namespace、不强删重建、完整对象 1 MiB 等于/超出边界及 API 错误原因保留。这些测试不替代真实 API Server 的授权、immutable、并发版本和存储验证。
 
-本切片尚未装配到 Reconcile，也没有新增启动参数、Watch 或 AI status；只有测试调用写入器，不能声称运行路径已经将配置保存到 etcd。下一切片接入显式控制面 Namespace 配置、完整输入读取、限定对象 Watch 与两路发布隔离，再把编译结果交给该写入器。
+写入边界提交为 `48d75133`。该切片没有装配到 Reconcile，也没有新增启动参数、Watch 或 AI status；提交时只有测试调用写入器，不能声称运行路径已经将配置保存到 etcd。协调接线属于下一节的独立切片。
 
-本切片逐文件审查两份新增手写 Go 文件和文档差异，检查声明顺序、职责、Context 传播、错误原因、Namespace/所有权与字段保留，再独立复查语义空行；读取与错误检查保持相邻，子测试的 Fatal 使用本次子测试对象。`gofmt -l cmd internal pkg`、已跟踪及未跟踪文件的空白检查、`golangci-lint run ./...`、`go vet ./...`、`go test ./... -count=1` 和 `go build ./...` 均通过。不修改 API 类型、存储实现或生成源，未重复生成或运行 API integration，也未运行真实 Manager/Envoy/Proxy 联调；这些检查不证明授权、etcd 写入或加载完成。写入边界切片未提交，等待用户 review。
+本切片逐文件审查两份新增手写 Go 文件和文档差异，检查声明顺序、职责、Context 传播、错误原因、Namespace/所有权与字段保留；按用户 review 补齐成功返回与测试辅助函数的语义分隔，读取与错误检查保持相邻，子测试的 Fatal 使用本次子测试对象。`gofmt -l cmd internal pkg`、已跟踪及未跟踪文件的空白检查、`golangci-lint run ./...`、`go vet ./...`、`go test ./... -count=1` 和 `go build ./...` 均通过。不修改 API 类型、存储实现或生成源，未重复生成或运行 API integration，也未运行真实 Manager/Envoy/Proxy 联调；这些检查不证明授权、etcd 写入或加载完成。用户已完成 review 并授权本地提交。
+
+## 共享协调器接线切片
+
+[Controller](../../internal/controllermanager/controller/gateway/controller.go) 先读取两路共有的 Gateway、Backend，再独立读取 HTTPRoute 和 AIBackend/ModelRoute/MCPRoute。共有输入读取失败时两路均不发布；HTTPRoute 读取或 HTTP 发布/状态写回失败时，仍尝试 AI 编译与写入。AI 专属读取、编译或写入失败不阻断本轮 HTTP 发布。任何输入读取失败都不把部分结果当成完整空配置发布；旧配置保持到一次成功更新。各次 List 并非跨 Kind 事务，输入变化依靠后续事件重新收敛。
+
+两路顺序执行、分别生效，最终通过 errors.Join 向工作队列保留两路错误原因，由框架限速重试；不回滚已经成功的一路，也不增加内部重试循环。Gateway 与 HTTPRoute 的状态仍只按原有 HTTP 接纳逻辑写回，HTTP 发布失败不写接纳状态，不增加 AI Ready/Programmed 状态。xDS readiness 也不代表 AI 配置已保存或 Proxy 已就绪。
+
+[Options](../../internal/controllermanager/options.go) 新增必填 `--ai-config-namespace`，不提供默认空间、不自动创建；即使尚无 AI 资源，也必须指定该参数。它指向 Ingate API 中预先创建的 Namespace，不是 API Server 所在宿主集群的空间。[Manager](../../internal/controllermanager/manager.go) 通过 GetClient 注入缓存领域读取和原生写入，通过 GetAPIReader 注入配置对象的实时读取；按标准 Cache.ByObject 将 ConfigMap 的 List/Watch 限定为此 Namespace 下 `metadata.name=ingate-shared-data-plane-ai`，其他 Kind 的作用域不收窄。构造阶段不创建 Namespace 或 ConfigMap。
+
+[事件过滤](../../internal/controllermanager/controller/gateway/events.go) 对六种领域资源保留创建、Spec Generation 更新、删除开始和最终删除，忽略 Status 与不影响代次的 metadata。displayName 属于 Spec，改名仍可能触发协调，但不进入编译结果，不改变内容 revision。ConfigMap 不使用 Generation 过滤，也不用 managed-by 标签作为 Cache 选择器，以免标签漂移后丢失事件。ConfigMap 只关心所属 payload、管理标签、binaryData 占用、immutable 和删除状态；无关字段或纯 resourceVersion 变化不入队。自身 payload 写入可能额外入队一次，后续幂等写入会跳过 Update。删除对象后按当前完整输入重建，未授权对象仍报告冲突而不接管。
+
+所有事件映射到既有共享键，保留启动主动入队与单 Worker。上述错误隔离适用于 Reconcile 已开始执行后：Manager 构造可能通过发现查询 ConfigMap 作用域，Controller 启动必须等全部 Watch Cache 同步；某一资源的发现、List/Watch 权限或初始同步不可用仍可能阻止共享 Controller 启动，不能把两路错误隔离说成组件完全独立可用。当前只支持单 Manager 副本，未新增选主、服务身份或授权策略。
+
+[协调测试](../../internal/controllermanager/controller/gateway/ai_reconcile_test.go) 核对完整模型/MCP 输入、HTTP 输出不变、重复写入、删除路由后的完整撤销、ConfigMap 删除后重建、六种资源读取失败、编译错误、HTTP 发布/状态失败、AI 写入失败及两路根因保留；[事件测试](../../internal/controllermanager/controller/gateway/events_test.go) 包含错误 Namespace、错误对象名及不应触发的更新。[Manager 测试](../../internal/controllermanager/manager_test.go) 验证标准 Cache 选择器能排除其他名称，不修改调用方缓存配置，也不收窄领域资源范围；构造测试使用标准 RESTMapper，不依赖本机 API Server。
+
+本切片已通过用户 review 并获准本地提交；测试采用 fake client、interceptor 与标准对象/选择器。没有修改 API 类型、存储实现、生成源或依赖。尚未运行真实 Manager → API Server/etcd 的事件与存储链路，也未验证 RBAC、故障后的撤销时限或多组件激活，不接 AI 流量。编译存储接线确认后，下一步先明确 Proxy 消费与 Envoy 入口/出口的运行契约，再开始对应服务实现。
+
+已逐文件审查当前新增和修改的手写文件，按 GO-FUNC-012 核对声明顺序，再检查读取完整性、发布失败隔离、根因保留、注释与测试反例，最后独立复查函数签名和语义空行。`gofmt -l cmd internal pkg`、已跟踪及三个未跟踪 Go 文件的空白检查、`golangci-lint run ./...`、`go vet ./...`、`go test ./... -count=1` 和 `go build ./...` 均通过。首次包级测试曾因构造参数尚未全部更新以及 RESTMapper 触发本机发现查询而失败，修正测试接线后重新验证通过；另一次包级复跑被沙箱拒绝回环端口监听，获准重跑的全量测试通过，失败不记作成功。没有改动 API 存储契约，未重跑 API integration 或生成命令；以上检查不替代实际事件、授权和存储验证。
 
 ## 审查与验证边界
 

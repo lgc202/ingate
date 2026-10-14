@@ -3,16 +3,18 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -32,62 +34,125 @@ type Publisher interface {
 	Publish(context.Context, dataplane.Config) error
 }
 
-// Reconciler 协调全部 Gateway、HTTPRoute 和 Backend，共同更新共享数据面。
+// Reconciler 协调六种领域资源，分别发布共享 HTTP 与 AI 配置。
 type Reconciler struct {
 	client    client.Client
 	publisher Publisher
+	aiConfig  aiConfigWriter
 }
 
 // New 创建 Reconciler；Controller 的运行生命周期由 Manager 管理。
-func New(apiClient client.Client, publisher Publisher) *Reconciler {
-	return &Reconciler{client: apiClient, publisher: publisher}
+// apiReader 使用 Manager 的 APIReader，namespace 是预先创建的控制面空间。
+func New(
+	apiClient client.Client,
+	apiReader client.Reader,
+	publisher Publisher,
+	namespace string,
+) *Reconciler {
+	return &Reconciler{
+		client:    apiClient,
+		publisher: publisher,
+		aiConfig:  aiConfigWriter{client: apiClient, reader: apiReader, namespace: namespace},
+	}
 }
 
-// SetupWithManager 将三种资源事件映射到同一个队列键，并在启动时主动协调一次。
+// SetupWithManager 合并领域资源与受管 ConfigMap 事件，并在启动时主动协调一次。
+// ConfigMap Cache 的对象范围由 Manager 组合根限定，不使用全局 Generation 过滤。
 func (r *Reconciler) SetupWithManager(manager ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(manager).
 		Named("gateway").
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Watches(
 			&gatewayv1alpha1.Gateway{},
 			handler.EnqueueRequestsFromMapFunc(sharedRequests),
+			builder.WithPredicates(resourcePredicate()),
 		).
 		Watches(
 			&gatewayv1alpha1.HTTPRoute{},
 			handler.EnqueueRequestsFromMapFunc(sharedRequests),
+			builder.WithPredicates(resourcePredicate()),
 		).
 		Watches(
 			&gatewayv1alpha1.Backend{},
 			handler.EnqueueRequestsFromMapFunc(sharedRequests),
+			builder.WithPredicates(resourcePredicate()),
+		).
+		Watches(
+			&gatewayv1alpha1.AIBackend{},
+			handler.EnqueueRequestsFromMapFunc(sharedRequests),
+			builder.WithPredicates(resourcePredicate()),
+		).
+		Watches(
+			&gatewayv1alpha1.ModelRoute{},
+			handler.EnqueueRequestsFromMapFunc(sharedRequests),
+			builder.WithPredicates(resourcePredicate()),
+		).
+		Watches(
+			&gatewayv1alpha1.MCPRoute{},
+			handler.EnqueueRequestsFromMapFunc(sharedRequests),
+			builder.WithPredicates(resourcePredicate()),
+		).
+		Watches(
+			&corev1.ConfigMap{},
+			handler.EnqueueRequestsFromMapFunc(sharedRequests),
+			builder.WithPredicates(r.aiConfig.predicate()),
 		).
 		WatchesRawSource(source.Func(enqueueInitialReconcile)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 1}).
 		Complete(r)
 }
 
-// Reconcile 从当前 Cache 重建并发布完整配置，再写回资源的接纳状态。
-// 请求键只负责合并事件。
+// Reconcile 从当前 Cache 重建两份完整配置；请求键只负责合并事件。
+// 两路输出不是事务，一路失败不阻断另一路；错误交给工作队列限速重试。
 func (r *Reconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
 	snapshot, err := r.readResources(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
+	httpErr := r.reconcileHTTP(ctx, snapshot)
+	aiErr := r.reconcileAI(ctx, snapshot)
+
+	return ctrl.Result{}, errors.Join(httpErr, aiErr)
+}
+
+func (r *Reconciler) reconcileHTTP(ctx context.Context, snapshot resources) error {
+	if err := r.client.List(ctx, &snapshot.httpRoutes); err != nil {
+		return fmt.Errorf("list HTTPRoutes: %w", err)
+	}
+
 	result := resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, snapshot.backends.Items)
 	config := compile(result)
 
 	if err := r.publisher.Publish(ctx, config); err != nil {
-		return ctrl.Result{}, fmt.Errorf("publish data plane configuration: %w", err)
+		return fmt.Errorf("publish HTTP data plane configuration: %w", err)
 	}
 
 	if err := r.updateGatewayStatuses(ctx, snapshot.gateways.Items, result.gatewayConflicts); err != nil {
-		return ctrl.Result{}, err
+		return err
 	}
 	if err := r.updateHTTPRouteStatuses(ctx, snapshot.httpRoutes.Items, result.parents); err != nil {
-		return ctrl.Result{}, err
+		return err
 	}
 
-	return ctrl.Result{}, nil
+	return nil
+}
+
+func (r *Reconciler) reconcileAI(ctx context.Context, snapshot resources) error {
+	snapshot, err := r.readAIResources(ctx, snapshot)
+	if err != nil {
+		return err
+	}
+
+	data, err := compileAI(snapshot)
+	if err != nil {
+		return fmt.Errorf("compile AI data plane configuration: %w", err)
+	}
+
+	if err := r.aiConfig.write(ctx, data); err != nil {
+		return fmt.Errorf("publish AI data plane configuration: %w", err)
+	}
+
+	return nil
 }
 
 func sharedRequests(_ context.Context, _ client.Object) []reconcile.Request {
@@ -100,6 +165,7 @@ func enqueueInitialReconcile(
 	queue workqueue.TypedRateLimitingInterface[reconcile.Request],
 ) error {
 	queue.Add(sharedRequest())
+
 	return nil
 }
 

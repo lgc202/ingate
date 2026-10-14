@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	aiConfigMapName        = "ingate-shared-data-plane-ai"
+	// AIConfigMapName 是共享 AI 配置的固定对象名，用于限制 Manager Cache 的范围。
+	AIConfigMapName        = "ingate-shared-data-plane-ai"
 	aiConfigDataKey        = "config.json"
 	aiConfigManagedByKey   = "app.kubernetes.io/managed-by"
 	aiConfigManagedByValue = "ingate-controller-manager"
@@ -50,7 +51,7 @@ func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {
 		return fmt.Errorf("AI configuration Namespace %q is terminating", w.namespace)
 	}
 
-	key := client.ObjectKey{Namespace: w.namespace, Name: aiConfigMapName}
+	key := client.ObjectKey{Namespace: w.namespace, Name: AIConfigMapName}
 	var (
 		configMap corev1.ConfigMap
 		create    bool
@@ -66,7 +67,7 @@ func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {
 		configMap = corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: w.namespace,
-				Name:      aiConfigMapName,
+				Name:      AIConfigMapName,
 				Labels:    map[string]string{aiConfigManagedByKey: aiConfigManagedByValue},
 			},
 		}
@@ -78,7 +79,7 @@ func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {
 				key.String(),
 				apierrors.NewConflict(
 					schema.GroupResource{Resource: "configmaps"},
-					aiConfigMapName,
+					AIConfigMapName,
 					errors.New("existing ConfigMap is not managed by the AI configuration writer"),
 				),
 			)

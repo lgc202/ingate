@@ -29,19 +29,32 @@ type resolution struct {
 	parents          []httpRouteParentResolution
 }
 
+// readResources 只读取两路输出共有的资源；任一失败时都不能发布部分配置。
 func (r *Reconciler) readResources(ctx context.Context) (resources, error) {
 	var result resources
 	if err := r.client.List(ctx, &result.gateways); err != nil {
 		return resources{}, fmt.Errorf("list Gateways: %w", err)
-	}
-	if err := r.client.List(ctx, &result.httpRoutes); err != nil {
-		return resources{}, fmt.Errorf("list HTTPRoutes: %w", err)
 	}
 	if err := r.client.List(ctx, &result.backends); err != nil {
 		return resources{}, fmt.Errorf("list Backends: %w", err)
 	}
 
 	return result, nil
+}
+
+// readAIResources 的完整读取失败不向调用方暴露部分 AI 输入。
+func (r *Reconciler) readAIResources(ctx context.Context, snapshot resources) (resources, error) {
+	if err := r.client.List(ctx, &snapshot.aiBackends); err != nil {
+		return resources{}, fmt.Errorf("list AIBackends: %w", err)
+	}
+	if err := r.client.List(ctx, &snapshot.modelRoutes); err != nil {
+		return resources{}, fmt.Errorf("list ModelRoutes: %w", err)
+	}
+	if err := r.client.List(ctx, &snapshot.mcpRoutes); err != nil {
+		return resources{}, fmt.Errorf("list MCPRoutes: %w", err)
+	}
+
+	return snapshot, nil
 }
 
 // resolve 按创建时间、Namespace 和名称稳定排列候选；引用失效不移除路径匹配。
@@ -53,6 +66,7 @@ func resolve(
 	var result resolution
 	result.selectGateways(gateways)
 	result.selectHTTPRoutes(routes, backends)
+
 	return result
 }
 

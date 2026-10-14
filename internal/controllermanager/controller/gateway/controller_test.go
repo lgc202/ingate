@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,7 +33,7 @@ func TestReconcilePublishesAcceptedResources(t *testing.T) {
 
 	var published dataplane.Config
 	var calls int
-	r := New(apiClient, publisherFunc(func(_ context.Context, config dataplane.Config) error {
+	r := newTestReconciler(t, apiClient, publisherFunc(func(_ context.Context, config dataplane.Config) error {
 		published = config
 		calls++
 		return nil
@@ -72,7 +73,7 @@ func TestReconcilePublishesEmptyConfiguration(t *testing.T) {
 	apiClient := newFakeClient(t)
 	var published dataplane.Config
 	var calls int
-	r := New(apiClient, publisherFunc(func(_ context.Context, config dataplane.Config) error {
+	r := newTestReconciler(t, apiClient, publisherFunc(func(_ context.Context, config dataplane.Config) error {
 		published = config
 		calls++
 		return nil
@@ -94,8 +95,8 @@ func TestReconcileDoesNotPublishAfterListFailure(t *testing.T) {
 		failedRead int
 	}{
 		{name: "Gateways", failedRead: 1},
-		{name: "HTTPRoutes", failedRead: 2},
-		{name: "Backends", failedRead: 3},
+		{name: "Backends", failedRead: 2},
+		{name: "HTTPRoutes", failedRead: 3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -104,6 +105,7 @@ func TestReconcileDoesNotPublishAfterListFailure(t *testing.T) {
 			var reads int
 			apiClient := fake.NewClientBuilder().
 				WithScheme(newTestScheme(t)).
+				WithObjects(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "control-plane"}}).
 				WithInterceptorFuncs(interceptor.Funcs{
 					List: func(gotCtx context.Context, _ client.WithWatch, _ client.ObjectList, _ ...client.ListOption) error {
 						if gotCtx != ctx {
@@ -119,7 +121,7 @@ func TestReconcileDoesNotPublishAfterListFailure(t *testing.T) {
 				Build()
 
 			var publishes int
-			r := New(apiClient, publisherFunc(func(context.Context, dataplane.Config) error {
+			r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error {
 				publishes++
 				return nil
 			}))
@@ -128,8 +130,12 @@ func TestReconcileDoesNotPublishAfterListFailure(t *testing.T) {
 			if !errors.Is(err, wantErr) {
 				t.Errorf("Reconcile(%s list failure) error = %v, want wrapped %v", tt.name, err, wantErr)
 			}
-			if reads != tt.failedRead {
-				t.Errorf("Reconcile(%s list failure) reads = %d, want %d", tt.name, reads, tt.failedRead)
+			wantReads := tt.failedRead
+			if tt.name == "HTTPRoutes" {
+				wantReads += 3 // HTTP 专属读取失败后，仍读取 AI 的三个资源集合。
+			}
+			if reads != wantReads {
+				t.Errorf("Reconcile(%s list failure) reads = %d, want %d", tt.name, reads, wantReads)
 			}
 			if publishes != 0 {
 				t.Errorf("Reconcile(%s list failure) publishes = %d, want 0", tt.name, publishes)
@@ -140,7 +146,7 @@ func TestReconcileDoesNotPublishAfterListFailure(t *testing.T) {
 
 func TestReconcileReturnsPublishFailure(t *testing.T) {
 	wantErr := errors.New("publisher unavailable")
-	r := New(newFakeClient(t), publisherFunc(func(context.Context, dataplane.Config) error {
+	r := newTestReconciler(t, newFakeClient(t), publisherFunc(func(context.Context, dataplane.Config) error {
 		return wantErr
 	}))
 
@@ -156,6 +162,10 @@ func TestSharedRequestSources(t *testing.T) {
 		&gatewayv1alpha1.Gateway{},
 		&gatewayv1alpha1.HTTPRoute{},
 		&gatewayv1alpha1.Backend{},
+		&gatewayv1alpha1.AIBackend{},
+		&gatewayv1alpha1.ModelRoute{},
+		&gatewayv1alpha1.MCPRoute{},
+		&corev1.ConfigMap{},
 	} {
 		if diff := cmp.Diff(want, sharedRequests(t.Context(), object)); diff != "" {
 			t.Errorf("sharedRequests(%T) mismatch (-want +got):\n%s", object, diff)
@@ -191,7 +201,7 @@ func TestReconcileWritesAcceptedStatuses(t *testing.T) {
 	rejected.Generation = 6
 	backend := backendResource("backend")
 	apiClient := newFakeClient(t, &first, &conflicting, &valid, &rejected, &backend)
-	r := New(apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }))
+	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }))
 
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
@@ -215,7 +225,7 @@ func TestReconcileDoesNotWriteStatusAfterPublishFailure(t *testing.T) {
 	gateway := gatewayResource("gateway", 1, listener("http", 8080, ""))
 	apiClient := newFakeClient(t, &gateway)
 	wantErr := errors.New("publisher unavailable")
-	r := New(apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return wantErr }))
+	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return wantErr }))
 
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); !errors.Is(err, wantErr) {
 		t.Fatalf("Reconcile() error = %v, want wrapped %v", err, wantErr)
@@ -235,7 +245,7 @@ func TestReconcileReturnsStatusUpdateFailure(t *testing.T) {
 	wantErr := errors.New("status unavailable")
 	apiClient := fake.NewClientBuilder().
 		WithScheme(newTestScheme(t)).
-		WithObjects(&gateway).
+		WithObjects(&gateway, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "control-plane"}}).
 		WithStatusSubresource(&gatewayv1alpha1.Gateway{}).
 		WithInterceptorFuncs(interceptor.Funcs{
 			SubResourceUpdate: func(context.Context, client.Client, string, client.Object, ...client.SubResourceUpdateOption) error {
@@ -244,7 +254,7 @@ func TestReconcileReturnsStatusUpdateFailure(t *testing.T) {
 		}).
 		Build()
 	var published bool
-	r := New(apiClient, publisherFunc(func(context.Context, dataplane.Config) error {
+	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error {
 		published = true
 		return nil
 	}))
@@ -261,8 +271,17 @@ func (f publisherFunc) Publish(ctx context.Context, config dataplane.Config) err
 	return f(ctx, config)
 }
 
-func newFakeClient(t *testing.T, objects ...client.Object) client.Client {
+func newTestReconciler(t *testing.T, apiClient client.Client, publisher Publisher) *Reconciler {
 	t.Helper()
+
+	return New(apiClient, apiClient, publisher, "control-plane")
+}
+
+func newFakeClient(t *testing.T, objects ...client.Object) client.WithWatch {
+	t.Helper()
+
+	objects = append(objects, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "control-plane"}})
+
 	return fake.NewClientBuilder().
 		WithScheme(newTestScheme(t)).
 		WithObjects(objects...).
@@ -272,10 +291,15 @@ func newFakeClient(t *testing.T, objects ...client.Object) client.Client {
 
 func newTestScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
+
 	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatalf("core AddToScheme() error = %v", err)
+	}
 	if err := gatewayv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("AddToScheme() error = %v", err)
 	}
+
 	return scheme
 }
 

@@ -3,12 +3,18 @@ package controllermanager
 
 import (
 	"fmt"
+	"maps"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/discovery"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
 	mysqlstore "github.com/lgc202/ingate/internal/adminapi/repository/mysql"
@@ -21,17 +27,23 @@ import (
 
 // Config 保存 Controller Manager 的 API 连接和运行选项。
 type Config struct {
-	RESTConfig     *rest.Config
-	XDSBindAddress string
-	ManagerOptions ctrl.Options
+	RESTConfig        *rest.Config
+	XDSBindAddress    string
+	AIConfigNamespace string
+	ManagerOptions    ctrl.Options
 }
 
 // New 创建并配置 Manager，但不启动 Controller 或网络监听。
 func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
-	manager, err := ctrl.NewManager(c.RESTConfig, c.ManagerOptions)
+	if messages := validation.IsDNS1123Label(c.AIConfigNamespace); len(messages) != 0 {
+		return nil, fmt.Errorf("AI configuration namespace %q must be a valid DNS label", c.AIConfigNamespace)
+	}
+
+	manager, err := ctrl.NewManager(c.RESTConfig, c.managerOptions())
 	if err != nil {
 		return nil, fmt.Errorf("create controller manager: %w", err)
 	}
+
 	if err := manager.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		return nil, fmt.Errorf("add health check: %w", err)
 	}
@@ -42,7 +54,7 @@ func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
 		return nil, fmt.Errorf("add xDS server: %w", err)
 	}
 
-	reconciler := gatewaycontroller.New(manager.GetClient(), publisher)
+	reconciler := gatewaycontroller.New(manager.GetClient(), manager.GetAPIReader(), publisher, c.AIConfigNamespace)
 	if err := reconciler.SetupWithManager(manager); err != nil {
 		return nil, fmt.Errorf("setup Gateway controller: %w", err)
 	}
@@ -74,6 +86,28 @@ func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
 	}
 
 	return manager, nil
+}
+
+// managerOptions 只裁剪 ConfigMap 的 List/Watch，不限制领域资源或 Namespace 清理。
+// 复制调用方的配置表，并收回同一 ConfigMap 类型的其他指针键，避免重复注册或放宽范围。
+func (c *Config) managerOptions() ctrl.Options {
+	options := c.ManagerOptions
+	options.Cache.ByObject = maps.Clone(options.Cache.ByObject)
+	if options.Cache.ByObject == nil {
+		options.Cache.ByObject = make(map[client.Object]cache.ByObject)
+	}
+	for object := range options.Cache.ByObject {
+		if _, isConfigMap := object.(*corev1.ConfigMap); isConfigMap {
+			delete(options.Cache.ByObject, object)
+		}
+	}
+	options.Cache.ByObject[&corev1.ConfigMap{}] = cache.ByObject{
+		Namespaces: map[string]cache.Config{
+			c.AIConfigNamespace: {FieldSelector: fields.OneTermEqualSelector("metadata.name", gatewaycontroller.AIConfigMapName)},
+		},
+	}
+
+	return options
 }
 
 // setupNamespaceController 让发现、Namespace 写入和内容删除都使用 Manager 的 Ingate 连接配置。
