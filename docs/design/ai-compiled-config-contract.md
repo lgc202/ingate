@@ -1,6 +1,6 @@
 # AI 编译配置：沿用官方编译分层，使用标准 ConfigMap 保存非敏感结果
 
-- 状态：契约已于 2026-10-13 经用户确认；原生 ConfigMap API 与内部编解码已提交，Controller 纯编译入口已通过用户 review 并获准本地提交，协调发布与 AI 数据面尚未实现
+- 状态：契约已于 2026-10-13 经用户确认；原生 ConfigMap API、内部编解码和纯编译入口已提交，ConfigMap 写入边界待 review，协调发布与 AI 数据面尚未实现
 - 作者：Ingate 开发协作
 - 日期：2026-10-13
 - Ingate 基线：`cda0478e`，分支 `codex/rebuild-from-zero`
@@ -244,7 +244,7 @@ Namespace 生命周期应包含标准 ConfigMap，不增加一个「AI ConfigMap
 
 前三步只提供配置存储和编译能力。原生 API 存储契约变更仍执行仓库要求的隔离 integration；真实 Manager/Envoy/Proxy 联调按用户指定的统一测试阶段进行，不混淆两者。
 
-第三步先拆出纯编译切片，当前实现范围见下文；完整输入读取、Watch、两路发布错误隔离与 ConfigMap 写入留在下一切片。
+第三步先拆出纯编译和 ConfigMap 写入边界，当前实现范围见下文；完整输入读取、Watch、两路发布错误隔离与运行接线留在下一切片。
 
 ### 接流量前必须另行确定的契约
 
@@ -303,9 +303,23 @@ Decode 复用已有 sigs.k8s.io/json 的大小写敏感解码、重复字段和�
 
 [纯编译测试](../../internal/controllermanager/controller/gateway/ai_compile_test.go) 从本稿已有领域示例生成共享 golden，核对输出字节与 revision，而不新增示例业务。另覆盖精确/catch-all 排序、OR 展开、父引用重叠去重、多规则 override、同名多 Namespace、共享端口、输入/端点排列不影响版本、同空间引用失败、目标缺失/删除时保留高优先级匹配、路由/Gateway 删除后的完整撤销、单后端约束、非法 payload 与路径错误原因保留。比较完整结果或目标顺序，不仅检查输出数量。
 
-当前 readResources、Reconcile、Watch、HTTP 发布和状态行为均未接入 AI 路径；纯入口只由测试调用，不能把 resources 中新增的 AI 字段视为已经完成读取。这里不解决跨 Kind 网络入口裁决，不写入 ConfigMap，也不宣称配置已经保存到 etcd。下一切片接入完整 AI 输入、标准 Watch 和受管 ConfigMap 写入，并独立处理 HTTP/AI 发布失败；跨组件激活仍需前文列出的运行契约。
+当前 readResources、Reconcile、Watch、HTTP 发布和状态行为均未接入 AI 路径；纯入口只由测试调用，不能把 resources 中新增的 AI 字段视为已经完成读取。这里不解决跨 Kind 网络入口裁决，不写入 ConfigMap，也不宣称配置已经保存到 etcd。完整 AI 输入、标准 Watch 和运行接线仍留待后续，并须独立处理 HTTP/AI 发布失败；写入边界的实现见下一节，跨组件激活仍需前文列出的运行契约。
 
 本切片已按 GoCanon 的 Controller 规范草案及已确认编译契约，逐文件检查声明顺序、职责、签名、错误原因与注释，再独立复查语义空行。按用户 review 将资源快照变量命名为 snapshot，并沿用项目 Go 1.27 的 new(expr) 创建已初始化的值指针，保留 ptr.Deref。`gofmt -l cmd internal pkg`、已跟踪与四个未跟踪 Go 文件的空白检查、`golangci-lint run ./...`、`go vet ./...`、`go test ./... -count=1` 和 `go build ./...` 均通过。没有改动公开 API、存储或生成源，不重复生成和 API integration；未运行真实 Manager/Envoy/Proxy 联调。纯编译切片已通过用户 review 并获准本地提交。
+
+## ConfigMap 写入边界切片
+
+纯编译入口已提交为 `63bf1ba3`。[ai_config.go](../../internal/controllermanager/controller/gateway/ai_config.go) 只保存 compileAI 成功返回的 JSON，使用原生 client.Client 写入和 client.Reader 读取；reader 后续由 Manager.GetAPIReader 注入。不新增 Publisher 接口、独立协调器、存储框架或客户端生命周期。
+
+Namespace 显式提供，不设置缺省空间、不自动创建。空字节拒绝，撤销必须传完整空配置。写入前核对 Namespace 存在且未进入删除/Terminating；已有同名 ConfigMap 若无约定的 managed-by 标签，报告带对象身份的 Conflict，不接管。该标签不是服务身份或权限证明。ConfigMap 正在删除、所属 key 被 binaryData 占用、immutable 阻止修改时报告失败，不删除重建。
+
+仅更新 data["config.json"]；保留其他 labels、annotations、ownerReferences、finalizers、data 和 binaryData，携带读取到的 resourceVersion。内容相同时不 Update，包括相同内容的 immutable 对象。完整对象的 data 与 binaryData 值字节总量不得超过原生 1 MiB 上限；API Server 仍作权威校验。Create 的 AlreadyExists、Update 的 Conflict 和读写根因均向调用方返回，由后续 Reconcile 重读并重算，不在写入器内部重试。Namespace 检查与 ConfigMap 写入不是事务，检查不消除并发删除窗口。
+
+[写入边界测试](../../internal/controllermanager/controller/gateway/ai_config_test.go) 使用标准 fake client 和 interceptor，核对创建/完整撤销、无关字段保留、原 resourceVersion、Context、独立读取依赖、幂等与 immutable、不接管、不自动创建 Namespace、不强删重建、完整对象 1 MiB 等于/超出边界及 API 错误原因保留。这些测试不替代真实 API Server 的授权、immutable、并发版本和存储验证。
+
+本切片尚未装配到 Reconcile，也没有新增启动参数、Watch 或 AI status；只有测试调用写入器，不能声称运行路径已经将配置保存到 etcd。下一切片接入显式控制面 Namespace 配置、完整输入读取、限定对象 Watch 与两路发布隔离，再把编译结果交给该写入器。
+
+本切片逐文件审查两份新增手写 Go 文件和文档差异，检查声明顺序、职责、Context 传播、错误原因、Namespace/所有权与字段保留，再独立复查语义空行；读取与错误检查保持相邻，子测试的 Fatal 使用本次子测试对象。`gofmt -l cmd internal pkg`、已跟踪及未跟踪文件的空白检查、`golangci-lint run ./...`、`go vet ./...`、`go test ./... -count=1` 和 `go build ./...` 均通过。不修改 API 类型、存储实现或生成源，未重复生成或运行 API integration，也未运行真实 Manager/Envoy/Proxy 联调；这些检查不证明授权、etcd 写入或加载完成。写入边界切片未提交，等待用户 review。
 
 ## 审查与验证边界
 
