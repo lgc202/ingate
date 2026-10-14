@@ -1,4 +1,4 @@
-// Package gateway 按资源作用域解析引用，共同生成一份共享 HTTP 数据面配置。
+// Package gateway 按资源作用域解析引用，编译共享 HTTP 与 AI 数据面配置。
 package gateway
 
 import (
@@ -68,22 +68,22 @@ func (r *Reconciler) SetupWithManager(manager ctrl.Manager) error {
 // Reconcile 从当前 Cache 重建并发布完整配置，再写回资源的接纳状态。
 // 请求键只负责合并事件。
 func (r *Reconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
-	input, err := r.readResources(ctx)
+	snapshot, err := r.readResources(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	result := resolve(input.gateways.Items, input.httpRoutes.Items, input.backends.Items)
+	result := resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, snapshot.backends.Items)
 	config := compile(result)
 
 	if err := r.publisher.Publish(ctx, config); err != nil {
 		return ctrl.Result{}, fmt.Errorf("publish data plane configuration: %w", err)
 	}
 
-	if err := r.updateGatewayStatuses(ctx, input.gateways.Items, result.gatewayConflicts); err != nil {
+	if err := r.updateGatewayStatuses(ctx, snapshot.gateways.Items, result.gatewayConflicts); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.updateHTTPRouteStatuses(ctx, input.httpRoutes.Items, result.parents); err != nil {
+	if err := r.updateHTTPRouteStatuses(ctx, snapshot.httpRoutes.Items, result.parents); err != nil {
 		return ctrl.Result{}, err
 	}
 

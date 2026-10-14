@@ -12,9 +12,12 @@ import (
 
 // resources 保存一次协调读取的输入；多次 List 不构成跨资源事务。
 type resources struct {
-	gateways   gatewayv1alpha1.GatewayList
-	httpRoutes gatewayv1alpha1.HTTPRouteList
-	backends   gatewayv1alpha1.BackendList
+	gateways    gatewayv1alpha1.GatewayList
+	httpRoutes  gatewayv1alpha1.HTTPRouteList
+	backends    gatewayv1alpha1.BackendList
+	aiBackends  gatewayv1alpha1.AIBackendList
+	modelRoutes gatewayv1alpha1.ModelRouteList
+	mcpRoutes   gatewayv1alpha1.MCPRouteList
 }
 
 // resolution 是本轮配置及父引用状态，不修改输入，也不代表数据面已 ACK。

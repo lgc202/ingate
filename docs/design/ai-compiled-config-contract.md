@@ -1,6 +1,6 @@
 # AI 编译配置：沿用官方编译分层，使用标准 ConfigMap 保存非敏感结果
 
-- 状态：契约已于 2026-10-13 经用户确认；原生 ConfigMap API 已提交，内部类型与编解码切片已通过用户 review 并获准本地提交，编译与数据面尚未实现
+- 状态：契约已于 2026-10-13 经用户确认；原生 ConfigMap API 与内部编解码已提交，Controller 纯编译入口已通过用户 review 并获准本地提交，协调发布与 AI 数据面尚未实现
 - 作者：Ingate 开发协作
 - 日期：2026-10-13
 - Ingate 基线：`cda0478e`，分支 `codex/rebuild-from-zero`
@@ -32,7 +32,7 @@ Ingate 的模型和 MCP 都进入 Go HTTP Proxy，而官方模型使用 ExtProc�
 | [配置分片写入器](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/controller/filter_config_bundle.go)及 [加载器](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/filterapi/watcher.go)：分片与索引 Secret，校验内容后加载 | 官方不是一份无限大的配置文件；我们先限定单 ConfigMap，超限拒绝，不提前照搬分片和 kubelet 文件投射 |
 | 官方 Backend.Auth 可以包含编译后的实际凭据 | 不能把整个官方 Config 放入 ConfigMap；本稿没有 auth 字段，凭据另按 Secret 安全方案评审 |
 
-当前 Ingate [共享协调器](../../internal/controllermanager/controller/gateway/controller.go)只编译 Gateway、HTTPRoute、Backend；[核心存储](../../internal/apiserver/registry/core/storage.go)现已安装 Namespace 与 ConfigMap，后者已通过用户 review 并获准本地提交。AIBackend、ModelRoute、MCPRoute 已有声明、管理和查询投影，但尚未生成本稿配置；没有 Secret 存储或 AI 转发能力。
+当前 Ingate [共享协调器](../../internal/controllermanager/controller/gateway/controller.go)的协调路径只编译 Gateway、HTTPRoute、Backend；[核心存储](../../internal/apiserver/registry/core/storage.go)现已安装 Namespace 与 ConfigMap。AIBackend、ModelRoute、MCPRoute 已有声明、管理和查询投影，当前新增的纯编译入口见下文；协调路径尚未生成或保存本稿配置，没有 Secret 存储或 AI 转发能力。
 
 ## 设计：配置载体与所有者
 
@@ -244,6 +244,8 @@ Namespace 生命周期应包含标准 ConfigMap，不增加一个「AI ConfigMap
 
 前三步只提供配置存储和编译能力。原生 API 存储契约变更仍执行仓库要求的隔离 integration；真实 Manager/Envoy/Proxy 联调按用户指定的统一测试阶段进行，不混淆两者。
 
+第三步先拆出纯编译切片，当前实现范围见下文；完整输入读取、Watch、两路发布错误隔离与 ConfigMap 写入留在下一切片。
+
 ### 接流量前必须另行确定的契约
 
 这些项不要求先实现再保存配置，但未确认前阻止相应运行代码：
@@ -292,6 +294,18 @@ Decode 复用已有 sigs.k8s.io/json 的大小写敏感解码、重复字段和�
 本切片已核对状态、已跟踪差异及全部未跟踪文件，按 GO-FUNC-012/013/014 检查声明顺序与语义分段，并逐函数检查职责、命名、签名、错误保留及注释。`gofmt -l cmd internal pkg`、已跟踪与八个新增文件的空白检查、`golangci-lint run ./...`、`go vet ./...`、`go test ./... -count=1` 和 `go build ./...` 均通过。辅助命名与错误脚本通过；辅助注释脚本将没有单独包注释的 encode.go、decode.go、validation.go 报为缺失，人工确认包注释在 types.go 唯一定义，不复制注释来消除该误报。
 
 未修改公开 API 类型、存储契约或生成源，所以本切片未再次生成或运行 API integration；迁移提交前的隔离 integration 已于本日复跑通过。没有运行 Manager/Envoy/Proxy 联调，也没有证明配置已写入 etcd；新代码尚无生产调用方。GoCanon MCP 来源与快照仍为 `/Users/lgc202/workspace/source/lgc202/gocanon`、`08260b7-dirty`，本契约不属于现有组件或 Spec/Status 资源生成器的生成范围。
+
+## Controller 纯编译切片
+
+内部编解码已提交为 `23f22057`。本切片在现有 gateway 包增加 [ai_compile.go](../../internal/controllermanager/controller/gateway/ai_compile.go)、[modelroute.go](../../internal/controllermanager/controller/gateway/modelroute.go) 与 [mcproute.go](../../internal/controllermanager/controller/gateway/mcproute.go)，领域输入仍用 resources。compileAI 将完整输入编译后调用 aidataplane.Encode，返回已校验且带 revision 的 JSON；不新增编译接口、协调器、发布任务或依赖。
+
+沿用现有 selectGateways 与 compareMeta 的 Listener 裁决及稳定元数据顺序。AI 输入中正在删除的 Gateway 不再占用 Listener；正在删除的路由不编译，正在删除或缺失的目标保留空 backendName 匹配。协议绑定沿用官方的路由规则/ref 标识，同规则多 match、多个父 Listener 共用绑定，不合并不同规则的 override。非敏感网络结果仅包含有效使用者；端点按现有 Envoy 的 address、port、weight 顺序复制排序，不修改输入。Header 名统一小写，省略 Type 使用已确认的 Exact；模型值、显式 prefix 和 MCP 尾斜杠保持原值。
+
+[纯编译测试](../../internal/controllermanager/controller/gateway/ai_compile_test.go) 从本稿已有领域示例生成共享 golden，核对输出字节与 revision，而不新增示例业务。另覆盖精确/catch-all 排序、OR 展开、父引用重叠去重、多规则 override、同名多 Namespace、共享端口、输入/端点排列不影响版本、同空间引用失败、目标缺失/删除时保留高优先级匹配、路由/Gateway 删除后的完整撤销、单后端约束、非法 payload 与路径错误原因保留。比较完整结果或目标顺序，不仅检查输出数量。
+
+当前 readResources、Reconcile、Watch、HTTP 发布和状态行为均未接入 AI 路径；纯入口只由测试调用，不能把 resources 中新增的 AI 字段视为已经完成读取。这里不解决跨 Kind 网络入口裁决，不写入 ConfigMap，也不宣称配置已经保存到 etcd。下一切片接入完整 AI 输入、标准 Watch 和受管 ConfigMap 写入，并独立处理 HTTP/AI 发布失败；跨组件激活仍需前文列出的运行契约。
+
+本切片已按 GoCanon 的 Controller 规范草案及已确认编译契约，逐文件检查声明顺序、职责、签名、错误原因与注释，再独立复查语义空行。按用户 review 将资源快照变量命名为 snapshot，并沿用项目 Go 1.27 的 new(expr) 创建已初始化的值指针，保留 ptr.Deref。`gofmt -l cmd internal pkg`、已跟踪与四个未跟踪 Go 文件的空白检查、`golangci-lint run ./...`、`go vet ./...`、`go test ./... -count=1` 和 `go build ./...` 均通过。没有改动公开 API、存储或生成源，不重复生成和 API integration；未运行真实 Manager/Envoy/Proxy 联调。纯编译切片已通过用户 review 并获准本地提交。
 
 ## 审查与验证边界
 
