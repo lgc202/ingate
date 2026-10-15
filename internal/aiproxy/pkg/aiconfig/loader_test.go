@@ -538,7 +538,7 @@ func runTestLoader(t *testing.T, apiClient *fake.Clientset) (*Loader, context.Ca
 
 func fixtureConfigMap(t *testing.T) *corev1.ConfigMap {
 	t.Helper()
-	data, err := os.ReadFile("../../pkg/aidataplane/testdata/v1.json")
+	data, err := os.ReadFile("../../../pkg/aidataplane/testdata/v1.json")
 	if err != nil {
 		t.Fatalf("ReadFile(AI configuration fixture) error = %v", err)
 	}

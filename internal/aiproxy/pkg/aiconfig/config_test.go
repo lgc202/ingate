@@ -13,7 +13,7 @@ import (
 )
 
 func TestNewConfig(t *testing.T) {
-	data, err := os.ReadFile("../../pkg/aidataplane/testdata/v1.json")
+	data, err := os.ReadFile("../../../pkg/aidataplane/testdata/v1.json")
 	if err != nil {
 		t.Fatalf("ReadFile(configuration fixture) error = %v", err)
 	}
@@ -277,7 +277,7 @@ func parseConfig(t *testing.T, compiled aidataplane.Config) *Config {
 
 func configFixture(t *testing.T) aidataplane.Config {
 	t.Helper()
-	data, err := os.ReadFile("../../pkg/aidataplane/testdata/v1.json")
+	data, err := os.ReadFile("../../../pkg/aidataplane/testdata/v1.json")
 	if err != nil {
 		t.Fatalf("ReadFile(configuration fixture) error = %v", err)
 	}

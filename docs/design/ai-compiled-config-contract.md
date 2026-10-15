@@ -374,7 +374,7 @@ resourceVersion 只由原生 SDK 用于 List/Watch 连续性和事件处理，�
 
 ### 加载器实现与边界
 
-[aiconfig.Loader](../../internal/aiproxy/aiconfig/loader.go) 位于 Proxy 内部，不依赖 Controller。`NewLoader(apiClient, namespace, logger)` 仅校验并保存原生客户端、显式空间与日志；`Run(ctx)` 同步运行一次，使用 [NewSharedInformerFactoryWithOptions](https://github.com/kubernetes/client-go/blob/v0.37.0/informers/factory.go) 获取 ConfigMap TypedInformer 并注册类型安全事件处理器，限定 Namespace、设置 `metadata.name` 精确选择器和零周期重同步，不设置标签选择器或自建重连循环。SDK 保留 Watch 请求中的 resourceVersion 等连续性参数；本包不对其排序或比较。
+[aiconfig.Loader](../../internal/aiproxy/pkg/aiconfig/loader.go) 位于 Proxy 内部，不依赖 Controller。`NewLoader(apiClient, namespace, logger)` 仅校验并保存原生客户端、显式空间与日志；`Run(ctx)` 同步运行一次，使用 [NewSharedInformerFactoryWithOptions](https://github.com/kubernetes/client-go/blob/v0.37.0/informers/factory.go) 获取 ConfigMap TypedInformer 并注册类型安全事件处理器，限定 Namespace、设置 `metadata.name` 精确选择器和零周期重同步，不设置标签选择器或自建重连循环。SDK 保留 Watch 请求中的 resourceVersion 等连续性参数；本包不对其排序或比较。
 
 该 Factory 只管理目标 ConfigMap，先实例化 Informer 和注册处理器，再调用 `StartWithContext`。`WithTweakListOptions` 的条件作用于整个 Factory；不同筛选范围的资源不能直接复用当前固定对象名条件，应使用与其范围匹配的独立 Factory，不为尚未实现的资源预建监听。若在启动后才实例化其他 Informer，SDK 要求再次调用 Start，而不是自动开始监听。
 
@@ -404,9 +404,9 @@ resourceVersion 只由原生 SDK 用于 List/Watch 连续性和事件处理，�
 
 参考固定提交 `daa9f891a8afcb18576d4593ad18870d1d18abac` 的 [filterapi.NewRuntimeConfig](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/filterapi/runtime.go) 和 [Server.LoadConfig](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/extproc/server.go)：独立构建请求使用的配置，成功后完整替换。此次重新读取此前取得的固定提交本地源码；远端 raw 文件获取失败，不声称核验了新的上游版本。只借鉴配置分层，没有移植源码、认证处理器、CEL 或 ExtProc 的 Processor 工厂；也不沿用其直接赋值运行配置的并发做法。
 
-[aiconfig.Config](../../internal/aiproxy/aiconfig/config.go) 位于组件内部，与共享 JSON 契约 `internal/pkg/aidataplane` 和启动配置分开。包内 newConfig 复用严格 Decode，一次校验完整 payload 与 revision，再建立私有 Host 和协议后端查找表。查找键包含端口与 Host 的编译名称；现有契约只要求 Host 名在同端口集合内唯一，不能假设它在所有端口上全局唯一。原始配置、字段指针、切片与 map 不作为消费结果交付。
+[aiconfig.Config](../../internal/aiproxy/pkg/aiconfig/config.go) 位于组件内部，与共享 JSON 契约 `internal/pkg/aidataplane` 和启动配置分开。包内 newConfig 复用严格 Decode，一次校验完整 payload 与 revision，再建立私有 Host 和协议后端查找表。查找键包含端口与 Host 的编译名称；现有契约只要求 Host 名在同端口集合内唯一，不能假设它在所有端口上全局唯一。原始配置、字段指针、切片与 map 不作为消费结果交付。
 
-[Loader.Capture](../../internal/aiproxy/aiconfig/loader.go) 在读锁内捕获当前运行实例，尚未加载、确认删除、新 UID 的非法内容或停止后没有可供新请求使用的实例；合法空配置仍是有效实例。ResolveModel 只使用这份配置和已提取模型名，按编译顺序选择首个匹配；失效的首个命中返回 ErrModelBackendUnavailable，不继续尝试后续候选。不同规则的 schema、模型覆盖和网络引用保持各自绑定，返回值不含可变引用或网络端点。完整 Listener 绑定必须来自后续受保护的入口，不能把公网 Host 或客户端自报 Header 当作该身份；本轮尚未实现这一传输边界。
+[Loader.Capture](../../internal/aiproxy/pkg/aiconfig/loader.go) 在读锁内捕获当前运行实例，尚未加载、确认删除、新 UID 的非法内容或停止后没有可供新请求使用的实例；合法空配置仍是有效实例。ResolveModel 只使用这份配置和已提取模型名，按编译顺序选择首个匹配；失效的首个命中返回 ErrModelBackendUnavailable，不继续尝试后续候选。不同规则的 schema、模型覆盖和网络引用保持各自绑定，返回值不含可变引用或网络端点。完整 Listener 绑定必须来自后续受保护的入口，不能把公网 Host 或客户端自报 Header 当作该身份；本轮尚未实现这一传输边界。
 
 更新不修改已捕获实例；运行配置在状态锁外构建，单个 Informer 处理器串行更新，成功后在写锁内交换。Capture 的锁不跨越请求处理持有，不为每次请求复制完整 payload，也不重新查询领域资源。删除和停止使后续 Capture 失败，不取消此前持有旧实例的在途工作；真正的流取消、退出排空、旧视图期限和跨组件激活仍须随 HTTP/Envoy 切片确认。本轮不建立历史版本缓存或 Provider 接口，不承诺撤销即时生效。
 
@@ -416,7 +416,7 @@ resourceVersion 只由原生 SDK 用于 List/Watch 连续性和事件处理，�
 
 ## AI Proxy 配置包合并
 
-2026-10-15 用户确认将 Proxy 内的 configloader 与 runtime 合并为 `internal/aiproxy/aiconfig`。两者共同完成动态 AI 配置的加载、发布与只读查询，没有独立消费者需要这条包边界；保留 Loader 和 Config 两个类型，分别放在 loader.go 与 config.go，不把监听逻辑和查询逻辑合成一个结构体。加载器构造函数命名为 NewLoader，配置构建函数 newConfig 收回包内，不保留旧包或兼容别名。
+2026-10-15 用户确认将 Proxy 内的 configloader 与 runtime 合并为 aiconfig，随后按 [0015](../decisions/0015-ai-proxy-package-layout.md) 迁移至 `internal/aiproxy/pkg/aiconfig`。两者共同完成动态 AI 配置的加载、发布与只读查询，没有独立消费者需要这条包边界；保留 Loader 和 Config 两个类型，分别放在 loader.go 与 config.go，不把监听逻辑和查询逻辑合成一个结构体。加载器构造函数命名为 NewLoader，配置构建函数 newConfig 收回包内，不保留旧包或兼容别名。
 
 共享编译契约仍位于 `internal/pkg/aidataplane`，不引入 Kubernetes 依赖；aiconfig 不承担服务启动配置、HTTP 请求解析或上游转发。并包使 Loader 可以访问 Config 私有字段，因此只读约束适用于整个 aiconfig 包：配置只在发布前构建，更新时更换实例，不修改已交付请求的实例。本次只调整代码组织、标识符与文档引用，不改变 ConfigMap 筛选、UID 身份、错误保留、路由匹配或并发交接语义。此项合并已通过用户 review 并获准本地提交，不推送或创建 PR。
 

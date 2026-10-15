@@ -101,6 +101,22 @@ sequenceDiagram
 
 新配置先加载还是先切换路由、Envoy ACK 与 Go 已加载怎样关联，继续沿 [0010](../decisions/0010-unified-ai-proxy-config-delivery.md)的候选流程独立定稿。本地 UDS 不消除双输出发布的失败窗口；旧视图回收、离线实例与凭据撤销也不能靠共部署自动解决。不能将 Watch 成功或 `SetSnapshot` 成功当作真实生效。
 
+## Chat Completions 请求处理切片
+
+2026-10-15，配置加载与只读消费已提交为 `f20e4395`。用户随后确认[组件内能力包布局](../decisions/0015-ai-proxy-package-layout.md)，本地请求处理按职责重组到 `internal/aiproxy/pkg`。后续调用方按以下顺序接入：endpointspec 解析原始请求 → 使用原始 model 调用已捕获配置的 ResolveModel → translator 按选中绑定的 modelNameOverride 改写出站请求；本轮尚未新增 HTTP Handler、启动入口或出站连接，也未装配这条调用链。配置包不承担 HTTP 协议解析。
+
+本轮重新取得固定提交 `daa9f891a8afcb18576d4593ad18870d1d18abac` 的 [ChatCompletionsEndpointSpec.ParseBody](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/endpointspec/endpointspec.go) 和 [OpenAI 同协议 RequestBody](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/translator/openai_openai.go)。官方先读取原始模型名用于路由，再用选中后端的覆盖值修改原始 JSON，而不通过完整类型重新生成所有字段。这里只采用处理顺序与字段保留原则，不移植 ExtProc、泛型 EndpointSpec、计费、流用量强制注入或跨协议 Translator。
+
+[endpointspec.ParseChatCompletions](../../internal/aiproxy/pkg/endpointspec/chat_completions.go) 接受已经读完且由调用方限制大小的 UTF-8 JSON 对象，要求大小写精确的顶层 model 为非空字符串，不修剪或改变模型名。复用已有 sigs.k8s.io/json 拒绝重复顶层键，避免路由解析与上游对同一字段采用不同值；这项拒绝是 Ingate 的边界约束，不宣称来自官方。返回 [apischema/openai.ChatCompletionRequest](../../internal/aiproxy/pkg/apischema/openai/chat_completions.go)，目前只声明实际需要读取的 model，不代表完整提供商请求，不校验 messages、工具或扩展参数，也不能用于重新编码整个请求体。
+
+协议字段独立于输入字节，原始请求体由调用方保留，不再用一个包装对象同时持有请求体、解析结果和编码方法。[translator.TranslateChatCompletionOpenAIToOpenAI](../../internal/aiproxy/pkg/translator/openai_openai.go) 接收经过入口校验的同一份原始 JSON；覆盖值为空或与原值相同时，返回原始字节的独立副本。非空且不同的覆盖值仅改变顶层 model 的 JSON 值，其他字段以标准库 json.RawMessage 保留，包括大整数和扩展对象；重编码可能改变对象顺序、空白和转义写法，不承诺逐字节保持。每次调用重新从原始字节构建独立结果，不原地修改请求或累积前一次覆盖，也不通过调用方可变的协议字段决定原始模型名。
+
+此切片不接收客户端内部 Header，不建立入口信任或配置版本激活，不设置猜测性的请求体默认上限，不处理 SSE 响应，也不宣称已完成真实流量转发。未增加 SDK、JSON 修改库或其他依赖；后续 HTTP 接入仍须实现读取上限、Header 清理、错误协议与取消链。本轮新增实现须 review 后再提交。
+
+GoCanon MCP 规则源仍为 `/Users/lgc202/workspace/source/lgc202/gocanon`，revision `08260b72394a104ebe8286088eb23383cd6a6235`、`08260b7-dirty`；沿用本连续任务已完整读取且来源未变的入口与相关规范，草案不等同于稳定约束。重组前的单包实现已通过手工审查、反例与所有权测试；本次保留同样的模型校验、字段保持和独立结果行为，重新核对包职责、GO-FUNC-012/013/014 及语义分段。原先包装对象持有私有请求体的测试调整为分别检查解析字段与输入独立、适配不修改源字节以及返回字节与源字节独立；不把测试迁移当作 HTTP/Envoy 调用链已经实现。
+
+重组前已通过格式、空白、lint、Vet、全量测试、构建和 Proxy 包 race 检查；这不代替重组后的验证，结果记录在 [0015](../decisions/0015-ai-proxy-package-layout.md)。未修改声明式 API 类型或存储契约，未重新生成或运行 API integration；没有真实 Envoy/Proxy、UDS、提供商或 SSE 验证。下一步 review 此切片后，继续 HTTP 接入所需的入口信任、请求体读取和错误映射，不将此协议辅助实现视为已运行的 AI 服务。
+
 ## 理由与备选方案
 
 只做 Chat 创建接口能缩小单次实现量，但它不代表官方完整的模型入口设计。建议首批纳入两个创建操作，复用同协议模型路由和 HTTP 传输，分别保留响应协议；不以实现顺序把资源模型锁定为 Chat。实际工作可以分两个小改动，每次 review 不变。
