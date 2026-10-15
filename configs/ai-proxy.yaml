@@ -1,0 +1,12 @@
+# 这是启动配置示例；当前尚无 AI Proxy 进程启动命令。
+# 入口与出口在数据面主机上使用两个不同的 Unix socket。
+# 本文件不包含模型路由；路由由 Controller 写入 ConfigMap，再由 Loader Watch。
+server:
+  socket: /run/ingate/ingress.sock
+  # 示例为 1 MiB，不是默认值；部署时须显式选择正文上限。
+  max_request_body_bytes: 1048576
+api_server:
+  kubeconfig: /etc/ingate/ai-proxy.kubeconfig
+  ai_config_namespace: control-plane
+envoy:
+  egress_socket: /run/ingate/egress.sock

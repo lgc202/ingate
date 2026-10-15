@@ -17,6 +17,7 @@ AI Proxy 的配置消费已经提交，请求体解析与模型覆盖仍在本�
 internal/
 ├── aiproxy/
 │   ├── app.go                # 显式装配原生 Client、Service、Handler 和 HTTP Server
+│   ├── conf/                 # 进程启动配置 protobuf，不含动态路由
 │   ├── server/               # 原生 HTTP 构造、Unix 入口 Header 适配、路由与 ErrorEncoder
 │   ├── handler/              # 可信入口读取、协议错误和响应流写回
 │   ├── service/
@@ -63,6 +64,8 @@ apischema/openai 只定义当前需要提取的 model 字段，不宣称覆盖�
 此结构变更不增加接口端点、厂商能力、依赖或转换矩阵，不更改领域资源与编译 JSON 契约。用户确认布局不等于批准所有未来包或完整服务实现；本次请求链重构与装配已通过代码 review，仅授权本地提交，不推送或创建 PR。
 
 ## 验证边界
+
+模型入口切片已提交为 `d988f8df`。当前启动配置切片在 conf 保存 protobuf，在组件根目录 config.go 读取并校验；示例为 configs/ai-proxy.yaml。这里复用 Admin API 的严格 YAML → protojson → Protovalidate 方式，不导入 Admin API 的配置类型，也不增加全仓库加载器。配置只覆盖已有构造依赖；本步未接入 Run、命令行或 Watch 生命周期，不因增加 conf 就声称进程可运行。上文“不预建 conf”针对此前协议切片；当前 conf 已有明确的启动输入契约和校验测试，不是占位包。
 
 `921484b3` 已提交原生 Client 与 HTTP 装配。后续模型公共入口切片在 server 增加路由 Filter，将受保护 Unix 入口的内部 Header 转为已有 Context，不把这项传输职责放进 Service 或另建能力包。该切片已通过用户 review 并获准本地提交；[实现记录](../design/ai-model-operations-and-deployment.md#envoy-模型入口与-go-入口适配)说明通信契约和真实组件未验证的边界。上文缺少入口适配的描述属于此前装配切片的范围，不代表这次新增代码的状态。
 

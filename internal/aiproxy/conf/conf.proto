@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package aiproxy.conf;
+
+import "buf/validate/validate.proto";
+
+option go_package = "github.com/lgc202/ingate/internal/aiproxy/conf;conf";
+
+// Bootstrap 定义进程启动参数，不包含 Controller 动态下发的模型路由。
+message Bootstrap {
+  // server 配置受保护的 Go HTTP 入口。
+  Server server = 1 [(buf.validate.field).required = true];
+  // api_server 配置 Ingate API 连接及编译配置的读取空间。
+  APIServer api_server = 2 [(buf.validate.field).required = true];
+  // envoy 配置模型请求使用的本地 Envoy 出口。
+  Envoy envoy = 3 [(buf.validate.field).required = true];
+}
+
+// Server 只配置已实现的 Unix HTTP 入口，不开放 TCP 或 gRPC 监听。
+message Server {
+  // socket 是 Go 监听的绝对路径，须与 Controller 的 ai-ingress-socket 一致。
+  string socket = 1 [(buf.validate.field).string.min_len = 1];
+  // max_request_body_bytes 是读取客户端正文的字节上限，必须显式配置，不设默认值。
+  int64 max_request_body_bytes = 2 [(buf.validate.field).int64.gt = 0];
+}
+
+// APIServer 连接 Ingate API，而不是宿主 Kubernetes。
+message APIServer {
+  // kubeconfig 是连接配置路径；为空时沿用 client-go 的集群内配置。
+  string kubeconfig = 1;
+  // ai_config_namespace 是共享编译 ConfigMap 所在的已有 Namespace。
+  string ai_config_namespace = 2 [(buf.validate.field).string.min_len = 1];
+}
+
+// Envoy 只指定固定的本地出口，不允许请求选择网络地址。
+message Envoy {
+  // egress_socket 是 Envoy 监听的绝对路径，须与 Controller 的 ai-egress-socket 一致。
+  string egress_socket = 1 [(buf.validate.field).string.min_len = 1];
+}
