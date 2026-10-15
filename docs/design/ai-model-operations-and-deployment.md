@@ -1,6 +1,6 @@
 # AI 模型操作与数据面部署设计
 
-- 状态：2026-10-15 已确认 Chat Completions 首步、同机 UDS 和最终一致性；不要求每请求整份配置 revision 一致，具体入口/出口绑定及其余运行契约仍待 review
+- 状态：2026-10-15 已确认 Chat Completions、同机 UDS、最终一致性及受限出口；原生 Client 重构与 HTTP 装配已通过 review 并获准本地提交，入口绑定及其余运行契约仍待确认
 - 日期：2026-10-11
 - 资源字段对齐：2026-10-12；首步操作与本地通信确认：2026-10-15
 - Ingate 源码基线：`b247a4c6`，分支 `codex/rebuild-from-zero`
@@ -54,7 +54,7 @@ Chat 流的 chunk、终止标识和 usage chunk，与 Responses 的具名生命�
 
 首批仅声明两个 POST 创建操作的代理能力，不宣称完整 Responses API。获取、删除、取消、后台任务、WebSocket 等能力不因创建接口存在就自动开放。`previous_response_id` 等提供商状态引用绑定到提供商和账号；路由或凭据变更不能假定状态跨账号可迁移，其放行范围和变更行为仍需在协议切片 review 中明确。
 
-同协议 HTTP 转发优先复用 Go 标准库 `httputil.ReverseProxy` 的 `Rewrite`、Transport 和流式转发能力，不为两个入口先建 Provider 插件框架或引入模型 SDK。实现时显式构造已选上游 URL，清理身份与内部 Header，不使用客户端 Host 决定目标。已核对工作区 Go 1.27.0 的标准库声明；可追溯入口：[ReverseProxy](https://pkg.go.dev/net/http/httputil#ReverseProxy)。这只是传输复用，不替代路由、取消、安全和模型字段修改逻辑。
+当前按用户确认改用原生 HTTP Client：Service 完成解析、选路、适配和 Client.Do，Handler 负责响应写回。此前采用的 ReverseProxy 是 Ingate 的传输复用选择，不是官方模型链路。原生 Client 的重定向策略、固定 UDS Transport、正文关闭、逐跳 Header 清理、SSE 刷新与中断行为须显式实现和验证；不先建 Provider 插件框架或引入模型 SDK。实现细节与范围见下文 HTTP 装配节。
 
 ### 部署：同部署单元、不同进程，两段本地连接
 
@@ -111,7 +111,7 @@ sequenceDiagram
 
 ## Chat Completions 请求处理切片
 
-2026-10-15，配置加载与只读消费已提交为 `f20e4395`。用户随后确认[组件内能力包布局](../decisions/0015-ai-proxy-package-layout.md)，本地请求处理按职责重组到 `internal/aiproxy/pkg`，提交为 `c4c9d611`。当前模型 Service 按以下顺序准备请求：捕获一次配置 → endpointspec 解析原始请求 → 使用原始 model 调用 ResolveModel → translator 按选中绑定的 modelNameOverride 改写出站请求。后续新增的 HTTP Handler 负责有界读取、错误映射和向后续 HTTP 阶段交接；尚无启动入口或出站连接，配置包仍不承担 HTTP 协议解析。Service、Handler 和测试已通过用户 review，并获准本地提交。
+2026-10-15，配置加载与只读消费已提交为 `f20e4395`。用户随后确认[组件内能力包布局](../decisions/0015-ai-proxy-package-layout.md)，请求处理按职责重组到 `internal/aiproxy/pkg`，提交为 `c4c9d611`。模型准备与 Handler 提交为 `81d3e027`，受限转发与 Envoy 出口提交为 `350de244`。下文先保留各切片历史，再记录当前原生 Client 重构；历史切片的检查结果和未覆盖项不代表当前实现状态。
 
 本轮重新取得固定提交 `daa9f891a8afcb18576d4593ad18870d1d18abac` 的 [ChatCompletionsEndpointSpec.ParseBody](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/endpointspec/endpointspec.go) 和 [OpenAI 同协议 RequestBody](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/translator/openai_openai.go)。官方先读取原始模型名用于路由，再用选中后端的覆盖值修改原始 JSON，而不通过完整类型重新生成所有字段。这里只采用处理顺序与字段保留原则，不移植 ExtProc、泛型 EndpointSpec、计费、流用量强制注入或跨协议 Translator。
 
@@ -125,9 +125,9 @@ GoCanon MCP 规则源仍为 `/Users/lgc202/workspace/source/lgc202/gocanon`，re
 
 重组前后已通过的检查与审查范围记录在 [0015](../decisions/0015-ai-proxy-package-layout.md)。未修改声明式 API 类型或存储契约，未重新生成或运行 API integration；没有真实 Envoy/Proxy、UDS、提供商或 SSE 验证。下一步继续 HTTP 接入所需的入口信任、请求体读取和错误映射，不将此协议辅助实现视为已运行的 AI 服务。
 
-### 模型 Service：准备请求，不开放流量
+### 历史切片：模型 Service 请求准备
 
-新增 [model.Service](../../internal/aiproxy/service/model/service.go) 的 PrepareChatCompletion(ctx, params)，接受明确的 Listener 端口、Host 完整编译标识和原始请求体。Service 使用同一份捕获配置完成目标选择与改写，返回按值交付的 ModelBackend 和独立的出站字节；没有携带或比较 Envoy revision。未加载或已撤回配置返回 ErrUnavailable，请求解析失败返回 ErrInvalidArgument，入口或模型未匹配返回 ErrModelNotFound；首个命中后端不可用仍返回 ErrUnavailable，不尝试后续 catch-all。包装保留底层原因，Service 不打印错误，也不把内部错误直接编码成 HTTP 响应。
+`81d3e027` 中的模型 Service 曾以 PrepareChatCompletion(ctx, params) 接受 Listener 端口、Host 完整编译标识和原始请求体，返回按值的 ModelBackend 与独立出站字节。当前已移除该准备接口，改为下文的完整 ChatCompletion 用例。未加载或已撤回配置、请求解析失败、入口或模型未匹配、首个命中后端不可用的拒绝语义不变；不尝试后续 catch-all，包装保留底层原因，Service 不打印错误或编码公开响应。
 
 依赖按 0015 从用例编排指向 aiconfig、endpointspec 和 translator；aiconfig 在这里提供已确认的只读运行视图，不是启动 conf。Service 不导入 Kubernetes 客户端、组件启动配置或 Transport，也不为无持久化行为增加 Repository。Loader 的启动和停止由后续组件组合根持有，构造 Service 不启动后台任务。当前编译配置只接受 OpenAI，后续增加其他 schema 时必须同时审查用例中的适配选择，不能只扩大配置枚举。
 
@@ -135,15 +135,15 @@ Service 切片不包含 Handler；后续 HTTP 适配见下节。可信入口的�
 
 本切片再次核对 GoCanon MCP，仍为 `08260b7-dirty` 启动快照，复用本连续任务已完整读取且来源未变的规范与决策；按 0015 的组件能力包归属实现，没有生成新的服务骨架。已审查全部新增手写文件与受影响调用，独立复查 GO-FUNC-012/013/014；格式、已跟踪及未跟踪文件空白检查无诊断，lint 为 0 issues，Vet、全量测试、构建及 `go test -race ./internal/aiproxy/... -count=3` 通过。未改 API 类型、存储或依赖，未重新生成或运行 API integration；真实 HTTP/UDS、Envoy、模型提供商和 SSE 验证未执行。
 
-### HTTP Handler：有界读取与协议交接
+### 历史切片：HTTP Handler 有界读取
 
-[ModelHandler.ChatCompletion](../../internal/aiproxy/handler/model.go) 使用 Kratos v3 原生的 `func(http.Context) error`，由 Server 的原生 Router.POST 注册，错误交给 ErrorEncoder；没有新增 writeError 或伪造 protobuf 模型服务。本轮只在测试中注册路由，未创建生产 Server、二进制或监听地址。完整读取与后续 HTTP 阶段均放在 ctx.Middleware 调用中，避免绕过入站中间件或先读未授权正文；传给 Service 和后续阶段的是中间件派生的上下文。
+[ModelProxyHandler.ChatCompletion](../../internal/aiproxy/handler/modelproxy.go) 使用 Kratos v3 原生的 `func(http.Context) error`，由 Server 的原生 Router.POST 注册，错误交给 ErrorEncoder；没有新增 writeError 或伪造 protobuf 模型服务。此历史切片只在测试中注册路由，未创建生产 Server、二进制或监听地址。完整读取与后续 HTTP 阶段均放在 ctx.Middleware 调用中，避免绕过入站中间件或先读未授权正文；传给 Service 和后续阶段的是中间件派生的上下文。
 
-[WithModelEntry](../../internal/aiproxy/handler/context.go) 使用私有类型 Context key 传递单次请求的入口。入口须由后续受信任适配层确定，不能照抄客户端 Header；缺入口返回 503，客户端自报 Header 不能建立此上下文。后续出口切片将目标交接移到 [modelproxy.WithBackend 与 Backend](../../internal/aiproxy/pkg/modelproxy/context.go)：后端只由 Service 的选择结果写入，交付值不含可变配置引用，不再次捕获配置。入口身份仍未实现，不能把 Context 封装当作认证已经完成。
+[WithModelEntry](../../internal/aiproxy/handler/context.go) 使用私有类型 Context key 传递单次请求的入口。入口须由后续受信任适配层确定，不能照抄客户端 Header；缺入口返回 503，客户端自报 Header 不能建立此上下文。旧转发器曾另用目标 Context 交接选中后端；当前已删除该隐式交接，Service 直接构造出站请求。入口身份仍未实现，不能把 Context 封装当作认证已经完成。
 
-请求体字节上限必须以正数显式传给 NewModel，没有新增默认值或启动参数。http.MaxBytesReader 限制实际读取，不能靠伪报 Content-Length 绕过；超限返回 413。当前只处理未压缩 JSON，不解压请求，Content-Encoding 除空值和 identity 外返回 415，多个 Header 值逐一检查。JSON 解析与模型选择失败分别映射为固定的 400、404 或 503；取消与超时沿 Kratos 的 ClientClosed/499 和 GatewayTimeout/504，Service 未知错误固定映射 500。原因链留在服务端，未知 Service 错误只在此边界记录一次，不主动记录请求体；Middleware 仍须对自己的错误执行安全映射。
+请求体字节上限必须以正数显式传给 NewModelProxy，没有新增默认值或启动参数。http.MaxBytesReader 限制实际读取，不能靠伪报 Content-Length 绕过；超限返回 413。当前只处理未压缩 JSON，不解压请求，Content-Encoding 除空值和 identity 外返回 415，多个 Header 值逐一检查。JSON 解析与模型选择失败分别映射为固定的 400、404 或 503；取消与超时沿 Kratos 的 ClientClosed/499 和 GatewayTimeout/504，Service 未知错误固定映射 500。原因链留在服务端，未知 Service 错误只在此边界记录一次，不主动记录请求体；Middleware 仍须对自己的错误执行安全映射。
 
-准备成功后克隆 HTTP 请求，交付独立的新 Body 与正确 ContentLength，移除原分帧 Header、TransferEncoding 和 Trailer，清除可能重放原始正文的 GetBody，并将正文标记为未压缩 application/json；不修改入站请求的 Header、URL 或 Context。forwarder 通过 modelproxy.Backend 取得选定绑定，并直接使用原 ResponseWriter，Handler 不缓冲响应或丢失 Flush 能力。`81d3e027` 提交时只有这个交接点；后续受限 UDS 转发见下节，不能把 Handler 的中间态请求直接发往提供商。
+`81d3e027` 的 Handler 曾在准备成功后克隆请求并交给后续转发器；这段实现已由当前 Service 从零构造出站请求替换。请求体所有权、分帧隔离及不修改入站消息的约束保留，Handler 不再持有 forwarder 或选中后端。
 
 公开错误的最终模型协议 envelope 仍留到 Server 编码切片；测试暂用 Kratos 默认 ErrorEncoder 检查状态和不泄露 cause，不把其 JSON 形状确定为模型公开接口。测试通过真实 Kratos Router 调用 Handler、真实模型 Service 与原生 fake Clientset/Loader，覆盖字节上限正反例、未命中/跨入口/未加载拒绝、客户端伪造入口、读取失败、取消、中间件先执行及上下文保留、未知下游 Kratos 错误兜底，以及原 Writer 与 Flush 保留。Recorder 检查不代表真实 SSE 时序、代理背压、网络取消或 Envoy 联调。
 
@@ -153,13 +153,13 @@ Service 切片不包含 Handler；后续 HTTP 适配见下节。可信入口的�
 
 ### 受限模型出口：目标绑定与两路发布
 
-2026-10-15 用户确认继续实现 Go 转发器与 Envoy 出口。本切片尚未提交、待 review，不增加领域资源、JSON 字段、依赖、TLS 或凭据管理。JSON v1 的 golden 保持不变；共享 [ModelTargetName](../../internal/pkg/aidataplane/target.go) 定义两侧必须一致的出口名称算法。
+2026-10-15 用户确认继续实现 Go 转发器与 Envoy 出口，已提交为 `350de244`。不增加领域资源、JSON 字段、依赖、TLS 或凭据管理。JSON v1 的 golden 保持不变；共享 [ModelTargetName](../../internal/pkg/aidataplane/target.go) 定义两侧必须一致的出口名称算法。
 
 算法将单个 Backend 协议绑定与其引用的 NetworkBackend 编码为固定字段顺序的 JSON；网络端点在副本中按 address、port、weight 排序，对内容求 SHA-256，得到 `ai/target/<hex>`。协议后端名称、schema、前缀、模型覆盖或网络端点内容改变时生成新名称；只改无关目标不影响该名称。Loader 在构建只读实例时计算一次，ResolveModel 返回 TargetName；Envoy 从同一份纯编译结果计算相同名称。没有保存额外的 targetName JSON 字段，也没有增加每请求整份 revision 比较、双版本保留或发布协调器。这个标识不是访问令牌，不冻结 DNS 实际解析结果，也不承诺即时撤销或未来凭据轮转安全；引入认证内容前仍须扩充相应绑定边界并单独审查。
 
-[modelproxy.Proxy](../../internal/aiproxy/pkg/modelproxy/proxy.go) 复用标准 httputil.ReverseProxy 的 Rewrite、Transport 和响应复制。构造只保存明确的绝对 socket 路径和错误编码回调，不发起连接；DialContext 忽略请求地址，只能拨该 UDS，不读取环境代理、不做 TCP/提供商直连回退。仅接受有进程内目标绑定的 Chat Completions POST。上游路径由选中 prefix 与 chat/completions 后缀构造，丢弃客户端 URL、Host 和查询参数；Header 从空集合重建，只保留 Accept，设置 JSON Content-Type，并写入共享的 `x-ingate-ai-target`。客户端认证、Cookie、任意扩展 Header 和 Envoy 控制 Header 不透传；这意味着当前不支持客户端自带上游密钥，也没有自动添加提供商认证。
+`350de244` 曾通过 pkg/modelproxy.Proxy 复用标准 ReverseProxy，当前该包已删除；受限 UDS 连接策略迁入 [envoyclient.New](../../internal/aiproxy/pkg/envoyclient/client.go)，请求构造迁入 [modelproxy.Service](../../internal/aiproxy/service/modelproxy/service.go)，响应写回迁入 Handler。service/modelproxy 是完整模型用例，不是恢复旧转发器。仍只允许拨指定 UDS，不读取环境代理、不做 TCP/提供商直连回退。上游路径由选中 prefix 与 chat/completions 后缀构造，丢弃客户端 URL、Host 和查询参数；Header 从空集合重建，只保留 Accept，设置 JSON Content-Type，并写入共享的 `x-ingate-ai-target`。客户端认证、Cookie、任意扩展 Header 和 Envoy 控制 Header 不透传；当前不支持客户端自带上游密钥，也没有自动添加提供商认证。
 
-普通响应保留上游状态和正文，SSE 由标准库持续转发；不解压响应，不增加模型重试。组件组合根需向 Proxy.New 提供安全的错误编码回调，在停止接收并排空请求后调用 CloseIdleConnections。已开始响应后不能改写成 JSON 错误，标准 ReverseProxy 会终止失败的流；本切片没有确定最终模型错误 envelope、并发上限、空闲超时或退出排空策略。
+普通响应保留上游状态和正文，SSE 持续转发；不解压响应，不增加模型重试。当前组合根不再注入出口错误回调，网络失败沿 Service 错误链返回给 Handler，响应开始后的失败直接中断流；仍由组合根在排空请求后清理连接池。本切片没有确定最终模型错误 envelope、并发上限、空闲超时或退出排空策略。
 
 [Envoy 出口编译](../../internal/controllermanager/dataplane/envoy/ai_resources.go) 只为有效 ModelRoute 引用的协议绑定创建出口，不为 MCP 或普通 HTTP 生成 AI 出口。每个目标使用显式 Header 精确匹配和静态 Cluster；不使用可从 Header 任意指定 Cluster 的 cluster_header。未知、缺失或旧目标在仍存在的出口 Listener 上返回 503；没有有效目标时撤销整个出口 Listener，旧连接可能失败，不能保证统一的 HTTP 状态。匹配后移除内部目标 Header，按选中端点的 hostname 重写上游 Host；DNS、IP 连接和负载均衡仍由 Envoy 管理。出口 Route 关闭整体请求超时以免默认值截断 SSE，不改变其它运行时空闲限制，也不声明完整流量保护已经完成。
 
@@ -171,7 +171,38 @@ Controller Manager 新增可选 `--ai-egress-socket`，无默认路径；有模�
 
 测试覆盖目标名称固定向量、端点顺序独立与输入不变、协议/端点变化、新旧快照隔离、两类发布并发及互不覆盖、失效配置保留、AI 撤销、两路输出失败隔离、Unix socket 实际请求、Header 清理、原状态/正文、首个 SSE 事件和客户端取消。Unix 对端是原生测试 HTTP 服务，Envoy 部分检查生成的协议资源与 Snapshot Cache，不复制 Envoy 匹配器来伪装联调。尚未运行真实 Envoy/提供商、API Server/etcd、ACK/NACK、目录权限部署、背压或进程故障验证，也未装配生产 Server、可信入口、公开模型错误格式或 MCP 转发；不能直接作为可运行 AI 网关交付。
 
-本轮按 GoCanon 已读规则与 Go 审查技能检查全部手写改动，并独立复查 GO-FUNC-012/013/014 的声明顺序、函数签名、错误检查相邻性及语义空行。原生 Cache 的取消通知恢复和整份 revision 改变但目标不变均有独立用例。`gofmt -l cmd internal pkg`、`git diff --check` 和八个未跟踪文件的空白检查均无诊断；lint 为 0 issues，Vet、全量测试与构建通过，AI Proxy、Gateway Controller、Envoy 适配器和共享契约的 race 测试重复三轮通过。首轮 lint 的测试 Body.Close 未检查已修正后重跑。MCP 当前不可用，不声称重新查询了规则快照；未改 API 类型、存储契约、生成源或依赖，没有重新生成或运行 API Server integration。新改动保持未提交，等待用户 review。
+该切片提交前已按 GoCanon 已读规则与 Go 审查技能检查全部手写改动，并独立复查 GO-FUNC-012/013/014 的声明顺序、函数签名、错误检查相邻性及语义空行。原生 Cache 的取消通知恢复和整份 revision 改变但目标不变均有独立用例。格式、空白、lint、Vet、全量测试与构建通过，AI Proxy、Gateway Controller、Envoy 适配器和共享契约的 race 测试重复三轮通过。MCP 当时不可用，未声称重新查询规则快照；未改 API 类型、存储契约、生成源或依赖，没有重新生成或运行 API Server integration。
+
+### HTTP 对象装配与路由注册
+
+受限转发与 Envoy 出口切片已提交为 `350de244`。后续本地改动新增 [NewHTTPServer](../../internal/aiproxy/app.go) 作为对象装配入口；用户进一步确认将请求编排统一移入 Service，改用原生 HTTP Client，并将该用例命名为 modelproxy。组合根创建固定 Envoy UDS 的 Client、注入 modelproxy.Service，再创建 ModelProxyHandler，交给 [server.New](../../internal/aiproxy/server/server.go) 注册唯一的 `POST /v1/chat/completions`。旧 ReverseProxy 包、目标 Context、Handler.forwarder 和出口错误回调一并删除，不保留兼容方案。命名变更同步覆盖包路径、Handler、Server 字段、测试和文档，协议 model 字段及 ModelRoute 等资源名不变。
+
+```text
+Server → Handler（可信入口、有界读取）
+              → Service.ChatCompletion
+                  → Capture → Parse → ResolveModel → Translate
+                  → 构造出站请求 → http.Client.Do → Envoy 出口 UDS
+              ← 原生 http.Response（Body 未读）
+       ← Handler（状态、Header、正文/SSE、Trailer、关闭 Body）
+```
+
+Service 是 HTTP 模型代理用例，允许使用原生 Request/Response 构造出站请求和交付响应，但不接收入站 Request/ResponseWriter，不依赖 Kratos。目标选择、路径、Header、正文和网络调用在同一方法链内完成，不再让 Handler 通过 Context 交接执行结果。仅允许 Accept 进入出站请求，禁用 GetBody 重放；未加载、未命中和首个失效目标仍在发出网络请求前拒绝。原生 Client.Do 失败保留原因链，映射 ErrForwardFailed；取消与期限错误由 Handler 优先识别。成功响应不预读正文，Body 所有权明确交给 Handler。
+
+[envoyclient.New](../../internal/aiproxy/pkg/envoyclient/client.go) 直接返回原生 `*http.Client`，不增加 Client 接口或包装类型。Transport 固定拨号到指定 socket，无环境代理或 TCP 回退，DisableCompression 保留提供商压缩正文；CheckRedirect 返回 ErrUseLastResponse，3xx 连同正文直接交付，不访问 Location。没有整次请求超时，避免截断 SSE；未来的连接、首字节和空闲期限仍需明确，不能从本实现推导出完整超时保护。
+
+本轮已核对官方固定提交：模型 [ExtProc.Process](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/extproc/server.go) 不是 HTTP Client 代理；[MCPProxy](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/mcpproxy/mcpproxy.go) 持有原生 Client，[会话连接](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/mcpproxy/session.go) 直接调用 Client.Do。本项目借鉴 HTTP 调用方式，保留统一 Proxy 决策；Service/Handler 分层与内容目标绑定是 Ingate 的适配，不宣称来自官方模板。
+
+Server 接收已有的 Unix Listener，显式使用 Unix endpoint，关闭 Kratos 默认的整次请求期限，不创建 TCP 监听或猜测 socket 路径。调用方负责创建和保护入口、运行 Loader，并在 Server 停止接收及排空之后调用返回的出口连接池清理函数。构造失败不关闭调用方的 Listener。内部依赖由成功构造链保证有效，按用户反馈去掉新增的依赖 nil 检查；仅为这类分支构造的不完整对象测试同步移除，Server.New 不再返回虚构的初始化错误。
+
+[Handler 响应写回](../../internal/aiproxy/handler/response.go) 接管并最终关闭 Body，移除固定逐跳 Header 及 Connection 指定字段，复制端到端 Header、原始状态和正文。SSE 与未知长度响应先刷新响应头，再在每次正文写入后 Flush；不解析事件或缓存完整响应。读取到 EOF 后交付原生 Trailer。正文读取、写入或 Flush 失败时，响应已经开始，使用 net/http.ErrAbortHandler 终止连接或 HTTP/2 流，不能向已有响应追加错误 JSON；将来加入恢复中间件时须保留此原生中断信号。当前范围仅为普通响应/SSE，不转发中间 1xx，非预期 101 会关闭 Body 并按转发失败拒绝，不是通用 ReverseProxy 的功能替身。
+
+响应开始前，Handler 将网络失败映射为固定 502、取消为 499、期限为 504，保留已有校验和路由错误语义；未知失败固定 500。错误只在入站边界记录一次，不公开 socket 路径、内部原因或下游 Kratos 错误。这里暂用 Kratos 默认 ErrorEncoder，不把其 JSON 形状确定为最终模型协议 envelope。提供商已返回的错误状态和正文不再包装成本地错误。
+
+本步没有进程启动命令、运行配置加载、Loader/Server 生命周期管理或 Envoy 入口身份适配。没有进程内可信入口的请求仍被拒绝，不将客户端 Header 转成可信上下文。测试在装配后的原生 Router 上调用真实 Handler、Service、Loader 和原生 Client，使用 fake Clientset 和本地 Unix HTTP 对端；成功场景仅在测试中注入可信入口。检查模型覆盖、原目标、原响应，以及无入口、未命中、正文超限和未实现操作不会额外访问出口。额外的原生 HTTP 测试确认首个 SSE 事件在对端结束前到达，取消会使 Unix 对端请求 Context 取消；单元用例覆盖重定向不重放、逐跳 Header、Trailer、响应 Body 所有权及部分流中断。它们不代表真实 API Server、Envoy 或完整进程已运行。
+
+本切片已逐个审查全部新增、修改及删除的手写文件，先检查 GO-FUNC-012 的声明顺序，再审查职责、命名、参数/返回值、错误原因与注释，最后独立复查错误检查相邻性和语义空行。原模型、隔离入口与拒绝输入均检查是否真正触发预期断言，不用 lint 代替人工判断。重构技能用于按职责迁移并删除旧交接，Go 审查技能用于逐文件核对行为与风格；没有借此自动提交。
+
+请求链重构后已通过三轮 AI Proxy race 检查；随后按用户确认重命名为 modelproxy，再次通过 `gofmt -l cmd internal pkg`、`git diff --check`、全部十二个未跟踪 Go 文件的空白检查、`golangci-lint run ./...`（0 issues）、`go vet ./...`、`go test ./... -count=1`、`go build ./...` 及一轮 AI Proxy race 检查。已独立复查声明顺序、语义空行及重命名引用；测试保留成功和拒绝输入，不通过兼容别名保留旧包。初轮沙箱禁止绑定 Unix socket，获准后重新运行通过，不将该环境拒绝算作功能失败或跳过验证。GoCanon MCP 仍不可用，沿用本连续任务已完整读取的本地规则来源及规范；未宣称取得新 MCP 快照。没有修改 API 类型、存储、生成源或依赖，未执行 API integration 或重新生成；真实 Envoy/API Server/提供商及进程生命周期仍未验证。用户已完成本阶段 review 并授权本地提交；提交前再次通过格式、空白、lint、Vet、全量测试和构建，不推送或创建 PR。
 
 ## 理由与备选方案
 
@@ -185,7 +216,7 @@ Controller Manager 新增可选 `--ai-egress-socket`，无默认路径；有模�
 
 项目无旧 AI 接口兼容压力，也尚无可运行的 AI 转发进程。本稿不改变已提交的 Gateway、HTTPRoute、Backend、Admin Session 和 MySQL 投影行为；新增模型请求不能抢占已有 HTTP 入口或扩大操作暴露范围。跨种类冲突、无效引用与错误动作继续按资源契约单独 review。
 
-资源、配置编译、存储与 Loader 已分步完成；2026-10-15 起按确认的 Chat Completions 范围继续 AI Proxy。只读运行配置、请求准备与 HTTP Handler 已提交；受限 UDS 转发和模型出口编译待 review，进程装配与 Envoy 可信入口尚未实现。最终一致性取舍已确认，凭据来源与权限、后端 TLS/入站安全仍在相应实现前确认。2026-10-11 用户要求凭据参考官方，具体建议与代价见 [AI 凭据与运行配置设计](ai-credentials-and-runtime-config.md)，凭据部分仍待 review。协议切片还须确定并发流界限、超时、退出排空、本地错误格式和提供商状态引用行为；未定时不接真实密钥。
+资源、配置编译、存储与 Loader 已分步完成；2026-10-15 起按确认的 Chat Completions 范围继续 AI Proxy。只读运行配置、请求准备、HTTP Handler、受限 UDS 转发和模型出口编译已提交；原生 Client 重构及 HTTP 对象装配已通过用户 review，并获准本地提交，进程入口与 Envoy 可信入口尚未实现。最终一致性取舍已确认，凭据来源与权限、后端 TLS/入站安全仍在相应实现前确认。2026-10-11 用户要求凭据参考官方，具体建议与代价见 [AI 凭据与运行配置设计](ai-credentials-and-runtime-config.md)，凭据部分仍待 review。协议切片还须确定并发流界限、超时、退出排空、本地错误格式和提供商状态引用行为；未定时不接真实密钥。
 
 日常代码审查、单元与静态检查继续执行；真实 Envoy、模型/MCP、实库、ACK/NACK 和故障恢复留到用户指定的统一测试阶段。相关能力在得到证据前标为未验证，不能因延期就宣称完成组件验收。
 

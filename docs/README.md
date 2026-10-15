@@ -6,10 +6,10 @@
 - [API 网关完成度与 AI 网关开发条件](api-gateway-readiness.md)：2026-10-10 的源码与验证快照。
 - [HTTP 主链路隔离验证方案](design/http-gateway-validation-plan.md)：留待后续统一测试的实库、Manager/Envoy 转发和 ACK/NACK 清单；不作为当前开发前置条件。
 - [统一 Go AI Proxy 与配置下发](decisions/0010-unified-ai-proxy-config-delivery.md)：已确认运行组件、配置下发和资源关系，及待评审契约与实施建议。
-- [AI Proxy 应用分层与能力包布局](decisions/0015-ai-proxy-package-layout.md)：组件内 pkg 归属、协议类型/入口解析/适配职责及本轮迁移边界；布局与代码已通过 review。
+- [AI Proxy 应用分层与能力包布局](decisions/0015-ai-proxy-package-layout.md)：组件内 pkg 归属及协议能力职责；完整请求编排迁入 modelproxy.Service 的重构与 HTTP 装配已通过 review，并获准本地提交。
 - [AI 网关上游设计对照](design/ai-gateway-upstream-alignment.md)：固定版本的契约、源码、反例测试，以及采用、裁剪和必要差异。
 - [AI 网关资源契约设计稿](design/ai-gateway-resource-contract.md)：六种主资源、策略附着建议、内部模型路由表、引用/冲突/删除语义与完整替换计划；HTTP 子集设计已通过，用户已授权提交阶段 B 当前实现，后续 AI/MCP 契约仍需确认。
-- [AI 模型操作与数据面部署设计](design/ai-model-operations-and-deployment.md)：模型 Service 与原生 HTTP 适配已提交为 `81d3e027`；受限 UDS 转发、内容寻址的目标绑定和 Envoy 出口编译待 review，尚无生产运行入口或真实 Envoy/模型联调。
+- [AI 模型操作与数据面部署设计](design/ai-model-operations-and-deployment.md)：Envoy 出口已提交为 `350de244`；当前为 Handler → Service → 原生 HTTP Client，HTTP 装配及重构已通过 review 并获准本地提交，尚无进程启动命令、可信入口适配或真实 Envoy/模型联调。
 - [AI 凭据与运行配置设计](design/ai-credentials-and-runtime-config.md)：Secret 引用与轮转/撤销草案；凭据部分待 review，按整份版本准入与双版本发布已标为未采用的历史候选。
 - [AI 编译配置契约](design/ai-compiled-config-contract.md)：编译契约已确认，协调接线已提交为 `fcc9650b`，原生 Factory 加载器已提交为 `5bf59e98`；AI/MCP 引用说明已对齐同 Namespace 契约并通过 review，尚未装配运行组件或接入 AI 流量。
 - [架构与流程图](diagrams/ai-gateway.html)：当前架构、目标资源关系、目标架构、请求流程、配置发布流程；可离线打开。
