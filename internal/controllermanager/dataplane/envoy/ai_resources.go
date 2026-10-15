@@ -26,16 +26,21 @@ import (
 
 const aiEgressName = "ai/egress"
 
-// buildAIResources 只编译已被模型路由引用的出口，不开放公共入口或 MCP 接口。
+// buildAIResources 编译模型入口和已被模型路由引用的出口，不开放 MCP 接口。
 // 出口 Header 精确匹配静态 Cluster，不使用允许请求选择任意 Cluster 的 cluster_header。
-func buildAIResources(config aidataplane.Config, socket string) (resourceSet, error) {
+func buildAIResources(config aidataplane.Config, ingressSocket, egressSocket string) (resourceSet, error) {
 	if err := aidataplane.Validate(config); err != nil {
 		return resourceSet{}, fmt.Errorf("validate AI configuration: %w", err)
 	}
 
+	resources := resourceSet{modelRoutes: make(map[modelEntryKey]*routev3.Route)}
 	used := make(map[string]bool)
 	for _, listener := range config.Listeners {
 		for _, host := range listener.Hosts {
+			if len(host.ModelRoutes) != 0 {
+				key := modelEntryKey{routeName: routeName(listener.Port), hostName: host.Name}
+				resources.modelRoutes[key] = newAIIngressRoute(listener.Port, host.Name)
+			}
 			for _, route := range host.ModelRoutes {
 				if *route.BackendName != "" {
 					used[*route.BackendName] = true
@@ -43,10 +48,25 @@ func buildAIResources(config aidataplane.Config, socket string) (resourceSet, er
 			}
 		}
 	}
-	if len(used) == 0 {
-		return resourceSet{}, nil
+
+	if len(resources.modelRoutes) != 0 {
+		if !filepath.IsAbs(ingressSocket) || strings.ContainsRune(ingressSocket, 0) {
+			return resourceSet{}, errors.New("AI ingress socket must be an absolute path without NUL")
+		}
+		if filepath.Clean(ingressSocket) == filepath.Clean(egressSocket) {
+			return resourceSet{}, errors.New("AI ingress and egress sockets must differ")
+		}
+
+		cluster, err := newAIIngressCluster(ingressSocket)
+		if err != nil {
+			return resourceSet{}, err
+		}
+		resources.clusters = append(resources.clusters, cluster)
 	}
-	if !filepath.IsAbs(socket) || strings.ContainsRune(socket, 0) {
+	if len(used) == 0 {
+		return resources, nil
+	}
+	if !filepath.IsAbs(egressSocket) || strings.ContainsRune(egressSocket, 0) {
 		return resourceSet{}, errors.New("AI egress socket must be an absolute path without NUL")
 	}
 
@@ -54,7 +74,6 @@ func buildAIResources(config aidataplane.Config, socket string) (resourceSet, er
 	for _, network := range config.NetworkBackends {
 		networks[network.Name] = network
 	}
-	var resources resourceSet
 	host := &routev3.VirtualHost{Name: aiEgressName, Domains: []string{"*"}}
 	for _, backend := range config.Backends {
 		if !used[backend.Name] {
@@ -86,7 +105,7 @@ func buildAIResources(config aidataplane.Config, socket string) (resourceSet, er
 	if err := routes.ValidateAll(); err != nil {
 		return resourceSet{}, fmt.Errorf("validate AI egress routes: %w", err)
 	}
-	listener, err := newAIListener(socket)
+	listener, err := newAIListener(egressSocket)
 	if err != nil {
 		return resourceSet{}, err
 	}

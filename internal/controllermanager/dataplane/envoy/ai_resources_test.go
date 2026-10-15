@@ -28,13 +28,13 @@ func TestBuildAIResources(t *testing.T) {
 		t.Fatalf("ModelTargetName(golden) error = %v", err)
 	}
 
-	resources, err := buildAIResources(config, "/run/ingate/egress.sock")
+	resources, err := buildAIResources(config, "/run/ingate/ingress.sock", "/run/ingate/egress.sock")
 	if err != nil {
 		t.Fatalf("buildAIResources(golden) error = %v", err)
 	}
 
-	if len(resources.listeners) != 1 || len(resources.routes) != 1 || len(resources.clusters) != 1 || len(resources.endpoints) != 0 {
-		t.Fatalf("buildAIResources(golden) counts = %d/%d/%d/%d, want one UDS listener, route and DNS cluster without MCP", len(resources.listeners), len(resources.routes), len(resources.clusters), len(resources.endpoints))
+	if len(resources.listeners) != 1 || len(resources.routes) != 1 || len(resources.clusters) != 2 || len(resources.endpoints) != 0 {
+		t.Fatalf("buildAIResources(golden) counts = %d/%d/%d/%d, want one egress listener, route, ingress and DNS clusters without MCP", len(resources.listeners), len(resources.routes), len(resources.clusters), len(resources.endpoints))
 	}
 	pipe := resources.listeners[0].Address.GetPipe()
 	if pipe == nil || pipe.Path != "/run/ingate/egress.sock" || pipe.Mode != 0o600 {
@@ -64,7 +64,7 @@ func TestBuildAIResources(t *testing.T) {
 	if routes[1].GetDirectResponse().GetStatus() != 503 || routes[1].GetRoute() != nil {
 		t.Errorf("buildAIResources() fallback = %v, want direct 503 without another backend", routes[1])
 	}
-	cluster := resources.clusters[0]
+	cluster := resources.clusters[1]
 	if cluster.GetType() != clusterv3.Cluster_STRICT_DNS || cluster.TransportSocket != nil {
 		t.Errorf("buildAIResources() cluster = %v, want Envoy DNS without unapproved TLS", cluster)
 	}
@@ -79,20 +79,20 @@ func TestBuildAIResources(t *testing.T) {
 
 func TestBuildAIResourcesRejectsAndRevokes(t *testing.T) {
 	config := aiFixture(t)
-	if _, err := buildAIResources(config, "relative.sock"); err == nil {
+	if _, err := buildAIResources(config, "/run/ingate/ingress.sock", "relative.sock"); err == nil {
 		t.Error("buildAIResources(relative socket) error = nil, want rejection")
 	}
 	config.Listeners[0].Hosts[0].ModelRoutes[0].BackendName = new("")
 
-	resources, err := buildAIResources(config, "")
-
-	if err != nil || len(resources.listeners) != 0 || len(resources.clusters) != 0 {
-		t.Errorf("buildAIResources(no usable model) = (%+v, %v), want no outlet even though MCP still exists", resources, err)
+	resources, err := buildAIResources(config, "/run/ingate/ingress.sock", "")
+	if err != nil || len(resources.listeners) != 0 || len(resources.clusters) != 1 || len(resources.modelRoutes) != 1 {
+		t.Errorf("buildAIResources(no usable model) = (%+v, %v), want Go ingress retained without an outlet", resources, err)
 	}
+
 	config = aiFixture(t)
 	config.NetworkBackends[0].Endpoints[0].Address = "192.0.2.7"
 
-	resources, err = buildAIResources(config, "/run/ingate/egress.sock")
+	resources, err = buildAIResources(config, "/run/ingate/ingress.sock", "/run/ingate/egress.sock")
 	if err != nil {
 		t.Fatalf("buildAIResources(IP endpoint) error = %v", err)
 	}
@@ -103,7 +103,7 @@ func TestBuildAIResourcesRejectsAndRevokes(t *testing.T) {
 }
 
 func TestPublishAIAndHTTPPreserveEachOther(t *testing.T) {
-	publisher := NewPublisher("/run/ingate/egress.sock")
+	publisher := NewPublisher("/run/ingate/ingress.sock", "/run/ingate/egress.sock")
 	ai := aiFixture(t)
 	httpConfig := dataplane.Config{Backends: []dataplane.Backend{{Name: "ordinary", Endpoints: []dataplane.Endpoint{{Address: "192.0.2.1", Port: 80, Weight: 1}}}}}
 	var workers sync.WaitGroup
@@ -123,7 +123,7 @@ func TestPublishAIAndHTTPPreserveEachOther(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSnapshot(combined) error = %v", err)
 	}
-	if len(combined.GetResources(resourcev3.ClusterType)) != 2 || len(combined.GetResources(resourcev3.ListenerType)) != 1 {
+	if len(combined.GetResources(resourcev3.ClusterType)) != 3 || len(combined.GetResources(resourcev3.ListenerType)) != 1 {
 		t.Fatalf("combined snapshot lost HTTP or AI: clusters=%v listeners=%v", combined.GetResources(resourcev3.ClusterType), combined.GetResources(resourcev3.ListenerType))
 	}
 	oldRoutes := combined.GetResources(resourcev3.RouteType)[aiEgressName].(*routev3.RouteConfiguration)
@@ -176,7 +176,7 @@ func TestPublishAIAndHTTPPreserveEachOther(t *testing.T) {
 }
 
 func TestPublishRetriesWatchAfterCacheInstallation(t *testing.T) {
-	publisher := NewPublisher("/run/ingate/egress.sock")
+	publisher := NewPublisher("/run/ingate/ingress.sock", "/run/ingate/egress.sock")
 	if err := publisher.Publish(t.Context(), dataplane.Config{}); err != nil {
 		t.Fatalf("Publish(initial empty) error = %v", err)
 	}
@@ -204,7 +204,7 @@ func TestPublishRetriesWatchAfterCacheInstallation(t *testing.T) {
 		t.Fatalf("PublishAI(cancelled notification) error = %v, want context.Canceled", err)
 	}
 	installed, err := publisher.cache.GetSnapshot(sharedDataPlaneCluster)
-	if err != nil || len(installed.GetResources(resourcev3.ClusterType)) != 1 {
+	if err != nil || len(installed.GetResources(resourcev3.ClusterType)) != 2 {
 		t.Fatalf("SetSnapshot notification failure did not retain installed AI: snapshot=%v, error=%v", installed, err)
 	}
 
@@ -218,8 +218,8 @@ func TestPublishRetriesWatchAfterCacheInstallation(t *testing.T) {
 
 	select {
 	case response := <-responses:
-		if len(response.GetReturnedResources()) != 1 {
-			t.Errorf("retry Watch resources = %v, want the installed AI cluster", response.GetReturnedResources())
+		if len(response.GetReturnedResources()) != 2 {
+			t.Errorf("retry Watch resources = %v, want the installed AI ingress and target clusters", response.GetReturnedResources())
 		}
 	case <-retryCtx.Done():
 		t.Fatal("Publish(retry unchanged snapshot) did not resume the pending native Watch")

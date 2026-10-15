@@ -17,6 +17,7 @@ import (
 func TestOptionsConfigRegistersExternalTypes(t *testing.T) {
 	options := NewOptions()
 	options.AIConfigNamespace = "control-plane"
+	options.AIIngressSocket = "/run/ingate/ingress.sock"
 	options.AIEgressSocket = "/run/ingate/egress.sock"
 	options.Kubeconfig = filepath.Join(t.TempDir(), "kubeconfig")
 	kubeconfig := clientcmdapi.Config{
@@ -37,6 +38,9 @@ func TestOptionsConfigRegistersExternalTypes(t *testing.T) {
 	}
 	if config.AIEgressSocket != options.AIEgressSocket {
 		t.Errorf("Options.Config() AIEgressSocket = %q, want %q", config.AIEgressSocket, options.AIEgressSocket)
+	}
+	if config.AIIngressSocket != options.AIIngressSocket {
+		t.Errorf("Options.Config() AIIngressSocket = %q, want %q", config.AIIngressSocket, options.AIIngressSocket)
 	}
 	for _, kind := range []schema.GroupVersionKind{
 		corev1.SchemeGroupVersion.WithKind("Namespace"),
@@ -88,15 +92,17 @@ func TestOptionsConfigRejectsInvalidAIConfigNamespace(t *testing.T) {
 	}
 }
 
-func TestOptionsAIEgressSocket(t *testing.T) {
+func TestOptionsAISockets(t *testing.T) {
 	options := NewOptions()
 	flags := pflag.NewFlagSet(componentName, pflag.ContinueOnError)
 	options.AddFlags(flags)
 
-	err := flags.Parse([]string{"--ai-egress-socket=/run/ingate/egress.sock"})
-
+	err := flags.Parse([]string{"--ai-ingress-socket=/run/ingate/ingress.sock", "--ai-egress-socket=/run/ingate/egress.sock"})
 	if err != nil || options.AIEgressSocket != "/run/ingate/egress.sock" {
 		t.Errorf("Parse(AI socket) = (%q, %v), want configured absolute path", options.AIEgressSocket, err)
+	}
+	if options.AIIngressSocket != "/run/ingate/ingress.sock" {
+		t.Errorf("Parse(AI socket) ingress = %q, want configured absolute path", options.AIIngressSocket)
 	}
 	for _, socket := range []string{"relative.sock", "/run/invalid\x00.sock"} {
 		options.AIEgressSocket = socket
@@ -106,5 +112,28 @@ func TestOptionsAIEgressSocket(t *testing.T) {
 		if err == nil || config != nil {
 			t.Errorf("Options.Config(socket %q) = (%v, %v), want nil and validation error before API connection", socket, config, err)
 		}
+	}
+}
+
+func TestValidateAISockets(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		ingress string
+		egress  string
+		wantErr bool
+	}{
+		{name: "no models"},
+		{name: "separate paths", ingress: "/run/ingate/in.sock", egress: "/run/ingate/out.sock"},
+		{name: "relative ingress", ingress: "in.sock", wantErr: true},
+		{name: "NUL ingress", ingress: "/run/invalid\x00.sock", wantErr: true},
+		{name: "same path", ingress: "/run/ingate/ai.sock", egress: "/run/ingate/./ai.sock", wantErr: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateAISockets(tt.ingress, tt.egress)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateAISockets(%q, %q) error = %v, want error %t", tt.ingress, tt.egress, err, tt.wantErr)
+			}
+		})
 	}
 }

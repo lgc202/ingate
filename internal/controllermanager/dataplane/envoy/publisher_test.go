@@ -11,7 +11,7 @@ import (
 )
 
 func TestPublishReplacesCompleteConfiguration(t *testing.T) {
-	publisher := NewPublisher("")
+	publisher := NewPublisher("", "")
 	config := dataplane.Config{
 		Listeners: []dataplane.Listener{{
 			Port: 8080,
@@ -105,7 +105,7 @@ func TestPublishReplacesCompleteConfiguration(t *testing.T) {
 }
 
 func TestPublishDirectResponseAndRecovery(t *testing.T) {
-	publisher := NewPublisher("")
+	publisher := NewPublisher("", "")
 	config := dataplane.Config{
 		Listeners: []dataplane.Listener{{
 			Port: 8080,

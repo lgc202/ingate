@@ -32,6 +32,7 @@ type Options struct {
 	ConfigFile             string
 	XDSBindAddress         string
 	AIConfigNamespace      string
+	AIIngressSocket        string
 	AIEgressSocket         string
 	MetricsBindAddress     string
 	HealthProbeBindAddress string
@@ -53,8 +54,12 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&o.ConfigFile, "config", o.ConfigFile, "Path to the controller manager configuration file.")
 	fs.StringVar(&o.XDSBindAddress, "xds-bind-address", o.XDSBindAddress, "Address for the xDS ADS server.")
 	fs.StringVar(
+		&o.AIIngressSocket, "ai-ingress-socket", o.AIIngressSocket,
+		"Absolute Envoy-local socket path of the Go AI Proxy; required when model routes exist.",
+	)
+	fs.StringVar(
 		&o.AIEgressSocket, "ai-egress-socket", o.AIEgressSocket,
-		"Absolute Envoy-local socket path for model egress; required when model routes exist.",
+		"Absolute Envoy-local socket path for model egress; required when usable model targets exist.",
 	)
 	fs.StringVar(
 		&o.AIConfigNamespace,
@@ -74,7 +79,7 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 
 // Config 根据启动选项创建 Manager 配置。
 func (o *Options) Config() (*Config, error) {
-	if err := validateAIEgressSocket(o.AIEgressSocket); err != nil {
+	if err := validateAISockets(o.AIIngressSocket, o.AIEgressSocket); err != nil {
 		return nil, err
 	}
 	if messages := validation.IsDNS1123Label(o.AIConfigNamespace); len(messages) != 0 {
@@ -99,6 +104,7 @@ func (o *Options) Config() (*Config, error) {
 		RESTConfig:        restConfig,
 		XDSBindAddress:    o.XDSBindAddress,
 		AIConfigNamespace: o.AIConfigNamespace,
+		AIIngressSocket:   o.AIIngressSocket,
 		AIEgressSocket:    o.AIEgressSocket,
 		ManagerOptions: ctrl.Options{
 			Scheme:                 scheme,
@@ -108,11 +114,17 @@ func (o *Options) Config() (*Config, error) {
 	}, nil
 }
 
-// validateAIEgressSocket 允许未配置出口；一旦存在模型目标，发布器仍会拒绝空地址。
+// validateAISockets 允许尚未配置模型链路；发布器在存在模型路由时检查必需地址。
 // 此路径指向 Envoy 主机，不在 Controller 主机检查文件存在或创建目录。
-func validateAIEgressSocket(socket string) error {
-	if socket != "" && (!filepath.IsAbs(socket) || strings.ContainsRune(socket, 0)) {
+func validateAISockets(ingress, egress string) error {
+	if ingress != "" && (!filepath.IsAbs(ingress) || strings.ContainsRune(ingress, 0)) {
+		return errors.New("AI ingress socket must be an absolute path without NUL")
+	}
+	if egress != "" && (!filepath.IsAbs(egress) || strings.ContainsRune(egress, 0)) {
 		return errors.New("AI egress socket must be an absolute path without NUL")
+	}
+	if ingress != "" && filepath.Clean(ingress) == filepath.Clean(egress) {
+		return errors.New("AI ingress and egress sockets must differ")
 	}
 
 	return nil

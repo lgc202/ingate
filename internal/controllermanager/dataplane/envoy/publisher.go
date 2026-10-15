@@ -23,8 +23,9 @@ const sharedDataPlaneCluster = "ingate-shared-data-plane"
 
 // Publisher 保存共享 Envoy 数据面的完整 xDS 配置。
 type Publisher struct {
-	cache          cachev3.SnapshotCache
-	aiEgressSocket string
+	cache           cachev3.SnapshotCache
+	aiEgressSocket  string
+	aiIngressSocket string
 	// mu 串行化两类期望配置的合并与发布；保存最近构建有效的不可变期望资源。
 	// SetSnapshot 的 Watch 通知错误不代表缓存未更新，不能据此回滚该状态。
 	mu            sync.Mutex
@@ -35,14 +36,15 @@ type Publisher struct {
 type clusterHash struct{}
 
 // NewPublisher 创建按 Envoy node.cluster 分组的 ADS Snapshot Cache。
-func NewPublisher(aiEgressSocket string) *Publisher {
+func NewPublisher(aiIngressSocket, aiEgressSocket string) *Publisher {
 	return &Publisher{
-		cache:          cachev3.NewSnapshotCache(true, clusterHash{}, nil),
-		aiEgressSocket: aiEgressSocket,
+		cache:           cachev3.NewSnapshotCache(true, clusterHash{}, nil),
+		aiEgressSocket:  aiEgressSocket,
+		aiIngressSocket: aiIngressSocket,
 	}
 }
 
-// Publish 替换 HTTP 期望配置，并与最近构建有效的 AI 出口合并为完整 xDS 视图。
+// Publish 替换 HTTP 期望配置，并与最近构建有效的 AI 入口/出口合并为完整 xDS 视图。
 // 返回成功表示 Cache 已更新，不表示 Envoy 已 ACK 或开始接流量。
 func (p *Publisher) Publish(ctx context.Context, config dataplane.Config) error {
 	resources, err := buildResources(config)
@@ -56,11 +58,11 @@ func (p *Publisher) Publish(ctx context.Context, config dataplane.Config) error 
 	return p.publish(ctx, resources, p.aiResources)
 }
 
-// PublishAI 替换模型出口，保留最近成功的 HTTP 配置；合法空配置撤销 AI 出口。
+// PublishAI 替换模型入口和出口，保留最近成功的 HTTP 配置；合法空配置撤销 AI 资源。
 // 构建失败保留已有结果；缓存安装后的通知错误保留新期望，交给协调器重试。
 // 与 Publish 可并发调用，不保存调用方的可变集合，不回滚可能已经发出的 xDS。
 func (p *Publisher) PublishAI(ctx context.Context, config aidataplane.Config) error {
-	resources, err := buildAIResources(config, p.aiEgressSocket)
+	resources, err := buildAIResources(config, p.aiIngressSocket, p.aiEgressSocket)
 	if err != nil {
 		return fmt.Errorf("build AI xDS resources: %w", err)
 	}
@@ -79,7 +81,7 @@ func (clusterHash) ID(node *corev3.Node) string {
 func (p *Publisher) publish(ctx context.Context, httpResources, aiResources resourceSet) error {
 	resources := resourceSet{
 		listeners: append(slices.Clone(httpResources.listeners), aiResources.listeners...),
-		routes:    append(slices.Clone(httpResources.routes), aiResources.routes...),
+		routes:    append(mergeAIIngress(httpResources.routes, aiResources.modelRoutes), aiResources.routes...),
 		clusters:  append(slices.Clone(httpResources.clusters), aiResources.clusters...),
 		endpoints: append(slices.Clone(httpResources.endpoints), aiResources.endpoints...),
 	}
@@ -100,6 +102,7 @@ func (p *Publisher) publish(ctx context.Context, httpResources, aiResources reso
 	if err := p.cache.SetSnapshot(ctx, sharedDataPlaneCluster, desired); err != nil {
 		return fmt.Errorf("publish xDS snapshot: %w", err)
 	}
+
 	return nil
 }
 

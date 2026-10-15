@@ -318,7 +318,7 @@ backendRefs:
 | 名称、字段格式、枚举、端口、引用列表重复、已命名规则名重复 | API validation；Strategy 调用；Admin proto 镜像约束须有一致性测试 |
 | Create 技术名称冲突、Update resourceVersion 冲突 | 权威 API Server 存储，不用预查询保证原子性 |
 | Gateway/Listener/Backend/AIBackend 引用存在性 | Controller；允许先创建路由后补引用 |
-| Listener 冲突、跨种类入口归属、跨 ModelRoute 别名冲突 | 同一个共享数据面 Controller |
+| Listener 冲突、跨 ModelRoute 别名优先级 | 同一个共享数据面 Controller；模型 POST 与普通 HTTP 的顺序见下文 |
 | codec 转换对、运行时能力和凭据访问是否满足 | Controller/运行实例分别报告自己可确认的范围 |
 | 客户端请求是否合法、命中哪个已编译模型规则 | Go 协议模块；不查询原始领域资源重新裁决 |
 
@@ -332,7 +332,9 @@ backendRefs:
 
 普通 HTTP 按 Gateway API 已实现匹配条件确定优先级：Exact 优先，PathPrefix 越长越优先；跨同类路由平局用创建时间、Namespace、name；同一路由最终用规则列表顺序，不按可选规则名排序。具有相同 match 的 HTTPRoute 不因重叠而整体删除，较低优先级规则保留为候选，优先规则删除后可重新选择。原 Ingate 将完全重复路径标为冲突；本次设计 review 已确认改变这一行为。
 
-HTTPRoute、MCPRoute 和模型入口之间完全相同的网络匹配，是上游未为本项目统一运行方式规定的跨种类冲突。旧稿提出的「创建时间、Kind、名称」裁决仍未批准，本次不把它写入字段或资源接纳逻辑；接通数据面前须单独定稿。有模型条件的规则之间按创建时间、名称、声明顺序选择，后端引用有效性不改变匹配优先级，失效不能使同名模型自动改由其他账号。
+2026-10-15 接通模型入口时，按简单路由顺序处理重叠，不增加跨种类冲突检测或发布阻断：同一 Listener/Host 配置了 ModelRoute 后，`POST /v1/chat/completions` 先进入 Go，包括普通 HTTPRoute 也精确匹配该路径的情况；其他方法或路径继续按普通 HTTPRoute 匹配。模型未命中或目标失效在 Go 内拒绝，不回退到普通 HTTP。删除该入口全部 ModelRoute 后，才恢复纯 HTTP 路由表。MCP 运行入口尚未实现，不在本步规定其优先级。此顺序是统一 Go Proxy 的本项目选择，不声称是官方模型 ExtProc 的实现方式。
+
+有模型条件的规则之间按创建时间、名称、声明顺序选择，后端引用有效性不改变匹配优先级，失效不能使同名模型自动改由其他账号。
 
 普通 HTTP 的 Exact 优先、较长 PathPrefix 优先保持不变。例如 HTTPRoute 的 `/` 前缀可以和模型的精确 `/v1/chat/completions` 共存，后者优先；它们不是完全相同的网络匹配。
 

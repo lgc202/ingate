@@ -1,6 +1,6 @@
 # AI 模型操作与数据面部署设计
 
-- 状态：2026-10-15 已确认 Chat Completions、同机 UDS、最终一致性及受限出口；原生 Client 重构与 HTTP 装配已通过 review 并获准本地提交，入口绑定及其余运行契约仍待确认
+- 状态：2026-10-15 原生 Client 重构与 HTTP 装配已提交为 `921484b3`；模型公共入口编译与 Unix Header 适配已通过用户 review 并获准本地提交，尚无生产进程入口或真实 Envoy 联调
 - 日期：2026-10-11
 - 资源字段对齐：2026-10-12；首步操作与本地通信确认：2026-10-15
 - Ingate 源码基线：`b247a4c6`，分支 `codex/rebuild-from-zero`
@@ -204,6 +204,29 @@ Server 接收已有的 Unix Listener，显式使用 Unix endpoint，关闭 Krato
 
 请求链重构后已通过三轮 AI Proxy race 检查；随后按用户确认重命名为 modelproxy，再次通过 `gofmt -l cmd internal pkg`、`git diff --check`、全部十二个未跟踪 Go 文件的空白检查、`golangci-lint run ./...`（0 issues）、`go vet ./...`、`go test ./... -count=1`、`go build ./...` 及一轮 AI Proxy race 检查。已独立复查声明顺序、语义空行及重命名引用；测试保留成功和拒绝输入，不通过兼容别名保留旧包。初轮沙箱禁止绑定 Unix socket，获准后重新运行通过，不将该环境拒绝算作功能失败或跳过验证。GoCanon MCP 仍不可用，沿用本连续任务已完整读取的本地规则来源及规范；未宣称取得新 MCP 快照。没有修改 API 类型、存储、生成源或依赖，未执行 API integration 或重新生成；真实 Envoy/API Server/提供商及进程生命周期仍未验证。用户已完成本阶段 review 并授权本地提交；提交前再次通过格式、空白、lint、Vet、全量测试和构建，不推送或创建 PR。
 
+## Envoy 模型入口与 Go 入口适配
+
+用户确认继续接通客户端到 Go 的链路，并明确不增加过度的冲突检测。此步复用已有 ModelRoute、Listener 和 Host：Envoy 在绑定的公共 VirtualHost 前插入唯一的 `POST /v1/chat/completions` 精确路由，转到 Go Unix socket。相同路径的普通 HTTPRoute 也保留在后面；其他方法或路径仍按原顺序匹配。不新增前端字段、API、依赖或协议操作，不创建冲突控制器，也不因这种重叠阻断整份配置。
+
+```text
+客户端 POST /v1/chat/completions
+  → Envoy 已匹配的 Listener / Host
+  → Go 入口 UDS：Server 解析入口 → Handler → modelproxy.Service
+  → Envoy 出口 UDS：按已选目标转发 → 模型后端
+```
+
+入口 Header 定义在 [aidataplane/entry.go](../../internal/pkg/aidataplane/entry.go)：`x-ingate-ai-listener-port` 是公共 Listener 端口，`x-ingate-ai-host` 是包含 Namespace/Gateway/Listener 的完整编译名称，不是客户端域名。Envoy 使用原生 `OVERWRITE_IF_EXISTS_OR_ADD` 覆盖客户端的同名值，并删除客户端目标 Header。Go 的路由 Filter 在读取正文前检查这两个值的单值、非空和端口范围，转成已有的请求 Context；不存在的入口仍由原配置查询拒绝。Service 不重新捕获配置，也不将入口 Header 传给出口。
+
+信任来自受保护的 Unix socket 与目录访问权限，不来自 Header 格式。Server 仍只接收调用方创建的 Unix Listener；获得该 socket 访问权的进程能够声明入口。本步不增加用户认证或跨主机身份方案，不认为同机就天然安全。
+
+Controller Manager 新增 `--ai-ingress-socket`，指向 Envoy 所在主机上由 Go 监听的绝对路径；与已有 `--ai-egress-socket` 是两个不同文件，无默认值，不由 Controller 创建。模型入口存在时必须配置前者；有效模型目标存在时还须配置后者。仅有 MCPRoute 不生成模型入口。目标失效但 ModelRoute 仍在时保留 Go 入口，由现有逻辑拒绝，不退回 HTTP。
+
+HTTP 视图继续拥有公共 Listener/VirtualHost，AI 视图只为相同端口、相同 Host 合入模型路由并提供入口 Cluster；不会因单独收到 AI 视图开放额外公共端口。合并复制 HTTP proto，不原地修改旧 Snapshot；AI 撤销时去掉模型入口，保留普通路由。两路发布仍是最终一致，更新传播期间可能短暂没有模型入口或发生旧新视图组合，不增加激活屏障，不宣称跨 xDS 与 ConfigMap 原子切换。
+
+新增测试核对精确 POST、路由顺序、端口/Host 隔离、覆盖 Header 的原生 Envoy 配置、独立发布顺序与撤销、旧 Snapshot 不变，以及非法/重复 Header 不读取正文。装配测试不再注入可信 Context，而是走实际 Server Header 适配；SSE 测试两端均使用真实本地 Unix HTTP 连接，远端仍是测试对端。未启动真实 Envoy、API Server 或模型提供商，未验证 ACK/NACK、生产权限及进程生命周期；最终公开错误 envelope、TLS 和凭据仍不在本步范围。用户已完成本切片 review 并授权本地提交；提交前重跑格式、空白、lint、Vet、全量测试和构建通过，不推送或创建 PR。
+
+本步 GoCanon MCP 仍不可用，沿用连续任务已完整读取的本地开发入口，并重新核对 GO-FUNC-012/013/014。按 Go 审查技能逐个检查 17 个修改文件和 5 个未跟踪文件，独立复查声明顺序、语义空行与反例断言；未用扫描器代替人工判断。`gofmt -l cmd internal pkg`、已跟踪/未跟踪空白检查均无诊断，lint 为 0 issues，Vet、全量测试、构建及 AI Proxy/Envoy 适配包 race 测试通过。未修改 API 类型、存储或依赖，未重新生成或执行 API integration；上述检查不替代真实组件验收。
+
 ## 理由与备选方案
 
 只做 Chat 创建接口能缩小单次实现量，但它不代表官方完整的模型入口设计。建议首批纳入两个创建操作，复用同协议模型路由和 HTTP 传输，分别保留响应协议；不以实现顺序把资源模型锁定为 Chat。实际工作可以分两个小改动，每次 review 不变。
@@ -214,9 +237,9 @@ Server 接收已有的 Unix Listener，显式使用 Unix endpoint，关闭 Krato
 
 ## 兼容性与实施边界
 
-项目无旧 AI 接口兼容压力，也尚无可运行的 AI 转发进程。本稿不改变已提交的 Gateway、HTTPRoute、Backend、Admin Session 和 MySQL 投影行为；新增模型请求不能抢占已有 HTTP 入口或扩大操作暴露范围。跨种类冲突、无效引用与错误动作继续按资源契约单独 review。
+项目无旧 AI 接口兼容压力，也尚无可运行的 AI 转发进程。本稿不改变 Gateway、HTTPRoute、Backend、Admin Session 和 MySQL 的管理契约；已配置 ModelRoute 的入口按上文顺序优先处理模型 POST，不扩大到其他操作。无效引用继续按现有规则拒绝。
 
-资源、配置编译、存储与 Loader 已分步完成；2026-10-15 起按确认的 Chat Completions 范围继续 AI Proxy。只读运行配置、请求准备、HTTP Handler、受限 UDS 转发和模型出口编译已提交；原生 Client 重构及 HTTP 对象装配已通过用户 review，并获准本地提交，进程入口与 Envoy 可信入口尚未实现。最终一致性取舍已确认，凭据来源与权限、后端 TLS/入站安全仍在相应实现前确认。2026-10-11 用户要求凭据参考官方，具体建议与代价见 [AI 凭据与运行配置设计](ai-credentials-and-runtime-config.md)，凭据部分仍待 review。协议切片还须确定并发流界限、超时、退出排空、本地错误格式和提供商状态引用行为；未定时不接真实密钥。
+资源、配置编译、存储与 Loader 已分步完成；2026-10-15 起按确认的 Chat Completions 范围继续 AI Proxy。原生 Client 重构及 HTTP 对象装配已提交为 `921484b3`，模型公共入口与 Unix Header 适配已实现待 review，生产进程入口仍未实现。最终一致性取舍已确认，凭据来源与权限、后端 TLS/客户端认证仍在相应实现前确认。2026-10-11 用户要求凭据参考官方，具体建议与代价见 [AI 凭据与运行配置设计](ai-credentials-and-runtime-config.md)，凭据部分仍待 review。协议切片还须确定并发流界限、超时、退出排空、本地错误格式和提供商状态引用行为；未定时不接真实密钥。
 
 日常代码审查、单元与静态检查继续执行；真实 Envoy、模型/MCP、实库、ACK/NACK 和故障恢复留到用户指定的统一测试阶段。相关能力在得到证据前标为未验证，不能因延期就宣称完成组件验收。
 

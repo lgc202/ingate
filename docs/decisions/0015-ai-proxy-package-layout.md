@@ -17,7 +17,7 @@ AI Proxy 的配置消费已经提交，请求体解析与模型覆盖仍在本�
 internal/
 ├── aiproxy/
 │   ├── app.go                # 显式装配原生 Client、Service、Handler 和 HTTP Server
-│   ├── server/               # 原生 HTTP 构造、路由注册与 ErrorEncoder 选择
+│   ├── server/               # 原生 HTTP 构造、Unix 入口 Header 适配、路由与 ErrorEncoder
 │   ├── handler/              # 可信入口读取、协议错误和响应流写回
 │   ├── service/
 │   │   └── modelproxy/       # 解析、选路、适配及 Envoy HTTP 调用
@@ -63,6 +63,8 @@ apischema/openai 只定义当前需要提取的 model 字段，不宣称覆盖�
 此结构变更不增加接口端点、厂商能力、依赖或转换矩阵，不更改领域资源与编译 JSON 契约。用户确认布局不等于批准所有未来包或完整服务实现；本次请求链重构与装配已通过代码 review，仅授权本地提交，不推送或创建 PR。
 
 ## 验证边界
+
+`921484b3` 已提交原生 Client 与 HTTP 装配。后续模型公共入口切片在 server 增加路由 Filter，将受保护 Unix 入口的内部 Header 转为已有 Context，不把这项传输职责放进 Service 或另建能力包。该切片已通过用户 review 并获准本地提交；[实现记录](../design/ai-model-operations-and-deployment.md#envoy-模型入口与-go-入口适配)说明通信契约和真实组件未验证的边界。上文缺少入口适配的描述属于此前装配切片的范围，不代表这次新增代码的状态。
 
 以下为原包迁移的历史检查记录，不代替当前请求链重构的检查。当前变更及其验证范围见[实现记录](../design/ai-model-operations-and-deployment.md#http-对象装配与路由注册)。
 

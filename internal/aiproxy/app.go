@@ -19,7 +19,7 @@ import (
 // 并在停止接收、排空 Server 后调用返回的清理函数释放出口空闲连接。
 // 构造不开始接受请求或启动 Watch；失败不关闭调用方的 Listener 或 Loader。
 // Listener 与 Loader 由调用方的成功构造链保证有效。
-// 可信入口适配尚未接入，没有进程内入口信息的请求仍由 Handler 拒绝。
+// Server 从 Envoy 覆盖的内部 Header 恢复入口；入口信任依赖调用方保护 Unix socket。
 func NewHTTPServer(
 	listener *net.UnixListener,
 	loader *aiconfig.Loader,

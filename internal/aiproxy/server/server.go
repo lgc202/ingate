@@ -1,4 +1,4 @@
-// Package server 注册 AI Proxy 的原生 HTTP 路由及传输错误处理，不构造业务依赖。
+// Package server 注册 AI Proxy 的原生 HTTP 路由、Unix 入口适配及错误处理，不构造业务依赖。
 package server
 
 import (
@@ -19,7 +19,7 @@ type Handlers struct {
 // Listener 的创建、权限及失败清理由调用方负责；开始服务后由原生 Server.Stop 关闭。
 func New(listener *net.UnixListener, handlers Handlers) *kratoshttp.Server {
 	httpServer := newHTTP(listener)
-	httpServer.Route("/").POST("/v1/chat/completions", handlers.ModelProxy.ChatCompletion)
+	httpServer.Route("/").POST("/v1/chat/completions", handlers.ModelProxy.ChatCompletion, modelEntry)
 
 	return httpServer
 }

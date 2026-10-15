@@ -23,8 +23,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"github.com/lgc202/ingate/internal/aiproxy/handler"
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/aiconfig"
+	"github.com/lgc202/ingate/internal/aiproxy/pkg/envoyclient"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
@@ -53,6 +53,9 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 		if r.Header.Get(aidataplane.TargetHeader) != target || r.URL.Path != "/v1/chat/completions" {
 			t.Errorf("model pipeline target/path = %q/%q, want selected target and Chat Completions", r.Header.Get(aidataplane.TargetHeader), r.URL.Path)
 		}
+		if r.Header.Get(aidataplane.ListenerPortHeader) != "" || r.Header.Get(aidataplane.HostNameHeader) != "" {
+			t.Errorf("model pipeline forwarded entry headers to egress: %v", r.Header)
+		}
 
 		w.WriteHeader(http.StatusAccepted)
 		if _, err := io.WriteString(w, `{"accepted":true}`); err != nil {
@@ -72,8 +75,8 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 		}
 		t.Cleanup(closeIdle)
 		request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"coding","messages":[]}`))
-		// 仅在测试中注入进程内入口，不把它当成 Envoy 入口身份已经实现。
-		request = request.WithContext(handler.WithModelEntry(t.Context(), 8080, "gateway/team-a/public/listener/api"))
+		request.Header.Set(aidataplane.ListenerPortHeader, "8080")
+		request.Header.Set(aidataplane.HostNameHeader, "gateway/team-a/public/listener/api")
 		response := httptest.NewRecorder()
 
 		httpServer.ServeHTTP(response, request)
@@ -91,10 +94,12 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 			path       string
 			body       string
 			trusted    bool
+			hostName   string
 			wantStatus int
 		}{
-			{name: "spoofed entry", path: "/v1/chat/completions", body: `{"model":"coding"}`, wantStatus: http.StatusServiceUnavailable},
+			{name: "missing entry", path: "/v1/chat/completions", body: `{"model":"coding"}`, wantStatus: http.StatusBadRequest},
 			{name: "unknown model", path: "/v1/chat/completions", body: `{"model":"other"}`, trusted: true, wantStatus: http.StatusNotFound},
+			{name: "other namespace", path: "/v1/chat/completions", body: `{"model":"coding"}`, trusted: true, hostName: "gateway/team-b/public/listener/api", wantStatus: http.StatusNotFound},
 			{name: "oversized body", path: "/v1/chat/completions", body: strings.Repeat("x", 1025), trusted: true, wantStatus: http.StatusRequestEntityTooLarge},
 			{name: "unimplemented operation", path: "/v1/responses", body: `{}`, trusted: true, wantStatus: http.StatusNotFound},
 		} {
@@ -102,7 +107,11 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 			request.Header.Set("x-ai-eg-model", "coding")
 			request.Header.Set(aidataplane.TargetHeader, "spoofed")
 			if tt.trusted {
-				request = request.WithContext(handler.WithModelEntry(t.Context(), 8080, "gateway/team-a/public/listener/api"))
+				request.Header.Set(aidataplane.ListenerPortHeader, "8080")
+				request.Header.Set(aidataplane.HostNameHeader, "gateway/team-a/public/listener/api")
+			}
+			if tt.hostName != "" {
+				request.Header.Set(aidataplane.HostNameHeader, tt.hostName)
 			}
 			response := httptest.NewRecorder()
 
@@ -179,17 +188,23 @@ func TestModelPipelineStreamsBeforeCompletionAndCancelsUpstream(t *testing.T) {
 			t.Fatalf("NewHTTPServer(stream) error = %v", err)
 		}
 		t.Cleanup(closeIdle)
-		// 仅在测试入口注入可信 Context；生产仍没有入口身份适配。
-		entry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpServer.ServeHTTP(w, r.WithContext(handler.WithModelEntry(r.Context(), 8080, "gateway/team-a/public/listener/api")))
-		}))
+		entry := &httptest.Server{Listener: ingress, Config: &http.Server{Handler: httpServer}}
+		entry.Start()
 		t.Cleanup(entry.Close)
-		request, err := http.NewRequestWithContext(ctx, http.MethodPost, entry.URL+"/v1/chat/completions", strings.NewReader(`{"model":"coding","stream":true}`))
+		client, err := envoyclient.New(ingress.Addr().String())
+		if err != nil {
+			t.Fatalf("New(Unix ingress client) error = %v", err)
+		}
+		t.Cleanup(client.CloseIdleConnections)
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://ingate-ai-ingress/v1/chat/completions", strings.NewReader(`{"model":"coding","stream":true}`))
 		if err != nil {
 			t.Fatalf("NewRequestWithContext(stream) error = %v", err)
 		}
 
-		response, err := entry.Client().Do(request)
+		request.Header.Set(aidataplane.ListenerPortHeader, "8080")
+		request.Header.Set(aidataplane.HostNameHeader, "gateway/team-a/public/listener/api")
+
+		response, err := client.Do(request)
 		if err != nil {
 			t.Fatalf("Do(stream) error = %v", err)
 		}
