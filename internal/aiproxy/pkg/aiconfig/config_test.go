@@ -76,6 +76,7 @@ func TestResolveModel(t *testing.T) {
 		Schema:             aidataplane.APISchema{Name: aidataplane.APISchemaOpenAI, Prefix: "/v1"},
 		ModelNameOverride:  "code-v2",
 		NetworkBackendName: "team-a/model-network",
+		TargetName:         "ai/target/96914ad662f712bc8376b8a6ec1aee8de3bb4f51dcd55f0670220c8fbe183d07",
 	}
 
 	got, err := config.ResolveModel(8080, "gateway/team-a/public/listener/api", "coding")
@@ -96,6 +97,29 @@ func TestResolveModel(t *testing.T) {
 
 	if diff := cmp.Diff(want, again); diff != "" {
 		t.Errorf("ResolveModel() returned mutable shared state (-want +got):\n%s", diff)
+	}
+}
+
+func TestResolveModelIgnoresUnrelatedRevisionChanges(t *testing.T) {
+	compiled := configFixture(t)
+	previous := parseConfig(t, compiled)
+	before, err := previous.ResolveModel(8080, "gateway/team-a/public/listener/api", "coding")
+	if err != nil {
+		t.Fatalf("ResolveModel(original target) error = %v", err)
+	}
+	other := compiled.Backends[0]
+	other.Name += "/other"
+	other.ModelNameOverride = new("unrelated")
+	compiled.Backends = append(compiled.Backends, other)
+	current := parseConfig(t, compiled)
+
+	after, err := current.ResolveModel(8080, "gateway/team-a/public/listener/api", "coding")
+
+	if err != nil || before != after {
+		t.Errorf("ResolveModel(unrelated update) = (%+v, %v), want unchanged target %+v", after, err, before)
+	}
+	if current.Revision() == previous.Revision() {
+		t.Error("test did not change the whole configuration revision, want different revisions with the same selected target")
 	}
 }
 
@@ -153,6 +177,7 @@ func TestResolveModelPreservesOrderAndBindings(t *testing.T) {
 		Schema:             second.Schema,
 		ModelNameOverride:  "",
 		NetworkBackendName: second.NetworkBackendName,
+		TargetName:         "ai/target/99b6f33a7314c5524fd5299068d12fa45a4155aa6fe40b780b415d1586755dee",
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("ResolveModel(catch-all) mismatch (-want +got):\n%s", diff)

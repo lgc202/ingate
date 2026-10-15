@@ -36,7 +36,7 @@ func (w callbackLogWriter) Write(data []byte) (int, error) {
 }
 
 func TestServerLifecycle(t *testing.T) {
-	publisher := NewPublisher()
+	publisher := NewPublisher("")
 	server := NewServer("127.0.0.1:0", publisher, logr.Discard())
 	if !server.NeedLeaderElection() {
 		t.Error("NeedLeaderElection() = false, want true")
@@ -91,14 +91,14 @@ func TestServerStartReportsBindError(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = listener.Close() })
 
-	server := NewServer(listener.Addr().String(), NewPublisher(), logr.Discard())
+	server := NewServer(listener.Addr().String(), NewPublisher(""), logr.Discard())
 	if err := server.Start(context.Background()); err == nil {
 		t.Error("Start(occupied address) error = nil, want bind error")
 	}
 }
 
 func TestADSStreamsPublishedResources(t *testing.T) {
-	publisher := NewPublisher()
+	publisher := NewPublisher("")
 	config := dataplane.Config{
 		Listeners: []dataplane.Listener{{
 			Port: 8080,

@@ -49,6 +49,8 @@ go run ./cmd/ingate-controller-manager \
 
 即使尚无模型或 MCP 资源，也必须指定 `--ai-config-namespace`。首次完整协调会创建携带完整空 AI 配置的 ConfigMap，用于建立明确的期望状态；安装清单不提前创建空 ConfigMap，也不伪造管理标签或 payload。
 
+模型出口切片另提供 `--ai-egress-socket /run/ingate/ai-egress.sock`。它指定下发给 Envoy 的本地出口 UDS 路径，不是 Controller 自己连接的路径，也不是公开入口。无模型目标时可以省略；存在有效模型目标却未配置时，AI xDS 发布会报错并重试，HTTP 与 ConfigMap 输出仍独立尝试。目录权限、Go/Envoy 身份与后续 Go 启动配置必须按同一数据面部署对齐。本参数只配置出口，不能单独启动尚未装配的 AI Proxy；实现与未验证范围见[模型操作与部署设计](design/ai-model-operations-and-deployment.md#受限模型出口目标绑定与两路发布)。
+
 启动后的对象检查使用同一个 kubeconfig：
 
 ```sh

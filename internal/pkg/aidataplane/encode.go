@@ -11,7 +11,7 @@ import (
 // 调用方须先完成领域解析、默认值和排序，所有数组必须非 nil。
 // 该函数不写入 ConfigMap，也不验证传入的旧 Revision 或解码任意 JSON。
 func Encode(c Config) ([]byte, error) {
-	if err := validate(c); err != nil {
+	if err := Validate(c); err != nil {
 		return nil, fmt.Errorf("validate AI config: %w", err)
 	}
 

@@ -31,11 +31,15 @@ type Config struct {
 	RESTConfig        *rest.Config
 	XDSBindAddress    string
 	AIConfigNamespace string
+	AIEgressSocket    string
 	ManagerOptions    ctrl.Options
 }
 
 // New 创建并配置 Manager，但不启动 Controller 或网络监听。
 func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
+	if err := validateAIEgressSocket(c.AIEgressSocket); err != nil {
+		return nil, err
+	}
 	if messages := validation.IsDNS1123Label(c.AIConfigNamespace); len(messages) != 0 {
 		return nil, fmt.Errorf("AI configuration namespace %q must be a valid DNS label", c.AIConfigNamespace)
 	}
@@ -49,7 +53,7 @@ func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
 		return nil, fmt.Errorf("add health check: %w", err)
 	}
 
-	publisher := envoy.NewPublisher()
+	publisher := envoy.NewPublisher(c.AIEgressSocket)
 	xdsServer := envoy.NewServer(c.XDSBindAddress, publisher, manager.GetLogger().WithName("xds"))
 	if err := manager.Add(xdsServer); err != nil {
 		return nil, fmt.Errorf("add xDS server: %w", err)

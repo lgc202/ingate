@@ -24,10 +24,10 @@ type aiCompilation struct {
 	networkBackends  map[string]aidataplane.NetworkBackend
 }
 
-// compileAI 将完整领域输入编译为可保存的 JSON，不读取 API 或修改输入。
+// compileAI 将完整领域输入编译为共享配置，不读取 API 或修改输入。
 // 调用方必须完成全部输入读取；空输入表示撤销，不能用它代替读取失败。
 // 此处不裁决跨 Kind 的网络入口、不发布 xDS，也不写入 ConfigMap。
-func compileAI(snapshot resources) ([]byte, error) {
+func compileAI(snapshot resources) (aidataplane.Config, error) {
 	gateways := make([]gatewayv1alpha1.Gateway, 0, len(snapshot.gateways.Items))
 	for _, gateway := range snapshot.gateways.Items {
 		if gateway.DeletionTimestamp.IsZero() {
@@ -61,18 +61,18 @@ func compileAI(snapshot resources) ([]byte, error) {
 	}
 
 	if err := c.compileModelRoutes(snapshot.modelRoutes.Items); err != nil {
-		return nil, err
+		return aidataplane.Config{}, err
 	}
 	if err := c.compileMCPRoutes(snapshot.mcpRoutes.Items); err != nil {
-		return nil, err
+		return aidataplane.Config{}, err
 	}
 
-	data, err := aidataplane.Encode(c.buildConfig())
-	if err != nil {
-		return nil, fmt.Errorf("encode compiled AI configuration: %w", err)
+	config := c.buildConfig()
+	if err := aidataplane.Validate(config); err != nil {
+		return aidataplane.Config{}, fmt.Errorf("validate compiled AI configuration: %w", err)
 	}
 
-	return data, nil
+	return config, nil
 }
 
 func (c *aiCompilation) buildConfig() aidataplane.Config {

@@ -1,7 +1,10 @@
 package controllermanager
 
 import (
+	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
@@ -29,6 +32,7 @@ type Options struct {
 	ConfigFile             string
 	XDSBindAddress         string
 	AIConfigNamespace      string
+	AIEgressSocket         string
 	MetricsBindAddress     string
 	HealthProbeBindAddress string
 }
@@ -49,6 +53,10 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&o.ConfigFile, "config", o.ConfigFile, "Path to the controller manager configuration file.")
 	fs.StringVar(&o.XDSBindAddress, "xds-bind-address", o.XDSBindAddress, "Address for the xDS ADS server.")
 	fs.StringVar(
+		&o.AIEgressSocket, "ai-egress-socket", o.AIEgressSocket,
+		"Absolute Envoy-local socket path for model egress; required when model routes exist.",
+	)
+	fs.StringVar(
 		&o.AIConfigNamespace,
 		"ai-config-namespace",
 		o.AIConfigNamespace,
@@ -66,6 +74,9 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 
 // Config 根据启动选项创建 Manager 配置。
 func (o *Options) Config() (*Config, error) {
+	if err := validateAIEgressSocket(o.AIEgressSocket); err != nil {
+		return nil, err
+	}
 	if messages := validation.IsDNS1123Label(o.AIConfigNamespace); len(messages) != 0 {
 		return nil, fmt.Errorf("AI configuration namespace %q must be a valid DNS label", o.AIConfigNamespace)
 	}
@@ -88,10 +99,21 @@ func (o *Options) Config() (*Config, error) {
 		RESTConfig:        restConfig,
 		XDSBindAddress:    o.XDSBindAddress,
 		AIConfigNamespace: o.AIConfigNamespace,
+		AIEgressSocket:    o.AIEgressSocket,
 		ManagerOptions: ctrl.Options{
 			Scheme:                 scheme,
 			Metrics:                metricsserver.Options{BindAddress: o.MetricsBindAddress},
 			HealthProbeBindAddress: o.HealthProbeBindAddress,
 		},
 	}, nil
+}
+
+// validateAIEgressSocket 允许未配置出口；一旦存在模型目标，发布器仍会拒绝空地址。
+// 此路径指向 Envoy 主机，不在 Controller 主机检查文件存在或创建目录。
+func validateAIEgressSocket(socket string) error {
+	if socket != "" && (!filepath.IsAbs(socket) || strings.ContainsRune(socket, 0)) {
+		return errors.New("AI egress socket must be an absolute path without NUL")
+	}
+
+	return nil
 }

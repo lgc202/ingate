@@ -35,16 +35,16 @@ func TestCompileAIGolden(t *testing.T) {
 		t.Fatalf("Compact(AI golden) error = %v", err)
 	}
 
-	data, err := compileAI(snapshot)
+	data, err := encodeTestAI(snapshot)
 	if err != nil {
-		t.Fatalf("compileAI(golden) error = %v", err)
+		t.Fatalf("encodeTestAI(golden) error = %v", err)
 	}
 
 	if !bytes.Equal(data, compact.Bytes()) {
-		t.Errorf("compileAI(golden) = %s, want %s", data, compact.Bytes())
+		t.Errorf("encodeTestAI(golden) = %s, want %s", data, compact.Bytes())
 	}
 	if diff := cmp.Diff(before, snapshot, cmp.AllowUnexported(resources{})); diff != "" {
-		t.Errorf("compileAI(golden) changed snapshot (-want +got):\n%s", diff)
+		t.Errorf("encodeTestAI(golden) changed snapshot (-want +got):\n%s", diff)
 	}
 }
 
@@ -69,7 +69,7 @@ func TestCompileAIModelOrderAndBindings(t *testing.T) {
 	got := compiledAIConfig(t, snapshot)
 
 	if len(got.Listeners) != 2 || got.Listeners[0].Port != 8080 || got.Listeners[1].Port != 9090 {
-		t.Fatalf("compileAI(multiple listeners) listeners = %+v, want ports 8080 and 9090", got.Listeners)
+		t.Fatalf("encodeTestAI(multiple listeners) listeners = %+v, want ports 8080 and 9090", got.Listeners)
 	}
 	wantNames := []string{
 		"team-a/coding/rule/0/match/0",
@@ -80,7 +80,7 @@ func TestCompileAIModelOrderAndBindings(t *testing.T) {
 	}
 	for _, listener := range got.Listeners {
 		if len(listener.Hosts) != 1 {
-			t.Fatalf("compileAI(listener %d) hosts = %+v, want one host", listener.Port, listener.Hosts)
+			t.Fatalf("encodeTestAI(listener %d) hosts = %+v, want one host", listener.Port, listener.Hosts)
 		}
 		routes := listener.Hosts[0].ModelRoutes
 		var names []string
@@ -88,13 +88,13 @@ func TestCompileAIModelOrderAndBindings(t *testing.T) {
 			names = append(names, route.Name)
 		}
 		if diff := cmp.Diff(wantNames, names); diff != "" {
-			t.Fatalf("compileAI(listener %d) model order mismatch (-want +got):\n%s", listener.Port, diff)
+			t.Fatalf("encodeTestAI(listener %d) model order mismatch (-want +got):\n%s", listener.Port, diff)
 		}
 		if *routes[0].BackendName != *routes[1].BackendName || *routes[0].BackendName != *routes[3].BackendName {
-			t.Errorf("compileAI(listener %d) split one rule into different backend bindings: %+v", listener.Port, routes)
+			t.Errorf("encodeTestAI(listener %d) split one rule into different backend bindings: %+v", listener.Port, routes)
 		}
 		if diff := cmp.Diff([]aidataplane.HeaderMatch{{Name: "x-ai-eg-model", Type: aidataplane.HeaderMatchExact, Value: "other"}}, routes[1].Headers); diff != "" {
-			t.Errorf("compileAI(case-insensitive header and default type) mismatch (-want +got):\n%s", diff)
+			t.Errorf("encodeTestAI(case-insensitive header and default type) mismatch (-want +got):\n%s", diff)
 		}
 	}
 	wantOverrides := map[string]string{
@@ -107,10 +107,10 @@ func TestCompileAIModelOrderAndBindings(t *testing.T) {
 		gotOverrides[backend.Name] = *backend.ModelNameOverride
 	}
 	if len(got.Backends) != 3 || len(got.NetworkBackends) != 2 {
-		t.Errorf("compileAI(shared references) backend/network counts = %d/%d, want 3/2", len(got.Backends), len(got.NetworkBackends))
+		t.Errorf("encodeTestAI(shared references) backend/network counts = %d/%d, want 3/2", len(got.Backends), len(got.NetworkBackends))
 	}
 	if diff := cmp.Diff(wantOverrides, gotOverrides); diff != "" {
-		t.Errorf("compileAI(per-rule overrides) mismatch (-want +got):\n%s", diff)
+		t.Errorf("encodeTestAI(per-rule overrides) mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -124,11 +124,11 @@ func TestCompileAIDefaults(t *testing.T) {
 	got := compiledAIConfig(t, snapshot)
 
 	if got.Backends[0].Schema.Prefix != "/v1" || *got.Backends[0].ModelNameOverride != "" {
-		t.Errorf("compileAI(default model binding) backend = %+v, want /v1 and empty override", got.Backends[0])
+		t.Errorf("encodeTestAI(default model binding) backend = %+v, want /v1 and empty override", got.Backends[0])
 	}
 	mcp := got.Listeners[0].Hosts[0].MCPRoutes[0]
 	if mcp.Path != "/mcp" || mcp.BackendPath != "/mcp" {
-		t.Errorf("compileAI(default MCP paths) route = %+v, want /mcp paths", mcp)
+		t.Errorf("encodeTestAI(default MCP paths) route = %+v, want /mcp paths", mcp)
 	}
 
 	snapshot.aiBackends.Items[0].Spec.Schema.Prefix = "v2/"
@@ -138,7 +138,7 @@ func TestCompileAIDefaults(t *testing.T) {
 	got = compiledAIConfig(t, snapshot)
 
 	if got.Backends[0].Schema.Prefix != "v2/" || got.Listeners[0].Hosts[0].MCPRoutes[0].Path != "/entry/" || got.Listeners[0].Hosts[0].MCPRoutes[0].BackendPath != "/stream/" {
-		t.Errorf("compileAI(explicit paths) = %+v, want original prefixes and trailing slashes", got)
+		t.Errorf("encodeTestAI(explicit paths) = %+v, want original prefixes and trailing slashes", got)
 	}
 }
 
@@ -347,9 +347,9 @@ func TestCompileAIRouteRemoval(t *testing.T) {
 
 func TestCompileAIUnrelatedChanges(t *testing.T) {
 	snapshot := aiResourceSnapshot()
-	before, err := compileAI(snapshot)
+	before, err := encodeTestAI(snapshot)
 	if err != nil {
-		t.Fatalf("compileAI(original) error = %v", err)
+		t.Fatalf("encodeTestAI(original) error = %v", err)
 	}
 
 	snapshot.gateways.Items[0].ResourceVersion = "new"
@@ -364,13 +364,13 @@ func TestCompileAIUnrelatedChanges(t *testing.T) {
 	snapshot.httpRoutes.Items = []gatewayv1alpha1.HTTPRoute{routeResource("ordinary", 1, "public", "api", "http-only", gatewayv1alpha1.PathMatchPrefix)}
 	snapshot.gateways.Items[0].Spec.Listeners = append(snapshot.gateways.Items[0].Spec.Listeners, listener("http-only", 9090, ""))
 
-	after, err := compileAI(snapshot)
+	after, err := encodeTestAI(snapshot)
 	if err != nil {
-		t.Fatalf("compileAI(unrelated changes) error = %v", err)
+		t.Fatalf("encodeTestAI(unrelated changes) error = %v", err)
 	}
 
 	if !bytes.Equal(before, after) {
-		t.Errorf("compileAI(unrelated changes) = %s, want unchanged payload %s", after, before)
+		t.Errorf("encodeTestAI(unrelated changes) = %s, want unchanged payload %s", after, before)
 	}
 }
 
@@ -399,34 +399,34 @@ func TestCompileAISharedDataPlaneAndDeterminism(t *testing.T) {
 	}
 	beforeEndpoints := slices.Clone(snapshot.backends.Items[0].Spec.Endpoints)
 
-	data, err := compileAI(snapshot)
+	data, err := encodeTestAI(snapshot)
 	if err != nil {
-		t.Fatalf("compileAI(shared data plane) error = %v", err)
+		t.Fatalf("encodeTestAI(shared data plane) error = %v", err)
 	}
 	got := compiledAIConfig(t, snapshot)
 
 	if len(got.Listeners) != 1 || len(got.Listeners[0].Hosts) != 2 || len(got.Backends) != 2 || len(got.NetworkBackends) != 4 {
-		t.Fatalf("compileAI(shared data plane) = %+v, want one port, two hosts, two protocol bindings and four networks", got)
+		t.Fatalf("encodeTestAI(shared data plane) = %+v, want one port, two hosts, two protocol bindings and four networks", got)
 	}
 	for i, namespace := range []string{"team-a", "team-b"} {
 		host := got.Listeners[0].Hosts[i]
 		binding := got.Backends[i]
 		if len(host.ModelRoutes) != 1 || len(host.MCPRoutes) != 1 {
-			t.Fatalf("compileAI(%s) host = %+v, want one model and one MCP route", namespace, host)
+			t.Fatalf("encodeTestAI(%s) host = %+v, want one model and one MCP route", namespace, host)
 		}
 
 		wantBinding := namespace + "/model-service/route/coding/rule/0/ref/0"
 		wantHost := "gateway/" + namespace + "/public/listener/api"
 		if host.Name != wantHost || *host.ModelRoutes[0].BackendName != wantBinding ||
 			binding.Name != wantBinding || binding.NetworkBackendName != namespace+"/model-network" {
-			t.Errorf("compileAI(%s) host/binding = %+v/%+v, want same-namespace references", namespace, host, binding)
+			t.Errorf("encodeTestAI(%s) host/binding = %+v/%+v, want same-namespace references", namespace, host, binding)
 		}
 		if *host.MCPRoutes[0].BackendName != namespace+"/tools-network" {
-			t.Errorf("compileAI(%s) MCP backend = %q, want same-namespace reference", namespace, *host.MCPRoutes[0].BackendName)
+			t.Errorf("encodeTestAI(%s) MCP backend = %q, want same-namespace reference", namespace, *host.MCPRoutes[0].BackendName)
 		}
 	}
 	if got.Backends[1].Schema.Prefix != "v2/" || got.NetworkBackends[2].Endpoints[0].Address != "b-model.internal.example" {
-		t.Errorf("compileAI(team-b) selected another namespace's schema or endpoints: %+v", got)
+		t.Errorf("encodeTestAI(team-b) selected another namespace's schema or endpoints: %+v", got)
 	}
 	wantEndpoints := []aidataplane.Endpoint{
 		{Address: "a.example.com", Port: 8081, Weight: 1},
@@ -434,10 +434,10 @@ func TestCompileAISharedDataPlaneAndDeterminism(t *testing.T) {
 		{Address: "z.example.com", Port: 8081, Weight: 2},
 	}
 	if diff := cmp.Diff(wantEndpoints, got.NetworkBackends[0].Endpoints); diff != "" {
-		t.Errorf("compileAI(endpoint order) mismatch (-want +got):\n%s", diff)
+		t.Errorf("encodeTestAI(endpoint order) mismatch (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(beforeEndpoints, snapshot.backends.Items[0].Spec.Endpoints); diff != "" {
-		t.Errorf("compileAI() changed snapshot endpoints (-want +got):\n%s", diff)
+		t.Errorf("encodeTestAI() changed snapshot endpoints (-want +got):\n%s", diff)
 	}
 
 	for i := 0; i < 3; i++ {
@@ -450,13 +450,13 @@ func TestCompileAISharedDataPlaneAndDeterminism(t *testing.T) {
 			slices.Reverse(snapshot.backends.Items[j].Spec.Endpoints)
 		}
 
-		repeated, err := compileAI(snapshot)
+		repeated, err := encodeTestAI(snapshot)
 		if err != nil {
-			t.Fatalf("compileAI(reordered snapshot %d) error = %v", i, err)
+			t.Fatalf("encodeTestAI(reordered snapshot %d) error = %v", i, err)
 		}
 
 		if !bytes.Equal(data, repeated) {
-			t.Errorf("compileAI(reordered snapshot %d) = %s, want %s", i, repeated, data)
+			t.Errorf("encodeTestAI(reordered snapshot %d) = %s, want %s", i, repeated, data)
 		}
 	}
 }
@@ -481,12 +481,12 @@ func TestCompileAIUnavailableHigherPriorityRoutes(t *testing.T) {
 	models := got.Listeners[0].Hosts[0].ModelRoutes
 	if len(models) != 2 || models[0].Name != "team-a/coding/rule/0/match/0" ||
 		*models[0].BackendName != "" || models[1].Name != "team-a/all/rule/0/match/0" || *models[1].BackendName == "" {
-		t.Errorf("compileAI(unavailable exact and valid catch-all) routes = %+v, want retained empty target before valid catch-all", models)
+		t.Errorf("encodeTestAI(unavailable exact and valid catch-all) routes = %+v, want retained empty target before valid catch-all", models)
 	}
 	mcp := got.Listeners[0].Hosts[0].MCPRoutes
 	if len(mcp) != 2 || mcp[0].Name != "team-a/tools" || *mcp[0].BackendName != "" ||
 		mcp[1].Name != "team-a/later" || *mcp[1].BackendName == "" {
-		t.Errorf("compileAI(unavailable first MCP route) routes = %+v, want both candidates in creation order", mcp)
+		t.Errorf("encodeTestAI(unavailable first MCP route) routes = %+v, want both candidates in creation order", mcp)
 	}
 }
 
@@ -564,9 +564,9 @@ func TestCompileAIInvalidInputs(t *testing.T) {
 			snapshot := aiResourceSnapshot()
 			tt.change(&snapshot)
 
-			data, err := compileAI(snapshot)
+			data, err := encodeTestAI(snapshot)
 			if err == nil || data != nil {
-				t.Errorf("compileAI(%s) data/error = %s/%v, want nil data and error", tt.name, data, err)
+				t.Errorf("encodeTestAI(%s) data/error = %s/%v, want nil data and error", tt.name, data, err)
 			}
 		})
 	}
@@ -576,10 +576,10 @@ func TestCompileAIPathError(t *testing.T) {
 	snapshot := aiResourceSnapshot()
 	snapshot.aiBackends.Items[0].Spec.Schema.Prefix = "%zz"
 
-	_, err := compileAI(snapshot)
+	_, err := encodeTestAI(snapshot)
 
 	if _, ok := errors.AsType[*url.Error](err); !ok {
-		t.Errorf("compileAI(prefix %%zz) error = %v, want wrapped *url.Error", err)
+		t.Errorf("encodeTestAI(prefix %%zz) error = %v, want wrapped *url.Error", err)
 	}
 }
 
@@ -632,17 +632,27 @@ func aiResourceSnapshot() resources {
 	}
 }
 
+// encodeTestAI 验证纯编译结果可以按共享契约编码，不在生产编译路径往返 JSON。
+func encodeTestAI(snapshot resources) ([]byte, error) {
+	config, err := compileAI(snapshot)
+	if err != nil {
+		return nil, err
+	}
+
+	return aidataplane.Encode(config)
+}
+
 func compiledAIConfig(t *testing.T, snapshot resources) aidataplane.Config {
 	t.Helper()
 
-	data, err := compileAI(snapshot)
+	data, err := encodeTestAI(snapshot)
 	if err != nil {
-		t.Fatalf("compileAI() error = %v", err)
+		t.Fatalf("encodeTestAI() error = %v", err)
 	}
 
 	config, err := aidataplane.Decode(data)
 	if err != nil || config == nil {
-		t.Fatalf("Decode(compileAI()) config/error = %+v/%v, want complete config and nil error", config, err)
+		t.Fatalf("Decode(encodeTestAI()) config/error = %+v/%v, want complete config and nil error", config, err)
 	}
 	return *config
 }
@@ -654,6 +664,6 @@ func assertAIContent(t *testing.T, want, got aidataplane.Config) {
 	want.Revision = ""
 	got.Revision = ""
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("compileAI() content mismatch (-want +got):\n%s", diff)
+		t.Errorf("encodeTestAI() content mismatch (-want +got):\n%s", diff)
 	}
 }

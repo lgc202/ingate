@@ -58,6 +58,7 @@ func TestCaptureConfigurationChanges(t *testing.T) {
 	want := before
 	want.Schema.Prefix = "v2/"
 	want.ModelNameOverride = "code-v3"
+	want.TargetName = "ai/target/81ed31477019b2008589ada698fd521a3ae807c4c44e93ebade40f8a2a004fba"
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Capture(updated configuration) mismatch (-want +got):\n%s", diff)
 	}

@@ -13,15 +13,16 @@ import (
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
+	"github.com/lgc202/ingate/internal/aiproxy/pkg/modelproxy"
 	modelservice "github.com/lgc202/ingate/internal/aiproxy/service/model"
 )
 
 // ModelHandler 读取模型请求并调用 Service，将准备结果交给 HTTP 转发阶段。
-// next 只能是受限出站适配器，须从 ModelBackend 读取目标，不得按客户端 URL 发起连接。
+// forwarder 应使用 modelproxy.Proxy，通过已选目标连接专用 Envoy UDS，不得直连客户端 URL。
 // 本 Handler 不创建 Transport、不注册路由，也不实现 Envoy 入口/出口身份协议。
 type ModelHandler struct {
 	service             *modelservice.Service
-	next                http.Handler
+	forwarder           http.Handler
 	maxRequestBodyBytes int64
 }
 
@@ -29,20 +30,20 @@ type ModelHandler struct {
 // Server 后续以 POST /v1/chat/completions 注册 ChatCompletion，并负责 ErrorEncoder。
 func NewModel(
 	service *modelservice.Service,
-	next http.Handler,
+	forwarder http.Handler,
 	maxRequestBodyBytes int64,
 ) (*ModelHandler, error) {
 	if service == nil {
 		return nil, errors.New("model service is required")
 	}
-	if next == nil {
+	if forwarder == nil {
 		return nil, errors.New("model forwarding handler is required")
 	}
 	if maxRequestBodyBytes <= 0 {
 		return nil, errors.New("model request body limit must be positive")
 	}
 
-	return &ModelHandler{service: service, next: next, maxRequestBodyBytes: maxRequestBodyBytes}, nil
+	return &ModelHandler{service: service, forwarder: forwarder, maxRequestBodyBytes: maxRequestBodyBytes}, nil
 }
 
 // ChatCompletion 使用 Kratos 原生 HTTP Handler 签名，保留普通响应和流式响应的写入接口。
@@ -108,7 +109,7 @@ func (h *ModelHandler) chatCompletion(
 
 	// Clone 保留取消与追踪上下文，同时隔离 Header、URL 等可变协议状态。
 	// 入站 Body 由 HTTP Server 关闭；交付的新 Body 属于后续转发阶段。
-	forwardContext := context.WithValue(ctx, modelBackendKey{}, prepared.Backend)
+	forwardContext := modelproxy.WithBackend(ctx, prepared.Backend)
 	forwarded := request.Clone(forwardContext)
 	forwarded.Body = io.NopCloser(bytes.NewReader(prepared.Body))
 	forwarded.GetBody = nil // 不能重放 Clone 可能继承的原始、未改写请求体。
@@ -122,7 +123,7 @@ func (h *ModelHandler) chatCompletion(
 	forwarded.Header.Set("Content-Type", "application/json")
 
 	// 直接交付原 ResponseWriter，不缓冲响应或包装掉 Flusher 等能力。
-	h.next.ServeHTTP(response, forwarded)
+	h.forwarder.ServeHTTP(response, forwarded)
 
 	return nil
 }

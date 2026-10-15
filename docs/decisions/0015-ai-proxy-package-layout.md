@@ -24,12 +24,15 @@ internal/
 │       ├── apischema/
 │       │   └── openai/       # 当前实际使用的 OpenAI 协议字段
 │       ├── endpointspec/     # 客户端操作的请求解析与校验
+│       ├── modelproxy/       # 标准 ReverseProxy、请求目标交接与受限 UDS 出口
 │       └── translator/       # 当前 OpenAI 到 OpenAI 的模型覆盖
 └── pkg/
     └── aidataplane/           # Controller 和 Proxy 共用的编译契约
 ```
 
 上图只列当前实际实现的包；model Service 与 HTTP Handler 是包迁移后的后续切片，已通过用户 review 并获准本地提交。不预建 conf、server、repository、backendauth、其它协议或空接口；后续按已确认的真实调用增加。Repository 只承接实际存储访问，不为完整套用 CRUD 分层而包一层透传。
+
+Service 与 Handler 已提交为 `81d3e027`。后续 modelproxy 切片保留未提交、待 review：它依赖按值的 aiconfig.ModelBackend 和共享目标契约，不反向导入 Handler；请求目标的 Context 交接归该转发能力所有。Handler 只保留入口 Context，字段 next 改为 forwarder，以明确它不是任意中间件链。modelproxy 不是新 Provider 框架，也不包含模型选择、配置 Watch、公开错误格式或凭据管理。
 
 依赖从应用编排流向能力包；能力包不依赖组件的 conf、Handler、Service、Repository 或 Controller 实现。pkg 目录本身不增加 Go 的编译期可见性限制，组件所有权与依赖方向仍须通过实际 import 审查。endpointspec 可以使用 apischema 的协议类型，translator 按已识别的输入协议与选中后端协议适配，不负责路由选择、凭据加载或网络连接池。协议类型不承载监听、配置和请求生命周期。
 

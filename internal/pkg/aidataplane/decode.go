@@ -34,7 +34,7 @@ func Decode(data []byte) (*Config, error) {
 		return nil, fmt.Errorf("decode AI config fields: %w", errors.Join(strictErrors...))
 	}
 
-	if err := validate(c); err != nil {
+	if err := Validate(c); err != nil {
 		return nil, fmt.Errorf("validate AI config: %w", err)
 	}
 

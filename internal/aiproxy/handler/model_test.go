@@ -24,6 +24,7 @@ import (
 
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/aiconfig"
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/apischema/openai"
+	"github.com/lgc202/ingate/internal/aiproxy/pkg/modelproxy"
 	modelservice "github.com/lgc202/ingate/internal/aiproxy/service/model"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
@@ -60,14 +61,14 @@ func TestModelHandlerChatCompletion(t *testing.T) {
 			if r.Header.Get("Content-Type") != "application/json" || r.Header.Get("Content-Encoding") != "" {
 				t.Errorf("ChatCompletion() body headers = %v, want uncompressed application/json", r.Header)
 			}
-			backend, ok := ModelBackend(r.Context())
+			backend, ok := modelproxy.Backend(r.Context())
 			if !ok || backend.NetworkBackendName != "team-a/model-network" || backend.Schema.Prefix != "/v1" {
-				t.Errorf("ModelBackend() = (%+v, %t), want selected model-network and /v1", backend, ok)
+				t.Errorf("modelproxy.Backend() = (%+v, %t), want selected model-network and /v1", backend, ok)
 			}
 			backend.ModelNameOverride = "changed"
-			again, _ := ModelBackend(r.Context())
+			again, _ := modelproxy.Backend(r.Context())
 			if again.ModelNameOverride != "code-v2" {
-				t.Errorf("ModelBackend() after result mutation override = %q, want code-v2", again.ModelNameOverride)
+				t.Errorf("modelproxy.Backend() after result mutation override = %q, want code-v2", again.ModelNameOverride)
 			}
 
 			w.WriteHeader(http.StatusAccepted)
@@ -99,7 +100,7 @@ func TestModelHandlerChatCompletion(t *testing.T) {
 		if request.Header.Get("Content-Length") != "999" || request.GetBody == nil || len(request.Trailer) != 1 || len(request.TransferEncoding) != 1 {
 			t.Errorf("ChatCompletion() mutated incoming request framing: %+v", request)
 		}
-		if _, ok := ModelBackend(request.Context()); ok {
+		if _, ok := modelproxy.Backend(request.Context()); ok {
 			t.Error("ChatCompletion() changed incoming context, want target only on forwarded request")
 		}
 	})
@@ -272,8 +273,8 @@ func TestModelHandlerPreservesMiddlewareContext(t *testing.T) {
 		called := false
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			called = true
-			if _, ok := ModelBackend(r.Context()); !ok {
-				t.Error("ModelBackend(forwarded middleware context) is absent, want prepared target")
+			if _, ok := modelproxy.Backend(r.Context()); !ok {
+				t.Error("modelproxy.Backend(forwarded middleware context) is absent, want prepared target")
 			}
 			if _, ok := r.Context().Value(modelEntryKey{}).(modelEntry); !ok {
 				t.Error("ChatCompletion() lost the entry context added by middleware")

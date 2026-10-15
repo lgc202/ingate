@@ -43,6 +43,7 @@ func TestPrepareChatCompletion(t *testing.T) {
 			Schema:             aidataplane.APISchema{Name: aidataplane.APISchemaOpenAI, Prefix: "/v1"},
 			ModelNameOverride:  "code-v2",
 			NetworkBackendName: "team-a/model-network",
+			TargetName:         "ai/target/96914ad662f712bc8376b8a6ec1aee8de3bb4f51dcd55f0670220c8fbe183d07",
 		}
 		if diff := cmp.Diff(wantBackend, request.Backend); diff != "" {
 			t.Errorf("PrepareChatCompletion(coding) backend mismatch (-want +got):\n%s", diff)

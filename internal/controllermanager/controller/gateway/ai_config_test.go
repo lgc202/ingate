@@ -393,9 +393,9 @@ func storedAIConfigMap(t *testing.T, apiClient client.Reader) corev1.ConfigMap {
 func aiConfigPayload(t *testing.T, snapshot resources) []byte {
 	t.Helper()
 
-	data, err := compileAI(snapshot)
+	data, err := encodeTestAI(snapshot)
 	if err != nil {
-		t.Fatalf("compileAI() error = %v", err)
+		t.Fatalf("encodeTestAI() error = %v", err)
 	}
 
 	return data

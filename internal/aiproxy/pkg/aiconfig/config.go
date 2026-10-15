@@ -24,7 +24,7 @@ var (
 type Config struct {
 	config   *aidataplane.Config
 	hosts    map[hostKey]aidataplane.Host
-	backends map[string]aidataplane.Backend
+	backends map[string]ModelBackend
 }
 
 // ModelBackend 是一次模型匹配的完整协议与网络绑定，不包含可变引用或网络端点。
@@ -38,6 +38,8 @@ type ModelBackend struct {
 	// 这里只交付覆盖值，实际请求体改写由模型请求处理方完成。
 	ModelNameOverride  string
 	NetworkBackendName string
+	// TargetName 同时绑定协议参数和网络快照，只能交给专用 Envoy 出口。
+	TargetName string
 }
 
 type hostKey struct {
@@ -61,9 +63,24 @@ func newConfig(data []byte) (*Config, error) {
 			hosts[hostKey{port: listener.Port, name: host.Name}] = host
 		}
 	}
-	backends := make(map[string]aidataplane.Backend, len(config.Backends))
+	backends := make(map[string]ModelBackend, len(config.Backends))
+	networks := make(map[string]aidataplane.NetworkBackend, len(config.NetworkBackends))
+	for _, network := range config.NetworkBackends {
+		networks[network.Name] = network
+	}
 	for _, backend := range config.Backends {
-		backends[backend.Name] = backend
+		target, err := aidataplane.ModelTargetName(backend, networks[backend.NetworkBackendName])
+		if err != nil {
+			return nil, fmt.Errorf("build model target %q: %w", backend.Name, err)
+		}
+
+		backends[backend.Name] = ModelBackend{
+			Name:               backend.Name,
+			Schema:             backend.Schema,
+			ModelNameOverride:  *backend.ModelNameOverride,
+			NetworkBackendName: backend.NetworkBackendName,
+			TargetName:         target,
+		}
 	}
 
 	return &Config{config: config, hosts: hosts, backends: backends}, nil
@@ -99,14 +116,9 @@ func (c *Config) ResolveModel(port int32, hostName, modelName string) (ModelBack
 		}
 
 		backend := c.backends[*route.BackendName]
+		backend.RouteName = route.Name
 
-		return ModelBackend{
-			RouteName:          route.Name,
-			Name:               backend.Name,
-			Schema:             backend.Schema,
-			ModelNameOverride:  *backend.ModelNameOverride,
-			NetworkBackendName: backend.NetworkBackendName,
-		}, nil
+		return backend, nil
 	}
 
 	return ModelBackend{}, fmt.Errorf("port %d host %q: %w", port, hostName, ErrModelRouteNotFound)

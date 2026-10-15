@@ -28,7 +28,7 @@ type aiConfigWriter struct {
 	namespace string
 }
 
-// write 保存 compileAI 成功返回的完整 JSON，不再次解析领域资源或 payload。
+// write 保存共享契约编码后的完整 JSON，不再次解析领域资源或 payload。
 // Namespace 必须由部署显式提供并预先创建；空字节不是撤销配置。
 // Conflict 和 AlreadyExists 保留给协调器重读并重试，不强删重建对象。
 func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {

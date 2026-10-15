@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/lgc202/ingate/internal/controllermanager/dataplane"
+	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
@@ -269,6 +270,10 @@ func TestReconcileReturnsStatusUpdateFailure(t *testing.T) {
 
 func (f publisherFunc) Publish(ctx context.Context, config dataplane.Config) error {
 	return f(ctx, config)
+}
+
+func (f publisherFunc) PublishAI(context.Context, aidataplane.Config) error {
+	return nil
 }
 
 func newTestReconciler(t *testing.T, apiClient client.Client, publisher Publisher) *Reconciler {

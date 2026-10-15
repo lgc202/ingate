@@ -11,8 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
-// validate 检查编码边界的结构与引用，不代替 Controller 的领域裁决及排序。
-func validate(c Config) error {
+// Validate 检查编译配置的结构与引用，不修改输入，也不代替领域裁决及排序。
+// 用于编码、解码和 Envoy 消费边界；不校验 Revision 与内容是否一致。
+func Validate(c Config) error {
 	if c.FormatVersion != FormatVersionV1 {
 		return fmt.Errorf("unsupported formatVersion %q", c.FormatVersion)
 	}
