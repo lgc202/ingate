@@ -66,7 +66,7 @@ const (
 	HeaderMatchExact HeaderMatchType = "Exact"
 )
 
-// AIBackendReference 引用集群级 AIBackend，并可覆盖出站请求的模型名称。
+// AIBackendReference 引用同一 Namespace 内的 AIBackend，并可覆盖出站请求的模型名称。
 type AIBackendReference struct {
 	Name string `json:"name"`
 	// ModelNameOverride 省略或为空时保留请求模型名，不从资源名称推断。

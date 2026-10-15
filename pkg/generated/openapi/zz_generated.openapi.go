@@ -462,7 +462,7 @@ func schema_pkg_apis_gateway_v1alpha1_AIBackendReference(ref common.ReferenceCal
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "AIBackendReference 引用集群级 AIBackend，并可覆盖出站请求的模型名称。",
+				Description: "AIBackendReference 引用同一 Namespace 内的 AIBackend，并可覆盖出站请求的模型名称。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
@@ -502,7 +502,7 @@ func schema_pkg_apis_gateway_v1alpha1_AIBackendSpec(ref common.ReferenceCallback
 					},
 					"backendRef": {
 						SchemaProps: spec.SchemaProps{
-							Description: "BackendRef 引用集群级 Backend，网络目标由该资源维护。",
+							Description: "BackendRef 引用同一 Namespace 内的 Backend，网络目标由该资源维护。",
 							Default:     map[string]interface{}{},
 							Ref:         ref(v1alpha1.BackendReference{}.OpenAPIModelName()),
 						},
@@ -1332,7 +1332,7 @@ func schema_pkg_apis_gateway_v1alpha1_MCPBackendReference(ref common.ReferenceCa
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "MCPBackendReference 引用集群级 Backend，并声明上游 MCP 路径。",
+				Description: "MCPBackendReference 引用同一 Namespace 内的 Backend，并声明上游 MCP 路径。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {

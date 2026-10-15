@@ -35,7 +35,7 @@ type MCPRouteSpec struct {
 	BackendRefs []MCPBackendReference `json:"backendRefs"`
 }
 
-// MCPBackendReference 引用集群级 Backend，并声明上游 MCP 路径。
+// MCPBackendReference 引用同一 Namespace 内的 Backend，并声明上游 MCP 路径。
 type MCPBackendReference struct {
 	Name string `json:"name"`
 	// Path 是上游绝对路径；省略时默认 /mcp，保留显式路径和尾斜杠。

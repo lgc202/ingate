@@ -29,7 +29,7 @@ type AIBackendList struct {
 type AIBackendSpec struct {
 	// DisplayName 是可修改且允许重复的展示名称，不作为资源引用依据。
 	DisplayName string `json:"displayName,omitempty"`
-	// BackendRef 引用集群级 Backend，网络目标由该资源维护。
+	// BackendRef 引用同一 Namespace 内的 Backend，网络目标由该资源维护。
 	BackendRef BackendReference `json:"backendRef"`
 	// Schema 声明上游 API 格式；保存该配置不表示数据面已经实现转发。
 	Schema APISchema `json:"schema"`

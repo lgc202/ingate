@@ -10,7 +10,7 @@
 - [AI 网关资源契约设计稿](design/ai-gateway-resource-contract.md)：六种主资源、策略附着建议、内部模型路由表、引用/冲突/删除语义与完整替换计划；HTTP 子集设计已通过，用户已授权提交阶段 B 当前实现，后续 AI/MCP 契约仍需确认。
 - [AI 模型操作与数据面部署设计](design/ai-model-operations-and-deployment.md)：参考官方的首批 OpenAI 操作与共部署建议；待 review，不代表已实现或完整 API 兼容。
 - [AI 凭据与运行配置设计](design/ai-credentials-and-runtime-config.md)：Secret 引用、派生配置、版本绑定、本地就绪及轮转/撤销建议；待 review，包含集中托管的基础设施代价和未定契约。
-- [AI 编译配置契约](design/ai-compiled-config-contract.md)：编译契约已确认，协调接线已提交为 `fcc9650b`；Proxy 消费语义与原生 Factory 加载器已通过 review 并获准本地提交，尚未装配运行组件或接入 AI 流量。
+- [AI 编译配置契约](design/ai-compiled-config-contract.md)：编译契约已确认，协调接线已提交为 `fcc9650b`，原生 Factory 加载器已提交为 `5bf59e98`；AI/MCP 引用说明已对齐同 Namespace 契约并通过 review，尚未装配运行组件或接入 AI 流量。
 - [架构与流程图](diagrams/ai-gateway.html)：当前架构、目标资源关系、目标架构、请求流程、配置发布流程；可离线打开。
 - [HTTP 资源替换实现记录](decisions/0011-http-resource-contract.md)：阶段 B 范围、验证与未覆盖项。
 - [Namespace 与同空间引用](decisions/0013-namespaced-resources.md)：编译身份、Namespace 存储、OpenAPI、原生 HTTP API、本地 NamespaceLifecycle 和删除控制器已提交；Backend 默认存储筛选重构已提交；六种资源的存储、管理 API 与查询投影已一起切换 Namespace，并经用户 review 提交为 `cda0478e`。

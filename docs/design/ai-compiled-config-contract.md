@@ -216,7 +216,7 @@ Controller 先完整编译并校验，核对显式控制面 Namespace 存在且�
 | ConfigMap 超限、Namespace 不存在/终止、写权限失败、版本重试失败 | 不截断、不拆出半份结果，不另找 Namespace；报告写入失败 | 旧对象可能仍在，不能声称删除或撤销已生效；本阶段尚无运行消费者 |
 | payload 格式、内容哈希或内部引用校验失败 | 编译端禁止发布；未来加载端禁止替换当前完整视图 | 初次加载失败不 ready；是否可暂留旧版及其期限由运行方案确定，禁止静默无限沿用 |
 
-Namespace 生命周期应包含标准 ConfigMap，不增加一个「AI ConfigMap Controller」代替原生资源删除。控制面 Namespace 中的 ConfigMap 不进入六种领域资源的 MySQL 投影。源代码中 AIBackend/MCPBackend 引用的个别注释仍写“集群级”，与已提交的同空间实现不一致；它们应在下一代码切片修正，本稿不把过时注释当作契约。
+Namespace 生命周期应包含标准 ConfigMap，不增加一个「AI ConfigMap Controller」代替原生资源删除。控制面 Namespace 中的 ConfigMap 不进入六种领域资源的 MySQL 投影。AIBackend 的 BackendRef、ModelRoute 的 AIBackendReference 与 MCPRoute 的 MCPBackendReference 都在源对象的 Namespace 内解析；本轮同步修正内部/外部类型与 OpenAPI 中遗留的“集群级”说明，不改变现有解析行为。
 
 持久化成功只证明 API Server 接受了当前对象，不证明 Proxy 已加载、Envoy 已 ACK 或真实服务可调用。本阶段不新写“运行成功”的 Ready，不在 ConfigMap 添加全局 loaded/status。领域 Conditions 如需扩展，只报告实际完成的附着和引用解析，不把写入配置当成数据面成功。
 
@@ -343,7 +343,7 @@ Namespace 显式提供，不设置缺省空间、不自动创建。空字节拒�
 
 ## Proxy 配置消费：已确认语义与加载器切片
 
-本节只确定配置消费，不扩展模型/MCP 接口、Envoy 入口/出口、Secret 或服务部署。用户已确认以下消费语义，加载器与 Factory 替换已通过 review 并获准本地提交；前文已确认的 payload 契约不变。
+本节只确定配置消费，不扩展模型/MCP 接口、Envoy 入口/出口、Secret 或服务部署。用户已确认以下消费语义，加载器与 Factory 替换已提交为 `5bf59e98`；前文已确认的 payload 契约不变。
 
 官方固定提交 `daa9f891a8afcb18576d4593ad18870d1d18abac` 的 [watcher.go](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/filterapi/watcher.go)读取分片文件：首次加载仅对校验和不一致、分片尚未出现这两种错误继续等待，其他初次加载错误返回；运行中加载失败会记录错误，并在下一轮重试，不调用成功替换路径。模型 [Server.LoadConfig](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/extproc/server.go#L80)先构造完整运行配置，成功后才替换，因此失败时旧配置仍保留。
 
@@ -391,6 +391,12 @@ resourceVersion 只由原生 SDK 用于 List/Watch 连续性和事件处理，�
 没有改变 API 类型、存储实现、生成源或依赖，未执行真实 API Server/etcd/Manager/Envoy/Proxy 联调、RBAC 验证或模型请求。外部组件验证仍留待统一测试，本切片已通过用户代码 review 并获准本地提交，不推送或创建 PR。
 
 已逐个审查全部新增与修改的手写文件，包括三个未跟踪 Go 文件；先检查声明顺序，再检查职责、作用域命名、签名、错误路径、实例身份与测试反例，最后独立复查换行和语义空行。`gofmt -l cmd internal pkg` 无输出；已跟踪及三个未跟踪文件的空白检查无诊断；`golangci-lint run ./...` 为 0 issues；`go vet ./...`、`go test ./... -count=1`、`go build ./...` 与 `go test -race ./internal/aiproxy/configloader -count=10` 均通过。新增本地文档链接已核对；这些结果不替代前述真实组件验证，也不表示整个仓库达到模板级或生产就绪。
+
+## 同空间引用说明修正
+
+2026-10-15，加载器提交后继续核对资源定义，修正内部与 v1alpha1 类型中六处过时的“集群级”引用说明。现有编译器已经使用源对象的 Namespace 解析 AIBackend、模型网络 Backend 和 MCP Backend；本轮只使注释与实现一致，不改变字段、校验、序列化格式或运行行为。已有编译测试同时覆盖其他 Namespace 的目标不可用，以及不同 Namespace 的同名资源分别解析。
+
+使用 `scripts/generate-api.sh` 重新生成，OpenAPI 仅有三处 Description 变化，重复生成结果一致。首次生成因编译缓存读取失败中断，获准重试原脚本后成功。已逐个审查六份手写类型文件与文档，并独立复查声明布局和语义空行；`gofmt -l cmd internal pkg`、`git diff --check`、`golangci-lint run ./...`、`go vet ./...`、`go test ./... -count=1` 和 `go build ./...` 均通过。没有变更 API 存储契约，未重跑 integration 或真实组件联调；本轮修正已通过用户 review 并获准本地提交，不推送或创建 PR。
 
 ## 审查与验证边界
 
