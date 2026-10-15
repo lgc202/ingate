@@ -152,10 +152,10 @@ func TestEncodeRevisionChanges(t *testing.T) {
 func TestEncodePathError(t *testing.T) {
 	c, _ := loadFixture(t)
 	c.Backends[0].Schema.Prefix = "%zz"
-	var pathError *url.Error
 
 	_, err := Encode(c)
-	if !errors.As(err, &pathError) {
+
+	if _, ok := errors.AsType[*url.Error](err); !ok {
 		t.Errorf("Encode(prefix %%zz) error = %v, want wrapped *url.Error", err)
 	}
 }

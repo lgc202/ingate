@@ -68,8 +68,7 @@ func TestParseChatCompletionsRejectsInvalidBody(t *testing.T) {
 func TestParseChatCompletionsPreservesErrorCause(t *testing.T) {
 	_, err := endpointspec.ParseChatCompletions([]byte(`{"model":42}`))
 
-	var typeError *json.UnmarshalTypeError
-	if !errors.As(err, &typeError) {
+	if _, ok := errors.AsType[*json.UnmarshalTypeError](err); !ok {
 		t.Errorf("ParseChatCompletions(number model) error = %v, want wrapped *json.UnmarshalTypeError", err)
 	}
 }

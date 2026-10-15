@@ -16,6 +16,9 @@ AI Proxy 的配置消费已经提交，请求体解析与模型覆盖仍在本�
 ```text
 internal/
 ├── aiproxy/
+│   ├── handler/              # Kratos 原生模型 HTTP 适配与请求上下文
+│   ├── service/
+│   │   └── model/            # 模型请求准备的用例编排
 │   └── pkg/
 │       ├── aiconfig/          # ConfigMap 加载、只读配置发布与查询
 │       ├── apischema/
@@ -26,7 +29,7 @@ internal/
     └── aidataplane/           # Controller 和 Proxy 共用的编译契约
 ```
 
-上图只列本次实际实现的包。不预建 conf、server、handler、service、repository、backendauth、其它协议或空接口；后续按已确认的真实调用增加。Repository 只承接实际存储访问，不为完整套用 CRUD 分层而包一层透传。
+上图只列当前实际实现的包；model Service 与 HTTP Handler 是包迁移后的后续切片，已通过用户 review 并获准本地提交。不预建 conf、server、repository、backendauth、其它协议或空接口；后续按已确认的真实调用增加。Repository 只承接实际存储访问，不为完整套用 CRUD 分层而包一层透传。
 
 依赖从应用编排流向能力包；能力包不依赖组件的 conf、Handler、Service、Repository 或 Controller 实现。pkg 目录本身不增加 Go 的编译期可见性限制，组件所有权与依赖方向仍须通过实际 import 审查。endpointspec 可以使用 apischema 的协议类型，translator 按已识别的输入协议与选中后端协议适配，不负责路由选择、凭据加载或网络连接池。协议类型不承载监听、配置和请求生命周期。
 
@@ -38,7 +41,7 @@ aiconfig 整包迁移，只调整文档引用和测试夹具路径，不改变 C
 
 apischema/openai 只定义当前需要提取的 model 字段，不宣称覆盖完整请求，也不用于重新编码上游请求。endpointspec 保留原有 UTF-8、JSON 对象、精确字段名、非空模型和重复顶层键校验。translator 接收经过入口校验的原始 JSON，空覆盖或相同模型返回独立的原始字节副本；其它覆盖只改变顶层 model 的值，保留扩展字段与数字精度，允许重编码改变排版与转义形式。
 
-请求体由调用方保留；解析只返回独立的协议字段，不再用同一个对象同时保存请求体和提供出站编码方法。每次适配从传入的原始字节生成独立结果，不原地修改源数据，不通过可变协议对象反向决定待改写的原始模型名。后续 Handler 必须在同一请求内使用同一份原始字节和捕获配置；本轮没有实现该运行链。
+请求体由调用方保留；解析只返回独立的协议字段，不再用同一个对象同时保存请求体和提供出站编码方法。每次适配从传入的原始字节生成独立结果，不原地修改源数据，不通过可变协议对象反向决定待改写的原始模型名。后续调用必须在同一请求内使用同一份原始字节和捕获配置；包迁移切片没有实现该运行链，后续新增的 model Service 统一负责捕获和请求准备，Handler 不应再次捕获并混用。
 
 入口校验和非空模型覆盖各自解码原始 JSON，较原包装对象增加了解码工作；当前复用标准库与已有严格 JSON 库，不为此增加 JSON 修改依赖或跨包暴露可变字段表。未做性能基准，不宣称这次结构调整改善吞吐或分配。
 

@@ -575,10 +575,10 @@ func TestCompileAIInvalidInputs(t *testing.T) {
 func TestCompileAIPathError(t *testing.T) {
 	snapshot := aiResourceSnapshot()
 	snapshot.aiBackends.Items[0].Spec.Schema.Prefix = "%zz"
-	var pathError *url.Error
 
 	_, err := compileAI(snapshot)
-	if !errors.As(err, &pathError) {
+
+	if _, ok := errors.AsType[*url.Error](err); !ok {
 		t.Errorf("compileAI(prefix %%zz) error = %v, want wrapped *url.Error", err)
 	}
 }

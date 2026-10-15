@@ -250,11 +250,10 @@ func TestReconcileKeepsAIConfigurationAfterCompileFailure(t *testing.T) {
 		httpCalls++
 		return nil
 	}), "control-plane")
-	var pathError *url.Error
 
 	_, err := r.Reconcile(t.Context(), sharedRequest())
 
-	if !errors.As(err, &pathError) || httpCalls != 1 {
+	if _, ok := errors.AsType[*url.Error](err); !ok || httpCalls != 1 {
 		t.Errorf("Reconcile(invalid AI path) error/HTTP attempts = %v/%d, want wrapped URL error and one HTTP publish", err, httpCalls)
 	}
 	if diff := cmp.Diff(previous, storedAIConfigMap(t, apiClient)); diff != "" {

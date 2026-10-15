@@ -243,9 +243,9 @@ func TestReplacePreservesErrorCause(t *testing.T) {
 		configMap.Data[aidataplane.ConfigMapDataKey], valid.Revision, strings.Repeat("z", 64), 1,
 	)
 
-	var invalidByte hex.InvalidByteError
 	err = l.replace(configMap)
-	if !errors.As(err, &invalidByte) {
+
+	if _, ok := errors.AsType[hex.InvalidByteError](err); !ok {
 		t.Errorf("replace(invalid revision) error = %v, want wrapped hex.InvalidByteError", err)
 	}
 }

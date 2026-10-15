@@ -294,10 +294,10 @@ func TestDecodeSemanticConfig(t *testing.T) {
 func TestDecodeFieldError(t *testing.T) {
 	_, golden := loadFixture(t)
 	data := bytes.Replace(golden, []byte(`"formatVersion"`), []byte(`"extra":true,"formatVersion"`), 1)
-	var fieldError sigsjson.FieldError
 
 	_, err := Decode(data)
-	if !errors.As(err, &fieldError) || fieldError.FieldPath() != "extra" {
+
+	if fieldError, ok := errors.AsType[sigsjson.FieldError](err); !ok || fieldError.FieldPath() != "extra" {
 		t.Errorf("Decode(unknown extra) error = %v, want wrapped FieldError for extra", err)
 	}
 }

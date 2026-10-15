@@ -188,9 +188,11 @@ func TestIntegrationNetworkReadUsesContextDeadline(t *testing.T) {
 	start := time.Now()
 	_, err := client.BLPop(ctx, 0, sessionKey(id)).Result()
 	elapsed := time.Since(start)
-	var timeoutErr net.Error
-	if !errors.Is(err, context.DeadlineExceeded) && (!errors.As(err, &timeoutErr) || !timeoutErr.Timeout()) {
-		t.Errorf("BLPop() error = %v, want deadline or network timeout", err)
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		if timeoutErr, ok := errors.AsType[net.Error](err); !ok || !timeoutErr.Timeout() {
+			t.Errorf("BLPop() error = %v, want deadline or network timeout", err)
+		}
 	}
 	if elapsed > time.Second {
 		t.Errorf("BLPop() took %v, want network deadline to stop it within 1s", elapsed)

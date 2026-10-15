@@ -111,7 +111,7 @@ sequenceDiagram
 
 ## Chat Completions 请求处理切片
 
-2026-10-15，配置加载与只读消费已提交为 `f20e4395`。用户随后确认[组件内能力包布局](../decisions/0015-ai-proxy-package-layout.md)，本地请求处理按职责重组到 `internal/aiproxy/pkg`。后续调用方按以下顺序接入：endpointspec 解析原始请求 → 使用原始 model 调用已捕获配置的 ResolveModel → translator 按选中绑定的 modelNameOverride 改写出站请求；本轮尚未新增 HTTP Handler、启动入口或出站连接，也未装配这条调用链。配置包不承担 HTTP 协议解析。
+2026-10-15，配置加载与只读消费已提交为 `f20e4395`。用户随后确认[组件内能力包布局](../decisions/0015-ai-proxy-package-layout.md)，本地请求处理按职责重组到 `internal/aiproxy/pkg`，提交为 `c4c9d611`。当前模型 Service 按以下顺序准备请求：捕获一次配置 → endpointspec 解析原始请求 → 使用原始 model 调用 ResolveModel → translator 按选中绑定的 modelNameOverride 改写出站请求。后续新增的 HTTP Handler 负责有界读取、错误映射和向后续 HTTP 阶段交接；尚无启动入口或出站连接，配置包仍不承担 HTTP 协议解析。Service、Handler 和测试已通过用户 review，并获准本地提交。
 
 本轮重新取得固定提交 `daa9f891a8afcb18576d4593ad18870d1d18abac` 的 [ChatCompletionsEndpointSpec.ParseBody](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/endpointspec/endpointspec.go) 和 [OpenAI 同协议 RequestBody](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/translator/openai_openai.go)。官方先读取原始模型名用于路由，再用选中后端的覆盖值修改原始 JSON，而不通过完整类型重新生成所有字段。这里只采用处理顺序与字段保留原则，不移植 ExtProc、泛型 EndpointSpec、计费、流用量强制注入或跨协议 Translator。
 
@@ -124,6 +124,32 @@ sequenceDiagram
 GoCanon MCP 规则源仍为 `/Users/lgc202/workspace/source/lgc202/gocanon`，revision `08260b72394a104ebe8286088eb23383cd6a6235`、`08260b7-dirty`；沿用本连续任务已完整读取且来源未变的入口与相关规范，草案不等同于稳定约束。重组前的单包实现已通过手工审查、反例与所有权测试；本次保留同样的模型校验、字段保持和独立结果行为，重新核对包职责、GO-FUNC-012/013/014 及语义分段。原先包装对象持有私有请求体的测试调整为分别检查解析字段与输入独立、适配不修改源字节以及返回字节与源字节独立；不把测试迁移当作 HTTP/Envoy 调用链已经实现。
 
 重组前后已通过的检查与审查范围记录在 [0015](../decisions/0015-ai-proxy-package-layout.md)。未修改声明式 API 类型或存储契约，未重新生成或运行 API integration；没有真实 Envoy/Proxy、UDS、提供商或 SSE 验证。下一步继续 HTTP 接入所需的入口信任、请求体读取和错误映射，不将此协议辅助实现视为已运行的 AI 服务。
+
+### 模型 Service：准备请求，不开放流量
+
+新增 [model.Service](../../internal/aiproxy/service/model/service.go) 的 PrepareChatCompletion(ctx, params)，接受明确的 Listener 端口、Host 完整编译标识和原始请求体。Service 使用同一份捕获配置完成目标选择与改写，返回按值交付的 ModelBackend 和独立的出站字节；没有携带或比较 Envoy revision。未加载或已撤回配置返回 ErrUnavailable，请求解析失败返回 ErrInvalidArgument，入口或模型未匹配返回 ErrModelNotFound；首个命中后端不可用仍返回 ErrUnavailable，不尝试后续 catch-all。包装保留底层原因，Service 不打印错误，也不把内部错误直接编码成 HTTP 响应。
+
+依赖按 0015 从用例编排指向 aiconfig、endpointspec 和 translator；aiconfig 在这里提供已确认的只读运行视图，不是启动 conf。Service 不导入 Kubernetes 客户端、组件启动配置或 Transport，也不为无持久化行为增加 Repository。Loader 的启动和停止由后续组件组合根持有，构造 Service 不启动后台任务。当前编译配置只接受 OpenAI，后续增加其他 schema 时必须同时审查用例中的适配选择，不能只扩大配置枚举。
+
+Service 切片不包含 Handler；后续 HTTP 适配见下节。可信入口的来源、出站路径和 Header 构造、最终公开错误协议仍未接入。Context 在处理前与交付结果前检查，不能中断同步 JSON 解码；此处不提供网络取消或流排空保证。测试复用已有 golden，使用原生 fake Clientset 驱动真实 Loader，验证原模型匹配、覆盖与扩展字段保持、无覆盖字节保持、结果独立、错误原因、入口隔离、首个失效目标拒绝，以及更新/删除后的新调用；不把这些进程内测试视为 API Server 或 Envoy 联调。Service 与测试已随 HTTP 适配一起通过用户 review，并获准本地提交。
+
+本切片再次核对 GoCanon MCP，仍为 `08260b7-dirty` 启动快照，复用本连续任务已完整读取且来源未变的规范与决策；按 0015 的组件能力包归属实现，没有生成新的服务骨架。已审查全部新增手写文件与受影响调用，独立复查 GO-FUNC-012/013/014；格式、已跟踪及未跟踪文件空白检查无诊断，lint 为 0 issues，Vet、全量测试、构建及 `go test -race ./internal/aiproxy/... -count=3` 通过。未改 API 类型、存储或依赖，未重新生成或运行 API integration；真实 HTTP/UDS、Envoy、模型提供商和 SSE 验证未执行。
+
+### HTTP Handler：有界读取与协议交接
+
+[ModelHandler.ChatCompletion](../../internal/aiproxy/handler/model.go) 使用 Kratos v3 原生的 `func(http.Context) error`，由 Server 的原生 Router.POST 注册，错误交给 ErrorEncoder；没有新增 writeError 或伪造 protobuf 模型服务。本轮只在测试中注册路由，未创建生产 Server、二进制或监听地址。完整读取与后续 HTTP 阶段均放在 ctx.Middleware 调用中，避免绕过入站中间件或先读未授权正文；传给 Service 和后续阶段的是中间件派生的上下文。
+
+[WithModelEntry 与 ModelBackend](../../internal/aiproxy/handler/context.go) 使用私有类型 Context key 传递单次请求的入口与目标。入口须由后续受信任适配层确定，不能照抄客户端 Header；缺入口返回 503，客户端自报 Header 不能建立此上下文。后端只由 Service 的选择结果写入，交付值不含可变配置引用，不再次捕获配置。这里没有约定任何 Envoy 内部 Header、socket 路径或身份认证机制，不能把 Context 封装当作认证已经实现。
+
+请求体字节上限必须以正数显式传给 NewModel，没有新增默认值或启动参数。http.MaxBytesReader 限制实际读取，不能靠伪报 Content-Length 绕过；超限返回 413。当前只处理未压缩 JSON，不解压请求，Content-Encoding 除空值和 identity 外返回 415，多个 Header 值逐一检查。JSON 解析与模型选择失败分别映射为固定的 400、404 或 503；取消与超时沿 Kratos 的 ClientClosed/499 和 GatewayTimeout/504，Service 未知错误固定映射 500。原因链留在服务端，未知 Service 错误只在此边界记录一次，不主动记录请求体；Middleware 仍须对自己的错误执行安全映射。
+
+准备成功后克隆 HTTP 请求，交付独立的新 Body 与正确 ContentLength，移除原分帧 Header、TransferEncoding 和 Trailer，清除可能重放原始正文的 GetBody，并将正文标记为未压缩 application/json；不修改入站请求的 Header、URL 或 Context。后续标准 http.Handler 通过 ModelBackend 取得选定绑定，并直接使用原 ResponseWriter，Handler 不缓冲响应或丢失 Flush 能力。具体上游 URL/路径、凭据与内部 Header 清理、受限 UDS Transport 和出口关联均尚未实现；后续阶段不能以原始客户端 URL/Host 决定连接目标，不能直接把这里的中间态请求发往提供商。
+
+公开错误的最终模型协议 envelope 仍留到 Server 编码切片；测试暂用 Kratos 默认 ErrorEncoder 检查状态和不泄露 cause，不把其 JSON 形状确定为模型公开接口。测试通过真实 Kratos Router 调用 Handler、真实模型 Service 与原生 fake Clientset/Loader，覆盖字节上限正反例、未命中/跨入口/未加载拒绝、客户端伪造入口、读取失败、取消、中间件先执行及上下文保留、未知下游 Kratos 错误兜底，以及原 Writer 与 Flush 保留。Recorder 检查不代表真实 SSE 时序、代理背压、网络取消或 Envoy 联调。
+
+2026-10-15 用户确认本地提交本切片及 errors.AsType 调整；按 Go 1.27 将仓库 10 处 errors.As 改为泛型匹配，不增加依赖或改变目标错误类型。已复查手写改动的声明顺序、错误路径、反例与语义空行；未跟踪文件单独检查空白。当前 GoCanon MCP 不可用，沿用本连续任务已完整读取的规则快照，不声称重新获取了规则版本。真实组件验证范围仍如上文所列，Redis integration 测试只做带标签编译、不连接真实 Redis。
+
+提交前重跑 `gofmt -l cmd internal pkg`、`git diff --check` 与未跟踪文件空白检查无诊断，`golangci-lint run ./...` 为 0 issues；`go vet ./...`、`go test ./... -count=1`、`go build ./...` 和 `go test -race ./internal/aiproxy/... -count=1` 均通过。没有修改 API 类型、存储契约或生成源，未重新生成或运行 API Server integration；这些检查不替代真实代理链路验收。
 
 ## 理由与备选方案
 

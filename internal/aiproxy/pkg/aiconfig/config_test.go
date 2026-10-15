@@ -62,8 +62,8 @@ func TestNewConfigRejectsInvalidPayload(t *testing.T) {
 	invalid := strings.Replace(string(data), compiled.Revision, strings.Repeat("z", 64), 1)
 
 	config, err := newConfig([]byte(invalid))
-	var invalidByte hex.InvalidByteError
-	if config != nil || !errors.As(err, &invalidByte) {
+
+	if _, ok := errors.AsType[hex.InvalidByteError](err); config != nil || !ok {
 		t.Errorf("newConfig(invalid revision) = (%+v, %v), want nil and wrapped hex.InvalidByteError", config, err)
 	}
 }
