@@ -1,4 +1,4 @@
-package configloader
+package aiconfig
 
 import (
 	"context"
@@ -28,34 +28,34 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
-func TestNew(t *testing.T) {
+func TestNewLoader(t *testing.T) {
 	apiClient := fake.NewClientset()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	for _, namespace := range []string{"", "*", "Team-A", "team/a"} {
-		if _, err := New(apiClient, namespace, logger); err == nil {
-			t.Errorf("New(namespace %q) error = nil, want invalid namespace error", namespace)
+		if _, err := NewLoader(apiClient, namespace, logger); err == nil {
+			t.Errorf("NewLoader(namespace %q) error = nil, want invalid namespace error", namespace)
 		}
 	}
-	if _, err := New(nil, "control-plane", logger); err == nil {
-		t.Error("New(nil client) error = nil, want missing client error")
+	if _, err := NewLoader(nil, "control-plane", logger); err == nil {
+		t.Error("NewLoader(nil client) error = nil, want missing client error")
 	}
-	if _, err := New(apiClient, "control-plane", nil); err == nil {
-		t.Error("New(nil logger) error = nil, want missing logger error")
+	if _, err := NewLoader(apiClient, "control-plane", nil); err == nil {
+		t.Error("NewLoader(nil logger) error = nil, want missing logger error")
 	}
-	if _, err := New(apiClient, "control-plane", logger); err != nil {
-		t.Errorf("New(valid dependencies) error = %v, want nil", err)
+	if _, err := NewLoader(apiClient, "control-plane", logger); err != nil {
+		t.Errorf("NewLoader(valid dependencies) error = %v, want nil", err)
 	}
 	if actions := apiClient.Actions(); len(actions) != 0 {
-		t.Errorf("New() API actions = %v, want none", actions)
+		t.Errorf("NewLoader() API actions = %v, want none", actions)
 	}
 }
 
 func TestReplaceAndRevoke(t *testing.T) {
 	l := newTestLoader(t, fake.NewClientset())
 	configMap := fixtureConfigMap(t)
-	want, err := aidataplane.Decode([]byte(configMap.Data[aidataplane.ConfigMapDataKey]))
+	want, err := newConfig([]byte(configMap.Data[aidataplane.ConfigMapDataKey]))
 	if err != nil {
-		t.Fatalf("Decode(fixture) error = %v", err)
+		t.Fatalf("newConfig(fixture) error = %v", err)
 	}
 
 	if err := l.replace(configMap); err != nil {
@@ -66,7 +66,7 @@ func TestReplaceAndRevoke(t *testing.T) {
 	if initial == nil {
 		t.Fatal("replace(initial) has no snapshot, want valid configuration")
 	}
-	if diff := cmp.Diff(want, initial); diff != "" {
+	if diff := cmp.Diff(want, initial, cmp.AllowUnexported(Config{})); diff != "" {
 		t.Errorf("replace(initial) mismatch (-want +got):\n%s", diff)
 	}
 
@@ -83,11 +83,17 @@ func TestReplaceAndRevoke(t *testing.T) {
 		t.Fatalf("replace(valid empty configuration) error = %v", err)
 	}
 	_, revoked := loaderState(l)
-	if revoked == nil || len(revoked.Listeners) != 0 || len(revoked.Backends) != 0 ||
-		len(revoked.NetworkBackends) != 0 || revoked.Revision == initial.Revision {
+	if revoked == nil || revoked.Revision() == initial.Revision() {
 		t.Errorf("replace(empty) = %+v, want a valid new snapshot without listeners", revoked)
 	}
-	if diff := cmp.Diff(want, initial); diff != "" {
+	wantEmpty, err := newConfig([]byte(configMap.Data[aidataplane.ConfigMapDataKey]))
+	if err != nil {
+		t.Fatalf("newConfig(empty configuration) error = %v", err)
+	}
+	if diff := cmp.Diff(wantEmpty, revoked, cmp.AllowUnexported(Config{})); diff != "" {
+		t.Errorf("replace(empty) did not revoke complete contents (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(want, initial, cmp.AllowUnexported(Config{})); diff != "" {
 		t.Errorf("replace(empty) mutated the previous snapshot (-want +got):\n%s", diff)
 	}
 }
@@ -110,9 +116,9 @@ func TestReplaceRejectsInvalidUpdates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			l := newTestLoader(t, fake.NewClientset())
 			valid := fixtureConfigMap(t)
-			want, err := aidataplane.Decode([]byte(valid.Data[aidataplane.ConfigMapDataKey]))
+			want, err := newConfig([]byte(valid.Data[aidataplane.ConfigMapDataKey]))
 			if err != nil {
-				t.Fatalf("Decode(valid fixture) error = %v", err)
+				t.Fatalf("newConfig(valid fixture) error = %v", err)
 			}
 
 			invalid := valid.DeepCopy()
@@ -140,7 +146,7 @@ func TestReplaceRejectsInvalidUpdates(t *testing.T) {
 			if got != previous {
 				t.Errorf("replace(update %s) snapshot = %p, want previous %p", tt.name, got, previous)
 			}
-			if diff := cmp.Diff(want, got); diff != "" {
+			if diff := cmp.Diff(want, got, cmp.AllowUnexported(Config{})); diff != "" {
 				t.Errorf("replace(update %s) changed snapshot contents (-want +got):\n%s", tt.name, diff)
 			}
 		})
@@ -288,12 +294,12 @@ func TestRunLoadsUpdatesDeletesAndStops(t *testing.T) {
 		synctest.Wait()
 
 		_, initial := loaderState(l)
-		if initial == nil || len(initial.Listeners) == 0 {
+		if initial == nil {
 			t.Fatalf("Run(created valid object) = %+v, want nonempty valid configuration", initial)
 		}
-		want, err := aidataplane.Decode([]byte(configMap.Data[aidataplane.ConfigMapDataKey]))
+		want, err := newConfig([]byte(configMap.Data[aidataplane.ConfigMapDataKey]))
 		if err != nil {
-			t.Fatalf("Decode(initial configuration) error = %v", err)
+			t.Fatalf("newConfig(initial configuration) error = %v", err)
 		}
 
 		configMap.Data[aidataplane.ConfigMapDataKey] = "{}"
@@ -308,7 +314,7 @@ func TestRunLoadsUpdatesDeletesAndStops(t *testing.T) {
 		if afterInvalid != initial {
 			t.Error("Run(invalid update) replaced the valid snapshot")
 		}
-		if diff := cmp.Diff(want, afterInvalid); diff != "" {
+		if diff := cmp.Diff(want, afterInvalid, cmp.AllowUnexported(Config{})); diff != "" {
 			t.Errorf("Run(invalid update) changed snapshot contents (-want +got):\n%s", diff)
 		}
 
@@ -320,9 +326,16 @@ func TestRunLoadsUpdatesDeletesAndStops(t *testing.T) {
 		}
 		synctest.Wait()
 
-		if _, got := loaderState(l); got == nil || len(got.Listeners) != 0 ||
-			len(got.Backends) != 0 || len(got.NetworkBackends) != 0 {
+		if _, got := loaderState(l); got == nil || got.Revision() == initial.Revision() {
 			t.Errorf("Run(empty update) = %+v, want valid empty snapshot", got)
+		}
+		wantEmpty, err := newConfig([]byte(configMap.Data[aidataplane.ConfigMapDataKey]))
+		if err != nil {
+			t.Fatalf("newConfig(empty configuration) error = %v", err)
+		}
+		_, empty := loaderState(l)
+		if diff := cmp.Diff(wantEmpty, empty, cmp.AllowUnexported(Config{})); diff != "" {
+			t.Errorf("Run(empty update) did not revoke complete contents (-want +got):\n%s", diff)
 		}
 
 		if err := configMaps.Delete(t.Context(), aidataplane.ConfigMapName, metav1.DeleteOptions{}); err != nil {
@@ -472,8 +485,11 @@ func TestRunWatchFailureRetainsConfig(t *testing.T) {
 		if watchAttempts.Load() == 0 {
 			t.Fatal("Run(watch failure) made no failing Watch request, want exercised failure path")
 		}
-		if _, got := loaderState(l); got == nil || len(got.Listeners) == 0 {
+		_, got := loaderState(l)
+		if got == nil {
 			t.Errorf("Run(watch failure) = %+v, want retain the valid initial List configuration", got)
+		} else if _, err := got.ResolveModel(8080, "gateway/team-a/public/listener/api", "coding"); err != nil {
+			t.Errorf("ResolveModel(after Watch failure) error = %v, want valid initial model route", err)
 		}
 	})
 }
@@ -494,9 +510,9 @@ func TestRunCancelledBeforeStart(t *testing.T) {
 
 func newTestLoader(t *testing.T, apiClient *fake.Clientset) *Loader {
 	t.Helper()
-	l, err := New(apiClient, "control-plane", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	l, err := NewLoader(apiClient, "control-plane", slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
-		t.Fatalf("New(test loader) error = %v", err)
+		t.Fatalf("NewLoader(test loader) error = %v", err)
 	}
 
 	return l
@@ -554,7 +570,7 @@ func emptyPayload(t *testing.T) string {
 }
 
 // loaderState 仅供测试观察私有状态，不提供可变配置的生产访问入口。
-func loaderState(l *Loader) (types.UID, *aidataplane.Config) {
+func loaderState(l *Loader) (types.UID, *Config) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.uid, l.config

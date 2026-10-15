@@ -1,7 +1,8 @@
-// Package configloader 通过原生 ConfigMap List/Watch 加载共享 AI 配置。
+// Package aiconfig 加载、发布并提供 AI Proxy 请求使用的只读运行配置。
+// 通过原生 ConfigMap List/Watch 接收共享编译配置，校验后建立查询索引。
 // 通信失败和同实例的坏更新保留上次有效值；确认删除和实例替换撤回旧值。
 // 本包不连接模型后端，不表示流量就绪，也不拥有 API 客户端的生命周期。
-package configloader
+package aiconfig
 
 import (
 	"context"
@@ -24,20 +25,22 @@ import (
 )
 
 // Loader 持有单一 ConfigMap 实例的完整有效快照，不能复制或重复运行。
-// 快照保持私有；实际消费接口在 Proxy 的调用路径确定后再添加。
+// Capture 只交付不可变运行配置，不暴露编译配置中的可变数据。
 type Loader struct {
 	client    kubernetes.Interface
 	namespace string
 	logger    *slog.Logger
 	started   atomic.Bool
 
+	// mu 保护 uid 与 config 指针的读取、替换和撤回，不保护 Config 内部字段。
+	// Config 发布后保持只读，因此 Capture 解锁后仍可使用已捕获的实例。
 	mu     sync.RWMutex
 	uid    types.UID
-	config *aidataplane.Config
+	config *Config
 }
 
-// New 校验加载范围并保存依赖，不发起请求、不启动后台任务。
-func New(
+// NewLoader 校验加载范围并保存依赖，不发起请求、不启动后台任务。
+func NewLoader(
 	apiClient kubernetes.Interface,
 	namespace string,
 	logger *slog.Logger,
@@ -112,6 +115,22 @@ func (l *Loader) Run(ctx context.Context) error {
 	return fmt.Errorf("run AI configuration loader: %w", ctx.Err())
 }
 
+// Capture 为一次请求捕获当前完整运行配置；尚未加载或已撤回时返回 false。
+// 调用方应在请求开始时捕获一次，不能在处理途中重新捕获并混用版本。
+//
+// 本方法只复制配置指针，不深拷贝配置内容。读锁保证取指针时不会与发布、撤回并发；
+// 解锁后的安全性依赖 Config 发布后不再修改，而不是继续持有此锁。
+// 后续更新只替换 Loader 的指针，已捕获的指针仍指向原来的完整实例。
+//
+// 有效更新后捕获新实例；确认删除或停止后没有可捕获实例。
+// 这些变化不修改已经交付给在途请求的实例。
+func (l *Loader) Capture() (*Config, bool) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	return l.config, l.config != nil
+}
+
 func (l *Loader) load(ctx context.Context, configMap *corev1.ConfigMap) {
 	if err := l.replace(configMap); err != nil {
 		l.logger.ErrorContext(ctx, "Failed to load AI configuration", "err", err)
@@ -131,12 +150,13 @@ func (l *Loader) replace(configMap *corev1.ConfigMap) error {
 		return errors.New("AI configuration ConfigMap UID is missing")
 	}
 
+	// 同名新 UID 是另一个对象实例，先撤回旧值；即使新内容校验失败也不能继承旧配置。
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	if l.uid != configMap.UID {
 		l.uid = configMap.UID
 		l.config = nil
 	}
+	l.mu.Unlock()
 
 	if _, occupied := configMap.BinaryData[aidataplane.ConfigMapDataKey]; occupied {
 		return fmt.Errorf("AI configuration key %q is occupied by binaryData", aidataplane.ConfigMapDataKey)
@@ -146,12 +166,18 @@ func (l *Loader) replace(configMap *corev1.ConfigMap) error {
 		return fmt.Errorf("AI configuration key %q is missing", aidataplane.ConfigMapDataKey)
 	}
 
-	config, err := aidataplane.Decode([]byte(data))
+	// 单个 Informer 处理器串行调用 replace/remove；clear 在 Shutdown 等待处理器退出后执行。
+	// 因此构建期间不会有其他写入者抢先发布或撤回，无须持锁解码、建立查找表。
+	// 同 UID 更新期间，请求仍可捕获上一次有效实例；新 UID 的旧值已在上面撤回。
+	config, err := newConfig([]byte(data))
 	if err != nil {
 		return fmt.Errorf("decode AI configuration ConfigMap: %w", err)
 	}
 
-	if l.config == nil || l.config.Revision != config.Revision {
+	// 与 Capture 的读锁配合，只发布已经构建完成的实例；不原地修改旧实例的内容。
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.config == nil || l.config.Revision() != config.Revision() {
 		l.config = config
 	}
 
