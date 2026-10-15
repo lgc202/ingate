@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -260,7 +261,7 @@ func TestNewModelProxyRejectsInvalidBodyLimit(t *testing.T) {
 	}
 	service := modelproxy.New(loader, &http.Client{})
 	for _, limit := range []int64{0, -1} {
-		modelProxyHandler, err := NewModelProxy(service, limit)
+		modelProxyHandler, err := NewModelProxy(service, limit, slog.Default())
 
 		if modelProxyHandler != nil || err == nil {
 			t.Errorf("NewModelProxy(limit %d) = (%v, %v), want nil and configuration error", limit, modelProxyHandler, err)
@@ -283,7 +284,7 @@ func TestModelTransportError(t *testing.T) {
 		{name: "unknown protocol error", cause: kratoserrors.BadRequest("PRIVATE", "sensitive detail").WithMetadata(map[string]string{"secret": "private"}), wantStatus: 500},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			mapped := toModelTransportError(t.Context(), fmt.Errorf("private cause: %w", tt.cause))
+			mapped := toModelTransportError(t.Context(), fmt.Errorf("private cause: %w", tt.cause), slog.Default())
 			response := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
@@ -298,6 +299,40 @@ func TestModelTransportError(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestModelTransportErrorUsesInjectedLoggerOnce(t *testing.T) {
+	var output bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&output, nil)).With("service", "ai-proxy-test")
+	cause := errors.New("private failure")
+
+	mapped := toModelTransportError(t.Context(), cause, logger)
+
+	if !errors.Is(mapped, cause) {
+		t.Errorf("toModelTransportError(unknown failure) = %v, want preserved cause", mapped)
+	}
+	decoder := json.NewDecoder(&output)
+	var record map[string]any
+	if err := decoder.Decode(&record); err != nil {
+		t.Fatalf("Decode(injected error log) error = %v", err)
+	}
+	if record["service"] != "ai-proxy-test" || record["err"] != "private failure" {
+		t.Errorf("toModelTransportError(unknown failure) log = %v, want injected service and cause", record)
+	}
+	if err := decoder.Decode(&record); !errors.Is(err, io.EOF) {
+		t.Errorf("toModelTransportError(unknown failure) extra log = %v, want exactly one record", err)
+	}
+
+	output.Reset()
+
+	mapped = toModelTransportError(t.Context(), context.Canceled, logger)
+
+	if !errors.Is(mapped, context.Canceled) {
+		t.Errorf("toModelTransportError(canceled) = %v, want preserved cancellation", mapped)
+	}
+	if output.Len() != 0 {
+		t.Errorf("toModelTransportError(canceled) wrote %q, want no request error log", output.String())
 	}
 }
 
@@ -323,7 +358,7 @@ func newModelRouter(
 	options ...kratoshttp.ServerOption,
 ) *kratoshttp.Server {
 	t.Helper()
-	modelProxyHandler, err := NewModelProxy(service, limit)
+	modelProxyHandler, err := NewModelProxy(service, limit, slog.Default())
 	if err != nil {
 		t.Fatalf("NewModelProxy(test router) error = %v", err)
 	}

@@ -69,7 +69,7 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		loader := loadedConfig(t)
-		httpServer, closeIdle, err := NewHTTPServer(ingress, loader, egress.Addr().String(), 1024)
+		httpServer, closeIdle, err := NewHTTPServer(ingress, loader, egress.Addr().String(), 1024, slog.Default())
 		if err != nil {
 			t.Fatalf("NewHTTPServer(valid dependencies) error = %v", err)
 		}
@@ -141,7 +141,7 @@ func TestNewHTTPServerRejectsInvalidConfiguration(t *testing.T) {
 		{name: "zero body limit", socket: "/unused/egress.sock"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			httpServer, closeIdle, err := NewHTTPServer(listener, loader, tt.socket, tt.limit)
+			httpServer, closeIdle, err := NewHTTPServer(listener, loader, tt.socket, tt.limit, logger)
 
 			if httpServer != nil || closeIdle != nil || err == nil {
 				t.Errorf("NewHTTPServer(%s) = (%v, cleanup %t, %v), want nil results and error", tt.name, httpServer, closeIdle != nil, err)
@@ -183,7 +183,7 @@ func TestModelPipelineStreamsBeforeCompletionAndCancelsUpstream(t *testing.T) {
 	ingress := unixListener(t, "ingress.sock")
 
 	synctest.Test(t, func(t *testing.T) {
-		httpServer, closeIdle, err := NewHTTPServer(ingress, loadedConfig(t), egress.Addr().String(), 1024)
+		httpServer, closeIdle, err := NewHTTPServer(ingress, loadedConfig(t), egress.Addr().String(), 1024, slog.Default())
 		if err != nil {
 			t.Fatalf("NewHTTPServer(stream) error = %v", err)
 		}
@@ -265,16 +265,7 @@ func loadedConfig(t *testing.T) *aiconfig.Loader {
 
 func unixListener(t *testing.T, name string) *net.UnixListener {
 	t.Helper()
-	// 使用短目录，避免 macOS Unix socket 路径长度被测试名称占满。
-	directory, err := os.MkdirTemp("", "ig-app-")
-	if err != nil {
-		t.Fatalf("MkdirTemp(Unix listener) error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := os.RemoveAll(directory); err != nil {
-			t.Errorf("RemoveAll(test socket directory) error = %v", err)
-		}
-	})
+	directory := unixSocketDirectory(t)
 	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: filepath.Join(directory, name), Net: "unix"})
 	if err != nil {
 		t.Fatalf("ListenUnix(test listener) error = %v", err)
@@ -286,4 +277,20 @@ func unixListener(t *testing.T, name string) *net.UnixListener {
 	})
 
 	return listener
+}
+
+func unixSocketDirectory(t *testing.T) string {
+	t.Helper()
+	// MkdirTemp 明确创建私有目录；短前缀避免 macOS 的 Unix 路径长度限制。
+	directory, err := os.MkdirTemp("", "ig-app-")
+	if err != nil {
+		t.Fatalf("MkdirTemp(Unix listener) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(directory); err != nil {
+			t.Errorf("RemoveAll(test socket directory) error = %v", err)
+		}
+	})
+
+	return directory
 }

@@ -6,9 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/lgc202/ingate/internal/aiproxy/conf"
 )
@@ -16,6 +18,7 @@ import (
 const validStartupYAML = `server:
   socket: /run/ingate/ingress.sock
   max_request_body_bytes: 1048576
+  shutdown_timeout: 30s
 api_server:
   kubeconfig: /etc/ingate/ai-proxy.kubeconfig
   ai_config_namespace: control-plane
@@ -25,7 +28,11 @@ envoy:
 
 func TestLoadConfigExample(t *testing.T) {
 	want := &conf.Bootstrap{
-		Server: &conf.Server{Socket: "/run/ingate/ingress.sock", MaxRequestBodyBytes: 1048576},
+		Server: &conf.Server{
+			Socket:              "/run/ingate/ingress.sock",
+			MaxRequestBodyBytes: 1048576,
+			ShutdownTimeout:     durationpb.New(30 * time.Second),
+		},
 		ApiServer: &conf.APIServer{
 			Kubeconfig: "/etc/ingate/ai-proxy.kubeconfig", AiConfigNamespace: "control-plane",
 		},
@@ -54,11 +61,14 @@ func TestLoadConfigRejectsInvalidInputs(t *testing.T) {
 		{name: "duplicate section", data: validStartupYAML + "server: {}\n"},
 		{name: "duplicate field", data: strings.Replace(validStartupYAML, "  max_request_body_bytes:", "  socket: /run/other.sock\n  max_request_body_bytes:", 1)},
 		{name: "duplicate proto field alias", data: strings.Replace(validStartupYAML, "  max_request_body_bytes:", "  maxRequestBodyBytes: 2097152\n  max_request_body_bytes:", 1)},
-		{name: "missing server", data: strings.Replace(validStartupYAML, "server:\n  socket: /run/ingate/ingress.sock\n  max_request_body_bytes: 1048576\n", "", 1)},
+		{name: "missing server", data: strings.Replace(validStartupYAML, "server:\n  socket: /run/ingate/ingress.sock\n  max_request_body_bytes: 1048576\n  shutdown_timeout: 30s\n", "", 1)},
 		{name: "missing API connection", data: strings.Replace(validStartupYAML, "api_server:\n  kubeconfig: /etc/ingate/ai-proxy.kubeconfig\n  ai_config_namespace: control-plane\n", "", 1)},
 		{name: "missing Envoy", data: strings.Replace(validStartupYAML, "envoy:\n  egress_socket: /run/ingate/egress.sock\n", "", 1)},
 		{name: "zero body limit", data: strings.Replace(validStartupYAML, "1048576", "0", 1)},
 		{name: "negative body limit", data: strings.Replace(validStartupYAML, "1048576", "-1", 1)},
+		{name: "missing shutdown timeout", data: strings.Replace(validStartupYAML, "  shutdown_timeout: 30s\n", "", 1)},
+		{name: "zero shutdown timeout", data: strings.Replace(validStartupYAML, "30s", "0s", 1)},
+		{name: "negative shutdown timeout", data: strings.Replace(validStartupYAML, "30s", "-1s", 1)},
 		{name: "missing body limit", data: strings.Replace(validStartupYAML, "  max_request_body_bytes: 1048576\n", "", 1)},
 		{name: "overflow body limit", data: strings.Replace(validStartupYAML, "1048576", "9223372036854775808", 1)},
 		{name: "empty namespace", data: strings.Replace(validStartupYAML, "control-plane", "''", 1)},

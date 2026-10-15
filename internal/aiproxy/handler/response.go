@@ -18,10 +18,15 @@ type modelStreamWriter struct {
 
 // writeModelResponse 接管响应 Body，只负责 HTTP 写回，不重新选路或发起网络请求。
 // 正文及 Flush 失败后响应已经开始，必须中断连接，不能返回给 Kratos 追加错误 JSON。
-func writeModelResponse(ctx context.Context, response http.ResponseWriter, upstream *http.Response) {
+func writeModelResponse(
+	ctx context.Context,
+	response http.ResponseWriter,
+	upstream *http.Response,
+	logger *slog.Logger,
+) {
 	defer func() {
 		if err := upstream.Body.Close(); err != nil && ctx.Err() == nil {
-			slog.WarnContext(ctx, "Failed to close model response body", "err", err)
+			logger.WarnContext(ctx, "Failed to close model response body", "err", err)
 		}
 	}()
 
@@ -43,12 +48,12 @@ func writeModelResponse(ctx context.Context, response http.ResponseWriter, upstr
 	if (mediaErr == nil && strings.EqualFold(mediaType, "text/event-stream")) || upstream.ContentLength < 0 {
 		// 先交付响应头，即使上游尚未发送第一个事件也不会等待整条流结束。
 		if err := controller.Flush(); err != nil {
-			abortModelResponse(ctx, err)
+			abortModelResponse(ctx, err, logger)
 		}
 		destination = modelStreamWriter{response: response, controller: controller}
 	}
 	if _, err := io.Copy(destination, upstream.Body); err != nil {
-		abortModelResponse(ctx, err)
+		abortModelResponse(ctx, err, logger)
 	}
 
 	// Trailer 在读取到 EOF 后才完整；未提前声明的字段使用原生 TrailerPrefix。
@@ -88,9 +93,9 @@ func modelResponseHeaders(source http.Header) http.Header {
 	return headers
 }
 
-func abortModelResponse(ctx context.Context, err error) {
+func abortModelResponse(ctx context.Context, err error, logger *slog.Logger) {
 	if ctx.Err() == nil {
-		slog.ErrorContext(ctx, "Failed to write model response", "err", err)
+		logger.ErrorContext(ctx, "Failed to write model response", "err", err)
 	}
 	// ErrAbortHandler 是 net/http 的连接/HTTP2 流中断约定，不是业务 panic 恢复机制。
 	panic(http.ErrAbortHandler)

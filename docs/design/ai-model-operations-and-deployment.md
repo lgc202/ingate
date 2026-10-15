@@ -1,6 +1,6 @@
 # AI 模型操作与数据面部署设计
 
-- 状态：2026-10-15 模型公共入口与 Unix Header 适配已提交为 `d988f8df`；启动配置读取与校验已实现待 review，尚无生产进程入口或真实 Envoy 联调
+- 状态：2026-10-15 启动配置已提交为 `0b0eea18`；AI Proxy 命令、Run 与有界退出已通过 review 并获准本地提交，尚未进行真实 Envoy 联调
 - 日期：2026-10-11
 - 资源字段对齐：2026-10-12；首步操作与本地通信确认：2026-10-15
 - Ingate 源码基线：`b247a4c6`，分支 `codex/rebuild-from-zero`
@@ -227,7 +227,9 @@ HTTP 视图继续拥有公共 Listener/VirtualHost，AI 视图只为相同端口
 
 本步 GoCanon MCP 仍不可用，沿用连续任务已完整读取的本地开发入口，并重新核对 GO-FUNC-012/013/014。按 Go 审查技能逐个检查 17 个修改文件和 5 个未跟踪文件，独立复查声明顺序、语义空行与反例断言；未用扫描器代替人工判断。`gofmt -l cmd internal pkg`、已跟踪/未跟踪空白检查均无诊断，lint 为 0 issues，Vet、全量测试、构建及 AI Proxy/Envoy 适配包 race 测试通过。未修改 API 类型、存储或依赖，未重新生成或执行 API integration；上述检查不替代真实组件验收。
 
-## 启动配置读取与校验（本地待 review）
+## 启动配置读取与校验（已提交）
+
+本切片已通过用户 review，提交为 `0b0eea18`。以下保留该切片范围与检查记录；Run 和 shutdown_timeout 属于下一节的新增改动。
 
 本步只将已有构造参数落实为进程配置：`server.socket` 对应 Go Unix Listener，`server.max_request_body_bytes` 对应 Handler 正文上限；`api_server.kubeconfig` 和 `api_server.ai_config_namespace` 对应 Ingate API 连接与 Loader 读取范围；`envoy.egress_socket` 对应已有固定 UDS Client。字段来源是现有调用契约，不从参考服务复制 MySQL、Redis、gRPC、业务路由或其他未实现能力。
 
@@ -237,11 +239,38 @@ HTTP 视图继续拥有公共 Listener/VirtualHost，AI 视图只为相同端口
 
 本步不访问 kubeconfig、不创建 API 客户端、目录或 socket，不启动 Watch，不读取动态 ConfigMap；也没有新增热更新、日志/遥测参数或请求超时。配置尚未由生产 Run 消费，下一小步再接命令与生命周期，不把解析通过当成部署完成。
 
-测试覆盖完整示例、未知与重复输入、缺失配置、正文限值、Namespace、路径、相同 socket、集群内配置选择和读取错误原因；缺失依赖文件仍可完成纯输入校验，未创建目标目录。没有执行真实 Ingate API、Envoy 或提供商验证。本地新改动等待用户 review，不包含在 `d988f8df` 中。
+测试覆盖完整示例、未知与重复输入、缺失配置、正文限值、Namespace、路径、相同 socket、集群内配置选择和读取错误原因；缺失依赖文件仍可完成纯输入校验，未创建目标目录。没有执行真实 Ingate API、Envoy 或提供商验证。
 
 规则源重新核对为 `/Users/lgc202/workspace/source/lgc202/gocanon`、`08260b72394a104ebe8286088eb23383cd6a6235`，工作树有未提交修改；MCP 仍不可用，完整读取当前开发入口并按配置任务核对 RUNTIME、参数校验和已接受的组件布局决策。Go 函数、错误、命名、测试与审查技能用于组织读取/解码/校验阶段及错误路径；草案不据此转为稳定约束。逐文件检查手写改动，并独立复查 GO-FUNC-012/013/014；生成文件只核对来源与可重复性。
 
 格式、已跟踪/未跟踪空白检查均无诊断；lint 为 0 issues，Vet、全量测试、构建、Buf lint/build 均通过。使用固定 Buf v1.73.0 和 protoc-gen-go v1.36.11 重复生成，新增 conf.pb.go 的 SHA-256 一致，已有生成文件无变更。未修改 Kubernetes API 类型、存储契约或依赖，未执行 Kubernetes 代码生成或 API integration；本步无新增并发，未额外运行 race。真实运行组件验证仍未执行。
+
+## 运行入口与退出（已通过 review）
+
+[命令入口](../../cmd/ingate-ai-proxy/main.go) 提供 --conf、--version 和 --help，分别处理参数错误与运行错误的退出码；不增加管理或迁移命令。可用 `make ingate-ai-proxy` 构建，再执行 `bin/ingate-ai-proxy --conf configs/ai-proxy.yaml`。help/version 不加载配置。启动文件只读一次；动态模型配置仍由 Loader 从指定 Namespace 的唯一 ConfigMap 读取，不自动创建 Namespace 或 ConfigMap，也不把 Watch 建立视作流量就绪。
+
+[Run](../../internal/aiproxy/app.go) 负责创建和清理资源，[newApp](../../internal/aiproxy/app.go) 只做 Kratos 装配。它们复用已有 Loader、原生 Kubernetes Client、原生 HTTP Client 和 HTTP Server：
+
+```text
+启动：配置校验 → 组件日志 → API Client/Loader → 受保护的 Unix Listener → Kratos App + Watch
+退出：HTTP 停止接收并有界排空 → 取消并等待 Watch → 关闭出口/API 空闲连接 → 关闭日志
+```
+
+Watch 使用明确拥有的子 Context；解除父取消是为了让正常停止时的 HTTP 排空先完成，App 返回后必定取消并等待 Watch，不遗留后台任务。Loader 的非取消错误会停止 App 并返回原因。App 的信号和 HTTP 生命周期由 Kratos 管理，不另写信号循环；直接取消 Run 的父 Context 会沿框架 BaseContext 取消在途请求，与收到停止信号后保留请求排空不同。
+
+新增必填的正数 `server.shutdown_timeout`，通过 Kratos StopTimeout 限制排空期限。已核对锁定的 Kratos v3.0.0：HTTP Stop 在 Shutdown 超时后调用原生 Close，关闭仍未结束的连接；无需再包装一个强制关闭管理器。示例 30s 不是默认值，长 SSE 可能被中断，正常关闭可返回 nil；它也不是单个模型请求的超时。现有 HTTP 整次请求期限仍为零。
+
+[Unix 监听](../../internal/aiproxy/listener_unix.go) 要求部署预先准备由运行用户拥有、组和其他用户无访问权限的目录，例如 0700；绑定后 socket 设为 0600。Envoy 与 Go 须按同一运行 UID 部署，并由部署侧保护祖先目录。启动不创建目录、不修改已有目录权限，也不删除已存在的文件或残留 socket；占用直接失败。关闭原生 Unix Listener 会移除本次拥有的 socket。非 Unix 平台明确拒绝运行，不回退到 TCP。此限制保护的是已经确认的同机可信入口，不引入用户认证或跨主机身份方案。
+
+日志复用 internal/pkg/log 的现有默认配置：info、JSON、stdout，增加组件 service 字段，并注入 Kratos、Loader 和 Handler。Handler 不再依赖全局 slog，Service 不重复打印错误；最终运行错误由命令输出一次。本步没有增加日志配置项、模型端点、TLS、凭据、请求重试、初始配置就绪探针或发布屏障。
+
+新增测试运行真实 Kratos App、本地 Unix HTTP 连接和原生 API Client：核对受限 Watch 请求及取消、HTTP 入口可用、关闭后 socket 移除、启动依赖失败不绑定入口；用 fake Clientset 配合持续 SSE 核对配置的关闭期限会中断连接并取消上游，同时等待 Loader 停止。另有 socket 权限、已占用路径保留和开放目录拒绝的反例；错误转换核对注入日志、一次记录及取消不打印。没有启动真实 Envoy、Ingate API Server 或模型提供商，没有验证操作系统信号投递、跨 UID 部署、xDS ACK/NACK 或性能。
+
+本步实现时 GoCanon MCP 仍不可用，使用连续任务已完整读取的本地来源 `08260b72394a104ebe8286088eb23383cd6a6235`（当时工作树有修改），按生命周期、并发、Context、错误、日志和 Go 审查规范检查资源所有权与退出顺序；技术写作技能用于区分实现证据与未验证范围。逐个审查新增及修改的手写文件，并独立复查 GO-FUNC-012/013/014 的声明顺序、错误检查相邻性和语义空行。用户已通过 review 并授权本地提交，不推送或创建 PR。
+
+格式、已跟踪/未跟踪文件空白检查无诊断；lint 为 0 issues，Vet、全量测试和构建通过，命令及 AI Proxy 包的 race 测试重复三轮通过。Buf lint/build 通过，固定版本重复生成 conf.pb.go 的 SHA-256 一致，其他生成文件无变更。没有修改 Kubernetes API、存储或依赖，未执行 Kubernetes 代码生成或 API integration；这些检查不代替上述真实组件验证。
+
+提交前重新核对本地 GoCanon 为 `e3ff4a1f8a807a9b88c6b9a78b23e98986104540`（工作树有修改），MCP 仍不可用；重新完整读取开发入口，并确认本次适用的规范与分层决策较上述实现来源未变。再次审查全部手写改动及未跟踪文件，独立复查语义空行，并重跑格式、空白、lint、Vet、全量测试及构建；生成结果与上一轮核对的哈希一致。不将普通检查通过算作真实组件验收。
 
 ## 理由与备选方案
 
@@ -253,9 +282,9 @@ HTTP 视图继续拥有公共 Listener/VirtualHost，AI 视图只为相同端口
 
 ## 兼容性与实施边界
 
-项目无旧 AI 接口兼容压力，也尚无可运行的 AI 转发进程。本稿不改变 Gateway、HTTPRoute、Backend、Admin Session 和 MySQL 的管理契约；已配置 ModelRoute 的入口按上文顺序优先处理模型 POST，不扩大到其他操作。无效引用继续按现有规则拒绝。
+项目无旧 AI 接口兼容压力，当前新增进程入口已通过 review，尚待真实组件验收。本稿不改变 Gateway、HTTPRoute、Backend、Admin Session 和 MySQL 的管理契约；已配置 ModelRoute 的入口按上文顺序优先处理模型 POST，不扩大到其他操作。无效引用继续按现有规则拒绝。
 
-资源、配置编译、存储与 Loader 已分步完成；2026-10-15 起按确认的 Chat Completions 范围继续 AI Proxy。模型公共入口与 Unix Header 适配已提交为 `d988f8df`，启动配置读取与校验已实现待 review，生产进程入口仍未实现。最终一致性取舍已确认，凭据来源与权限、后端 TLS/客户端认证仍在相应实现前确认。2026-10-11 用户要求凭据参考官方，具体建议与代价见 [AI 凭据与运行配置设计](ai-credentials-and-runtime-config.md)，凭据部分仍待 review。协议切片还须确定并发流界限、超时、退出排空、本地错误格式和提供商状态引用行为；未定时不接真实密钥。
+资源、配置编译、存储与 Loader 已分步完成；2026-10-15 起按确认的 Chat Completions 范围继续 AI Proxy。模型公共入口与 Unix Header 适配已提交为 `d988f8df`，启动配置已提交为 `0b0eea18`；进程入口及有界退出已通过 review 并获准本地提交。最终一致性取舍已确认，凭据来源与权限、后端 TLS/客户端认证仍在相应实现前确认。2026-10-11 用户要求凭据参考官方，具体建议与代价见 [AI 凭据与运行配置设计](ai-credentials-and-runtime-config.md)，凭据部分仍待 review。协议切片还须确定并发流界限、请求超时、本地错误格式和提供商状态引用行为；未定时不接真实密钥。
 
 日常代码审查、单元与静态检查继续执行；真实 Envoy、模型/MCP、实库、ACK/NACK 和故障恢复留到用户指定的统一测试阶段。相关能力在得到证据前标为未验证，不能因延期就宣称完成组件验收。
 

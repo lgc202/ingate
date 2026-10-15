@@ -10,6 +10,7 @@ import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -93,8 +94,10 @@ type Server struct {
 	Socket string `protobuf:"bytes,1,opt,name=socket,proto3" json:"socket,omitempty"`
 	// max_request_body_bytes 是读取客户端正文的字节上限，必须显式配置，不设默认值。
 	MaxRequestBodyBytes int64 `protobuf:"varint,2,opt,name=max_request_body_bytes,json=maxRequestBodyBytes,proto3" json:"max_request_body_bytes,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// shutdown_timeout 是停止接收后等待在途 HTTP 请求的期限，超时由原生 Server 关闭连接。
+	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,3,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Server) Reset() {
@@ -139,6 +142,13 @@ func (x *Server) GetMaxRequestBodyBytes() int64 {
 		return x.MaxRequestBodyBytes
 	}
 	return 0
+}
+
+func (x *Server) GetShutdownTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.ShutdownTimeout
+	}
+	return nil
 }
 
 // APIServer 连接 Ingate API，而不是宿主 Kubernetes。
@@ -246,15 +256,16 @@ var File_aiproxy_conf_conf_proto protoreflect.FileDescriptor
 
 const file_aiproxy_conf_conf_proto_rawDesc = "" +
 	"\n" +
-	"\x17aiproxy/conf/conf.proto\x12\faiproxy.conf\x1a\x1bbuf/validate/validate.proto\"\xb4\x01\n" +
+	"\x17aiproxy/conf/conf.proto\x12\faiproxy.conf\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\"\xb4\x01\n" +
 	"\tBootstrap\x124\n" +
 	"\x06server\x18\x01 \x01(\v2\x14.aiproxy.conf.ServerB\x06\xbaH\x03\xc8\x01\x01R\x06server\x12>\n" +
 	"\n" +
 	"api_server\x18\x02 \x01(\v2\x17.aiproxy.conf.APIServerB\x06\xbaH\x03\xc8\x01\x01R\tapiServer\x121\n" +
-	"\x05envoy\x18\x03 \x01(\v2\x13.aiproxy.conf.EnvoyB\x06\xbaH\x03\xc8\x01\x01R\x05envoy\"g\n" +
+	"\x05envoy\x18\x03 \x01(\v2\x13.aiproxy.conf.EnvoyB\x06\xbaH\x03\xc8\x01\x01R\x05envoy\"\xba\x01\n" +
 	"\x06Server\x12\x1f\n" +
 	"\x06socket\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06socket\x12<\n" +
-	"\x16max_request_body_bytes\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x13maxRequestBodyBytes\"d\n" +
+	"\x16max_request_body_bytes\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x13maxRequestBodyBytes\x12Q\n" +
+	"\x10shutdown_timeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x01\xaa\x01\x02*\x00R\x0fshutdownTimeout\"d\n" +
 	"\tAPIServer\x12\x1e\n" +
 	"\n" +
 	"kubeconfig\x18\x01 \x01(\tR\n" +
@@ -277,20 +288,22 @@ func file_aiproxy_conf_conf_proto_rawDescGZIP() []byte {
 
 var file_aiproxy_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_aiproxy_conf_conf_proto_goTypes = []any{
-	(*Bootstrap)(nil), // 0: aiproxy.conf.Bootstrap
-	(*Server)(nil),    // 1: aiproxy.conf.Server
-	(*APIServer)(nil), // 2: aiproxy.conf.APIServer
-	(*Envoy)(nil),     // 3: aiproxy.conf.Envoy
+	(*Bootstrap)(nil),           // 0: aiproxy.conf.Bootstrap
+	(*Server)(nil),              // 1: aiproxy.conf.Server
+	(*APIServer)(nil),           // 2: aiproxy.conf.APIServer
+	(*Envoy)(nil),               // 3: aiproxy.conf.Envoy
+	(*durationpb.Duration)(nil), // 4: google.protobuf.Duration
 }
 var file_aiproxy_conf_conf_proto_depIdxs = []int32{
 	1, // 0: aiproxy.conf.Bootstrap.server:type_name -> aiproxy.conf.Server
 	2, // 1: aiproxy.conf.Bootstrap.api_server:type_name -> aiproxy.conf.APIServer
 	3, // 2: aiproxy.conf.Bootstrap.envoy:type_name -> aiproxy.conf.Envoy
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	4, // 3: aiproxy.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_aiproxy_conf_conf_proto_init() }

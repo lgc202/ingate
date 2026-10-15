@@ -3,6 +3,7 @@ syntax = "proto3";
 package aiproxy.conf;
 
 import "buf/validate/validate.proto";
+import "google/protobuf/duration.proto";
 
 option go_package = "github.com/lgc202/ingate/internal/aiproxy/conf;conf";
 
@@ -22,6 +23,11 @@ message Server {
   string socket = 1 [(buf.validate.field).string.min_len = 1];
   // max_request_body_bytes 是读取客户端正文的字节上限，必须显式配置，不设默认值。
   int64 max_request_body_bytes = 2 [(buf.validate.field).int64.gt = 0];
+  // shutdown_timeout 是停止接收后等待在途 HTTP 请求的期限，超时由原生 Server 关闭连接。
+  google.protobuf.Duration shutdown_timeout = 3 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).duration.gt = {}
+  ];
 }
 
 // APIServer 连接 Ingate API，而不是宿主 Kubernetes。

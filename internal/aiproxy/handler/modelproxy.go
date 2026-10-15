@@ -20,19 +20,22 @@ import (
 type ModelProxyHandler struct {
 	service             *modelproxy.Service
 	maxRequestBodyBytes int64
+	logger              *slog.Logger
 }
 
 // NewModelProxy 保存已构造的模型用例和明确的请求体字节上限，不设置猜测性的默认值。
 // Server 后续以 POST /v1/chat/completions 注册 ChatCompletion，并负责 ErrorEncoder。
+// 请求错误与流写回使用注入的组件 Logger，不修改或依赖全局 Logger。
 func NewModelProxy(
 	service *modelproxy.Service,
 	maxRequestBodyBytes int64,
+	logger *slog.Logger,
 ) (*ModelProxyHandler, error) {
 	if maxRequestBodyBytes <= 0 {
 		return nil, errors.New("model request body limit must be positive")
 	}
 
-	return &ModelProxyHandler{service: service, maxRequestBodyBytes: maxRequestBodyBytes}, nil
+	return &ModelProxyHandler{service: service, maxRequestBodyBytes: maxRequestBodyBytes, logger: logger}, nil
 }
 
 // ChatCompletion 使用 Kratos 原生 HTTP Handler 签名，保留普通响应和流式响应的写入接口。
@@ -55,7 +58,7 @@ func (h *ModelProxyHandler) chatCompletion(
 	request *http.Request,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return toModelTransportError(ctx, err)
+		return toModelTransportError(ctx, err, h.logger)
 	}
 	entry, ok := ctx.Value(modelEntryKey{}).(modelEntry)
 	if !ok {
@@ -81,7 +84,7 @@ func (h *ModelProxyHandler) chatCompletion(
 			).WithCause(err)
 		}
 		if err := ctx.Err(); err != nil {
-			return toModelTransportError(ctx, err)
+			return toModelTransportError(ctx, err, h.logger)
 		}
 
 		return kratoserrors.BadRequest("MODEL_REQUEST_READ_FAILED", "cannot read model request body").WithCause(err)
@@ -94,15 +97,15 @@ func (h *ModelProxyHandler) chatCompletion(
 		Accept:       request.Header.Values("Accept"),
 	})
 	if err != nil {
-		return toModelTransportError(ctx, err)
+		return toModelTransportError(ctx, err, h.logger)
 	}
 
-	writeModelResponse(ctx, response, upstream)
+	writeModelResponse(ctx, response, upstream, h.logger)
 
 	return nil
 }
 
-func toModelTransportError(ctx context.Context, err error) error {
+func toModelTransportError(ctx context.Context, err error, logger *slog.Logger) error {
 	switch {
 	case errors.Is(err, modelproxy.ErrInvalidArgument):
 		return kratoserrors.BadRequest("MODEL_INVALID_ARGUMENT", "invalid model request").WithCause(err)
@@ -115,11 +118,11 @@ func toModelTransportError(ctx context.Context, err error) error {
 	case errors.Is(err, context.DeadlineExceeded):
 		return kratoserrors.GatewayTimeout("DEADLINE_EXCEEDED", "request deadline exceeded").WithCause(err)
 	case errors.Is(err, modelproxy.ErrForwardFailed):
-		slog.ErrorContext(ctx, "AI Proxy model forwarding failed", "err", err)
+		logger.ErrorContext(ctx, "AI Proxy model forwarding failed", "err", err)
 		return kratoserrors.New(http.StatusBadGateway, "MODEL_FORWARD_FAILED", "model forwarding failed").WithCause(err)
 	default:
 		// 未知错误只在此入站边界记录；Service 不打印，Server 只编码安全的公开结果。
-		slog.ErrorContext(ctx, "AI Proxy model request failed", "err", err)
+		logger.ErrorContext(ctx, "AI Proxy model request failed", "err", err)
 		return kratoserrors.InternalServer("INTERNAL_SERVER_ERROR", "internal server error").WithCause(err)
 	}
 }
