@@ -8,6 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
+	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
@@ -66,8 +67,8 @@ func TestAIConfigPredicateScope(t *testing.T) {
 		object    string
 		want      bool
 	}{
-		{name: "target", namespace: "control-plane", object: AIConfigMapName, want: true},
-		{name: "other namespace", namespace: "team-a", object: AIConfigMapName},
+		{name: "target", namespace: "control-plane", object: aidataplane.ConfigMapName, want: true},
+		{name: "other namespace", namespace: "team-a", object: aidataplane.ConfigMapName},
 		{name: "other ConfigMap", namespace: "control-plane", object: "other"},
 	}
 
@@ -75,7 +76,7 @@ func TestAIConfigPredicateScope(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			previous := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: tt.namespace, Name: tt.object}}
 			current := previous.DeepCopy()
-			current.Data = map[string]string{aiConfigDataKey: "changed"}
+			current.Data = map[string]string{aidataplane.ConfigMapDataKey: "changed"}
 
 			if got := filter.Create(event.CreateEvent{Object: previous}); got != tt.want {
 				t.Errorf("predicate.Create(%s) = %t, want %t", tt.name, got, tt.want)
@@ -106,11 +107,13 @@ func TestAIConfigPredicateUpdates(t *testing.T) {
 		{name: "annotation", change: func(object *corev1.ConfigMap) { object.Annotations = map[string]string{"other": "new"} }},
 		{name: "other data key", change: func(object *corev1.ConfigMap) { object.Data["other"] = "new" }},
 		{name: "other binary key", change: func(object *corev1.ConfigMap) { object.BinaryData = map[string][]byte{"other": {1}} }},
-		{name: "owned payload", change: func(object *corev1.ConfigMap) { object.Data[aiConfigDataKey] = "new" }, want: true},
-		{name: "removed payload", change: func(object *corev1.ConfigMap) { delete(object.Data, aiConfigDataKey) }, want: true},
+		{name: "owned payload", change: func(object *corev1.ConfigMap) { object.Data[aidataplane.ConfigMapDataKey] = "new" }, want: true},
+		{name: "removed payload", change: func(object *corev1.ConfigMap) { delete(object.Data, aidataplane.ConfigMapDataKey) }, want: true},
 		{name: "removed management label", change: func(object *corev1.ConfigMap) { object.Labels = nil }, want: true},
 		{name: "different management label", change: func(object *corev1.ConfigMap) { object.Labels[aiConfigManagedByKey] = "other" }, want: true},
-		{name: "binary key occupied even when empty", change: func(object *corev1.ConfigMap) { object.BinaryData = map[string][]byte{aiConfigDataKey: {}} }, want: true},
+		{name: "binary key occupied even when empty", change: func(object *corev1.ConfigMap) {
+			object.BinaryData = map[string][]byte{aidataplane.ConfigMapDataKey: {}}
+		}, want: true},
 		{name: "immutable", change: func(object *corev1.ConfigMap) { object.Immutable = new(true) }, want: true},
 		{name: "deletion starts", change: func(object *corev1.ConfigMap) { object.DeletionTimestamp = new(metav1.Unix(3, 0)) }, want: true},
 	}

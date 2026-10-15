@@ -38,7 +38,7 @@ Ingate 的模型和 MCP 都进入 Go HTTP Proxy，而官方模型使用 ExtProc�
 
 固定对象名 `ingate-shared-data-plane-ai`，固定 key `config.json`；Namespace 由部署配置显式提供，不固定为某个租户空间、不自动创建。本文使用 `ingate-system` 作为示例值，不是已有 Namespace。对象名对应当前唯一的 `ingate-shared-data-plane`，不增加可由用户编辑的 dataPlaneId。
 
-控制面 Namespace 由安装流程或部署者通过 Ingate 原生 API 预先创建；Controller Manager 只创建和更新其中的 ConfigMap，Namespace Controller 不承担初始化职责。[初始化清单与手动顺序](../control-plane-initialization.md)已通过用户 review 并获准本地提交，尚未执行真实安装。
+控制面 Namespace 由安装流程或部署者通过 Ingate 原生 API 预先创建；Controller Manager 只创建和更新其中的 ConfigMap，Namespace Controller 不承担初始化职责。[初始化清单与手动顺序](../control-plane-initialization.md)已提交为 `6979b0c5`，尚未执行真实安装。
 
 一个共享协调器拥有该对象的 `data["config.json"]`；API Server 仍提供标准 ConfigMap 原生接口，没有 AI 配置 Admin CRUD、MySQL 投影表或 ConfigMap status。其他身份不得修改该 key；权限部署必须另行验证，`managed-by` 标签本身不是授权。建议标注 `app.kubernetes.io/managed-by: ingate-controller-manager` 用于诊断，已有同名对象若不是约定的受管对象，应报冲突而不是静默接管。
 
@@ -340,6 +340,57 @@ Namespace 显式提供，不设置缺省空间、不自动创建。空字节拒�
 本切片已通过用户 review 并获准本地提交；测试采用 fake client、interceptor 与标准对象/选择器。没有修改 API 类型、存储实现、生成源或依赖。尚未运行真实 Manager → API Server/etcd 的事件与存储链路，也未验证 RBAC、故障后的撤销时限或多组件激活，不接 AI 流量。编译存储接线确认后，下一步先明确 Proxy 消费与 Envoy 入口/出口的运行契约，再开始对应服务实现。
 
 已逐文件审查当前新增和修改的手写文件，按 GO-FUNC-012 核对声明顺序，再检查读取完整性、发布失败隔离、根因保留、注释与测试反例，最后独立复查函数签名和语义空行。`gofmt -l cmd internal pkg`、已跟踪及三个未跟踪 Go 文件的空白检查、`golangci-lint run ./...`、`go vet ./...`、`go test ./... -count=1` 和 `go build ./...` 均通过。首次包级测试曾因构造参数尚未全部更新以及 RESTMapper 触发本机发现查询而失败，修正测试接线后重新验证通过；另一次包级复跑被沙箱拒绝回环端口监听，获准重跑的全量测试通过，失败不记作成功。没有改动 API 存储契约，未重跑 API integration 或生成命令；以上检查不替代实际事件、授权和存储验证。
+
+## Proxy 配置消费：已确认语义与加载器切片
+
+本节只确定配置消费，不扩展模型/MCP 接口、Envoy 入口/出口、Secret 或服务部署。用户已确认以下消费语义，加载器与 Factory 替换已通过 review 并获准本地提交；前文已确认的 payload 契约不变。
+
+官方固定提交 `daa9f891a8afcb18576d4593ad18870d1d18abac` 的 [watcher.go](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/filterapi/watcher.go)读取分片文件：首次加载仅对校验和不一致、分片尚未出现这两种错误继续等待，其他初次加载错误返回；运行中加载失败会记录错误，并在下一轮重试，不调用成功替换路径。模型 [Server.LoadConfig](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/extproc/server.go#L80)先构造完整运行配置，成功后才替换，因此失败时旧配置仍保留。
+
+不能因此声称官方完整实现了删除撤销：它的文件加载失败不主动清空运行配置；[MCP ProxyConfig.LoadConfig](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/mcpproxy/config.go#L253)还会在 MCPConfig 为 nil 时直接返回。我们不照搬这种 nil 分支，也不照搬源码中的无同步指针赋值。下表区别了「拒绝坏更新」和「确认对象已删除」。本轮核对的是此前取得的固定源码，不代表重新核验 main 或运行了官方组件。
+
+| 输入或事件 | 已确认消费行为 | 依据与行为影响 |
+| --- | --- | --- |
+| 初次成功 List 未找到目标 ConfigMap | 没有可消费配置，等待后续创建 | Controller 与 Proxy 启动顺序不能决定是否永久失败；不把对象缺失编造成合法空 payload |
+| 初次存在对象，但 key 缺失、内容非法或格式不支持 | 拒绝该对象，仍没有可消费配置；等待修正 | 复用严格 Decode，不保留半份结果；观察到对象不等于加载成功 |
+| 相同对象的合法更新 | 完整解码和校验成功后，一次替换私有快照 | 沿用官方先构建再替换；不能边更新路由边更新后端 |
+| 相同对象的非法更新或 key 缺失 | 不替换上一份有效快照；报告加载失败，等待有效更新 | 沿用官方保留上次有效值的取舍；这可能延迟撤销，不能宣称最新配置已生效 |
+| 已确认的删除，或成功重新 List 确认对象不存在 | 清空可消费快照，等待重建 | Ingate 必要差异；确定的缺失不能继续解释为一次普通解析失败。Controller 重建对象前会有无配置窗口 |
+| 同名对象被新 UID 的对象替代 | 先放弃旧对象快照，再验证新对象；新内容非法时保持无配置 | 使用标准 Kubernetes 对象实例身份，不跨实例保留旧配置；不向 payload 或数据库新增 UID 字段 |
+| 合法的完整空配置 | 替换旧快照，保留零路由的有效配置 | 这是已经确认的显式撤销，不与未加载、JSON 空字节或对象缺失混为一谈 |
+| List/Watch 断连、超时、Forbidden 等请求失败 | 不据此推断对象删除；由原生 SDK 重连/重读，保留之前有效快照 | 通信失败不是成功查询到「不存在」；持有旧配置不证明其仍新鲜，接流量前必须另行确定失联策略 |
+
+managed-by 标签与内容哈希都不是身份认证。加载器不从标签猜测服务权限，也不用标签筛选 Watch 以掩盖同名对象变化。来源信任依赖明确的 Ingate 连接与访问权限；本切片不创建身份或凭据管理能力。
+
+resourceVersion 只由原生 SDK 用于 List/Watch 连续性和事件处理，不转整数、排序或当作内容版本；UID 用于对象实例识别，revision 用于已校验内容识别。重复同内容事件可以复用快照，但不能忽略新 UID、删除或失效事件。旧实例的延迟删除通知不得清空新实例的已加载配置。停止加载器时清空本实例可消费状态，并等待受管处理结束。
+
+配置加载成功只说明存在一份可解析的期望配置，不代表 Envoy 已安装同 revision 的出口、API 连接健康或 Proxy 可以接流量。[锁定版本的 SharedInformer 契约](https://github.com/kubernetes/client-go/blob/v0.37.0/tools/cache/shared_informer.go)也明确 HasSynced 只说明缓存收到过完整 List，甚至不代表单个处理器已经同步；不拿它替代 payload 校验、新鲜度或数据面就绪。失联后是否继续承接新请求以及截止时间，仍是接流量前必须确认的运行契约，本轮不设置猜测性的 TTL。
+
+本代码切片采用已有 client-go 的标准 ConfigMap List/Watch 与 SharedInformer：限定 Namespace 和对象名、使用已有 aidataplane.Decode、完整快照替换与撤回、绑定运行 Context 的停止。消费者只读派生配置，不重新 Watch 六种领域资源，不写 API 对象，不导入 Controller 包，也不增加 ConfigReceiver 接口或自制 Watch 重试循环。快照由加载器私有持有，不向调用方暴露可变 map/slice；消费接口按实际调用设计，不先建立 Provider 或路由索引框架。
+
+该切片不新增模型/MCP Handler、HTTP 监听、运行二进制或完整服务骨架；先做可独立审查的加载边界，不让未确定的流量协议决定配置消费。原生 List/Watch、严格解码和快照替换并不等于完成跨组件激活；组件装配与流量接入仍按后续已确认契约实施。
+
+实现审查至少验证：首次缺失后创建、坏更新不会覆盖旧快照、成功空配置撤销、删除后清空与重建恢复、新 UID 的坏对象不沿用旧实例、错误 Namespace/名称不参与加载、断连不误清空、错误原因和取消传播。观察边界必须能区分读取失败与成功无对象。不得仅检查事件数或 HasSynced 为 true。
+
+### 加载器实现与边界
+
+[configloader.Loader](../../internal/aiproxy/configloader/loader.go) 位于 Proxy 内部，不依赖 Controller。`New(apiClient, namespace, logger)` 仅校验并保存原生客户端、显式空间与日志；`Run(ctx)` 同步运行一次，使用 [NewSharedInformerFactoryWithOptions](https://github.com/kubernetes/client-go/blob/v0.37.0/informers/factory.go) 获取 ConfigMap TypedInformer 并注册类型安全事件处理器，限定 Namespace、设置 `metadata.name` 精确选择器和零周期重同步，不设置标签选择器或自建重连循环。SDK 保留 Watch 请求中的 resourceVersion 等连续性参数；本包不对其排序或比较。
+
+该 Factory 只管理目标 ConfigMap，先实例化 Informer 和注册处理器，再调用 `StartWithContext`。`WithTweakListOptions` 的条件作用于整个 Factory；不同筛选范围的资源不能直接复用当前固定对象名条件，应使用与其范围匹配的独立 Factory，不为尚未实现的资源预建监听。若在启动后才实例化其他 Informer，SDK 要求再次调用 Start，而不是自动开始监听。
+
+[storage.go](../../internal/pkg/aidataplane/storage.go) 统一定义固定对象名与 data 键，Controller 写入、Manager Cache 和 Proxy 加载器引用同一契约。该文件不引入 Kubernetes 依赖，JSON 类型和内容哈希保持不变；managed-by 标签仍属于 Controller 的对象管理约定，没有搬成消费者鉴权条件。
+
+单个 Informer 处理器串行消费事件，严格 Decode 创建独立配置，锁保护 UID 与完整快照的登记。相同实例的有效同 revision 可以复用旧快照，但新 UID 首先撤回旧值，非法的新实例不能借同名继承配置。SDK 在成功重新 List 发现缓存对象缺失时发出删除通知；List 请求失败不会走这条路径。类型安全删除参数仍可能只包含键而没有对象实例；缺少 UID 的通知记录错误，不根据名字清空其他实例，完整重新 List 的撤销路径已通过有缓存旧对象的反例验证。
+
+`Run` 的 Context 传给原生 SDK 请求，Factory 异步启动后由 Run 等待取消；退出时先执行 `factory.Shutdown()` 等待 Informer 与事件处理器停止，再清空状态，不额外接管 SDK 内部请求的等待机制。Shutdown 只等待退出，不能代替 Context 取消；defer 的登记顺序保证先等待退出、后清空快照。正常取消原因通过 `%w` 返回，重复运行被拒绝，不用缓存同步替代配置有效或流量就绪。解码错误向事件处理边界返回并在该处记录一次；请求失败由 SDK 的 WatchErrorHandler 记录并继续 SDK 重试。本切片没有启动命令、HTTP 监听、运行组件装配、配置新鲜度探测或公开快照访问器；下一步按真实 Proxy 调用契约添加消费和生命周期接线，不把加载器的存在等同于 Proxy 已运行。
+
+本轮重新查询 GoCanon 规则源 `/Users/lgc202/workspace/source/lgc202/gocanon`，revision `08260b72394a104ebe8286088eb23383cd6a6235`、版本 `08260b7-dirty`；完整读取开发入口和规范索引，沿用已读且来源未变的错误、防御、测试与 RUNTIME 草案，复核 GO-FUNC-012/013/014。Go 审查技能用于声明顺序、取消与等待、错误原因、反例断言及语义空行检查；用户确认的消费策略是本切片行为依据，不将草案称为稳定规则。
+
+验证使用 Kubernetes fake client、原生 Informer 和 Go 标准 `testing/synctest`，不访问集群。测试覆盖首次缺失后创建、坏更新保留、有效空配置撤销、删除与重建、新 UID 的非法配置、旧 UID 的迟到删除、不同 Namespace/名称、失败的 Watch/List 与成功重读缺失、取消和错误根因。重读失败用例明确断言失败请求已执行，成功缺失用例也检查实际读取次数，不只比较事件数或缓存同步标志。首次 race 检查发现故障注入测试中的场景变量未同步，已改为锁保护和原子计数；后续检查结果按实际运行记录，不把首次失败计为通过。
+
+没有改变 API 类型、存储实现、生成源或依赖，未执行真实 API Server/etcd/Manager/Envoy/Proxy 联调、RBAC 验证或模型请求。外部组件验证仍留待统一测试，本切片已通过用户代码 review 并获准本地提交，不推送或创建 PR。
+
+已逐个审查全部新增与修改的手写文件，包括三个未跟踪 Go 文件；先检查声明顺序，再检查职责、作用域命名、签名、错误路径、实例身份与测试反例，最后独立复查换行和语义空行。`gofmt -l cmd internal pkg` 无输出；已跟踪及三个未跟踪文件的空白检查无诊断；`golangci-lint run ./...` 为 0 issues；`go vet ./...`、`go test ./... -count=1`、`go build ./...` 与 `go test -race ./internal/aiproxy/configloader -count=10` 均通过。新增本地文档链接已核对；这些结果不替代前述真实组件验证，也不表示整个仓库达到模板级或生产就绪。
 
 ## 审查与验证边界
 

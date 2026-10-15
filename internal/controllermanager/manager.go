@@ -23,6 +23,7 @@ import (
 	"github.com/lgc202/ingate/internal/controllermanager/controller/namespace/deletion"
 	"github.com/lgc202/ingate/internal/controllermanager/controller/projection"
 	"github.com/lgc202/ingate/internal/controllermanager/dataplane/envoy"
+	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
 // Config 保存 Controller Manager 的 API 连接和运行选项。
@@ -103,7 +104,7 @@ func (c *Config) managerOptions() ctrl.Options {
 	}
 	options.Cache.ByObject[&corev1.ConfigMap{}] = cache.ByObject{
 		Namespaces: map[string]cache.Config{
-			c.AIConfigNamespace: {FieldSelector: fields.OneTermEqualSelector("metadata.name", gatewaycontroller.AIConfigMapName)},
+			c.AIConfigNamespace: {FieldSelector: fields.OneTermEqualSelector("metadata.name", aidataplane.ConfigMapName)},
 		},
 	}
 

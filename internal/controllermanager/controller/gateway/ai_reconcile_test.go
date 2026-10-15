@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/lgc202/ingate/internal/controllermanager/dataplane"
+	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
@@ -34,8 +35,8 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 	}
 
 	stored := storedAIConfigMap(t, apiClient)
-	if stored.Data[aiConfigDataKey] != string(want) {
-		t.Errorf("Reconcile() AI payload = %s, want %s", stored.Data[aiConfigDataKey], want)
+	if stored.Data[aidataplane.ConfigMapDataKey] != string(want) {
+		t.Errorf("Reconcile() AI payload = %s, want %s", stored.Data[aidataplane.ConfigMapDataKey], want)
 	}
 	wantHTTP := compile(resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, snapshot.backends.Items))
 	if diff := cmp.Diff(wantHTTP, published); diff != "" {
@@ -51,7 +52,7 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 	}
 
 	drifted := stored.DeepCopy()
-	drifted.Data[aiConfigDataKey] = string(aiConfigPayload(t, resources{}))
+	drifted.Data[aidataplane.ConfigMapDataKey] = string(aiConfigPayload(t, resources{}))
 	if err := apiClient.Update(t.Context(), drifted); err != nil {
 		t.Fatalf("Update(drifted AI ConfigMap) error = %v", err)
 	}
@@ -60,7 +61,7 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 		t.Fatalf("Reconcile(drifted AI ConfigMap) error = %v", err)
 	}
 
-	if got := storedAIConfigMap(t, apiClient).Data[aiConfigDataKey]; got != string(want) {
+	if got := storedAIConfigMap(t, apiClient).Data[aidataplane.ConfigMapDataKey]; got != string(want) {
 		t.Errorf("Reconcile(drifted AI ConfigMap) payload = %s, want restored payload %s", got, want)
 	}
 
@@ -77,7 +78,7 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 
 	empty := aiConfigPayload(t, resources{})
 	revoked := storedAIConfigMap(t, apiClient)
-	if revoked.Data[aiConfigDataKey] != string(empty) || revoked.ResourceVersion == stored.ResourceVersion {
+	if revoked.Data[aidataplane.ConfigMapDataKey] != string(empty) || revoked.ResourceVersion == stored.ResourceVersion {
 		t.Errorf("Reconcile(no AI routes) ConfigMap = %+v, want complete empty payload with changed resourceVersion", revoked)
 	}
 	if diff := cmp.Diff(wantHTTP, published); diff != "" {
@@ -92,7 +93,7 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 		t.Fatalf("Reconcile(deleted AI ConfigMap) error = %v", err)
 	}
 
-	if got := storedAIConfigMap(t, apiClient).Data[aiConfigDataKey]; got != string(empty) {
+	if got := storedAIConfigMap(t, apiClient).Data[aidataplane.ConfigMapDataKey]; got != string(empty) {
 		t.Errorf("Reconcile(deleted AI ConfigMap) payload = %s, want restored complete empty payload %s", got, empty)
 	}
 }
@@ -170,8 +171,8 @@ func TestReconcileIsolatesResourceReadFailures(t *testing.T) {
 				if diff := cmp.Diff(before, got); diff != "" {
 					t.Errorf("Reconcile(%s) replaced previous AI configuration (-want +got):\n%s", tt.name, diff)
 				}
-			} else if got.Data[aiConfigDataKey] != string(aiConfigPayload(t, snapshot)) {
-				t.Errorf("Reconcile(%s) did not store the complete AI configuration: %s", tt.name, got.Data[aiConfigDataKey])
+			} else if got.Data[aidataplane.ConfigMapDataKey] != string(aiConfigPayload(t, snapshot)) {
+				t.Errorf("Reconcile(%s) did not store the complete AI configuration: %s", tt.name, got.Data[aidataplane.ConfigMapDataKey])
 			}
 		})
 	}
@@ -188,7 +189,7 @@ func TestReconcileStoresAIAfterHTTPPublishFailure(t *testing.T) {
 	if !errors.Is(err, cause) {
 		t.Errorf("Reconcile(HTTP publish failure) error = %v, want wrapped %v", err, cause)
 	}
-	if got, want := storedAIConfigMap(t, apiClient).Data[aiConfigDataKey], string(aiConfigPayload(t, snapshot)); got != want {
+	if got, want := storedAIConfigMap(t, apiClient).Data[aidataplane.ConfigMapDataKey], string(aiConfigPayload(t, snapshot)); got != want {
 		t.Errorf("Reconcile(HTTP publish failure) AI payload = %s, want %s", got, want)
 	}
 }
@@ -209,7 +210,7 @@ func TestReconcileStoresAIAfterHTTPStatusFailure(t *testing.T) {
 	if !errors.Is(err, cause) {
 		t.Errorf("Reconcile(HTTP status failure) error = %v, want wrapped %v", err, cause)
 	}
-	if got, want := storedAIConfigMap(t, apiClient).Data[aiConfigDataKey], string(aiConfigPayload(t, snapshot)); got != want {
+	if got, want := storedAIConfigMap(t, apiClient).Data[aidataplane.ConfigMapDataKey], string(aiConfigPayload(t, snapshot)); got != want {
 		t.Errorf("Reconcile(HTTP status failure) AI payload = %s, want %s", got, want)
 	}
 }

@@ -11,12 +11,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
 const (
-	// AIConfigMapName 是共享 AI 配置的固定对象名，用于限制 Manager Cache 的范围。
-	AIConfigMapName        = "ingate-shared-data-plane-ai"
-	aiConfigDataKey        = "config.json"
 	aiConfigManagedByKey   = "app.kubernetes.io/managed-by"
 	aiConfigManagedByValue = "ingate-controller-manager"
 )
@@ -51,7 +50,7 @@ func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {
 		return fmt.Errorf("AI configuration Namespace %q is terminating", w.namespace)
 	}
 
-	key := client.ObjectKey{Namespace: w.namespace, Name: AIConfigMapName}
+	key := client.ObjectKey{Namespace: w.namespace, Name: aidataplane.ConfigMapName}
 	var (
 		configMap corev1.ConfigMap
 		create    bool
@@ -67,7 +66,7 @@ func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {
 		configMap = corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: w.namespace,
-				Name:      AIConfigMapName,
+				Name:      aidataplane.ConfigMapName,
 				Labels:    map[string]string{aiConfigManagedByKey: aiConfigManagedByValue},
 			},
 		}
@@ -79,7 +78,7 @@ func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {
 				key.String(),
 				apierrors.NewConflict(
 					schema.GroupResource{Resource: "configmaps"},
-					AIConfigMapName,
+					aidataplane.ConfigMapName,
 					errors.New("existing ConfigMap is not managed by the AI configuration writer"),
 				),
 			)
@@ -87,10 +86,10 @@ func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {
 		if !configMap.DeletionTimestamp.IsZero() {
 			return fmt.Errorf("AI configuration ConfigMap %q is terminating", key.String())
 		}
-		if _, exists := configMap.BinaryData[aiConfigDataKey]; exists {
-			return fmt.Errorf("AI configuration ConfigMap %q has binaryData occupying %q", key.String(), aiConfigDataKey)
+		if _, exists := configMap.BinaryData[aidataplane.ConfigMapDataKey]; exists {
+			return fmt.Errorf("AI configuration ConfigMap %q has binaryData occupying %q", key.String(), aidataplane.ConfigMapDataKey)
 		}
-		if configMap.Data[aiConfigDataKey] == string(data) {
+		if configMap.Data[aidataplane.ConfigMapDataKey] == string(data) {
 			return nil
 		}
 		if configMap.Immutable != nil && *configMap.Immutable {
@@ -101,7 +100,7 @@ func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {
 	if configMap.Data == nil {
 		configMap.Data = make(map[string]string)
 	}
-	configMap.Data[aiConfigDataKey] = string(data)
+	configMap.Data[aidataplane.ConfigMapDataKey] = string(data)
 
 	// 原生校验按 data 与 binaryData 的值字节总量计算，不只计算所属 key。
 	if size := configMapDataSize(&configMap); size > corev1.MaxSecretSize {

@@ -6,6 +6,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+
+	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
 // resourcePredicate 忽略 Status 和无关 metadata 更新，但保留带 finalizer 的删除开始事件。
@@ -36,10 +38,10 @@ func (w *aiConfigWriter) predicate() predicate.Predicate {
 				return false
 			}
 
-			_, previousOccupied := previous.BinaryData[aiConfigDataKey]
-			_, currentOccupied := current.BinaryData[aiConfigDataKey]
+			_, previousOccupied := previous.BinaryData[aidataplane.ConfigMapDataKey]
+			_, currentOccupied := current.BinaryData[aidataplane.ConfigMapDataKey]
 
-			return previous.Data[aiConfigDataKey] != current.Data[aiConfigDataKey] ||
+			return previous.Data[aidataplane.ConfigMapDataKey] != current.Data[aidataplane.ConfigMapDataKey] ||
 				previous.Labels[aiConfigManagedByKey] != current.Labels[aiConfigManagedByKey] ||
 				previous.GetDeletionTimestamp().IsZero() != current.GetDeletionTimestamp().IsZero() ||
 				ptr.Deref(previous.Immutable, false) != ptr.Deref(current.Immutable, false) ||
@@ -50,5 +52,5 @@ func (w *aiConfigWriter) predicate() predicate.Predicate {
 }
 
 func (w *aiConfigWriter) matches(object client.Object) bool {
-	return object != nil && object.GetNamespace() == w.namespace && object.GetName() == AIConfigMapName
+	return object != nil && object.GetNamespace() == w.namespace && object.GetName() == aidataplane.ConfigMapName
 }

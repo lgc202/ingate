@@ -15,6 +15,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+
+	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
 func TestAIConfigWriterCreatesAndRevokes(t *testing.T) {
@@ -30,11 +32,11 @@ func TestAIConfigWriterCreatesAndRevokes(t *testing.T) {
 	want := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:       "control-plane",
-			Name:            AIConfigMapName,
+			Name:            aidataplane.ConfigMapName,
 			Labels:          map[string]string{aiConfigManagedByKey: aiConfigManagedByValue},
 			ResourceVersion: got.ResourceVersion,
 		},
-		Data: map[string]string{aiConfigDataKey: string(data)},
+		Data: map[string]string{aidataplane.ConfigMapDataKey: string(data)},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("write(initial configuration) ConfigMap mismatch (-want +got):\n%s", diff)
@@ -49,7 +51,7 @@ func TestAIConfigWriterCreatesAndRevokes(t *testing.T) {
 	}
 
 	got = storedAIConfigMap(t, apiClient)
-	if got.Data[aiConfigDataKey] != string(empty) || got.ResourceVersion == want.ResourceVersion {
+	if got.Data[aidataplane.ConfigMapDataKey] != string(empty) || got.ResourceVersion == want.ResourceVersion {
 		t.Errorf("write(empty configuration) ConfigMap = %+v, want complete empty payload and a new resourceVersion", got)
 	}
 }
@@ -110,7 +112,7 @@ func TestAIConfigWriterPreservesOtherFields(t *testing.T) {
 
 	got := storedAIConfigMap(t, apiClient)
 	want := *existing.DeepCopy()
-	want.Data[aiConfigDataKey] = string(data)
+	want.Data[aidataplane.ConfigMapDataKey] = string(data)
 	want.ResourceVersion = got.ResourceVersion
 	if updates != 1 || got.ResourceVersion == existing.ResourceVersion {
 		t.Errorf("write(changed configuration) updates/version = %d/%q, want one update and changed version", updates, got.ResourceVersion)
@@ -188,14 +190,14 @@ func TestAIConfigWriterRejectsUnsafeWrites(t *testing.T) {
 		{
 			name: "binaryData occupies key",
 			change: func(_ *corev1.Namespace, configMap *corev1.ConfigMap) {
-				delete(configMap.Data, aiConfigDataKey)
-				configMap.BinaryData = map[string][]byte{aiConfigDataKey: {1}}
+				delete(configMap.Data, aidataplane.ConfigMapDataKey)
+				configMap.BinaryData = map[string][]byte{aidataplane.ConfigMapDataKey: {1}}
 			},
 		},
 		{
 			name: "complete object exceeds limit",
 			change: func(_ *corev1.Namespace, configMap *corev1.ConfigMap) {
-				configMap.Data[aiConfigDataKey] = "x"
+				configMap.Data[aidataplane.ConfigMapDataKey] = "x"
 				configMap.BinaryData = map[string][]byte{"other": make([]byte, corev1.MaxSecretSize-1)}
 			},
 		},
@@ -250,8 +252,8 @@ func TestAIConfigWriterAcceptsSizeLimit(t *testing.T) {
 	if size := configMapDataSize(&got); size != corev1.MaxSecretSize {
 		t.Errorf("write(exact size limit) data size = %d, want %d", size, corev1.MaxSecretSize)
 	}
-	if got.Data[aiConfigDataKey] != string(data) {
-		t.Errorf("write(exact size limit) payload = %q, want %q", got.Data[aiConfigDataKey], data)
+	if got.Data[aidataplane.ConfigMapDataKey] != string(data) {
+		t.Errorf("write(exact size limit) payload = %q, want %q", got.Data[aidataplane.ConfigMapDataKey], data)
 	}
 }
 
@@ -287,8 +289,8 @@ func TestAIConfigWriterRejectsInvalidArguments(t *testing.T) {
 }
 
 func TestAIConfigWriterReturnsAPIErrors(t *testing.T) {
-	conflict := apierrors.NewConflict(schema.GroupResource{Resource: "configmaps"}, AIConfigMapName, errors.New("stale version"))
-	alreadyExists := apierrors.NewAlreadyExists(schema.GroupResource{Resource: "configmaps"}, AIConfigMapName)
+	conflict := apierrors.NewConflict(schema.GroupResource{Resource: "configmaps"}, aidataplane.ConfigMapName, errors.New("stale version"))
+	alreadyExists := apierrors.NewAlreadyExists(schema.GroupResource{Resource: "configmaps"}, aidataplane.ConfigMapName)
 	tests := []struct {
 		name     string
 		stage    string
@@ -369,11 +371,11 @@ func managedAIConfigMap(data string) corev1.ConfigMap {
 	return corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:       "control-plane",
-			Name:            AIConfigMapName,
+			Name:            aidataplane.ConfigMapName,
 			Labels:          map[string]string{aiConfigManagedByKey: aiConfigManagedByValue},
 			ResourceVersion: "42",
 		},
-		Data: map[string]string{aiConfigDataKey: data},
+		Data: map[string]string{aidataplane.ConfigMapDataKey: data},
 	}
 }
 
@@ -381,7 +383,7 @@ func storedAIConfigMap(t *testing.T, apiClient client.Reader) corev1.ConfigMap {
 	t.Helper()
 
 	var configMap corev1.ConfigMap
-	if err := apiClient.Get(t.Context(), client.ObjectKey{Namespace: "control-plane", Name: AIConfigMapName}, &configMap); err != nil {
+	if err := apiClient.Get(t.Context(), client.ObjectKey{Namespace: "control-plane", Name: aidataplane.ConfigMapName}, &configMap); err != nil {
 		t.Fatalf("Get(AI ConfigMap) error = %v", err)
 	}
 

@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	gatewaycontroller "github.com/lgc202/ingate/internal/controllermanager/controller/gateway"
+	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
@@ -92,9 +92,9 @@ func TestManagerOptionsLimitConfigMapCache(t *testing.T) {
 			t.Fatalf("managerOptions() ConfigMap namespace scope = %+v, want only control-plane", scope.Namespaces)
 		}
 		selector := controlPlane.FieldSelector
-		if selector == nil || !selector.Matches(fields.Set{"metadata.name": gatewaycontroller.AIConfigMapName}) ||
+		if selector == nil || !selector.Matches(fields.Set{"metadata.name": aidataplane.ConfigMapName}) ||
 			selector.Matches(fields.Set{"metadata.name": "other"}) {
-			t.Errorf("managerOptions() ConfigMap field selector = %v, want only %q", selector, gatewaycontroller.AIConfigMapName)
+			t.Errorf("managerOptions() ConfigMap field selector = %v, want only %q", selector, aidataplane.ConfigMapName)
 		}
 	}
 	if configMaps != 1 {
