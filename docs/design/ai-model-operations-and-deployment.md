@@ -1,6 +1,6 @@
 # AI 模型操作与数据面部署设计
 
-- 状态：2026-10-15 用户已确认开始 AI Proxy，首步 Chat Completions（普通响应与 SSE）、同机 Envoy/Go 经 UDS 通信；Responses 及未定运行契约仍待 review
+- 状态：2026-10-15 已确认 Chat Completions 首步、同机 UDS 和最终一致性；不要求每请求整份配置 revision 一致，具体入口/出口绑定及其余运行契约仍待 review
 - 日期：2026-10-11
 - 资源字段对齐：2026-10-12；首步操作与本地通信确认：2026-10-15
 - Ingate 源码基线：`b247a4c6`，分支 `codex/rebuild-from-zero`
@@ -12,7 +12,7 @@
 
 建议 Envoy 与统一 Go AI Proxy 共同部署、分进程运行，本地 HTTP 通过 UDS 连接。Go 内部分模型与 MCP 模块，共用配置加载和进程生命周期；普通 HTTP 继续由 Envoy 直接转发。Controller 独立于请求数据面，按已确认方向向 Envoy 发布 xDS，向 Go 下发派生运行配置。
 
-2026-10-15 用户已确认开始实际 AI Proxy 开发，先做 Chat Completions，普通响应与 SSE 使用同协议转发，Envoy 与 Go 同机通过 UDS 通信，网络连接仍由 Envoy 管理。两个创建操作的长期建议保留，但本次确认不包括 Responses。凭据、安全和激活契约不在本稿中用示例补全，未定部分仍阻止相应实现；确认组件方向不等于确认全部内部 Header、冲突裁决或跨版本发布细节。
+2026-10-15 用户已确认开始实际 AI Proxy 开发，先做 Chat Completions，普通响应与 SSE 使用同协议转发，Envoy 与 Go 同机通过 UDS 通信，网络连接仍由 Envoy 管理。随后确认两路配置采用最终一致性，不增加每请求整份 revision 相等的准入条件、全局实例确认或发布协调系统；传播期间可能暂时失败，仍须保证目标绑定与失效拒绝。两个创建操作的长期建议保留，但本次确认不包括 Responses。凭据、安全和具体入口/出口关联方式不在本稿中用示例补全，确认方向不等于确认全部内部 Header 或冲突裁决。
 
 ## 背景：官方如何设计
 
@@ -89,17 +89,25 @@ sequenceDiagram
     participant P as Go AI Proxy
     participant O as Envoy 出站
     participant B as 模型后端
-    E->>P: 已批准入口 + 可信发布标识 + 原始请求
-    P->>P: 捕获匹配视图，校验操作，选择模型与目标
+    E->>P: 可信入口标识 + 原始请求
+    P->>P: 捕获一份 Go 配置，校验操作，选择模型与目标
     P->>O: 已选 Backend，修改后的 model / 上游路径
     O->>B: 对应目标的 HTTP(S) 请求
     B-->>O: HTTP 响应或 SSE
     O-->>P: 响应流
     P-->>E: 原协议响应流
-    Note over E,B: 一次请求不混用不同配置视图；客户端断开向出站传播取消
+    Note over E,B: Go 在请求内使用同一视图；两路配置最终一致，客户端断开向出站传播取消
 ```
 
-新配置先加载还是先切换路由、Envoy ACK 与 Go 已加载怎样关联，继续沿 [0010](../decisions/0010-unified-ai-proxy-config-delivery.md)的候选流程独立定稿。本地 UDS 不消除双输出发布的失败窗口；旧视图回收、离线实例与凭据撤销也不能靠共部署自动解决。不能将 Watch 成功或 `SetSnapshot` 成功当作真实生效。
+### 配置更新：最终一致，按请求目标关联
+
+2026-10-15 用户确认：Envoy 与 Go 分别接收完整配置，允许更新传播期间因入口或目标暂时不可用而失败；不因整份配置 revision 不同就统一拒绝请求，也不引入全局实例确认、发布任务或分布式原子切换。ConfigMap 的 revision 继续用于内容校验和识别，xDS 仍按资源类型计算版本，两者不必使用同一个字符串。
+
+依据为固定提交 `daa9f891a8afcb18576d4593ad18870d1d18abac` 的实际请求路径：[Server.setBackend](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/extproc/server.go) 从 Envoy 的后端元数据取标识，再查询当前 Go 配置；未知后端报错，该路径没有检查两边整份配置的版本是否相等。[配置加载器](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/filterapi/watcher.go)校验完整配置包后调用 LoadConfig，后者先构建新运行配置再替换当前值；这只保护 Go 配置的完整加载，不证明两路原子生效。以上是源码核对，没有运行上游组件，也不推广为官方所有协议的统一保证。
+
+「目标正确」包含协议处理与实际网络目标的对应关系，不能仅以逻辑名称相同判断。例如同一个 Backend 从服务 A 改为 B，旧网络目标不能意外接收新账号的凭据。具体绑定、目标变更和删除时的拒绝方式在入口/出口切片中确定，不通过本次取舍默许错发请求、凭据泄露或用任意客户端 Header 选择目标。首步仍不接真实凭据。
+
+一次请求捕获一份 Go 配置的只读约束保持不变，它不等于冻结了 Envoy 的网络配置。跨组件更新、旧请求处理和撤销仍存在窗口；不能将 Watch 成功或 SetSnapshot 成功当作真实生效。[0010](../decisions/0010-unified-ai-proxy-config-delivery.md)及凭据草案中的全局确认、整份版本校验和双版本发布保留为历史候选，不作为本次实现要求。
 
 ## Chat Completions 请求处理切片
 
@@ -111,11 +119,11 @@ sequenceDiagram
 
 协议字段独立于输入字节，原始请求体由调用方保留，不再用一个包装对象同时持有请求体、解析结果和编码方法。[translator.TranslateChatCompletionOpenAIToOpenAI](../../internal/aiproxy/pkg/translator/openai_openai.go) 接收经过入口校验的同一份原始 JSON；覆盖值为空或与原值相同时，返回原始字节的独立副本。非空且不同的覆盖值仅改变顶层 model 的 JSON 值，其他字段以标准库 json.RawMessage 保留，包括大整数和扩展对象；重编码可能改变对象顺序、空白和转义写法，不承诺逐字节保持。每次调用重新从原始字节构建独立结果，不原地修改请求或累积前一次覆盖，也不通过调用方可变的协议字段决定原始模型名。
 
-此切片不接收客户端内部 Header，不建立入口信任或配置版本激活，不设置猜测性的请求体默认上限，不处理 SSE 响应，也不宣称已完成真实流量转发。未增加 SDK、JSON 修改库或其他依赖；后续 HTTP 接入仍须实现读取上限、Header 清理、错误协议与取消链。本轮新增实现须 review 后再提交。
+此切片不接收客户端内部 Header，不建立入口信任或配置版本激活，不设置猜测性的请求体默认上限，不处理 SSE 响应，也不宣称已完成真实流量转发。未增加 SDK、JSON 修改库或其他依赖；后续 HTTP 接入仍须实现读取上限、Header 清理、错误协议与取消链。该切片及包布局已通过用户 review，提交为 `c4c9d611`。
 
 GoCanon MCP 规则源仍为 `/Users/lgc202/workspace/source/lgc202/gocanon`，revision `08260b72394a104ebe8286088eb23383cd6a6235`、`08260b7-dirty`；沿用本连续任务已完整读取且来源未变的入口与相关规范，草案不等同于稳定约束。重组前的单包实现已通过手工审查、反例与所有权测试；本次保留同样的模型校验、字段保持和独立结果行为，重新核对包职责、GO-FUNC-012/013/014 及语义分段。原先包装对象持有私有请求体的测试调整为分别检查解析字段与输入独立、适配不修改源字节以及返回字节与源字节独立；不把测试迁移当作 HTTP/Envoy 调用链已经实现。
 
-重组前已通过格式、空白、lint、Vet、全量测试、构建和 Proxy 包 race 检查；这不代替重组后的验证，结果记录在 [0015](../decisions/0015-ai-proxy-package-layout.md)。未修改声明式 API 类型或存储契约，未重新生成或运行 API integration；没有真实 Envoy/Proxy、UDS、提供商或 SSE 验证。下一步 review 此切片后，继续 HTTP 接入所需的入口信任、请求体读取和错误映射，不将此协议辅助实现视为已运行的 AI 服务。
+重组前后已通过的检查与审查范围记录在 [0015](../decisions/0015-ai-proxy-package-layout.md)。未修改声明式 API 类型或存储契约，未重新生成或运行 API integration；没有真实 Envoy/Proxy、UDS、提供商或 SSE 验证。下一步继续 HTTP 接入所需的入口信任、请求体读取和错误映射，不将此协议辅助实现视为已运行的 AI 服务。
 
 ## 理由与备选方案
 
@@ -129,7 +137,7 @@ GoCanon MCP 规则源仍为 `/Users/lgc202/workspace/source/lgc202/gocanon`，re
 
 项目无旧 AI 接口兼容压力，也尚无可运行的 AI 转发进程。本稿不改变已提交的 Gateway、HTTPRoute、Backend、Admin Session 和 MySQL 投影行为；新增模型请求不能抢占已有 HTTP 入口或扩大操作暴露范围。跨种类冲突、无效引用与错误动作继续按资源契约单独 review。
 
-资源、配置编译、存储与 Loader 已分步完成；2026-10-15 起按确认的 Chat Completions 范围继续 AI Proxy。首个代码切片先实现只读运行配置、请求捕获和模型目标选择，接入现有 Loader；HTTP Handler、UDS、进程装配和 Envoy 接线仍按小步分别审查，不一次生成空服务或扩展全部草案。凭据来源与权限、后端 TLS/入站安全及版本激活仍在相应实现前确认。2026-10-11 用户要求凭据参考官方，具体建议与代价见 [AI 凭据与运行配置设计](ai-credentials-and-runtime-config.md)，仍待 review。协议切片还须确定请求体与并发流界限、超时、退出排空、本地错误格式和提供商状态引用行为；未定时不接真实密钥。
+资源、配置编译、存储与 Loader 已分步完成；2026-10-15 起按确认的 Chat Completions 范围继续 AI Proxy。只读运行配置、请求捕获、模型目标选择与协议辅助处理已提交；HTTP Handler、UDS、进程装配和 Envoy 接线仍按小步分别审查，不一次生成空服务或扩展全部草案。最终一致性取舍已确认，凭据来源与权限、后端 TLS/入站安全及具体目标绑定仍在相应实现前确认。2026-10-11 用户要求凭据参考官方，具体建议与代价见 [AI 凭据与运行配置设计](ai-credentials-and-runtime-config.md)，凭据部分仍待 review。协议切片还须确定请求体与并发流界限、超时、退出排空、本地错误格式和提供商状态引用行为；未定时不接真实密钥。
 
 日常代码审查、单元与静态检查继续执行；真实 Envoy、模型/MCP、实库、ACK/NACK 和故障恢复留到用户指定的统一测试阶段。相关能力在得到证据前标为未验证，不能因延期就宣称完成组件验收。
 

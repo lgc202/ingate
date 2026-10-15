@@ -9,8 +9,8 @@
 - [AI Proxy 应用分层与能力包布局](decisions/0015-ai-proxy-package-layout.md)：组件内 pkg 归属、协议类型/入口解析/适配职责及本轮迁移边界；布局与代码已通过 review。
 - [AI 网关上游设计对照](design/ai-gateway-upstream-alignment.md)：固定版本的契约、源码、反例测试，以及采用、裁剪和必要差异。
 - [AI 网关资源契约设计稿](design/ai-gateway-resource-contract.md)：六种主资源、策略附着建议、内部模型路由表、引用/冲突/删除语义与完整替换计划；HTTP 子集设计已通过，用户已授权提交阶段 B 当前实现，后续 AI/MCP 契约仍需确认。
-- [AI 模型操作与数据面部署设计](design/ai-model-operations-and-deployment.md)：Chat Completions 首步与同机 UDS 已确认；只读配置消费、请求体解析和模型覆盖已通过 review，尚未接入 HTTP/SSE 转发；Responses 和其余运行契约仍待确认。
-- [AI 凭据与运行配置设计](design/ai-credentials-and-runtime-config.md)：Secret 引用、派生配置、版本绑定、本地就绪及轮转/撤销建议；待 review，包含集中托管的基础设施代价和未定契约。
+- [AI 模型操作与数据面部署设计](design/ai-model-operations-and-deployment.md)：Chat Completions、同机 UDS 和最终一致性已确认，不要求每请求整份 revision 一致；协议辅助处理已提交为 `c4c9d611`，HTTP/SSE 及具体目标绑定尚未实现。
+- [AI 凭据与运行配置设计](design/ai-credentials-and-runtime-config.md)：Secret 引用与轮转/撤销草案；凭据部分待 review，按整份版本准入与双版本发布已标为未采用的历史候选。
 - [AI 编译配置契约](design/ai-compiled-config-contract.md)：编译契约已确认，协调接线已提交为 `fcc9650b`，原生 Factory 加载器已提交为 `5bf59e98`；AI/MCP 引用说明已对齐同 Namespace 契约并通过 review，尚未装配运行组件或接入 AI 流量。
 - [架构与流程图](diagrams/ai-gateway.html)：当前架构、目标资源关系、目标架构、请求流程、配置发布流程；可离线打开。
 - [HTTP 资源替换实现记录](decisions/0011-http-resource-contract.md)：阶段 B 范围、验证与未覆盖项。
