@@ -18,10 +18,12 @@ func TestGeneratedResourceClients(t *testing.T) {
 	}, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("Gateways().Create(edge) error = %v, want nil", err)
 	}
+
 	gateway, err := resources.Gateways("team-a").Get(t.Context(), "edge", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Gateways().Get(edge) error = %v, want nil", err)
 	}
+
 	if gateway.Name != "edge" {
 		t.Errorf("Gateways().Get(edge).Name = %q, want edge", gateway.Name)
 	}
@@ -31,10 +33,12 @@ func TestGeneratedResourceClients(t *testing.T) {
 	}, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("HTTPRoutes().Create(web) error = %v, want nil", err)
 	}
+
 	route, err := resources.HTTPRoutes("team-a").Get(t.Context(), "web", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("HTTPRoutes().Get(web) error = %v, want nil", err)
 	}
+
 	if route.Name != "web" {
 		t.Errorf("HTTPRoutes().Get(web).Name = %q, want web", route.Name)
 	}
@@ -44,10 +48,12 @@ func TestGeneratedResourceClients(t *testing.T) {
 	}, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("Backends().Create(backend) error = %v, want nil", err)
 	}
+
 	backend, err := resources.Backends("team-a").Get(t.Context(), "backend", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Backends().Get(backend) error = %v, want nil", err)
 	}
+
 	if backend.Name != "backend" {
 		t.Errorf("Backends().Get(backend).Name = %q, want backend", backend.Name)
 	}
@@ -66,10 +72,12 @@ func TestGeneratedAIBackendClient(t *testing.T) {
 	if _, err := resources.Create(t.Context(), backend, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("AIBackends().Create(model-service) error = %v, want nil", err)
 	}
+
 	got, err := resources.Get(t.Context(), backend.Name, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("AIBackends().Get(model-service) error = %v, want nil", err)
 	}
+
 	if got.Name != backend.Name || got.Spec != backend.Spec {
 		t.Errorf("AIBackends().Get(model-service) = %+v, want name %q and spec %+v", got, backend.Name, backend.Spec)
 	}

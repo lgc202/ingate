@@ -31,5 +31,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ModelRoute{}, &ModelRouteList{},
 		&MCPRoute{}, &MCPRouteList{},
 	)
+
 	return nil
 }

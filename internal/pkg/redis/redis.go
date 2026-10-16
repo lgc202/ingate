@@ -48,20 +48,25 @@ func (c Config) Validate() error {
 	if len(c.Addrs) == 0 {
 		return errors.New("addresses are required")
 	}
+
 	for i, addr := range c.Addrs {
 		if strings.TrimSpace(addr) == "" {
 			return fmt.Errorf("address at index %d is empty", i)
 		}
 	}
+
 	if c.DB < 0 {
 		return errors.New("db must be non-negative")
 	}
+
 	if c.MasterName == "" && (len(c.Addrs) > 1 || c.IsClusterMode) && c.DB != 0 {
 		return errors.New("cluster requires db 0")
 	}
+
 	if c.MasterName == "" && (c.SentinelUsername != "" || c.SentinelPassword != "") {
 		return errors.New("sentinel credentials require master_name")
 	}
+
 	if c.PoolSize < 0 || c.MinIdleConns < 0 {
 		return errors.New("pool sizes must be non-negative")
 	}
@@ -80,6 +85,7 @@ func (c Config) Validate() error {
 			return fmt.Errorf("%s must be non-negative", timeout.name)
 		}
 	}
+
 	if !c.TLS && c.TLSServerName != "" {
 		return errors.New("tls_server_name requires tls")
 	}

@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
+	"github.com/lgc202/ingate/internal/aiproxy/errno"
 	"github.com/lgc202/ingate/internal/aiproxy/handler"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
@@ -19,12 +19,13 @@ func modelEntry(next http.Handler) http.Handler {
 		ports := r.Header.Values(aidataplane.ListenerPortHeader)
 		hosts := r.Header.Values(aidataplane.HostNameHeader)
 		if len(ports) != 1 || len(hosts) != 1 || hosts[0] == "" || strings.ContainsAny(hosts[0], " ,\t\r\n") {
-			kratoshttp.DefaultErrorEncoder(w, r, kratoserrors.BadRequest("INVALID_MODEL_ENTRY", "invalid model entry"))
+			kratoshttp.DefaultErrorEncoder(w, r, errno.ErrInvalidModelEntry)
 			return
 		}
+
 		port, err := strconv.ParseUint(ports[0], 10, 16)
 		if err != nil || port == 0 {
-			kratoshttp.DefaultErrorEncoder(w, r, kratoserrors.BadRequest("INVALID_MODEL_ENTRY", "invalid model entry"))
+			kratoshttp.DefaultErrorEncoder(w, r, errno.ErrInvalidModelEntry)
 			return
 		}
 

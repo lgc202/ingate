@@ -41,6 +41,7 @@ func buildAIResources(config aidataplane.Config, ingressSocket, egressSocket str
 				key := modelEntryKey{routeName: routeName(listener.Port), hostName: host.Name}
 				resources.modelRoutes[key] = newAIIngressRoute(listener.Port, host.Name)
 			}
+
 			for _, route := range host.ModelRoutes {
 				if *route.BackendName != "" {
 					used[*route.BackendName] = true
@@ -53,6 +54,7 @@ func buildAIResources(config aidataplane.Config, ingressSocket, egressSocket str
 		if !filepath.IsAbs(ingressSocket) || strings.ContainsRune(ingressSocket, 0) {
 			return resourceSet{}, errors.New("AI ingress socket must be an absolute path without NUL")
 		}
+
 		if filepath.Clean(ingressSocket) == filepath.Clean(egressSocket) {
 			return resourceSet{}, errors.New("AI ingress and egress sockets must differ")
 		}
@@ -61,11 +63,14 @@ func buildAIResources(config aidataplane.Config, ingressSocket, egressSocket str
 		if err != nil {
 			return resourceSet{}, err
 		}
+
 		resources.clusters = append(resources.clusters, cluster)
 	}
+
 	if len(used) == 0 {
 		return resources, nil
 	}
+
 	if !filepath.IsAbs(egressSocket) || strings.ContainsRune(egressSocket, 0) {
 		return resourceSet{}, errors.New("AI egress socket must be an absolute path without NUL")
 	}
@@ -74,6 +79,7 @@ func buildAIResources(config aidataplane.Config, ingressSocket, egressSocket str
 	for _, network := range config.NetworkBackends {
 		networks[network.Name] = network
 	}
+
 	host := &routev3.VirtualHost{Name: aiEgressName, Domains: []string{"*"}}
 	for _, backend := range config.Backends {
 		if !used[backend.Name] {
@@ -85,16 +91,20 @@ func buildAIResources(config aidataplane.Config, ingressSocket, egressSocket str
 		if err != nil {
 			return resourceSet{}, err
 		}
+
 		cluster, assignment, err := newAICluster(target, network.Endpoints)
 		if err != nil {
 			return resourceSet{}, err
 		}
+
 		resources.clusters = append(resources.clusters, cluster)
 		if cluster.GetType() == clusterv3.Cluster_EDS {
 			resources.endpoints = append(resources.endpoints, assignment)
 		}
+
 		host.Routes = append(host.Routes, newAIModelRoute(target, cluster.Name))
 	}
+
 	// 未知、缺失或已撤销目标明确拒绝，不能命中普通 HTTP 或其他模型后端。
 	host.Routes = append(host.Routes, &routev3.Route{
 		Name:   aiEgressName + "/unavailable",
@@ -105,10 +115,12 @@ func buildAIResources(config aidataplane.Config, ingressSocket, egressSocket str
 	if err := routes.ValidateAll(); err != nil {
 		return resourceSet{}, fmt.Errorf("validate AI egress routes: %w", err)
 	}
+
 	listener, err := newAIListener(egressSocket)
 	if err != nil {
 		return resourceSet{}, err
 	}
+
 	resources.routes = append(resources.routes, routes)
 	resources.listeners = append(resources.listeners, listener)
 
@@ -123,6 +135,7 @@ func newAICluster(
 	for i, endpoint := range endpoints {
 		addresses[i] = dataplane.Endpoint{Address: endpoint.Address, Port: endpoint.Port, Weight: endpoint.Weight}
 	}
+
 	cluster, assignment, err := newCluster(dataplane.Backend{Name: target, Endpoints: addresses})
 	if err != nil {
 		return nil, nil, err
@@ -136,9 +149,11 @@ func newAICluster(
 			endpoint.GetEndpoint().Hostname = net.JoinHostPort(address.Address, port)
 		}
 	}
+
 	if err := cluster.ValidateAll(); err != nil {
 		return nil, nil, fmt.Errorf("validate AI cluster %q: %w", target, err)
 	}
+
 	if err := assignment.ValidateAll(); err != nil {
 		return nil, nil, fmt.Errorf("validate AI endpoints %q: %w", target, err)
 	}
@@ -171,6 +186,7 @@ func newAIListener(socket string) (*listenerv3.Listener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal AI egress router: %w", err)
 	}
+
 	hcm, err := anypb.New(&hcmv3.HttpConnectionManager{
 		StatPrefix: "ai_egress",
 		RouteSpecifier: &hcmv3.HttpConnectionManager_Rds{Rds: &hcmv3.Rds{
@@ -183,6 +199,7 @@ func newAIListener(socket string) (*listenerv3.Listener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal AI egress connection manager: %w", err)
 	}
+
 	listener := &listenerv3.Listener{
 		Name:    aiEgressName,
 		Address: &corev3.Address{Address: &corev3.Address_Pipe{Pipe: &corev3.Pipe{Path: socket, Mode: 0o600}}},

@@ -43,6 +43,7 @@ func TestConfigMapHTTPContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create(ConfigMap) error = %v", err)
 	}
+
 	if created.Namespace != "team-a" || created.UID == "" || created.ResourceVersion == "" || created.CreationTimestamp.IsZero() {
 		t.Errorf("Create(ConfigMap) metadata = %+v, want server namespace/identity/version/time", created.ObjectMeta)
 	}
@@ -70,11 +71,13 @@ func TestConfigMapHTTPContract(t *testing.T) {
 			if err != nil {
 				t.Fatalf("List(ConfigMap %s) error = %v", tt.name, err)
 			}
+
 			if got := len(list.Items); got != tt.wantCount {
 				t.Errorf("List(ConfigMap %s) count = %d, want %d", tt.name, got, tt.wantCount)
 			}
 		})
 	}
+
 	if _, err := resources.List(ctx, metav1.ListOptions{FieldSelector: "data.config.json=x"}); !apierrors.IsBadRequest(err) {
 		t.Errorf("List(ConfigMap unsupported field) error = %v, want BadRequest", err)
 	}
@@ -86,6 +89,7 @@ func TestConfigMapHTTPContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Watch(ConfigMap) error = %v", err)
 	}
+
 	t.Cleanup(stream.Stop)
 
 	// 不匹配名称的事件先于目标更新；若 Watch 未筛选，下面的首个事件断言就会失败。
@@ -94,15 +98,18 @@ func TestConfigMapHTTPContract(t *testing.T) {
 	if _, err := resources.Create(ctx, other, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("Create(nonmatching ConfigMap) error = %v", err)
 	}
+
 	next := created.DeepCopy()
 	next.Data["config.json"] = "updated"
 	updated, err := resources.Update(ctx, next, metav1.UpdateOptions{})
 	if err != nil {
 		t.Fatalf("Update(ConfigMap) error = %v", err)
 	}
+
 	if updated.Generation != created.Generation || updated.ResourceVersion == created.ResourceVersion {
 		t.Errorf("Update(ConfigMap) generation/version = %d/%q, want unchanged Generation and new version", updated.Generation, updated.ResourceVersion)
 	}
+
 	expectConfigMapEvent(t, stream, watch.Modified, updated.ResourceVersion)
 
 	if _, err := resources.Update(ctx, created.DeepCopy(), metav1.UpdateOptions{}); !apierrors.IsConflict(err) {
@@ -117,20 +124,24 @@ func TestConfigMapHTTPContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Update(ConfigMap without version) error = %v, want nil", err)
 	}
+
 	expectConfigMapEvent(t, stream, watch.Modified, updated.ResourceVersion)
 
 	patched, err := resources.Patch(ctx, initial.Name, types.MergePatchType, []byte(`{"data":{"config.json":"patched"}}`), metav1.PatchOptions{})
 	if err != nil {
 		t.Fatalf("Patch(ConfigMap) error = %v", err)
 	}
+
 	if patched.Data["config.json"] != "patched" || !cmp.Equal(patched.BinaryData, initial.BinaryData) {
 		t.Errorf("Patch(ConfigMap) data/binaryData = %v/%v, want patched text and unchanged binary data", patched.Data, patched.BinaryData)
 	}
+
 	expectConfigMapEvent(t, stream, watch.Modified, patched.ResourceVersion)
 
 	if err := resources.DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: "owner=platform"}); err != nil {
 		t.Fatalf("DeleteCollection(ConfigMap in team-a) error = %v", err)
 	}
+
 	expectConfigMapEvent(t, stream, watch.Deleted, "")
 	if _, err := resources.Get(ctx, initial.Name, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("Get(deleted ConfigMap) error = %v, want NotFound", err)
@@ -140,6 +151,7 @@ func TestConfigMapHTTPContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get(ConfigMap in team-b) error = %v, want present", err)
 	}
+
 	if diff := cmp.Diff(shadow, remaining); diff != "" {
 		t.Errorf("team-a writes changed ConfigMap in team-b (-want +got):\n%s", diff)
 	}
@@ -201,6 +213,7 @@ func TestConfigMapHTTPValidationAndImmutable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create(immutable ConfigMap) error = %v", err)
 	}
+
 	for _, tt := range []struct {
 		name   string
 		mutate func(*corev1.ConfigMap)
@@ -224,6 +237,7 @@ func TestConfigMapHTTPValidationAndImmutable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Update(immutable ConfigMap metadata) error = %v, want nil", err)
 	}
+
 	if !cmp.Equal(updated.Data, created.Data) || !cmp.Equal(updated.BinaryData, created.BinaryData) || updated.Labels["owner"] != "platform" {
 		t.Errorf("Update(immutable ConfigMap metadata) = %+v, want unchanged data and updated label", updated)
 	}
@@ -242,13 +256,16 @@ func expectConfigMapEvent(
 		if !ok {
 			t.Fatal("ConfigMap watch closed before expected event")
 		}
+
 		configMap, ok := event.Object.(*corev1.ConfigMap)
 		if !ok {
 			t.Fatalf("ConfigMap watch object = %T, want *corev1.ConfigMap", event.Object)
 		}
+
 		if event.Type != eventType || configMap.Name != "runtime" || configMap.Namespace != "team-a" {
 			t.Errorf("ConfigMap watch type/namespace/name = %s/%q/%q, want %s/team-a/runtime", event.Type, configMap.Namespace, configMap.Name, eventType)
 		}
+
 		if version != "" && configMap.ResourceVersion != version {
 			t.Errorf("ConfigMap watch version = %q, want %q", configMap.ResourceVersion, version)
 		}

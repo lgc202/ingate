@@ -67,6 +67,7 @@ func newLogger(config Config, stdout, stderr io.Writer) (*slog.Logger, func() er
 			return nil, nil, fmt.Errorf("parse log level: %w", err)
 		}
 	}
+
 	if config.Format != "" && config.Format != FormatJSON && config.Format != FormatText {
 		return nil, nil, fmt.Errorf("unsupported log format %q", config.Format)
 	}
@@ -75,6 +76,7 @@ func newLogger(config Config, stdout, stderr io.Writer) (*slog.Logger, func() er
 	if len(outputs) == 0 {
 		outputs = []Output{OutputStdout}
 	}
+
 	options := &slog.HandlerOptions{Level: level, AddSource: config.AddSource}
 	handlers := make([]slog.Handler, 0, len(outputs))
 	closeOutput := func() error { return nil }
@@ -94,6 +96,7 @@ func newLogger(config Config, stdout, stderr io.Writer) (*slog.Logger, func() er
 			if config.File.Path == "" {
 				return nil, nil, errors.New("log file path is required")
 			}
+
 			if config.File.MaxSizeMB < 0 || config.File.MaxBackups < 0 || config.File.MaxAgeDays < 0 {
 				return nil, nil, errors.New("log file rotation limits must not be negative")
 			}
@@ -103,6 +106,7 @@ func newLogger(config Config, stdout, stderr io.Writer) (*slog.Logger, func() er
 			if err != nil && !errors.Is(err, os.ErrNotExist) {
 				return nil, nil, fmt.Errorf("inspect log file path: %w", err)
 			}
+
 			if err == nil && !info.Mode().IsRegular() {
 				return nil, nil, fmt.Errorf("log file path %q must name a regular file", config.File.Path)
 			}

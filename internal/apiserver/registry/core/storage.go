@@ -16,6 +16,7 @@ func NewStorage(optionsGetter generic.RESTOptionsGetter) (map[string]rest.Storag
 	if err != nil {
 		return nil, fmt.Errorf("create Namespace REST storage: %w", err)
 	}
+
 	configMapREST, err := configmapstorage.NewREST(optionsGetter)
 	if err != nil {
 		namespaceREST.Destroy()

@@ -58,6 +58,7 @@ func TestRequestNamespaceContract(t *testing.T) {
 			if field == nil {
 				t.Fatal("request descriptor lacks namespace, want explicit namespace field")
 			}
+
 			// 只比较 namespace 字段规则；其它必填字段有各资源自己的协议测试。
 			filter := protovalidate.WithFilter(protovalidate.FilterFunc(func(
 				_ protoreflect.Message,
@@ -72,6 +73,7 @@ func TestRequestNamespaceContract(t *testing.T) {
 				if (err == nil) != wantValid {
 					t.Errorf("Validate(%T, namespace=%q) error = %v, want valid=%t", request, namespace, err, wantValid)
 				}
+
 				if err != nil {
 					if _, ok := errors.AsType[*protovalidate.ValidationError](err); !ok {
 						t.Errorf("Validate(%T, namespace=%q) error = %v, want contract violation", request, namespace, err)

@@ -21,9 +21,11 @@ func TestStrategyPolicy(t *testing.T) {
 	if !strategy.NamespaceScoped() {
 		t.Error("NamespaceScoped() = false, want true")
 	}
+
 	if strategy.AllowCreateOnUpdate(ctx) {
 		t.Error("AllowCreateOnUpdate() = true, want false")
 	}
+
 	if strategy.AllowUnconditionalUpdate(ctx) {
 		t.Error("AllowUnconditionalUpdate() = true, want false")
 	}
@@ -39,6 +41,7 @@ func TestPrepareForCreate(t *testing.T) {
 	if resource.Generation != 1 {
 		t.Errorf("PrepareForCreate() generation = %d, want 1", resource.Generation)
 	}
+
 	if len(resource.Status.Conditions) != 0 {
 		t.Errorf("PrepareForCreate() conditions = %v, want none", resource.Status.Conditions)
 	}
@@ -73,6 +76,7 @@ func TestPrepareForUpdate(t *testing.T) {
 				t.Errorf("PrepareForUpdate(changeSpec=%t) generation = %d, want %d",
 					tt.changeSpec, next.Generation, tt.wantGeneration)
 			}
+
 			if diff := cmp.Diff(previous.Status, next.Status); diff != "" {
 				t.Errorf("PrepareForUpdate(changeSpec=%t) status mismatch (-want +got):\n%s",
 					tt.changeSpec, diff)
@@ -111,22 +115,28 @@ func TestStatusStrategy(t *testing.T) {
 	if diff := cmp.Diff(previous.Spec, next.Spec); diff != "" {
 		t.Errorf("StatusStrategy.PrepareForUpdate() spec mismatch (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(wantStatus, next.Status); diff != "" {
 		t.Errorf("StatusStrategy.PrepareForUpdate() status mismatch (-want +got):\n%s", diff)
 	}
+
 	if next.Generation != previous.Generation {
 		t.Errorf("StatusStrategy.PrepareForUpdate() generation = %d, want %d",
 			next.Generation, previous.Generation)
 	}
+
 	if diff := cmp.Diff(previous.Labels, next.Labels); diff != "" {
 		t.Errorf("StatusStrategy.PrepareForUpdate() labels mismatch (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(previous.Annotations, next.Annotations); diff != "" {
 		t.Errorf("StatusStrategy.PrepareForUpdate() annotations mismatch (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(previous.Finalizers, next.Finalizers); diff != "" {
 		t.Errorf("StatusStrategy.PrepareForUpdate() finalizers mismatch (-want +got):\n%s", diff)
 	}
+
 	if errs := strategy.ValidateUpdate(context.Background(), next, previous); len(errs) != 0 {
 		t.Errorf("StatusStrategy.ValidateUpdate() errors = %v, want none", errs)
 	}

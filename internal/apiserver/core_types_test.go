@@ -42,6 +42,7 @@ func TestConfigMapCodecRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode(ConfigMap) error = %v", err)
 	}
+
 	if want := corev1.SchemeGroupVersion.WithKind("ConfigMap"); gvk == nil || *gvk != want {
 		t.Errorf("Decode(ConfigMap) GVK = %v, want %s", gvk, want)
 	}
@@ -50,6 +51,7 @@ func TestConfigMapCodecRoundTrip(t *testing.T) {
 	if err := scheme.Convert(decoded, roundTripped, nil); err != nil {
 		t.Fatalf("Scheme.Convert(decoded ConfigMap to v1) error = %v", err)
 	}
+
 	if diff := cmp.Diff(original, roundTripped); diff != "" {
 		t.Errorf("ConfigMap round trip mismatch (-want +got):\n%s", diff)
 	}
@@ -80,6 +82,7 @@ func TestConfigMapListConversionAndDeepCopy(t *testing.T) {
 	if err := scheme.Convert(internal, roundTripped, nil); err != nil {
 		t.Fatalf("Scheme.Convert(ConfigMapList to v1) error = %v", err)
 	}
+
 	if diff := cmp.Diff(original, roundTripped); diff != "" {
 		t.Errorf("ConfigMapList round trip mismatch (-want +got):\n%s", diff)
 	}
@@ -92,15 +95,19 @@ func TestConfigMapListConversionAndDeepCopy(t *testing.T) {
 	if got := internal.Items[0].Data["config.json"]; got != "{}" {
 		t.Errorf("ConfigMapList.DeepCopy() changed original data = %q, want {}", got)
 	}
+
 	if got := internal.Items[0].BinaryData["bytes"][0]; got != 0 {
 		t.Errorf("ConfigMapList.DeepCopy() changed original binary byte = %d, want 0", got)
 	}
+
 	if got := *internal.Items[0].Immutable; !got {
 		t.Errorf("ConfigMapList.DeepCopy() changed original immutable = %t, want true", got)
 	}
+
 	if got := internal.Items[0].Labels["owner"]; got != "platform" {
 		t.Errorf("ConfigMapList.DeepCopy() changed original label = %q, want platform", got)
 	}
+
 	if diff := cmp.Diff(before, original); diff != "" {
 		t.Errorf("ConfigMapList.DeepCopy() shares mutable input (-want +got):\n%s", diff)
 	}

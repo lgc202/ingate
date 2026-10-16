@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,9 +38,11 @@ func TestModelEntryRejectsInvalidHeadersBeforeBodyRead(t *testing.T) {
 			for _, port := range tt.ports {
 				request.Header.Add(aidataplane.ListenerPortHeader, port)
 			}
+
 			for _, host := range tt.hosts {
 				request.Header.Add(aidataplane.HostNameHeader, host)
 			}
+
 			called := false
 			next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true })
 			response := httptest.NewRecorder()
@@ -48,6 +51,19 @@ func TestModelEntryRejectsInvalidHeadersBeforeBodyRead(t *testing.T) {
 
 			if response.Code != http.StatusBadRequest || called || body.read {
 				t.Errorf("modelEntry(%s) status/next/body = %d/%t/%t, want 400/false/false", tt.name, response.Code, called, body.read)
+			}
+
+			var result struct {
+				Code    int    `json:"code"`
+				Reason  string `json:"reason"`
+				Message string `json:"message"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+				t.Fatalf("decode modelEntry(%s) response: %v", tt.name, err)
+			}
+
+			if result.Code != http.StatusBadRequest || result.Reason != "INVALID_MODEL_ENTRY" || result.Message != "invalid model entry" {
+				t.Errorf("modelEntry(%s) response = %+v, want 400/INVALID_MODEL_ENTRY/invalid model entry", tt.name, result)
 			}
 		})
 	}

@@ -26,6 +26,7 @@ func TestGatewayCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Gateway.Create(public-gateway) error = %v, want nil", err)
 	}
+
 	if created.Name != "public-gateway" {
 		t.Errorf("Gateway.Create(public-gateway) name = %q, want public-gateway", created.Name)
 	}
@@ -60,11 +61,13 @@ func TestGatewayReadsQueryModelAndUpdatesAPIServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock.New() error = %v, want nil", err)
 	}
+
 	t.Cleanup(func() {
 		query.ExpectClose()
 		if err := db.Close(); err != nil {
 			t.Errorf("Close() error = %v, want nil", err)
 		}
+
 		if err := query.ExpectationsWereMet(); err != nil {
 			t.Errorf("SQL expectations error = %v, want nil", err)
 		}
@@ -77,6 +80,7 @@ func TestGatewayReadsQueryModelAndUpdatesAPIServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gorm.Open() error = %v, want nil", err)
 	}
+
 	store := mysql.New(gormDB)
 	gateways := NewGateway(client.GatewayV1alpha1(), store)
 
@@ -93,6 +97,7 @@ func TestGatewayReadsQueryModelAndUpdatesAPIServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get Gateway from query model: %v", err)
 	}
+
 	if got.Version != "7" || len(client.Actions()) != 0 {
 		t.Errorf("Get = version %q with %d API actions, want version 7 and no API actions", got.Version, len(client.Actions()))
 	}
@@ -118,6 +123,7 @@ func TestGatewayReadsQueryModelAndUpdatesAPIServer(t *testing.T) {
 	if !errors.Is(err, ErrConflict) {
 		t.Errorf("Update with stale projected version error = %v, want ErrConflict", err)
 	}
+
 	if len(client.Actions()) != 1 || client.Actions()[0].GetVerb() != "get" {
 		t.Errorf("Update API actions = %v, want one current-object Get", client.Actions())
 	}

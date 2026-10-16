@@ -36,9 +36,11 @@ func TestNamespaceStorageWrites(t *testing.T) {
 	if namespace.UID == "" || namespace.ResourceVersion == "" || namespace.CreationTimestamp.IsZero() {
 		t.Errorf("Create() metadata lacks server identity/version/time: %+v", namespace.ObjectMeta)
 	}
+
 	if namespace.Status.Phase != coreapi.NamespaceActive || namespace.Labels[corev1.LabelMetadataName] != namespace.Name {
 		t.Errorf("Create() phase/labels = %q/%v, want Active and name label", namespace.Status.Phase, namespace.Labels)
 	}
+
 	wantFinalizers := []coreapi.FinalizerName{"example.com/cleanup", coreapi.FinalizerKubernetes}
 	if diff := cmp.Diff(wantFinalizers, namespace.Spec.Finalizers); diff != "" {
 		t.Errorf("Create() spec.finalizers mismatch (-want +got):\n%s", diff)
@@ -68,6 +70,7 @@ func TestNamespaceStorageWrites(t *testing.T) {
 	if !apierrors.IsInvalid(err) {
 		t.Errorf("status Update(inconsistent phase) error = %v, want Invalid", err)
 	}
+
 	status := namespace.DeepCopy()
 	status.Spec.Finalizers = nil
 	wantConditions := []coreapi.NamespaceCondition{{
@@ -82,6 +85,7 @@ func TestNamespaceStorageWrites(t *testing.T) {
 	if diff := cmp.Diff(wantFinalizers, namespace.Spec.Finalizers); diff != "" {
 		t.Errorf("status Update() changed spec.finalizers (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(wantConditions, namespace.Status.Conditions); diff != "" {
 		t.Errorf("status Update() conditions mismatch (-want +got):\n%s", diff)
 	}
@@ -93,9 +97,11 @@ func TestNamespaceStorageWrites(t *testing.T) {
 	if len(namespace.Spec.Finalizers) != 0 {
 		t.Errorf("finalize Update() spec.finalizers = %v, want empty", namespace.Spec.Finalizers)
 	}
+
 	if diff := cmp.Diff(wantConditions, namespace.Status.Conditions); diff != "" {
 		t.Errorf("finalize Update() changed conditions (-want +got):\n%s", diff)
 	}
+
 	if _, err := mainREST.Get(ctx, namespace.Name, &metav1.GetOptions{}); err != nil {
 		t.Errorf("Get(non-deleting finalized Namespace) error = %v, want present", err)
 	}
@@ -135,6 +141,7 @@ func TestNamespaceStorageWrites(t *testing.T) {
 			if err != nil {
 				t.Fatalf("List() error = %v", err)
 			}
+
 			if got := len(obj.(*coreapi.NamespaceList).Items); got != tt.wantCount {
 				t.Errorf("List() count = %d, want %d", got, tt.wantCount)
 			}
@@ -176,6 +183,7 @@ func TestNamespaceStorageDelete(t *testing.T) {
 			t.Errorf("Delete(%+v) error = %v, want Conflict", preconditions, err)
 		}
 	}
+
 	stored := getNamespace(t, mainREST, namespace.Name)
 	if diff := cmp.Diff(namespace, stored); diff != "" {
 		t.Errorf("conflicting Delete changed storage (-want +got):\n%s", diff)
@@ -188,14 +196,17 @@ func TestNamespaceStorageDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Delete(dry-run) error = %v", err)
 	}
+
 	dryRun := obj.(*coreapi.Namespace)
 	if deleted || dryRun.DeletionTimestamp.IsZero() || dryRun.Status.Phase != coreapi.NamespaceTerminating {
 		t.Errorf("Delete(dry-run) deleted/phase/timestamp = %t/%q/%v, want false/Terminating/nonzero",
 			deleted, dryRun.Status.Phase, dryRun.DeletionTimestamp)
 	}
+
 	if diff := cmp.Diff(wantOptions, options); diff != "" {
 		t.Errorf("Delete(dry-run) options mismatch (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(namespace, getNamespace(t, mainREST, namespace.Name)); diff != "" {
 		t.Errorf("dry-run persisted changes (-want +got):\n%s", diff)
 	}
@@ -207,20 +218,25 @@ func TestNamespaceStorageDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Delete() error = %v", err)
 	}
+
 	namespace = obj.(*coreapi.Namespace)
 	if deleted || namespace.DeletionTimestamp.IsZero() || namespace.Status.Phase != coreapi.NamespaceTerminating {
 		t.Errorf("Delete() deleted/phase/timestamp = %t/%q/%v, want false/Terminating/nonzero",
 			deleted, namespace.Status.Phase, namespace.DeletionTimestamp)
 	}
+
 	if diff := cmp.Diff(wantOptions, options); diff != "" {
 		t.Errorf("Delete() preconditions mismatch (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(namespace, getNamespace(t, mainREST, namespace.Name)); diff != "" {
 		t.Errorf("termination state not persisted (-want +got):\n%s", diff)
 	}
+
 	if _, deleted, err := mainREST.Delete(ctx, namespace.Name, rest.ValidateAllObjectFunc, nil); err != nil || deleted {
 		t.Fatalf("Delete(repeated) = deleted %t, error %v, want false/nil", deleted, err)
 	}
+
 	if diff := cmp.Diff(namespace, getNamespace(t, mainREST, namespace.Name)); diff != "" {
 		t.Errorf("repeated Delete changed termination state (-want +got):\n%s", diff)
 	}
@@ -238,9 +254,11 @@ func TestNamespaceStorageDelete(t *testing.T) {
 	if _, err := mainREST.Get(ctx, namespace.Name, &metav1.GetOptions{}); err != nil {
 		t.Fatalf("Get(metadata finalizer remaining) error = %v, want present", err)
 	}
+
 	if _, deleted, err := mainREST.Delete(ctx, namespace.Name, rest.ValidateAllObjectFunc, nil); err != nil || deleted {
 		t.Fatalf("Delete(metadata finalizer remaining) = deleted %t, error %v, want false/nil", deleted, err)
 	}
+
 	namespace = getNamespace(t, mainREST, namespace.Name)
 	namespace.Finalizers = nil
 	updateNamespace(t, mainREST, namespace)
@@ -258,20 +276,24 @@ func TestNamespaceStorageFinalize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Delete() error = %v", err)
 	}
+
 	namespace = obj.(*coreapi.Namespace)
 	namespace.Spec.Finalizers = nil
 	updateNamespace(t, finalizeREST, namespace)
 	if _, err := mainREST.Get(ctx, namespace.Name, &metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("Get(after finalize) error = %v, want NotFound", err)
 	}
+
 	recreated := createNamespace(t, mainREST, &coreapi.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace.Name}})
 	if recreated.UID == namespace.UID {
 		t.Error("recreated Namespace has old UID, want new identity")
 	}
+
 	options := &metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &namespace.UID}}
 	if _, _, err := mainREST.Delete(ctx, recreated.Name, rest.ValidateAllObjectFunc, options); !apierrors.IsConflict(err) {
 		t.Errorf("Delete(stale UID) error = %v, want Conflict", err)
 	}
+
 	if got := getNamespace(t, mainREST, recreated.Name); !got.DeletionTimestamp.IsZero() {
 		t.Errorf("Delete(stale UID) marked replacement deleting: %v", got.DeletionTimestamp)
 	}
@@ -288,6 +310,7 @@ func TestNamespaceStorageDeleteValidation(t *testing.T) {
 	if _, _, err := mainREST.Delete(ctx, namespace.Name, validation, nil); !apierrors.IsForbidden(err) {
 		t.Errorf("Delete(denied) error = %v, want Forbidden", err)
 	}
+
 	if diff := cmp.Diff(namespace, getNamespace(t, mainREST, namespace.Name)); diff != "" {
 		t.Errorf("denied Delete changed storage (-want +got):\n%s", diff)
 	}
@@ -323,7 +346,9 @@ func newNamespaceStorage(
 	if err != nil {
 		t.Fatalf("NewREST(Namespace) error = %v", err)
 	}
+
 	t.Cleanup(mainREST.Destroy)
+
 	return mainREST, statusREST, finalizeREST
 }
 
@@ -339,6 +364,7 @@ func createNamespace(
 	if err != nil {
 		t.Fatalf("Create(Namespace) error = %v", err)
 	}
+
 	return obj.(*coreapi.Namespace)
 }
 
@@ -350,6 +376,7 @@ func getNamespace(t *testing.T, storage *namespacestorage.REST, name string) *co
 	if err != nil {
 		t.Fatalf("Get(Namespace %q) error = %v", name, err)
 	}
+
 	return obj.(*coreapi.Namespace)
 }
 
@@ -384,9 +411,11 @@ func updateNamespace(
 	if err != nil {
 		t.Fatalf("%T.Update(Namespace) error = %v", storage, err)
 	}
+
 	if created {
 		t.Errorf("%T.Update(Namespace) created object, want false", storage)
 	}
+
 	return obj.(*coreapi.Namespace)
 }
 
@@ -395,6 +424,7 @@ func namespaceStorageContext(t *testing.T, subresource string) context.Context {
 	t.Helper()
 
 	ctx := genericapirequest.WithNamespace(t.Context(), "")
+
 	return genericapirequest.WithRequestInfo(ctx, &genericapirequest.RequestInfo{
 		IsResourceRequest: true,
 		APIGroup:          corev1.GroupName,

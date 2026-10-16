@@ -17,12 +17,14 @@ func ValidateHTTPRoute(route *gateway.HTTPRoute) field.ErrorList {
 		apivalidation.NameIsDNSSubdomain,
 		field.NewPath("metadata"),
 	)
+
 	return append(errs, validateHTTPRouteSpec(&route.Spec, field.NewPath("spec"))...)
 }
 
 // ValidateHTTPRouteUpdate 校验更新后的 HTTPRoute。
 func ValidateHTTPRouteUpdate(next, previous *gateway.HTTPRoute) field.ErrorList {
 	errs := ValidateHTTPRoute(next)
+
 	return append(errs, apivalidation.ValidateObjectMetaUpdate(
 		&next.ObjectMeta,
 		&previous.ObjectMeta,
@@ -56,6 +58,7 @@ func validateHTTPRouteSpec(spec *gateway.HTTPRouteSpec, path *field.Path) field.
 			if names[rule.Name] {
 				errs = append(errs, field.Duplicate(rulePath.Child("name"), rule.Name))
 			}
+
 			names[rule.Name] = true
 		}
 
@@ -66,6 +69,7 @@ func validateHTTPRouteSpec(spec *gateway.HTTPRouteSpec, path *field.Path) field.
 				"exactly one Backend reference is supported",
 			))
 		}
+
 		for j, ref := range rule.BackendRefs {
 			refPath := rulePath.Child("backendRefs").Index(j).Child("name")
 			errs = append(errs, validateReferenceName(ref.Name, refPath)...)
@@ -96,9 +100,11 @@ func validateParentRefs(refs []gateway.ParentReference, path *field.Path) field.
 		if ref.SectionName != "" {
 			errs = append(errs, validateListenerName(ref.SectionName, refPath.Child("sectionName"))...)
 		}
+
 		if seen[ref] {
 			errs = append(errs, field.Duplicate(refPath, ref))
 		}
+
 		seen[ref] = true
 		if ref.SectionName == "" {
 			whole[ref.Name] = true
@@ -127,6 +133,7 @@ func validatePathMatch(match gateway.PathMatch, path *field.Path) field.ErrorLis
 			[]string{string(gateway.PathMatchExact), string(gateway.PathMatchPrefix)},
 		))
 	}
+
 	if match.Value != "" && (!strings.HasPrefix(match.Value, "/") ||
 		strings.ContainsAny(match.Value, "?#") || strings.Contains(match.Value, "//")) {
 		errs = append(errs, field.Invalid(
@@ -135,6 +142,7 @@ func validatePathMatch(match gateway.PathMatch, path *field.Path) field.ErrorLis
 			"must be an absolute path without consecutive slashes, query, or fragment",
 		))
 	}
+
 	return errs
 }
 
@@ -142,9 +150,11 @@ func validateReferenceName(name string, path *field.Path) field.ErrorList {
 	if name == "" {
 		return field.ErrorList{field.Required(path, "is required")}
 	}
+
 	if messages := apivalidation.NameIsDNSSubdomain(name, false); len(messages) > 0 {
 		return field.ErrorList{field.Invalid(path, name, strings.Join(messages, "; "))}
 	}
+
 	return nil
 }
 
@@ -152,8 +162,10 @@ func validateListenerName(name string, path *field.Path) field.ErrorList {
 	if name == "" {
 		return field.ErrorList{field.Required(path, "is required")}
 	}
+
 	if messages := apivalidation.NameIsDNSLabel(name, false); len(messages) > 0 {
 		return field.ErrorList{field.Invalid(path, name, strings.Join(messages, "; "))}
 	}
+
 	return nil
 }

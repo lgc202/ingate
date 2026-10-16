@@ -60,6 +60,7 @@ func TestGatewayCRUDHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read Gateway after stale update: %v", err)
 	}
+
 	if stored.Spec.Listeners[0].Port != 8080 {
 		t.Errorf("UpdateGateway(edge, stale) port = %d, want unchanged 8080", stored.Spec.Listeners[0].Port)
 	}
@@ -76,16 +77,20 @@ func TestGatewayCRUDHTTP(t *testing.T) {
 	if updateReply.GetGateway().GetDisplayName() != "Updated" {
 		t.Errorf("UpdateGateway(edge) display name = %q, want Updated", updateReply.GetGateway().GetDisplayName())
 	}
+
 	stored, err = client.GatewayV1alpha1().Gateways("team-a").Get(context.Background(), "edge", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("read updated Gateway: %v", err)
 	}
+
 	if stored.Labels["team"] != "core" {
 		t.Errorf("UpdateGateway(edge) labels = %v, want team=core preserved", stored.Labels)
 	}
+
 	if len(stored.Status.Conditions) != 1 || stored.Status.Conditions[0].Type != "Accepted" {
 		t.Errorf("UpdateGateway(edge) status = %v, want Accepted preserved", stored.Status.Conditions)
 	}
+
 	if stored.Name != "edge" || stored.UID != seed.UID {
 		t.Errorf("UpdateGateway(rename) name/UID = %q/%q, want edge/%q", stored.Name, stored.UID, seed.UID)
 	}
@@ -104,6 +109,7 @@ func TestRemovedResourcePathsAreNotRegistered(t *testing.T) {
 		response := requestResource(httpServer, http.MethodGet, path, "")
 		requireHTTPStatus(t, response, http.StatusNotFound)
 	}
+
 	if actions := client.Actions(); len(actions) != 0 {
 		t.Errorf("removed paths caused API actions: %v", actions)
 	}
@@ -149,6 +155,7 @@ func TestHTTPRouteCRUDHTTP(t *testing.T) {
 	if secondReply.GetRoute().GetName() == createReply.GetRoute().GetName() || secondReply.GetRoute().GetDisplayName() != "重复展示名称" {
 		t.Errorf("CreateHTTPRoute(duplicate display name) = %v, want distinct ID and unchanged display name", &secondReply)
 	}
+
 	if createReply.GetRoute().GetRules()[0].GetMatches()[0].GetPath().GetValue() != "/new" {
 		t.Errorf("CreateHTTPRoute(new-route) path = %q, want /new", createReply.GetRoute().GetRules()[0].GetMatches()[0].GetPath().GetValue())
 	}
@@ -164,6 +171,7 @@ func TestHTTPRouteCRUDHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read HTTPRoute after stale update: %v", err)
 	}
+
 	if stored.Spec.Rules[0].Matches[0].Path.Value != "/old" {
 		t.Errorf("UpdateHTTPRoute(public, stale) path = %q, want unchanged /old", stored.Spec.Rules[0].Matches[0].Path.Value)
 	}
@@ -181,13 +189,16 @@ func TestHTTPRouteCRUDHTTP(t *testing.T) {
 	if updateReply.GetRoute().GetRules()[0].GetMatches()[0].GetPath().GetValue() != "/updated" {
 		t.Errorf("UpdateHTTPRoute(public) path = %q, want /updated", updateReply.GetRoute().GetRules()[0].GetMatches()[0].GetPath().GetValue())
 	}
+
 	stored, err = client.GatewayV1alpha1().HTTPRoutes("team-a").Get(context.Background(), "public", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("read updated HTTPRoute: %v", err)
 	}
+
 	if stored.Labels["team"] != "core" {
 		t.Errorf("UpdateHTTPRoute(public) labels = %v, want team=core preserved", stored.Labels)
 	}
+
 	if stored.Name != "public" || stored.UID != seed.UID || stored.Spec.DisplayName != "改名后的路由" {
 		t.Errorf("UpdateHTTPRoute(rename) = %v, want same name/UID and updated display name", stored)
 	}
@@ -240,8 +251,10 @@ func TestHTTPRouteWriteRejectsUnsupportedAndConflictingInput(t *testing.T) {
 				if actions := client.Actions(); len(actions) != 0 {
 					t.Errorf("invalid input caused API actions: %v", actions)
 				}
+
 				return
 			}
+
 			var reply adminv1.CreateHTTPRouteReply
 			decodeReply(t, response, &reply)
 			path := reply.GetRoute().GetRules()[0].GetMatches()[0].GetPath()
@@ -286,6 +299,7 @@ func TestBackendCRUDHTTP(t *testing.T) {
 	if secondReply.GetBackend().GetName() == createReply.GetBackend().GetName() || secondReply.GetBackend().GetDisplayName() != "重复展示名称" {
 		t.Errorf("CreateBackend(duplicate display name) = %v, want distinct ID and unchanged display name", &secondReply)
 	}
+
 	if createReply.GetBackend().GetEndpoints()[0].GetPort() != 8081 {
 		t.Errorf("CreateBackend(new-backend) port = %d, want 8081", createReply.GetBackend().GetEndpoints()[0].GetPort())
 	}
@@ -300,6 +314,7 @@ func TestBackendCRUDHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read Backend after stale update: %v", err)
 	}
+
 	if stored.Spec.Endpoints[0].Port != 8080 {
 		t.Errorf("UpdateBackend(backend, stale) port = %d, want unchanged 8080", stored.Spec.Endpoints[0].Port)
 	}
@@ -316,13 +331,16 @@ func TestBackendCRUDHTTP(t *testing.T) {
 	if updateReply.GetBackend().GetEndpoints()[0].GetPort() != 9090 {
 		t.Errorf("UpdateBackend(backend) port = %d, want 9090", updateReply.GetBackend().GetEndpoints()[0].GetPort())
 	}
+
 	stored, err = client.GatewayV1alpha1().Backends("team-a").Get(context.Background(), "backend", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("read updated Backend: %v", err)
 	}
+
 	if stored.Labels["team"] != "core" {
 		t.Errorf("UpdateBackend(backend) labels = %v, want team=core preserved", stored.Labels)
 	}
+
 	if stored.Name != "backend" || stored.UID != seed.UID || stored.Spec.DisplayName != "改名后的后端" {
 		t.Errorf("UpdateBackend(rename) = %v, want same name/UID and updated display name", stored)
 	}
@@ -414,6 +432,7 @@ func crudTestServer(t *testing.T, seed any) (*kratoshttp.Server, *clientfake.Cli
 	default:
 		t.Fatalf("unsupported seed type %T", seed)
 	}
+
 	if err != nil {
 		t.Fatalf("seed %T: %v", seed, err)
 	}
@@ -427,6 +446,7 @@ func requestResource(httpServer *kratoshttp.Server, method, path, body string) *
 
 	response := httptest.NewRecorder()
 	httpServer.ServeHTTP(response, request)
+
 	return response
 }
 

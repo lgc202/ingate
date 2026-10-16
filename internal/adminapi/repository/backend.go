@@ -63,6 +63,7 @@ func (r *Backend) Get(
 		if errors.Is(err, mysql.ErrNotFound) {
 			return BackendInfo{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 		}
+
 		return BackendInfo{}, err
 	}
 
@@ -122,6 +123,7 @@ func (r *Backend) Delete(ctx context.Context, namespace, name string) error {
 
 func backendFromAPI(backend *gatewayv1alpha1.Backend) BackendInfo {
 	spec := backend.DeepCopy().Spec
+
 	return BackendInfo{
 		Namespace:   backend.Namespace,
 		Name:        backend.Name,

@@ -30,6 +30,7 @@ func TestTranslateRepositoryErrorPreservesCause(t *testing.T) {
 			}
 		})
 	}
+
 	if got := translateRepositoryError(nil); got != nil {
 		t.Errorf("translateRepositoryError(nil) = %v, want nil", got)
 	}

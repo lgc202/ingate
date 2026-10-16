@@ -16,7 +16,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -39,27 +38,18 @@ type Loader struct {
 	config *Config
 }
 
-// NewLoader 校验加载范围并保存依赖，不发起请求、不启动后台任务。
+// NewLoader 保存已经校验的加载范围和已构造的依赖，不发起请求、不启动后台任务。
+// namespace 由组件配置入口校验，API Client 与 Logger 由组合根成功构造后注入。
 func NewLoader(
 	apiClient kubernetes.Interface,
 	namespace string,
 	logger *slog.Logger,
-) (*Loader, error) {
-	if apiClient == nil {
-		return nil, errors.New("AI configuration client is required")
-	}
-	if messages := validation.IsDNS1123Label(namespace); len(messages) != 0 {
-		return nil, fmt.Errorf("AI configuration namespace %q must be a valid DNS label", namespace)
-	}
-	if logger == nil {
-		return nil, errors.New("AI configuration logger is required")
-	}
-
+) *Loader {
 	return &Loader{
 		client:    apiClient,
 		namespace: namespace,
 		logger:    logger.With("namespace", namespace, "name", aidataplane.ConfigMapName),
-	}, nil
+	}
 }
 
 // Run 同步运行一次加载器，取消后等待 Informer 及其处理器停止并清空快照。
@@ -69,9 +59,11 @@ func (l *Loader) Run(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("run AI configuration loader: %w", err)
 	}
+
 	if !l.started.CompareAndSwap(false, true) {
 		return errors.New("AI configuration loader has already run")
 	}
+
 	defer l.clear()
 
 	// 本 Factory 只管理目标 ConfigMap；这里的名称筛选会应用于其中所有 Informer。
@@ -143,9 +135,11 @@ func (l *Loader) replace(configMap *corev1.ConfigMap) error {
 	if configMap == nil {
 		return errors.New("AI configuration event is missing its ConfigMap")
 	}
+
 	if !l.matches(configMap) {
 		return nil
 	}
+
 	if configMap.UID == "" {
 		return errors.New("AI configuration ConfigMap UID is missing")
 	}
@@ -156,11 +150,13 @@ func (l *Loader) replace(configMap *corev1.ConfigMap) error {
 		l.uid = configMap.UID
 		l.config = nil
 	}
+
 	l.mu.Unlock()
 
 	if _, occupied := configMap.BinaryData[aidataplane.ConfigMapDataKey]; occupied {
 		return fmt.Errorf("AI configuration key %q is occupied by binaryData", aidataplane.ConfigMapDataKey)
 	}
+
 	data, exists := configMap.Data[aidataplane.ConfigMapDataKey]
 	if !exists {
 		return fmt.Errorf("AI configuration key %q is missing", aidataplane.ConfigMapDataKey)
@@ -189,6 +185,7 @@ func (l *Loader) remove(configMap *corev1.ConfigMap) error {
 	if configMap == nil || configMap.UID == "" {
 		return errors.New("AI configuration deletion is missing its object identity")
 	}
+
 	if !l.matches(configMap) {
 		return nil
 	}

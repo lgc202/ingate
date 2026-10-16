@@ -25,12 +25,15 @@ func TestResolveGatewayConflictAndHostSharing(t *testing.T) {
 	for _, gateway := range result.gateways {
 		names = append(names, gateway.Name)
 	}
+
 	if diff := cmp.Diff([]string{"first", "shared", "available"}, names); diff != "" {
 		t.Errorf("accepted gateways (-want +got):\n%s", diff)
 	}
+
 	if len(result.gatewayConflicts) != 1 || result.gatewayConflicts[0].gateway.Name != "later" {
 		t.Errorf("conflicts = %+v; want whole later Gateway rejected", result.gatewayConflicts)
 	}
+
 	if diff := cmp.Diff(before, gateways); diff != "" {
 		t.Errorf("input mutated:\n%s", diff)
 	}
@@ -69,5 +72,6 @@ func assertGatewayCondition(
 	if err := apiClient.Get(t.Context(), types.NamespacedName{Name: name}, &gateway); err != nil {
 		t.Fatalf("Get(Gateway %q) error = %v", name, err)
 	}
+
 	assertAcceptedCondition(t, gateway.Status.Conditions, status, reason, generation)
 }

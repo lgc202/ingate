@@ -46,6 +46,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, request ctrl.Request)
 	if request.Namespace == "" && request.Name == gatewayInitialSyncName {
 		return ctrl.Result{}, r.syncAll(ctx)
 	}
+
 	return ctrl.Result{}, r.syncGateway(ctx, request.NamespacedName)
 }
 
@@ -55,9 +56,11 @@ func (r *GatewayReconciler) syncGateway(ctx context.Context, key types.Namespace
 		if !apierrors.IsNotFound(err) {
 			return fmt.Errorf("get Gateway %q: %w", key.String(), err)
 		}
+
 		if err := r.store.DeleteGateway(ctx, key.Namespace, key.Name); err != nil {
 			return fmt.Errorf("delete Gateway %q from MySQL: %w", key.String(), err)
 		}
+
 		return nil
 	}
 
@@ -80,6 +83,7 @@ func (r *GatewayReconciler) syncAll(ctx context.Context) error {
 		if err := r.store.UpsertGateway(ctx, gatewayToMySQL(gateway)); err != nil {
 			return fmt.Errorf("sync Gateway %q to MySQL: %w", client.ObjectKeyFromObject(gateway).String(), err)
 		}
+
 		current[client.ObjectKeyFromObject(gateway)] = struct{}{}
 	}
 
@@ -92,6 +96,7 @@ func (r *GatewayReconciler) syncAll(ctx context.Context) error {
 		if _, exists := current[key]; exists {
 			continue
 		}
+
 		if err := r.store.DeleteGateway(ctx, key.Namespace, key.Name); err != nil {
 			return fmt.Errorf("delete stale Gateway %q from MySQL: %w", key.String(), err)
 		}

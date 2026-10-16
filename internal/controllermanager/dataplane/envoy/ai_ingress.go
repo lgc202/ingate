@@ -86,6 +86,7 @@ func mergeAIIngress(
 				host.Routes = slices.Concat([]*routev3.Route{model}, host.Routes)
 			}
 		}
+
 		merged = append(merged, clone)
 	}
 

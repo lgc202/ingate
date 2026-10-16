@@ -3,6 +3,8 @@ package server_test
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,13 +17,7 @@ import (
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
-	accounthandler "github.com/lgc202/ingate/internal/adminapi/handler/account"
-	aibackendhandler "github.com/lgc202/ingate/internal/adminapi/handler/aibackend"
-	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
-	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
-	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
-	mcproutehandler "github.com/lgc202/ingate/internal/adminapi/handler/mcproute"
-	modelroutehandler "github.com/lgc202/ingate/internal/adminapi/handler/modelroute"
+	"github.com/lgc202/ingate/internal/adminapi/handler"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
 	mysqlstore "github.com/lgc202/ingate/internal/adminapi/repository/mysql"
 	"github.com/lgc202/ingate/internal/adminapi/server"
@@ -40,6 +36,25 @@ import (
 
 const createGatewayBody = `{"displayName":"订单网关","listeners":[{"name":"http","protocol":"LISTENER_PROTOCOL_HTTP","port":8080}]}`
 
+func TestBusinessHTTPDoesNotExposeDefaultMux(t *testing.T) {
+	previous := http.DefaultServeMux
+	http.DefaultServeMux = http.NewServeMux()
+	t.Cleanup(func() { http.DefaultServeMux = previous })
+	calls := 0
+	http.HandleFunc("/unintended-debug/", func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusOK)
+	})
+	httpServer, _, _ := newTestServers()
+
+	response := httptest.NewRecorder()
+	httpServer.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/unintended-debug/", nil))
+
+	if response.Code != http.StatusNotFound || calls != 0 {
+		t.Errorf("unregistered business path = status %d/default mux calls %d, want 404/0", response.Code, calls)
+	}
+}
+
 func TestCreateGatewayHTTP(t *testing.T) {
 	httpServer, _, _ := newTestServers()
 
@@ -52,6 +67,7 @@ func TestCreateGatewayHTTP(t *testing.T) {
 	if err := protojson.Unmarshal(response.Body.Bytes(), &reply); err != nil {
 		t.Fatalf("decode CreateGatewayReply: %v; body = %s", err, response.Body.String())
 	}
+
 	if name := reply.GetGateway().GetName(); !strings.HasPrefix(name, "gateway-") {
 		t.Errorf("created Gateway name = %q, want generated gateway ID", name)
 	}
@@ -74,6 +90,7 @@ func TestCreateGatewayHTTPProtoJSON(t *testing.T) {
 	if err := protojson.Unmarshal(response.Body.Bytes(), &reply); err != nil {
 		t.Fatalf("decode ProtoJSON CreateGatewayReply: %v", err)
 	}
+
 	if name := reply.GetGateway().GetName(); !strings.HasPrefix(name, "gateway-") {
 		t.Errorf("created Gateway name = %q, want generated gateway ID", name)
 	}
@@ -101,9 +118,11 @@ func TestCreateGatewayHTTPRejectsInvalidRequests(t *testing.T) {
 			if response.Code != http.StatusBadRequest {
 				t.Errorf("POST invalid Gateway status = %d, want 400; body = %s", response.Code, response.Body.String())
 			}
+
 			if !strings.Contains(response.Body.String(), "请求参数不合法") {
 				t.Errorf("POST invalid Gateway body = %s, want Chinese public error", response.Body.String())
 			}
+
 			if actions := client.Actions(); len(actions) != 0 {
 				t.Errorf("POST invalid Gateway caused %d API Server calls, want 0", len(actions))
 			}
@@ -121,6 +140,7 @@ func TestCreateGatewayHTTPHidesBackendError(t *testing.T) {
 	if response.Code != http.StatusInternalServerError {
 		t.Errorf("POST Gateway with failed backend status = %d, want 500", response.Code)
 	}
+
 	if strings.Contains(response.Body.String(), "backend unavailable") {
 		t.Errorf("POST Gateway with failed backend leaked backend error: %s", response.Body.String())
 	}
@@ -136,6 +156,7 @@ func TestCreateGatewayHTTPOldPathNotRegistered(t *testing.T) {
 	if response.Code != http.StatusNotFound {
 		t.Errorf("POST /v1/gateways status = %d, want 404", response.Code)
 	}
+
 	if actions := client.Actions(); len(actions) != 0 {
 		t.Errorf("POST /v1/gateways caused %d API Server calls, want 0", len(actions))
 	}
@@ -153,18 +174,22 @@ func TestAdminAPIAuthenticationSelection(t *testing.T) {
 	if response.Code != http.StatusUnauthorized {
 		t.Errorf("POST Gateway without Session status = %d, want 401", response.Code)
 	}
+
 	if actions := client.Actions(); len(actions) != 0 {
 		t.Errorf("POST Gateway without Session caused %d API Server calls, want 0", len(actions))
 	}
+
 	for _, path := range []string{"/api/admin/v1/namespaces/team-a/http-routes", "/api/admin/v1/namespaces/team-a/backends"} {
 		response = requestResource(httpServer, http.MethodPost, path, `{}`)
 		if response.Code != http.StatusUnauthorized {
 			t.Errorf("POST %s without Session status = %d, want 401", path, response.Code)
 		}
 	}
+
 	if actions := client.Actions(); len(actions) != 0 {
 		t.Errorf("POST resources without Session caused %d API Server calls, want 0", len(actions))
 	}
+
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/api/admin/v1/accounts/me:changePassword",
@@ -212,12 +237,12 @@ func newTestServersWithStore(
 	modelRoutes := repository.NewModelRoute(client.GatewayV1alpha1(), store)
 	mcpRoutes := repository.NewMCPRoute(client.GatewayV1alpha1(), store)
 
-	gatewayHandler := gatewayhandler.New(gatewayservice.New(gateways))
-	routeHandler := routehandler.New(routeservice.New(routes))
-	backendHandler := backendhandler.New(backendservice.New(backends))
-	aiBackendHandler := aibackendhandler.New(aibackendservice.New(aiBackends))
-	modelRouteHandler := modelroutehandler.New(modelrouteservice.New(modelRoutes))
-	mcpRouteHandler := mcproutehandler.New(mcprouteservice.New(mcpRoutes))
+	gatewayHandler := handler.NewGateway(gatewayservice.New(gateways))
+	routeHandler := handler.NewHTTPRoute(routeservice.New(routes))
+	backendHandler := handler.NewBackend(backendservice.New(backends))
+	aiBackendHandler := handler.NewAIBackend(aibackendservice.New(aiBackends))
+	modelRouteHandler := handler.NewModelRoute(modelrouteservice.New(modelRoutes))
+	mcpRouteHandler := handler.NewMCPRoute(mcprouteservice.New(mcpRoutes))
 
 	config := &conf.Server{
 		Http: &conf.Server_HTTP{
@@ -237,9 +262,9 @@ func newTestServersWithStore(
 		AIBackend:  aiBackendHandler,
 		ModelRoute: modelRouteHandler,
 		MCPRoute:   mcpRouteHandler,
-		Account:    accounthandler.New(nil),
+		Account:    handler.NewAccount(nil),
 	}
-	chain := server.NewMiddlewareChain(authentication)
+	chain := server.NewMiddlewareChain(slog.New(slog.NewTextHandler(io.Discard, nil)), authentication)
 	httpServer, grpcServer := server.New(config, handlers, chain)
 
 	return httpServer, grpcServer, client

@@ -38,6 +38,7 @@ func (r *Session) Get(ctx context.Context, id string) (domain.Session, error) {
 		if errors.Is(err, redis.ErrNotFound) {
 			return domain.Session{}, fmt.Errorf("%w: %w", ErrSessionNotFound, err)
 		}
+
 		return domain.Session{}, err
 	}
 

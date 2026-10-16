@@ -20,9 +20,11 @@ func TestStrategy(t *testing.T) {
 	if !strategy.NamespaceScoped() {
 		t.Error("NamespaceScoped() = false, want true")
 	}
+
 	if strategy.AllowCreateOnUpdate(ctx) {
 		t.Error("AllowCreateOnUpdate() = true, want false")
 	}
+
 	if strategy.AllowUnconditionalUpdate(ctx) {
 		t.Error("AllowUnconditionalUpdate() = true, want false")
 	}
@@ -54,6 +56,7 @@ func TestStrategy(t *testing.T) {
 	if next.Generation != 4 {
 		t.Errorf("PrepareForUpdate(spec changed) generation = %d, want 4", next.Generation)
 	}
+
 	if diff := cmp.Diff(previous.Status, next.Status); diff != "" {
 		t.Errorf("PrepareForUpdate(spec changed) status mismatch (-want +got):\n%s", diff)
 	}
@@ -80,6 +83,7 @@ func TestStrategyCanonicalizesEndpointOrder(t *testing.T) {
 	if diff := cmp.Diff(previous.Spec.Endpoints, next.Spec.Endpoints); diff != "" {
 		t.Errorf("PrepareForUpdate(reordered endpoints) mismatch (-want +got):\n%s", diff)
 	}
+
 	if next.Generation != previous.Generation {
 		t.Errorf("PrepareForUpdate(reordered endpoints) generation = %d, want %d", next.Generation, previous.Generation)
 	}
@@ -103,16 +107,20 @@ func TestStatusStrategy(t *testing.T) {
 	if diff := cmp.Diff(previous.Spec, next.Spec); diff != "" {
 		t.Errorf("StatusStrategy.PrepareForUpdate() spec mismatch (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(wantStatus, next.Status); diff != "" {
 		t.Errorf("StatusStrategy.PrepareForUpdate() status mismatch (-want +got):\n%s", diff)
 	}
+
 	if next.Generation != previous.Generation {
 		t.Errorf("StatusStrategy.PrepareForUpdate() generation = %d, want %d",
 			next.Generation, previous.Generation)
 	}
+
 	if diff := cmp.Diff(previous.Labels, next.Labels); diff != "" {
 		t.Errorf("StatusStrategy.PrepareForUpdate() labels mismatch (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(previous.Finalizers, next.Finalizers); diff != "" {
 		t.Errorf("StatusStrategy.PrepareForUpdate() finalizers mismatch (-want +got):\n%s", diff)
 	}

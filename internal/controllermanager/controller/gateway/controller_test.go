@@ -37,6 +37,7 @@ func TestReconcilePublishesAcceptedResources(t *testing.T) {
 	r := newTestReconciler(t, apiClient, publisherFunc(func(_ context.Context, config dataplane.Config) error {
 		published = config
 		calls++
+
 		return nil
 	}))
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
@@ -65,6 +66,7 @@ func TestReconcilePublishesAcceptedResources(t *testing.T) {
 	if diff := cmp.Diff(want, published); diff != "" {
 		t.Errorf("Reconcile(shared request) published configuration mismatch (-want +got):\n%s", diff)
 	}
+
 	if calls != 1 {
 		t.Errorf("Reconcile(shared request) publish calls = %d, want 1", calls)
 	}
@@ -77,14 +79,17 @@ func TestReconcilePublishesEmptyConfiguration(t *testing.T) {
 	r := newTestReconciler(t, apiClient, publisherFunc(func(_ context.Context, config dataplane.Config) error {
 		published = config
 		calls++
+
 		return nil
 	}))
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 		t.Fatalf("Reconcile(empty resources) error = %v", err)
 	}
+
 	if calls != 1 {
 		t.Errorf("Reconcile(empty resources) publish calls = %d, want 1", calls)
 	}
+
 	if diff := cmp.Diff(dataplane.Config{}, published); diff != "" {
 		t.Errorf("Reconcile(empty resources) published configuration mismatch (-want +got):\n%s", diff)
 	}
@@ -112,10 +117,12 @@ func TestReconcileDoesNotPublishAfterListFailure(t *testing.T) {
 						if gotCtx != ctx {
 							t.Error("List() did not receive the Reconcile context")
 						}
+
 						reads++
 						if reads == tt.failedRead {
 							return wantErr
 						}
+
 						return nil
 					},
 				}).
@@ -131,13 +138,16 @@ func TestReconcileDoesNotPublishAfterListFailure(t *testing.T) {
 			if !errors.Is(err, wantErr) {
 				t.Errorf("Reconcile(%s list failure) error = %v, want wrapped %v", tt.name, err, wantErr)
 			}
+
 			wantReads := tt.failedRead
 			if tt.name == "HTTPRoutes" {
 				wantReads += 3 // HTTP 专属读取失败后，仍读取 AI 的三个资源集合。
 			}
+
 			if reads != wantReads {
 				t.Errorf("Reconcile(%s list failure) reads = %d, want %d", tt.name, reads, wantReads)
 			}
+
 			if publishes != 0 {
 				t.Errorf("Reconcile(%s list failure) publishes = %d, want 0", tt.name, publishes)
 			}
@@ -178,13 +188,16 @@ func TestSharedRequestSources(t *testing.T) {
 	if err := enqueueInitialReconcile(t.Context(), queue); err != nil {
 		t.Fatalf("enqueueInitialReconcile() error = %v", err)
 	}
+
 	if queue.Len() != 1 {
 		t.Fatalf("enqueueInitialReconcile() queue length = %d, want 1", queue.Len())
 	}
+
 	request, shutdown := queue.Get()
 	if shutdown {
 		t.Fatal("enqueueInitialReconcile() shut down the request queue")
 	}
+
 	queue.Done(request)
 	if request != sharedRequest() {
 		t.Errorf("enqueueInitialReconcile() request = %v, want %v", request, sharedRequest())
@@ -217,6 +230,7 @@ func TestReconcileWritesAcceptedStatuses(t *testing.T) {
 	if err := apiClient.Get(t.Context(), types.NamespacedName{Name: "backend"}, &stored); err != nil {
 		t.Fatalf("Get(Backend) error = %v", err)
 	}
+
 	if len(stored.Status.Conditions) != 0 {
 		t.Errorf("Backend conditions = %v, want none", stored.Status.Conditions)
 	}
@@ -236,6 +250,7 @@ func TestReconcileDoesNotWriteStatusAfterPublishFailure(t *testing.T) {
 	if err := apiClient.Get(t.Context(), types.NamespacedName{Name: gateway.Name}, &stored); err != nil {
 		t.Fatalf("Get(Gateway) error = %v", err)
 	}
+
 	if len(stored.Status.Conditions) != 0 {
 		t.Errorf("Gateway conditions = %v, want none", stored.Status.Conditions)
 	}
@@ -263,6 +278,7 @@ func TestReconcileReturnsStatusUpdateFailure(t *testing.T) {
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); !errors.Is(err, wantErr) {
 		t.Errorf("Reconcile() error = %v, want wrapped %v", err, wantErr)
 	}
+
 	if !published {
 		t.Error("Reconcile() did not publish before updating Status")
 	}
@@ -301,6 +317,7 @@ func newTestScheme(t *testing.T) *runtime.Scheme {
 	if err := corev1.AddToScheme(scheme); err != nil {
 		t.Fatalf("core AddToScheme() error = %v", err)
 	}
+
 	if err := gatewayv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("AddToScheme() error = %v", err)
 	}
@@ -320,6 +337,7 @@ func assertAcceptedCondition(
 	if condition == nil {
 		t.Fatal("Accepted condition not found")
 	}
+
 	if condition.Status != status || condition.Reason != reason || condition.ObservedGeneration != generation {
 		t.Errorf("Accepted condition = %+v, want status %q, reason %q, generation %d", condition, status, reason, generation)
 	}

@@ -30,6 +30,7 @@ func TestCompileAIGolden(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile(AI golden) error = %v", err)
 	}
+
 	var compact bytes.Buffer
 	if err := json.Compact(&compact, golden); err != nil {
 		t.Fatalf("Compact(AI golden) error = %v", err)
@@ -43,6 +44,7 @@ func TestCompileAIGolden(t *testing.T) {
 	if !bytes.Equal(data, compact.Bytes()) {
 		t.Errorf("encodeTestAI(golden) = %s, want %s", data, compact.Bytes())
 	}
+
 	if diff := cmp.Diff(before, snapshot, cmp.AllowUnexported(resources{})); diff != "" {
 		t.Errorf("encodeTestAI(golden) changed snapshot (-want +got):\n%s", diff)
 	}
@@ -71,6 +73,7 @@ func TestCompileAIModelOrderAndBindings(t *testing.T) {
 	if len(got.Listeners) != 2 || got.Listeners[0].Port != 8080 || got.Listeners[1].Port != 9090 {
 		t.Fatalf("encodeTestAI(multiple listeners) listeners = %+v, want ports 8080 and 9090", got.Listeners)
 	}
+
 	wantNames := []string{
 		"team-a/coding/rule/0/match/0",
 		"team-a/coding/rule/0/match/2",
@@ -82,21 +85,26 @@ func TestCompileAIModelOrderAndBindings(t *testing.T) {
 		if len(listener.Hosts) != 1 {
 			t.Fatalf("encodeTestAI(listener %d) hosts = %+v, want one host", listener.Port, listener.Hosts)
 		}
+
 		routes := listener.Hosts[0].ModelRoutes
 		var names []string
 		for _, route := range routes {
 			names = append(names, route.Name)
 		}
+
 		if diff := cmp.Diff(wantNames, names); diff != "" {
 			t.Fatalf("encodeTestAI(listener %d) model order mismatch (-want +got):\n%s", listener.Port, diff)
 		}
+
 		if *routes[0].BackendName != *routes[1].BackendName || *routes[0].BackendName != *routes[3].BackendName {
 			t.Errorf("encodeTestAI(listener %d) split one rule into different backend bindings: %+v", listener.Port, routes)
 		}
+
 		if diff := cmp.Diff([]aidataplane.HeaderMatch{{Name: "x-ai-eg-model", Type: aidataplane.HeaderMatchExact, Value: "other"}}, routes[1].Headers); diff != "" {
 			t.Errorf("encodeTestAI(case-insensitive header and default type) mismatch (-want +got):\n%s", diff)
 		}
 	}
+
 	wantOverrides := map[string]string{
 		"team-a/model-service/route/all/rule/0/ref/0":    "",
 		"team-a/model-service/route/coding/rule/0/ref/0": "code-v2",
@@ -106,9 +114,11 @@ func TestCompileAIModelOrderAndBindings(t *testing.T) {
 	for _, backend := range got.Backends {
 		gotOverrides[backend.Name] = *backend.ModelNameOverride
 	}
+
 	if len(got.Backends) != 3 || len(got.NetworkBackends) != 2 {
 		t.Errorf("encodeTestAI(shared references) backend/network counts = %d/%d, want 3/2", len(got.Backends), len(got.NetworkBackends))
 	}
+
 	if diff := cmp.Diff(wantOverrides, gotOverrides); diff != "" {
 		t.Errorf("encodeTestAI(per-rule overrides) mismatch (-want +got):\n%s", diff)
 	}
@@ -126,6 +136,7 @@ func TestCompileAIDefaults(t *testing.T) {
 	if got.Backends[0].Schema.Prefix != "/v1" || *got.Backends[0].ModelNameOverride != "" {
 		t.Errorf("encodeTestAI(default model binding) backend = %+v, want /v1 and empty override", got.Backends[0])
 	}
+
 	mcp := got.Listeners[0].Hosts[0].MCPRoutes[0]
 	if mcp.Path != "/mcp" || mcp.BackendPath != "/mcp" {
 		t.Errorf("encodeTestAI(default MCP paths) route = %+v, want /mcp paths", mcp)
@@ -220,6 +231,7 @@ func TestCompileAIUnavailableBackends(t *testing.T) {
 					return backend.Name == "team-a/model-network"
 				})
 			}
+
 			if tt.mcpUnavailable {
 				want.Listeners[0].Hosts[0].MCPRoutes[0].BackendName = new("")
 				want.NetworkBackends = slices.DeleteFunc(want.NetworkBackends, func(backend aidataplane.NetworkBackend) bool {
@@ -328,12 +340,14 @@ func TestCompileAIRouteRemoval(t *testing.T) {
 					return backend.Name == "team-a/model-network"
 				})
 			}
+
 			if tt.removeMCP {
 				want.Listeners[0].Hosts[0].MCPRoutes = []aidataplane.MCPRoute{}
 				want.NetworkBackends = slices.DeleteFunc(want.NetworkBackends, func(backend aidataplane.NetworkBackend) bool {
 					return backend.Name == "team-a/tools-network"
 				})
 			}
+
 			if tt.removeModel && tt.removeMCP {
 				want.Listeners = []aidataplane.Listener{}
 			}
@@ -387,6 +401,7 @@ func TestCompileAISharedDataPlaneAndDeterminism(t *testing.T) {
 		other.backends.Items[i].Namespace = "team-b"
 		other.backends.Items[i].Spec.Endpoints[0].Address = "b-" + other.backends.Items[i].Spec.Endpoints[0].Address
 	}
+
 	snapshot.gateways.Items = append(snapshot.gateways.Items, other.gateways.Items...)
 	snapshot.modelRoutes.Items = append(snapshot.modelRoutes.Items, other.modelRoutes.Items...)
 	snapshot.aiBackends.Items = append(snapshot.aiBackends.Items, other.aiBackends.Items...)
@@ -403,11 +418,13 @@ func TestCompileAISharedDataPlaneAndDeterminism(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encodeTestAI(shared data plane) error = %v", err)
 	}
+
 	got := compiledAIConfig(t, snapshot)
 
 	if len(got.Listeners) != 1 || len(got.Listeners[0].Hosts) != 2 || len(got.Backends) != 2 || len(got.NetworkBackends) != 4 {
 		t.Fatalf("encodeTestAI(shared data plane) = %+v, want one port, two hosts, two protocol bindings and four networks", got)
 	}
+
 	for i, namespace := range []string{"team-a", "team-b"} {
 		host := got.Listeners[0].Hosts[i]
 		binding := got.Backends[i]
@@ -421,13 +438,16 @@ func TestCompileAISharedDataPlaneAndDeterminism(t *testing.T) {
 			binding.Name != wantBinding || binding.NetworkBackendName != namespace+"/model-network" {
 			t.Errorf("encodeTestAI(%s) host/binding = %+v/%+v, want same-namespace references", namespace, host, binding)
 		}
+
 		if *host.MCPRoutes[0].BackendName != namespace+"/tools-network" {
 			t.Errorf("encodeTestAI(%s) MCP backend = %q, want same-namespace reference", namespace, *host.MCPRoutes[0].BackendName)
 		}
 	}
+
 	if got.Backends[1].Schema.Prefix != "v2/" || got.NetworkBackends[2].Endpoints[0].Address != "b-model.internal.example" {
 		t.Errorf("encodeTestAI(team-b) selected another namespace's schema or endpoints: %+v", got)
 	}
+
 	wantEndpoints := []aidataplane.Endpoint{
 		{Address: "a.example.com", Port: 8081, Weight: 1},
 		{Address: "a.example.com", Port: 8082, Weight: 3},
@@ -436,6 +456,7 @@ func TestCompileAISharedDataPlaneAndDeterminism(t *testing.T) {
 	if diff := cmp.Diff(wantEndpoints, got.NetworkBackends[0].Endpoints); diff != "" {
 		t.Errorf("encodeTestAI(endpoint order) mismatch (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(beforeEndpoints, snapshot.backends.Items[0].Spec.Endpoints); diff != "" {
 		t.Errorf("encodeTestAI() changed snapshot endpoints (-want +got):\n%s", diff)
 	}
@@ -483,6 +504,7 @@ func TestCompileAIUnavailableHigherPriorityRoutes(t *testing.T) {
 		*models[0].BackendName != "" || models[1].Name != "team-a/all/rule/0/match/0" || *models[1].BackendName == "" {
 		t.Errorf("encodeTestAI(unavailable exact and valid catch-all) routes = %+v, want retained empty target before valid catch-all", models)
 	}
+
 	mcp := got.Listeners[0].Hosts[0].MCPRoutes
 	if len(mcp) != 2 || mcp[0].Name != "team-a/tools" || *mcp[0].BackendName != "" ||
 		mcp[1].Name != "team-a/later" || *mcp[1].BackendName == "" {
@@ -654,6 +676,7 @@ func compiledAIConfig(t *testing.T, snapshot resources) aidataplane.Config {
 	if err != nil || config == nil {
 		t.Fatalf("Decode(encodeTestAI()) config/error = %+v/%v, want complete config and nil error", config, err)
 	}
+
 	return *config
 }
 

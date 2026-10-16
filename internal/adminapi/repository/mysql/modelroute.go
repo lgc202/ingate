@@ -85,8 +85,10 @@ func (s *Store) UpsertModelRoute(ctx context.Context, route ModelRoute) error {
 			if err := tx.Create(&route).Error; err != nil {
 				return fmt.Errorf("create ModelRoute projection: %w", err)
 			}
+
 			return nil
 		}
+
 		if err != nil {
 			return fmt.Errorf("get ModelRoute projection: %w", err)
 		}
@@ -119,6 +121,7 @@ func (s *Store) ListModelRouteKeys(ctx context.Context) ([]types.NamespacedName,
 	if err := query.Find(&keys).Error; err != nil {
 		return nil, fmt.Errorf("list ModelRoute keys: %w", err)
 	}
+
 	return keys, nil
 }
 
@@ -129,6 +132,7 @@ func (s *Store) GetModelRoute(ctx context.Context, namespace, name string) (Mode
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ModelRoute{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 	}
+
 	if err != nil {
 		return ModelRoute{}, fmt.Errorf("get ModelRoute projection: %w", err)
 	}

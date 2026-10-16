@@ -30,25 +30,31 @@ func TestResolveParentsAndMissingBackend(t *testing.T) {
 	if len(result.bindings) != 2 {
 		t.Fatalf("bindings = %d, want both HTTP listeners", len(result.bindings))
 	}
+
 	if len(result.parents) != 3 {
 		t.Fatalf("parents = %d, want 3", len(result.parents))
 	}
+
 	for i, parent := range result.parents {
 		if parent.accepted != (i == 0) {
 			t.Errorf("parent %d accepted = %v", i, parent.accepted)
 		}
+
 		if i > 0 && parent.reason != "NoMatchingParent" {
 			t.Errorf("unmatched parent reason = %q", parent.reason)
 		}
+
 		if parent.missingBackend != "missing" {
 			t.Errorf("missing backend = %q", parent.missingBackend)
 		}
 	}
+
 	for _, binding := range result.bindings {
 		if binding.backendName != "" {
 			t.Errorf("missing target forwarded to %q", binding.backendName)
 		}
 	}
+
 	if len(result.backends) != 0 {
 		t.Errorf("compiled missing backend: %+v", result.backends)
 	}
@@ -76,18 +82,22 @@ func TestResolveKeepsOverlapsAndStableRuleOrder(t *testing.T) {
 		names = append(names, binding.route.Name)
 		indexes = append(indexes, binding.ruleIndex)
 	}
+
 	if !slices.Equal(names, []string{"a", "z", "z", "a-later"}) || !slices.Equal(indexes, []int{0, 0, 1, 0}) {
 		t.Errorf("order = %v %v; want age, name, rule list order with overlaps kept", names, indexes)
 	}
+
 	if len(result.backends) != 1 || result.backends[0].Name != "backend" {
 		t.Errorf("backends = %+v, want only used target", result.backends)
 	}
+
 	originalConfig := compile(result)
 	slices.Reverse(routes)
 	reversed := resolve([]gatewayv1alpha1.Gateway{gateway}, routes, []gatewayv1alpha1.Backend{backendResource("backend")})
 	if diff := cmp.Diff(originalConfig, compile(reversed)); diff != "" {
 		t.Errorf("permutation changed config:\n%s", diff)
 	}
+
 	slices.Reverse(routes)
 	if diff := cmp.Diff(before, routes); diff != "" {
 		t.Errorf("input route mutated:\n%s", diff)
@@ -108,6 +118,7 @@ func TestResolveDefaultsAndORMatches(t *testing.T) {
 	if len(result.bindings) != 2 || result.bindings[0].path.Value != "/" || result.bindings[1].path.Value != "/api/" {
 		t.Fatalf("OR/default matches = %+v", result.bindings)
 	}
+
 	for _, tt := range []struct {
 		path *gatewayv1alpha1.PathMatch
 		want gatewayv1alpha1.PathMatch
@@ -152,9 +163,11 @@ func TestReconcileUpdatesStatusOnlyWhenAcceptanceChanges(t *testing.T) {
 			t.Fatalf("Reconcile(missing Backend) error = %v", err)
 		}
 	}
+
 	if updates != 2 {
 		t.Errorf("status updates before Backend exists = %d, want 2", updates)
 	}
+
 	assertHTTPRouteCondition(t, apiClient, "route", metav1.ConditionTrue, "Accepted", 7)
 	assertHTTPRouteResolvedRefs(t, apiClient, "route", metav1.ConditionFalse, "BackendNotFound")
 
@@ -162,12 +175,15 @@ func TestReconcileUpdatesStatusOnlyWhenAcceptanceChanges(t *testing.T) {
 	if err := apiClient.Create(t.Context(), &backend); err != nil {
 		t.Fatalf("Create(Backend) error = %v", err)
 	}
+
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 		t.Fatalf("Reconcile(available Backend) error = %v", err)
 	}
+
 	if updates != 3 {
 		t.Errorf("status updates after Backend appears = %d, want 3", updates)
 	}
+
 	assertHTTPRouteCondition(t, apiClient, "route", metav1.ConditionTrue, "Accepted", 7)
 	assertHTTPRouteResolvedRefs(t, apiClient, "route", metav1.ConditionTrue, "ResolvedRefs")
 }
@@ -236,45 +252,56 @@ func TestHTTPRouteParentStatusesPreserveOwnershipAndTransitionTime(t *testing.T)
 	if err := r.updateHTTPRouteStatuses(t.Context(), []gatewayv1alpha1.HTTPRoute{route}, parents); err != nil {
 		t.Fatalf("updateHTTPRouteStatuses(route) error = %v, want nil", err)
 	}
+
 	var stored gatewayv1alpha1.HTTPRoute
 	if err := apiClient.Get(t.Context(), types.NamespacedName{Name: route.Name}, &stored); err != nil {
 		t.Fatalf("Get(HTTPRoute route) error = %v, want nil", err)
 	}
+
 	if len(stored.Status.Parents) != 3 {
 		t.Fatalf("status parents = %+v, want two managed parents and one foreign parent", stored.Status.Parents)
 	}
+
 	for i, want := range []gatewayv1alpha1.ParentReference{route.Spec.ParentRefs[0], missing} {
 		if stored.Status.Parents[i].ParentRef != want || stored.Status.Parents[i].ControllerName != controllerName {
 			t.Errorf("managed parent = %+v, want %v owned by %s", stored.Status.Parents[i], want, controllerName)
 		}
 	}
+
 	if len(stored.Status.Parents[0].Conditions) != 2 {
 		t.Fatalf("accepted parent conditions = %+v, want Accepted and ResolvedRefs", stored.Status.Parents[0].Conditions)
 	}
+
 	assertAcceptedCondition(t, stored.Status.Parents[0].Conditions, metav1.ConditionTrue, "Accepted", 7)
 	resolved := meta.FindStatusCondition(stored.Status.Parents[0].Conditions, "ResolvedRefs")
 	if resolved == nil || resolved.Status != metav1.ConditionTrue {
 		t.Errorf("accepted parent ResolvedRefs = %+v, want True", resolved)
 	}
+
 	for _, condition := range stored.Status.Parents[0].Conditions {
 		if condition.ObservedGeneration != 7 || !condition.LastTransitionTime.Equal(&transition) {
 			t.Errorf("unchanged condition = %+v, want generation 7 and transition %v", condition, transition)
 		}
 	}
+
 	assertAcceptedCondition(t, stored.Status.Parents[1].Conditions, metav1.ConditionFalse, "NoMatchingParent", 7)
 	if diff := cmp.Diff(foreign, stored.Status.Parents[2]); diff != "" {
 		t.Errorf("foreign parent changed (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(before, &route); diff != "" {
 		t.Errorf("input route changed (-want +got):\n%s", diff)
 	}
+
 	if err := r.updateHTTPRouteStatuses(t.Context(), []gatewayv1alpha1.HTTPRoute{stored}, parents); err != nil {
 		t.Fatalf("repeat updateHTTPRouteStatuses(route) error = %v, want nil", err)
 	}
+
 	var repeated gatewayv1alpha1.HTTPRoute
 	if err := apiClient.Get(t.Context(), types.NamespacedName{Name: route.Name}, &repeated); err != nil {
 		t.Fatalf("Get(repeated HTTPRoute route) error = %v, want nil", err)
 	}
+
 	if repeated.ResourceVersion != stored.ResourceVersion {
 		t.Errorf("idempotent status changed resourceVersion = %s, want %s", repeated.ResourceVersion, stored.ResourceVersion)
 	}
@@ -316,9 +343,11 @@ func assertHTTPRouteCondition(
 	if err := apiClient.Get(t.Context(), types.NamespacedName{Name: name}, &route); err != nil {
 		t.Fatalf("Get(HTTPRoute %q) error = %v", name, err)
 	}
+
 	if len(route.Status.Parents) != 1 {
 		t.Fatalf("parents = %+v, want one", route.Status.Parents)
 	}
+
 	assertAcceptedCondition(t, route.Status.Parents[0].Conditions, status, reason, generation)
 }
 
@@ -334,9 +363,11 @@ func assertHTTPRouteResolvedRefs(
 	if err := apiClient.Get(t.Context(), types.NamespacedName{Name: name}, &route); err != nil {
 		t.Fatalf("Get(HTTPRoute %q) error = %v", name, err)
 	}
+
 	if len(route.Status.Parents) != 1 {
 		t.Fatalf("parents = %+v, want one", route.Status.Parents)
 	}
+
 	condition := meta.FindStatusCondition(route.Status.Parents[0].Conditions, "ResolvedRefs")
 	if condition == nil || condition.Status != status || condition.Reason != reason {
 		t.Errorf("ResolvedRefs = %+v, want %s/%s", condition, status, reason)

@@ -54,6 +54,7 @@ func TestModelTargetNameOrderAndReferences(t *testing.T) {
 	if !slices.Equal(before, network.Endpoints) {
 		t.Error("ModelTargetName(first) mutated source endpoint order")
 	}
+
 	slices.Reverse(network.Endpoints)
 
 	second, err := ModelTargetName(backend, network)
@@ -61,6 +62,7 @@ func TestModelTargetNameOrderAndReferences(t *testing.T) {
 	if err != nil || second != first {
 		t.Errorf("ModelTargetName(reversed) = (%q, %v), want (%q, nil)", second, err, first)
 	}
+
 	network.Name = "team-b/model-network"
 
 	name, err := ModelTargetName(backend, network)

@@ -29,6 +29,7 @@ func (r *resolution) selectGateways(gateways []gatewayv1alpha1.Gateway) {
 	for i := range gateways {
 		ordered = append(ordered, &gateways[i])
 	}
+
 	slices.SortFunc(ordered, func(a, b *gatewayv1alpha1.Gateway) int {
 		return compareMeta(a.ObjectMeta, b.ObjectMeta)
 	})
@@ -73,6 +74,7 @@ func (r *Reconciler) updateGatewayStatuses(
 		if !meta.SetStatusCondition(&gateway.Status.Conditions, condition) {
 			continue
 		}
+
 		if err := r.client.Status().Update(ctx, gateway); err != nil {
 			return fmt.Errorf("update Gateway %q status: %w", key.String(), err)
 		}
@@ -87,6 +89,7 @@ func findListenerConflict(candidate *gatewayv1alpha1.Gateway, bindings []listene
 			if listener.Port != binding.listener.Port {
 				continue
 			}
+
 			if listener.Hostname != "" && binding.listener.Hostname != "" && listener.Hostname != binding.listener.Hostname {
 				continue
 			}

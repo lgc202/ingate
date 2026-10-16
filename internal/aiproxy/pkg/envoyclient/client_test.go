@@ -20,6 +20,7 @@ func TestClientPinsUnixSocketAndDoesNotRedirect(t *testing.T) {
 		if r.Header.Get("Accept-Encoding") != "" {
 			t.Errorf("Do(Unix request) Accept-Encoding = %q, want no automatic negotiation", r.Header.Get("Accept-Encoding"))
 		}
+
 		w.Header().Set("Location", "http://another.invalid/redirected")
 		w.WriteHeader(http.StatusTemporaryRedirect)
 		if _, err := io.WriteString(w, "original redirect body"); err != nil {
@@ -30,6 +31,7 @@ func TestClientPinsUnixSocketAndDoesNotRedirect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(valid Unix socket) error = %v", err)
 	}
+
 	t.Cleanup(client.CloseIdleConnections)
 	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://not-a-network-destination.invalid/operation", strings.NewReader("prepared"))
 	if err != nil {
@@ -40,6 +42,7 @@ func TestClientPinsUnixSocketAndDoesNotRedirect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Do(Unix redirect) error = %v", err)
 	}
+
 	defer func() {
 		if err := response.Body.Close(); err != nil {
 			t.Errorf("Close(redirect response) error = %v", err)
@@ -50,6 +53,7 @@ func TestClientPinsUnixSocketAndDoesNotRedirect(t *testing.T) {
 	if err != nil || response.StatusCode != http.StatusTemporaryRedirect || string(body) != "original redirect body" || calls.Load() != 1 {
 		t.Errorf("Do(Unix redirect) = (status %d, body %q, calls %d, error %v), want unchanged 307 and one call", response.StatusCode, body, calls.Load(), err)
 	}
+
 	transport := client.Transport.(*http.Transport)
 	if transport.Proxy != nil || !transport.DisableCompression || client.Timeout != 0 {
 		t.Errorf("New() transport/timeout = (%+v, %v), want no environment proxy, decompression or overall timeout", transport, client.Timeout)
@@ -61,6 +65,7 @@ func TestClientSocketFailureHasNoTCPFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(missing socket) error = %v", err)
 	}
+
 	t.Cleanup(client.CloseIdleConnections)
 	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://untrusted.invalid/", nil)
 	if err != nil {
@@ -90,6 +95,7 @@ func serveUnix(t *testing.T, handler http.Handler) string {
 	if err != nil {
 		t.Fatalf("MkdirTemp(Unix peer) error = %v", err)
 	}
+
 	t.Cleanup(func() {
 		if err := os.RemoveAll(directory); err != nil {
 			t.Errorf("RemoveAll(test socket directory) error = %v", err)
@@ -100,6 +106,7 @@ func serveUnix(t *testing.T, handler http.Handler) string {
 	if err != nil {
 		t.Fatalf("Listen(Unix peer) error = %v", err)
 	}
+
 	server := &httptest.Server{Listener: listener, Config: &http.Server{Handler: handler}}
 	server.Start()
 	t.Cleanup(server.Close)

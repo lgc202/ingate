@@ -27,6 +27,7 @@ func TestEncodeGolden(t *testing.T) {
 	if !bytes.Equal(data, golden) {
 		t.Errorf("Encode(golden) = %s, want %s", data, golden)
 	}
+
 	if diff := cmp.Diff(before, c); diff != "" {
 		t.Errorf("Encode(golden) changed input (-want +got):\n%s", diff)
 	}
@@ -178,5 +179,6 @@ func loadFixture(t *testing.T) (Config, []byte) {
 	if err := json.Compact(&compact, data); err != nil {
 		t.Fatalf("Compact(testdata/v1.json) error = %v", err)
 	}
+
 	return c, compact.Bytes()
 }

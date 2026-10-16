@@ -1,46 +1,37 @@
-// Package aibackend 适配 AIBackendService 的 HTTP 和 gRPC 协议。
-package aibackend
+package handler
 
 import (
 	"context"
 	"errors"
 
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	adminhandler "github.com/lgc202/ingate/internal/adminapi/handler"
+	"github.com/lgc202/ingate/internal/adminapi/errno"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
 	aibackendservice "github.com/lgc202/ingate/internal/adminapi/service/aibackend"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
-const (
-	reasonInvalidArgument = "AI_BACKEND_INVALID_ARGUMENT"
-	reasonAlreadyExists   = "AI_BACKEND_ALREADY_EXISTS"
-	reasonNotFound        = "AI_BACKEND_NOT_FOUND"
-	reasonConflict        = "AI_BACKEND_CONFLICT"
-)
-
 var (
-	_ adminv1.AIBackendServiceServer     = (*Handler)(nil)
-	_ adminv1.AIBackendServiceHTTPServer = (*Handler)(nil)
+	_ adminv1.AIBackendServiceServer     = (*AIBackendHandler)(nil)
+	_ adminv1.AIBackendServiceHTTPServer = (*AIBackendHandler)(nil)
 )
 
-// Handler 实现 AIBackend 的 gRPC 和 HTTP 协议入口。
-type Handler struct {
+// AIBackendHandler 实现 AIBackend 的 gRPC 和 HTTP 协议入口。
+type AIBackendHandler struct {
 	adminv1.UnimplementedAIBackendServiceServer
 
 	service *aibackendservice.Service
 }
 
-// New 创建 AIBackend Handler。
-func New(service *aibackendservice.Service) *Handler {
-	return &Handler{service: service}
+// NewAIBackend 创建模型服务协议入口，复用注入的业务服务。
+func NewAIBackend(service *aibackendservice.Service) *AIBackendHandler {
+	return &AIBackendHandler{service: service}
 }
 
 // CreateAIBackend 创建 AIBackend。
-func (h *Handler) CreateAIBackend(
+func (h *AIBackendHandler) CreateAIBackend(
 	ctx context.Context,
 	req *adminv1.CreateAIBackendRequest,
 ) (*adminv1.CreateAIBackendReply, error) {
@@ -48,30 +39,30 @@ func (h *Handler) CreateAIBackend(
 		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
 		BackendRef:  gatewayv1alpha1.BackendReference{Name: req.GetBackendRef().GetName()},
-		Schema:      schemaFromProto(req.GetSchema()),
+		Schema:      aiBackendSchemaFromProto(req.GetSchema()),
 	})
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toAIBackendError(err)
 	}
 
-	return &adminv1.CreateAIBackendReply{Backend: backendToProto(created)}, nil
+	return &adminv1.CreateAIBackendReply{Backend: aiBackendToProto(created)}, nil
 }
 
 // GetAIBackend 读取指定 AIBackend。
-func (h *Handler) GetAIBackend(
+func (h *AIBackendHandler) GetAIBackend(
 	ctx context.Context,
 	req *adminv1.GetAIBackendRequest,
 ) (*adminv1.GetAIBackendReply, error) {
 	backend, err := h.service.Get(ctx, req.GetNamespace(), req.GetName())
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toAIBackendError(err)
 	}
 
-	return &adminv1.GetAIBackendReply{Backend: backendToProto(backend)}, nil
+	return &adminv1.GetAIBackendReply{Backend: aiBackendToProto(backend)}, nil
 }
 
 // ListAIBackends 分页列出 AIBackend。
-func (h *Handler) ListAIBackends(
+func (h *AIBackendHandler) ListAIBackends(
 	ctx context.Context,
 	req *adminv1.ListAIBackendsRequest,
 ) (*adminv1.ListAIBackendsReply, error) {
@@ -82,19 +73,19 @@ func (h *Handler) ListAIBackends(
 		DisplayName: req.GetDisplayName(),
 	})
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toAIBackendError(err)
 	}
 
 	backends := make([]*adminv1.AIBackend, len(page.Items))
 	for i, backend := range page.Items {
-		backends[i] = backendToProto(backend)
+		backends[i] = aiBackendToProto(backend)
 	}
 
 	return &adminv1.ListAIBackendsReply{Backends: backends, TotalCount: page.TotalCount}, nil
 }
 
 // UpdateAIBackend 完整替换 AIBackend 的可编辑配置。
-func (h *Handler) UpdateAIBackend(
+func (h *AIBackendHandler) UpdateAIBackend(
 	ctx context.Context,
 	req *adminv1.UpdateAIBackendRequest,
 ) (*adminv1.UpdateAIBackendReply, error) {
@@ -104,35 +95,35 @@ func (h *Handler) UpdateAIBackend(
 		Name:        req.GetName(),
 		Version:     req.GetVersion(),
 		BackendRef:  gatewayv1alpha1.BackendReference{Name: req.GetBackendRef().GetName()},
-		Schema:      schemaFromProto(req.GetSchema()),
+		Schema:      aiBackendSchemaFromProto(req.GetSchema()),
 	})
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toAIBackendError(err)
 	}
 
-	return &adminv1.UpdateAIBackendReply{Backend: backendToProto(updated)}, nil
+	return &adminv1.UpdateAIBackendReply{Backend: aiBackendToProto(updated)}, nil
 }
 
 // DeleteAIBackend 删除指定 AIBackend。
-func (h *Handler) DeleteAIBackend(
+func (h *AIBackendHandler) DeleteAIBackend(
 	ctx context.Context,
 	req *adminv1.DeleteAIBackendRequest,
 ) (*adminv1.DeleteAIBackendReply, error) {
 	if err := h.service.Delete(ctx, req.GetNamespace(), req.GetName()); err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toAIBackendError(err)
 	}
 
 	return &adminv1.DeleteAIBackendReply{}, nil
 }
 
-func schemaFromProto(schema *adminv1.APISchema) gatewayv1alpha1.APISchema {
+func aiBackendSchemaFromProto(schema *adminv1.APISchema) gatewayv1alpha1.APISchema {
 	return gatewayv1alpha1.APISchema{
 		Name:   gatewayv1alpha1.APISchemaName(schema.GetName()),
 		Prefix: schema.GetPrefix(),
 	}
 }
 
-func backendToProto(backend repository.AIBackendInfo) *adminv1.AIBackend {
+func aiBackendToProto(backend repository.AIBackendInfo) *adminv1.AIBackend {
 	return &adminv1.AIBackend{
 		Namespace:   backend.Namespace,
 		Name:        backend.Name,
@@ -144,17 +135,17 @@ func backendToProto(backend repository.AIBackendInfo) *adminv1.AIBackend {
 	}
 }
 
-func toTransportError(ctx context.Context, err error) error {
+func toAIBackendError(err error) error {
 	switch {
 	case errors.Is(err, aibackendservice.ErrInvalidArgument):
-		return kratoserrors.BadRequest(reasonInvalidArgument, "模型服务参数不合法").WithCause(err)
+		return errno.ErrAIBackendInvalidArgument.WithCause(err)
 	case errors.Is(err, aibackendservice.ErrAlreadyExists):
-		return kratoserrors.Conflict(reasonAlreadyExists, "资源标识冲突，请重新创建").WithCause(err)
+		return errno.ErrAIBackendAlreadyExists.WithCause(err)
 	case errors.Is(err, aibackendservice.ErrNotFound):
-		return kratoserrors.NotFound(reasonNotFound, "模型服务不存在").WithCause(err)
+		return errno.ErrAIBackendNotFound.WithCause(err)
 	case errors.Is(err, aibackendservice.ErrConflict):
-		return kratoserrors.Conflict(reasonConflict, "模型服务已被修改，请刷新后重试").WithCause(err)
+		return errno.ErrAIBackendConflict.WithCause(err)
 	default:
-		return adminhandler.ToTransportError(ctx, err)
+		return errno.Fallback(err)
 	}
 }

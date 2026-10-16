@@ -93,8 +93,10 @@ func (d *Deleter) Delete(ctx context.Context, name string) error {
 		if errors.IsNotFound(err) {
 			return nil
 		}
+
 		return fmt.Errorf("get namespace %q: %w", name, err)
 	}
+
 	if namespace.DeletionTimestamp == nil {
 		return nil
 	}
@@ -104,6 +106,7 @@ func (d *Deleter) Delete(ctx context.Context, name string) error {
 		if errors.IsNotFound(err) {
 			return nil
 		}
+
 		return fmt.Errorf("mark namespace %q as Terminating: %w", name, err)
 	}
 
@@ -119,6 +122,7 @@ func (d *Deleter) Delete(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
+
 	if estimate > 0 {
 		return &ResourcesRemainingError{Estimate: estimate}
 	}
@@ -128,8 +132,10 @@ func (d *Deleter) Delete(ctx context.Context, name string) error {
 		if errors.IsNotFound(err) {
 			return nil
 		}
+
 		return fmt.Errorf("finalize namespace %q: %w", name, err)
 	}
+
 	return nil
 }
 
@@ -145,19 +151,24 @@ func (d *Deleter) updateNamespaceWithRetry(
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+
 		current, err := d.namespaceClient.Get(ctx, namespace.Name, metav1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("re-read namespace: %w", err)
 		}
+
 		if current.UID != namespace.UID {
 			return fmt.Errorf("namespace UID changed from %q to %q during deletion", namespace.UID, current.UID)
 		}
+
 		result, err = update(ctx, current)
+
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
+
 	return result, nil
 }
 
@@ -169,6 +180,7 @@ func (d *Deleter) updateNamespaceStatus(ctx context.Context, namespace *v1.Names
 
 	updated := namespace.DeepCopy()
 	updated.Status.Phase = v1.NamespaceTerminating
+
 	return d.namespaceClient.UpdateStatus(ctx, updated, metav1.UpdateOptions{})
 }
 
@@ -185,6 +197,7 @@ func (d *Deleter) deleteAllContent(ctx context.Context, namespace *v1.Namespace)
 		errs = append(errs, fmt.Errorf("discover resources for namespace %q: %w", namespace.Name, err))
 		conditionUpdater.ProcessDiscoverResourcesErr(err)
 	}
+
 	d.opCache.record(resources)
 
 	// 清理入口只接纳空间级主资源；即使发现结果混入集群级对象或子资源，也不向它们发起删除。
@@ -211,6 +224,7 @@ func (d *Deleter) deleteAllContent(ctx context.Context, namespace *v1.Namespace)
 			errs = append(errs, err)
 			conditionUpdater.ProcessDeleteContentErr(err)
 		}
+
 		estimate = max(estimate, content.finalizerEstimateSeconds)
 		if content.numRemaining > 0 {
 			numRemainingTotals.gvrToNumRemaining[gvr] = content.numRemaining
@@ -218,6 +232,7 @@ func (d *Deleter) deleteAllContent(ctx context.Context, namespace *v1.Namespace)
 				if numRemaining == 0 {
 					continue
 				}
+
 				numRemainingTotals.finalizersToNumRemaining[finalizer] += numRemaining
 			}
 		}
@@ -257,9 +272,11 @@ func (d *Deleter) deleteAllContentForGroupVersionResource(
 	if err != nil {
 		return gvrDeletionMetadata{}, err
 	}
+
 	if !listSupported {
 		return gvrDeletionMetadata{}, nil
 	}
+
 	if len(remaining.Items) == 0 {
 		return gvrDeletionMetadata{}, nil
 	}
@@ -319,6 +336,7 @@ func (d *Deleter) deleteEachItem(
 	if err != nil {
 		return err
 	}
+
 	if !listSupported {
 		return nil
 	}
@@ -331,6 +349,7 @@ func (d *Deleter) deleteEachItem(
 			return fmt.Errorf("delete object %q: %w", item.GetName(), err)
 		}
 	}
+
 	return nil
 }
 
@@ -369,6 +388,7 @@ func (d *Deleter) finalizeNamespace(ctx context.Context, namespace *v1.Namespace
 			finalizerSet.Insert(string(namespace.Spec.Finalizers[i]))
 		}
 	}
+
 	namespaceFinalize.Spec.Finalizers = make([]v1.FinalizerName, 0, len(finalizerSet))
 	for _, value := range sets.List(finalizerSet) {
 		namespaceFinalize.Spec.Finalizers = append(namespaceFinalize.Spec.Finalizers, v1.FinalizerName(value))
@@ -378,6 +398,7 @@ func (d *Deleter) finalizeNamespace(ctx context.Context, namespace *v1.Namespace
 	if errors.IsNotFound(err) {
 		return namespace, nil
 	}
+
 	return namespace, err
 }
 

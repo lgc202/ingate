@@ -77,8 +77,10 @@ func TestValidateAIBackend(t *testing.T) {
 				if len(errs) != 0 {
 					t.Errorf("ValidateAIBackend(%+v) = %v, want no errors", backend, errs)
 				}
+
 				return
 			}
+
 			if len(errs) != 1 || errs[0].Field != tt.wantField || errs[0].Type != tt.wantType {
 				t.Errorf("ValidateAIBackend(%+v) = %v, want one %s error at %s", backend, errs, tt.wantType, tt.wantField)
 			}
@@ -116,8 +118,10 @@ func TestValidateAIBackendPrefix(t *testing.T) {
 				if len(errs) != 0 {
 					t.Errorf("ValidateAIBackend(prefix %q) = %v, want no errors", tt.prefix, errs)
 				}
+
 				return
 			}
+
 			if len(errs) != 1 || errs[0].Field != "spec.schema.prefix" || errs[0].Type != field.ErrorTypeInvalid {
 				t.Errorf("ValidateAIBackend(prefix %q) = %v, want one Invalid error at spec.schema.prefix", tt.prefix, errs)
 			}

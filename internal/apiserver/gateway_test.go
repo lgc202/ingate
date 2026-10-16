@@ -28,17 +28,21 @@ func TestGatewayAPIGroupInfo(t *testing.T) {
 	if info.Scheme != scheme {
 		t.Errorf("gatewayAPIGroupInfo() scheme = %p, want %p", info.Scheme, scheme)
 	}
+
 	if len(info.PrioritizedVersions) != 1 || info.PrioritizedVersions[0] != v1alpha1.SchemeGroupVersion {
 		t.Errorf("gatewayAPIGroupInfo() versions = %v, want [%s]",
 			info.PrioritizedVersions, v1alpha1.SchemeGroupVersion)
 	}
+
 	gotStorage := info.VersionedResourcesStorageMap[v1alpha1.Version]
 	if len(gotStorage) != len(storage) {
 		t.Errorf("gatewayAPIGroupInfo() storage count = %d, want %d", len(gotStorage), len(storage))
 	}
+
 	if gotStorage["gateways"] != mainREST {
 		t.Errorf("gatewayAPIGroupInfo() gateways storage = %T, want *testStorage", gotStorage["gateways"])
 	}
+
 	if gotStorage["gateways/status"] != statusREST {
 		t.Errorf("gatewayAPIGroupInfo() gateways/status storage = %T, want *testStorage", gotStorage["gateways/status"])
 	}
@@ -50,6 +54,7 @@ func TestGatewayAPIGroupInfo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gatewayAPIGroupInfo().ParameterCodec.EncodeParameters() error = %v, want nil", err)
 	}
+
 	if got := values.Get("labelSelector"); got != "environment=production" {
 		t.Errorf("gatewayAPIGroupInfo().ParameterCodec.EncodeParameters() labelSelector = %q, want %q",
 			got, "environment=production")

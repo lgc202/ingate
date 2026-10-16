@@ -24,6 +24,7 @@ func TestConfigNew(t *testing.T) {
 	if err := corev1.AddToScheme(scheme); err != nil {
 		t.Fatalf("Core AddToScheme() error = %v, want nil", err)
 	}
+
 	if err := gatewayv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("Gateway AddToScheme() error = %v, want nil", err)
 	}
@@ -91,22 +92,27 @@ func TestManagerOptionsLimitConfigMapCache(t *testing.T) {
 		if len(scope.Namespaces) != 1 || !found {
 			t.Fatalf("managerOptions() ConfigMap namespace scope = %+v, want only control-plane", scope.Namespaces)
 		}
+
 		selector := controlPlane.FieldSelector
 		if selector == nil || !selector.Matches(fields.Set{"metadata.name": aidataplane.ConfigMapName}) ||
 			selector.Matches(fields.Set{"metadata.name": "other"}) {
 			t.Errorf("managerOptions() ConfigMap field selector = %v, want only %q", selector, aidataplane.ConfigMapName)
 		}
 	}
+
 	if configMaps != 1 {
 		t.Errorf("managerOptions() ConfigMap cache registrations = %d, want 1", configMaps)
 	}
+
 	if scope, found := got.Cache.ByObject[gateway]; !found || scope.Namespaces != nil || got.Cache.DefaultNamespaces != nil {
 		t.Errorf("managerOptions() changed domain-resource scope: %+v", got.Cache)
 	}
+
 	if scope, found := config.ManagerOptions.Cache.ByObject[oldConfigMap]; !found || len(scope.Namespaces) != 1 ||
 		scope.Namespaces["legacy-space"].FieldSelector != nil {
 		t.Errorf("managerOptions() mutated the caller's cache registrations: %+v", config.ManagerOptions.Cache.ByObject)
 	}
+
 	if _, found := config.ManagerOptions.Cache.ByObject[oldConfigMap].Namespaces["legacy-space"]; !found {
 		t.Error("managerOptions() replaced the caller's ConfigMap namespace scope")
 	}

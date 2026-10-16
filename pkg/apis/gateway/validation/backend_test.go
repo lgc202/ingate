@@ -83,6 +83,7 @@ func TestValidateBackend(t *testing.T) {
 			for _, err := range errs {
 				gotFields = append(gotFields, err.Field)
 			}
+
 			if !slices.Equal(gotFields, tt.wantFields) {
 				t.Errorf("ValidateBackend(%q) fields = %v, want %v", tt.name, gotFields, tt.wantFields)
 			}

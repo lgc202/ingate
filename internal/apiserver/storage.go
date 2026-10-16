@@ -45,6 +45,7 @@ func newStorageFactory(
 	if err != nil {
 		return nil, fmt.Errorf("parse resource storage servers: %w", err)
 	}
+
 	for _, override := range overrides {
 		factory.SetEtcdLocation(override.GroupResource, override.Servers)
 	}

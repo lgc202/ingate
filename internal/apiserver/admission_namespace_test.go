@@ -48,6 +48,7 @@ func TestNamespaceLifecycleDataSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create NamespaceLifecycle error = %v", err)
 	}
+
 	hostInitializer := initializer.New(host, nil, hostFactory, nil, featuregate.NewFeatureGate(), nil, nil, nil)
 	chain := admission.PluginInitializers{hostInitializer, localInitializer}
 	chain.Initialize(plugin)
@@ -98,14 +99,17 @@ func TestNamespaceLifecycleDataSource(t *testing.T) {
 				if err != nil {
 					t.Errorf("Admit(%s, %q) error = %v, want nil", tt.operation, tt.namespace, err)
 				}
+
 				return
 			}
+
 			if got := apierrors.ReasonForError(err); got != tt.wantReason {
 				t.Errorf("Admit(%s, %q) reason = %q, want %q (error = %v)",
 					tt.operation, tt.namespace, got, tt.wantReason, err)
 			}
 		})
 	}
+
 	if actions := host.Actions(); len(actions) != 0 {
 		t.Errorf("NamespaceLifecycle host actions = %v, want none", actions)
 	}
@@ -122,6 +126,7 @@ func TestNamespaceLifecycleInitializerRequiresLoopback(t *testing.T) {
 	if _, err := newNamespaceLifecycleInitializer(config); err == nil {
 		t.Error("newNamespaceLifecycleInitializer(nil loopback) error = nil, want missing loopback")
 	}
+
 	config.LoopbackClientConfig = &rest.Config{Host: "://invalid"}
 	if _, err := newNamespaceLifecycleInitializer(config); err == nil {
 		t.Error("newNamespaceLifecycleInitializer(invalid loopback) error = nil, want invalid client config")
@@ -149,10 +154,12 @@ func TestAdmissionDisabledDoesNotInitializeNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("applyRecommendedOptions(disabled Admission) error = %v", err)
 	}
+
 	if namespaceInitializer != nil || !called {
 		t.Errorf("applyRecommendedOptions(disabled Admission) initializer/called = %v/%t, want nil/true",
 			namespaceInitializer, called)
 	}
+
 	if _, ok := config.PostStartHooks[namespaceInformerHook]; ok {
 		t.Error("disabled Admission registers Namespace informer hook, want none")
 	}
@@ -178,9 +185,11 @@ func TestAdmissionExtraInitializerError(t *testing.T) {
 		t.Errorf("applyRecommendedOptions(extra initializer failure) = %v/%v, want nil and wrapped %v",
 			namespaceInitializer, err, wantErr)
 	}
+
 	if _, ok := config.PostStartHooks[namespaceInformerHook]; ok {
 		t.Error("failed extra initializer registers Namespace informer hook, want none")
 	}
+
 	if _, err := options.RecommendedOptions.ExtraAdmissionInitializers(config); !errors.Is(err, wantErr) {
 		t.Errorf("original ExtraAdmissionInitializers error = %v, want %v", err, wantErr)
 	}

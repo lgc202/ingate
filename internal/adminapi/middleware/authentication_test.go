@@ -75,11 +75,13 @@ func TestRequireSession(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			t.Cleanup(func() {
 				mock.ExpectClose()
 				if err := db.Close(); err != nil {
 					t.Error(err)
 				}
+
 				if err := mock.ExpectationsWereMet(); err != nil {
 					t.Error(err)
 				}
@@ -107,6 +109,7 @@ func TestRequireSession(t *testing.T) {
 				}, time.Now().Add(time.Hour)); err != nil {
 					t.Fatal(err)
 				}
+
 				if tt.expired {
 					redisServer.FastForward(2 * time.Hour)
 				} else {
@@ -114,6 +117,7 @@ func TestRequireSession(t *testing.T) {
 						WillReturnRows(sqlmock.NewRows([]string{"id", "session_version"}).AddRow(1, tt.accountVersion))
 				}
 			}
+
 			if tt.redisFailure {
 				redisServer.SetError("test Redis failure")
 			}
@@ -128,11 +132,13 @@ func TestRequireSession(t *testing.T) {
 					if !ok || identity.ID != id || identity.AccountID != 1 {
 						t.Errorf("identity = %+v, present = %t", identity, ok)
 					}
+
 					return nil, nil
 				})
 				if _, err := handler(ctx, nil); err != nil {
 					return err
 				}
+
 				return ctx.Result(http.StatusOK, map[string]string{"status": "ok"})
 			})
 
@@ -143,10 +149,12 @@ func TestRequireSession(t *testing.T) {
 			if response.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d; body = %s", response.Code, tt.wantStatus, response.Body.String())
 			}
+
 			wantCalls := 0
 			if tt.wantStatus == http.StatusOK {
 				wantCalls = 1
 			}
+
 			if calls != wantCalls {
 				t.Errorf("downstream calls = %d, want %d", calls, wantCalls)
 			}

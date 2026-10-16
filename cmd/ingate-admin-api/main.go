@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/lgc202/ingate/internal/adminapi"
 	"github.com/lgc202/ingate/internal/pkg/version"
@@ -27,28 +29,41 @@ func run(args []string, stdout, stderr io.Writer) int {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
+
 		return 2
 	}
+
+	if flags.NArg() != 0 {
+		_, _ = fmt.Fprintf(stderr, "ingate-admin-api: unexpected positional arguments: %v\n", flags.Args())
+		return 2
+	}
+
 	if *showVersion {
 		if _, err := fmt.Fprintln(stdout, version.Get().Text()); err != nil {
 			// 最终诊断没有其他输出通道；写入失败也保留退出码 1。
 			_, _ = fmt.Fprintf(stderr, "ingate-admin-api: print version: %v\n", err)
 			return 1
 		}
+
 		return 0
 	}
 
 	ctx := context.Background()
 	var err error
 	if *migrate {
-		err = adminapi.Migrate(ctx, *configFile)
+		// 一次性维护命令没有 Kratos App；只有该模式自行拥有取消信号。
+		migrationCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		err = adminapi.Migrate(migrationCtx, *configFile)
 	} else {
 		err = adminapi.Run(ctx, *configFile)
 	}
+
 	if err != nil {
 		// 最终诊断没有其他输出通道；写入失败也保留退出码 1。
 		_, _ = fmt.Fprintf(stderr, "ingate-admin-api: %v\n", err)
 		return 1
 	}
+
 	return 0
 }

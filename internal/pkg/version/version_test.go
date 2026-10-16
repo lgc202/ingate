@@ -25,6 +25,7 @@ func TestInfoStringAndText(t *testing.T) {
 	if got := info.String(); got != "v1.2.3" {
 		t.Errorf("Info.String() = %q, want v1.2.3 only", got)
 	}
+
 	want := "Version:        v1.2.3\n" +
 		"Git commit:     abc123\n" +
 		"Git tree state: dirty\n" +

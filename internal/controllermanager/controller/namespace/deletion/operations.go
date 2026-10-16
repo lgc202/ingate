@@ -52,6 +52,7 @@ func (o *operationNotSupportedCache) record(resources []*metav1.APIResourceList)
 			// GroupVersionResources 会汇总解析错误并阻止 finalize，此处不重复处理。
 			continue
 		}
+
 		for _, resource := range list.APIResources {
 			gvr := gv.WithResource(resource.Name)
 			verbs := sets.New[string](resource.Verbs...)
@@ -67,6 +68,7 @@ func (o *operationNotSupportedCache) record(resources []*metav1.APIResourceList)
 func (o *operationNotSupportedCache) isSupported(key operationKey) bool {
 	o.lock.RLock()
 	defer o.lock.RUnlock()
+
 	return !o.unsupported[key]
 }
 

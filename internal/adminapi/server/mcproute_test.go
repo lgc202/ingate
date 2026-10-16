@@ -64,12 +64,15 @@ func TestCreateMCPRouteReturnsSavedStateHTTP(t *testing.T) {
 				if diff := cmp.Diff(tt.path, route.Spec.Path); diff != "" {
 					t.Errorf("CreateMCPRoute changed entry path before API defaulting (-want +got):\n%s", diff)
 				}
+
 				if diff := cmp.Diff(tt.backendPath, route.Spec.BackendRefs[0].Path); diff != "" {
 					t.Errorf("CreateMCPRoute changed upstream path before API defaulting (-want +got):\n%s", diff)
 				}
+
 				gatewayv1alpha1.SetDefaultsMCPRoute(route)
 				route.ResourceVersion = "9"
 				route.CreationTimestamp = metav1.NewTime(createdAt)
+
 				return true, route, nil
 			})
 			server := httptest.NewServer(httpServer)
@@ -78,6 +81,7 @@ func TestCreateMCPRouteReturnsSavedStateHTTP(t *testing.T) {
 			if err != nil {
 				t.Fatalf("http.NewClient() error = %v, want nil", err)
 			}
+
 			t.Cleanup(func() {
 				if err := httpClient.Close(); err != nil {
 					t.Errorf("Client.Close() error = %v, want nil", err)
@@ -97,10 +101,12 @@ func TestCreateMCPRouteReturnsSavedStateHTTP(t *testing.T) {
 			if err != nil {
 				t.Fatalf("CreateMCPRoute(HTTP round trip) error = %v, want nil", err)
 			}
+
 			name := reply.GetRoute().GetName()
 			if !strings.HasPrefix(name, "mcproute-") {
 				t.Errorf("CreateMCPRoute().name = %q, want generated mcproute ID", name)
 			}
+
 			want := &adminv1.MCPRoute{
 				Namespace:   "team-a",
 				Name:        name,
@@ -148,6 +154,7 @@ func TestMCPRouteUpdateAndDeleteHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get(MCPRoute after stale update) error = %v, want nil", err)
 	}
+
 	if diff := cmp.Diff(seed, stored); diff != "" {
 		t.Errorf("UpdateMCPRoute(stale) changed state (-want +got):\n%s", diff)
 	}
@@ -159,6 +166,7 @@ func TestMCPRouteUpdateAndDeleteHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get(updated MCPRoute) error = %v, want nil", err)
 	}
+
 	want := seed.DeepCopy()
 	want.Spec = gatewayv1alpha1.MCPRouteSpec{
 		ParentRefs:  []gatewayv1alpha1.ParentReference{{Name: "other"}},
@@ -168,6 +176,7 @@ func TestMCPRouteUpdateAndDeleteHTTP(t *testing.T) {
 	if diff := cmp.Diff(want, stored); diff != "" {
 		t.Errorf("UpdateMCPRoute(full PUT, metadata/status preserved) mismatch (-want +got):\n%s", diff)
 	}
+
 	var reply adminv1.UpdateMCPRouteReply
 	decodeReply(t, response, &reply)
 	wantReply := &adminv1.MCPRoute{
@@ -188,6 +197,7 @@ func TestMCPRouteUpdateAndDeleteHTTP(t *testing.T) {
 	if _, err := client.GatewayV1alpha1().MCPRoutes("team-a").Get(t.Context(), "tools", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("Get(deleted MCPRoute) error = %v, want NotFound", err)
 	}
+
 	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/namespaces/team-a/mcp-routes/tools", "")
 	requireHTTPStatus(t, response, http.StatusNotFound)
 }
@@ -239,6 +249,7 @@ func TestMCPRouteAuthenticationHTTP(t *testing.T) {
 		response := requestResource(httpServer, tt.method, tt.path, tt.body)
 		requireHTTPStatus(t, response, http.StatusUnauthorized)
 	}
+
 	if calls != 5 || len(client.Actions()) != 0 {
 		t.Errorf("MCPRoute unauthenticated requests = %d auth calls and %v API actions, want 5 and none", calls, client.Actions())
 	}
@@ -301,9 +312,11 @@ func TestMCPRouteGRPC(t *testing.T) {
 	if _, err := client.CreateMCPRoute(t.Context(), &adminv1.CreateMCPRouteRequest{Namespace: "team-a"}); status.Code(err) != codes.InvalidArgument {
 		t.Errorf("CreateMCPRoute(empty) error = %v, want InvalidArgument", err)
 	}
+
 	if actions := backend.Actions(); len(actions) != 0 {
 		t.Errorf("CreateMCPRoute(empty) API actions = %v, want none", actions)
 	}
+
 	request := &adminv1.CreateMCPRouteRequest{
 		Namespace:   "team-a",
 		DisplayName: "工具路由",
@@ -314,10 +327,12 @@ func TestMCPRouteGRPC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateMCPRoute(first) error = %v, want nil", err)
 	}
+
 	second, err := client.CreateMCPRoute(t.Context(), request)
 	if err != nil {
 		t.Fatalf("CreateMCPRoute(duplicate display name) error = %v, want nil", err)
 	}
+
 	if first.GetRoute().GetName() == second.GetRoute().GetName() || second.GetRoute().GetDisplayName() != "工具路由" {
 		t.Errorf("CreateMCPRoute(duplicate display name) = %v, want distinct ID and same display name", second)
 	}
@@ -329,6 +344,7 @@ func TestMCPRouteGRPC(t *testing.T) {
 	if _, err := client.CreateMCPRoute(t.Context(), request); status.Code(err) != codes.Aborted || kratoserrors.Reason(err) != "MCP_ROUTE_ALREADY_EXISTS" {
 		t.Errorf("CreateMCPRoute(identity conflict) = %v, want Aborted/MCP_ROUTE_ALREADY_EXISTS", err)
 	}
+
 	backend.PrependReactor("create", "mcproutes", func(clienttesting.Action) (bool, runtime.Object, error) {
 		return true, nil, apierrors.NewInvalid(schema.GroupKind{Group: gatewayv1alpha1.GroupName, Kind: "MCPRoute"}, "tools", field.ErrorList{
 			field.Invalid(field.NewPath("spec", "path"), "relative", "must be absolute"),
@@ -337,6 +353,7 @@ func TestMCPRouteGRPC(t *testing.T) {
 	if _, err := client.CreateMCPRoute(t.Context(), request); status.Code(err) != codes.InvalidArgument || kratoserrors.Reason(err) != "MCP_ROUTE_INVALID_ARGUMENT" {
 		t.Errorf("CreateMCPRoute(API validation error) = %v, want InvalidArgument/MCP_ROUTE_INVALID_ARGUMENT", err)
 	}
+
 	backend.PrependReactor("create", "mcproutes", func(clienttesting.Action) (bool, runtime.Object, error) {
 		return true, nil, errors.New("private storage failure")
 	})
@@ -369,10 +386,12 @@ func TestMCPRoutePathLengthGRPC(t *testing.T) {
 				} else {
 					request.Path = ptr.To(tt.path)
 				}
+
 				_, err := adminv1.NewMCPRouteServiceClient(connection).CreateMCPRoute(t.Context(), request)
 				if status.Code(err) != tt.want {
 					t.Errorf("CreateMCPRoute(path length) error = %v, want %v", err, tt.want)
 				}
+
 				if tt.want != codes.OK && len(backend.Actions()) != 0 {
 					t.Errorf("CreateMCPRoute(invalid path) API actions = %v, want none", backend.Actions())
 				}

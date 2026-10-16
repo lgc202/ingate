@@ -19,12 +19,14 @@ func ValidateBackend(backend *gateway.Backend) field.ErrorList {
 		apivalidation.NameIsDNSSubdomain,
 		field.NewPath("metadata"),
 	)
+
 	return append(errs, validateBackendSpec(&backend.Spec, field.NewPath("spec"))...)
 }
 
 // ValidateBackendUpdate 校验更新后的 Backend 资源。
 func ValidateBackendUpdate(next, previous *gateway.Backend) field.ErrorList {
 	errs := ValidateBackend(next)
+
 	return append(errs, apivalidation.ValidateObjectMetaUpdate(
 		&next.ObjectMeta,
 		&previous.ObjectMeta,
@@ -39,6 +41,7 @@ func ValidateBackendStatusUpdate(next, previous *gateway.Backend) field.ErrorLis
 		&previous.ObjectMeta,
 		field.NewPath("metadata"),
 	)
+
 	return append(errs, validateConditions(next.Status.Conditions, next.Generation)...)
 }
 
@@ -61,6 +64,7 @@ func validateBackendSpec(spec *gateway.BackendSpec, path *field.Path) field.Erro
 		if seen[key] {
 			errs = append(errs, field.Duplicate(endpointPath, key))
 		}
+
 		seen[key] = true
 
 		if _, err := netip.ParseAddr(endpoint.Address); err != nil {

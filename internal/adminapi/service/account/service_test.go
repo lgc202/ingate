@@ -36,10 +36,12 @@ func TestAccountSessionLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Login(admin, admin) error = %v, want nil", err)
 	}
+
 	identity, err := service.Authenticate(ctx, login.Token)
 	if err != nil {
 		t.Fatalf("Authenticate(initial token) error = %v, want nil", err)
 	}
+
 	if identity.AccountID != initialAdminID || identity.ID != sessionID(login.Token) {
 		t.Errorf("Authenticate(initial token) = %+v, want account %d and hashed token ID",
 			identity, initialAdminID)
@@ -48,6 +50,7 @@ func TestAccountSessionLifecycle(t *testing.T) {
 	if err := service.ChangePassword(ctx, initialAdminID, "wrong", "new-password"); !errors.Is(err, ErrInvalidCredentials) {
 		t.Errorf("ChangePassword(wrong current password) error = %v, want ErrInvalidCredentials", err)
 	}
+
 	if _, err := service.Authenticate(ctx, login.Token); err != nil {
 		t.Errorf("Authenticate(initial token after failed change) error = %v, want nil", err)
 	}
@@ -55,12 +58,15 @@ func TestAccountSessionLifecycle(t *testing.T) {
 	if err := service.ChangePassword(ctx, initialAdminID, "admin", "new-password"); err != nil {
 		t.Fatalf("ChangePassword(admin, new-password) error = %v, want nil", err)
 	}
+
 	if _, err := service.Authenticate(ctx, login.Token); !errors.Is(err, ErrSessionRequired) {
 		t.Errorf("Authenticate(initial token after password change) error = %v, want ErrSessionRequired", err)
 	}
+
 	if err := service.Bootstrap(ctx); err != nil {
 		t.Fatalf("Bootstrap(existing admin) error = %v, want nil", err)
 	}
+
 	if _, err := service.Login(ctx, "admin", "admin"); !errors.Is(err, ErrInvalidCredentials) {
 		t.Errorf("Login(admin, old password) error = %v, want ErrInvalidCredentials", err)
 	}
@@ -69,12 +75,15 @@ func TestAccountSessionLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Login(admin, new-password) error = %v, want nil", err)
 	}
+
 	if _, err := service.Authenticate(ctx, login.Token); err != nil {
 		t.Fatalf("Authenticate(new token) error = %v, want nil", err)
 	}
+
 	if err := service.Logout(ctx, sessionID(login.Token)); err != nil {
 		t.Fatalf("Logout(new token) error = %v, want nil", err)
 	}
+
 	if _, err := service.Authenticate(ctx, login.Token); !errors.Is(err, ErrSessionRequired) {
 		t.Errorf("Authenticate(new token after logout) error = %v, want ErrSessionRequired", err)
 	}
@@ -119,13 +128,16 @@ func TestPasswordVerificationRejectsIncorrectPassword(t *testing.T) {
 					if !errors.Is(err, ErrInvalidCredentials) {
 						t.Errorf("%s(password=%q) error = %v, want ErrInvalidCredentials", operation.name, password, err)
 					}
+
 					if errors.Is(err, ErrUnavailable) {
 						t.Errorf("%s(password=%q) error = %v, want no ErrUnavailable", operation.name, password, err)
 					}
+
 					if sessions.createCalls != 0 || len(sessions.items) != 0 {
 						t.Errorf("%s(password=%q) created sessions: calls=%d, items=%d, want both 0",
 							operation.name, password, sessions.createCalls, len(sessions.items))
 					}
+
 					if accounts.updatePasswordCalls != 0 || accounts.account != account {
 						t.Errorf("%s(password=%q) changed account: update calls=%d, unchanged=%t, want 0 and true",
 							operation.name, password, accounts.updatePasswordCalls, accounts.account == account)
@@ -188,19 +200,24 @@ func TestPasswordVerificationRejectsMalformedHash(t *testing.T) {
 					if !errors.Is(err, ErrUnavailable) {
 						t.Errorf("%s(hash=%q) error = %v, want ErrUnavailable", operation.name, tt.hash, err)
 					}
+
 					if errors.Is(err, ErrInvalidCredentials) {
 						t.Errorf("%s(hash=%q) error = %v, want no ErrInvalidCredentials", operation.name, tt.hash, err)
 					}
+
 					if !errors.Is(err, tt.wantCause) {
 						t.Errorf("%s(hash=%q) error = %v, want cause %v", operation.name, tt.hash, err, tt.wantCause)
 					}
+
 					if err != nil && !strings.Contains(err.Error(), operation.wantContext) {
 						t.Errorf("%s(hash=%q) error = %v, want context %q", operation.name, tt.hash, err, operation.wantContext)
 					}
+
 					if sessions.createCalls != 0 || len(sessions.items) != 0 {
 						t.Errorf("%s(hash=%q) created sessions: calls=%d, items=%d, want both 0",
 							operation.name, tt.hash, sessions.createCalls, len(sessions.items))
 					}
+
 					if accounts.updatePasswordCalls != 0 || accounts.account != account {
 						t.Errorf("%s(hash=%q) changed account: update calls=%d, unchanged=%t, want 0 and true",
 							operation.name, tt.hash, accounts.updatePasswordCalls, accounts.account == account)
@@ -215,7 +232,9 @@ func (r *fakeAccountRepository) Create(_ context.Context, account domain.Account
 	if r.account.ID != 0 {
 		return repository.ErrAccountAlreadyExists
 	}
+
 	r.account = account
+
 	return nil
 }
 
@@ -223,6 +242,7 @@ func (r *fakeAccountRepository) Get(_ context.Context, id uint64) (domain.Accoun
 	if r.account.ID != id {
 		return domain.Account{}, repository.ErrAccountNotFound
 	}
+
 	return r.account, nil
 }
 
@@ -230,6 +250,7 @@ func (r *fakeAccountRepository) GetByUsername(_ context.Context, username string
 	if r.account.Username != username {
 		return domain.Account{}, repository.ErrAccountNotFound
 	}
+
 	return r.account, nil
 }
 
@@ -238,14 +259,17 @@ func (r *fakeAccountRepository) UpdatePassword(_ context.Context, id uint64, old
 	if r.account.ID != id || r.account.PasswordHash != oldHash {
 		return repository.ErrAccountChanged
 	}
+
 	r.account.PasswordHash = newHash
 	r.account.SessionVersion++
+
 	return nil
 }
 
 func (r *fakeSessionRepository) Create(_ context.Context, id string, session domain.Session, _ time.Time) error {
 	r.createCalls++
 	r.items[id] = session
+
 	return nil
 }
 
@@ -254,6 +278,7 @@ func (r *fakeSessionRepository) Get(_ context.Context, id string) (domain.Sessio
 	if !ok {
 		return domain.Session{}, repository.ErrSessionNotFound
 	}
+
 	return session, nil
 }
 
@@ -268,5 +293,6 @@ func passwordHash(t *testing.T, password string) string {
 	if err != nil {
 		t.Fatalf("GenerateFromPassword(test password, MinCost) error = %v, want nil", err)
 	}
+
 	return string(hash)
 }

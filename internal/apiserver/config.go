@@ -1,6 +1,10 @@
 package apiserver
 
 import (
+	"errors"
+	"fmt"
+	"net"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 )
@@ -38,4 +42,18 @@ func (c *Config) Complete() CompletedConfig {
 	}
 
 	return CompletedConfig{completedConfig: completed}
+}
+
+// closeSecureServing 回收配置阶段已取得的 Listener，或容忍原生 HTTP Server 已经关闭它。
+// Secure Serving 可由上游选项禁用；本函数不创建监听器，也不管理运行循环。
+func closeSecureServing(serving *genericapiserver.SecureServingInfo) error {
+	if serving == nil || serving.Listener == nil {
+		return nil
+	}
+
+	if err := serving.Listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		return fmt.Errorf("close HTTPS listener: %w", err)
+	}
+
+	return nil
 }

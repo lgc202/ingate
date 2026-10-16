@@ -38,6 +38,7 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 	if stored.Data[aidataplane.ConfigMapDataKey] != string(want) {
 		t.Errorf("Reconcile() AI payload = %s, want %s", stored.Data[aidataplane.ConfigMapDataKey], want)
 	}
+
 	wantHTTP := compile(resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, snapshot.backends.Items))
 	if diff := cmp.Diff(wantHTTP, published); diff != "" {
 		t.Errorf("Reconcile() HTTP payload mismatch (-want +got):\n%s", diff)
@@ -68,6 +69,7 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 	if err := apiClient.Delete(t.Context(), &snapshot.modelRoutes.Items[0]); err != nil {
 		t.Fatalf("Delete(ModelRoute) error = %v", err)
 	}
+
 	if err := apiClient.Delete(t.Context(), &snapshot.mcpRoutes.Items[0]); err != nil {
 		t.Fatalf("Delete(MCPRoute) error = %v", err)
 	}
@@ -81,6 +83,7 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 	if revoked.Data[aidataplane.ConfigMapDataKey] != string(empty) || revoked.ResourceVersion == stored.ResourceVersion {
 		t.Errorf("Reconcile(no AI routes) ConfigMap = %+v, want complete empty payload with changed resourceVersion", revoked)
 	}
+
 	if diff := cmp.Diff(wantHTTP, published); diff != "" {
 		t.Errorf("Reconcile(no AI routes) changed HTTP payload (-want +got):\n%s", diff)
 	}
@@ -132,6 +135,7 @@ func TestReconcileIsolatesResourceReadFailures(t *testing.T) {
 					if gotCtx != ctx {
 						t.Error("List() did not receive the Reconcile context")
 					}
+
 					if reflect.TypeOf(list) == reflect.TypeOf(tt.failedList) {
 						return cause
 					}
@@ -163,9 +167,11 @@ func TestReconcileIsolatesResourceReadFailures(t *testing.T) {
 			if !errors.Is(err, cause) {
 				t.Errorf("Reconcile(%s) error = %v, want wrapped %v", tt.name, err, cause)
 			}
+
 			if httpCalls != tt.wantHTTP || aiWrites != tt.wantAIWrites {
 				t.Errorf("Reconcile(%s) HTTP/AI attempts = %d/%d, want %d/%d", tt.name, httpCalls, aiWrites, tt.wantHTTP, tt.wantAIWrites)
 			}
+
 			got := storedAIConfigMap(t, apiClient)
 			if tt.wantAIWrites == 0 {
 				if diff := cmp.Diff(before, got); diff != "" {
@@ -189,6 +195,7 @@ func TestReconcileStoresAIAfterHTTPPublishFailure(t *testing.T) {
 	if !errors.Is(err, cause) {
 		t.Errorf("Reconcile(HTTP publish failure) error = %v, want wrapped %v", err, cause)
 	}
+
 	if got, want := storedAIConfigMap(t, apiClient).Data[aidataplane.ConfigMapDataKey], string(aiConfigPayload(t, snapshot)); got != want {
 		t.Errorf("Reconcile(HTTP publish failure) AI payload = %s, want %s", got, want)
 	}
@@ -210,6 +217,7 @@ func TestReconcileStoresAIAfterHTTPStatusFailure(t *testing.T) {
 	if !errors.Is(err, cause) {
 		t.Errorf("Reconcile(HTTP status failure) error = %v, want wrapped %v", err, cause)
 	}
+
 	if got, want := storedAIConfigMap(t, apiClient).Data[aidataplane.ConfigMapDataKey], string(aiConfigPayload(t, snapshot)); got != want {
 		t.Errorf("Reconcile(HTTP status failure) AI payload = %s, want %s", got, want)
 	}
@@ -234,6 +242,7 @@ func TestReconcileKeepsAIConfigurationAfterWriteFailure(t *testing.T) {
 	if !errors.Is(err, cause) || httpCalls != 1 {
 		t.Errorf("Reconcile(AI write failure) error/HTTP attempts = %v/%d, want wrapped %v and one HTTP publish", err, httpCalls, cause)
 	}
+
 	if diff := cmp.Diff(previous, storedAIConfigMap(t, apiClient)); diff != "" {
 		t.Errorf("Reconcile(AI write failure) changed old ConfigMap (-want +got):\n%s", diff)
 	}
@@ -256,6 +265,7 @@ func TestReconcileKeepsAIConfigurationAfterCompileFailure(t *testing.T) {
 	if _, ok := errors.AsType[*url.Error](err); !ok || httpCalls != 1 {
 		t.Errorf("Reconcile(invalid AI path) error/HTTP attempts = %v/%d, want wrapped URL error and one HTTP publish", err, httpCalls)
 	}
+
 	if diff := cmp.Diff(previous, storedAIConfigMap(t, apiClient)); diff != "" {
 		t.Errorf("Reconcile(invalid AI path) replaced old ConfigMap (-want +got):\n%s", diff)
 	}
@@ -277,6 +287,7 @@ func TestReconcileReturnsBothOutputErrors(t *testing.T) {
 	if !errors.Is(err, httpError) || !errors.Is(err, aiError) {
 		t.Errorf("Reconcile(two failures) error = %v, want both %v and %v", err, httpError, aiError)
 	}
+
 	if diff := cmp.Diff(previous, storedAIConfigMap(t, apiClient)); diff != "" {
 		t.Errorf("Reconcile(two failures) changed old ConfigMap (-want +got):\n%s", diff)
 	}
@@ -289,21 +300,27 @@ func aiResourceClient(t *testing.T, snapshot resources, additional ...client.Obj
 	for i := range snapshot.gateways.Items {
 		objects = append(objects, &snapshot.gateways.Items[i])
 	}
+
 	for i := range snapshot.backends.Items {
 		objects = append(objects, &snapshot.backends.Items[i])
 	}
+
 	for i := range snapshot.httpRoutes.Items {
 		objects = append(objects, &snapshot.httpRoutes.Items[i])
 	}
+
 	for i := range snapshot.aiBackends.Items {
 		objects = append(objects, &snapshot.aiBackends.Items[i])
 	}
+
 	for i := range snapshot.modelRoutes.Items {
 		objects = append(objects, &snapshot.modelRoutes.Items[i])
 	}
+
 	for i := range snapshot.mcpRoutes.Items {
 		objects = append(objects, &snapshot.mcpRoutes.Items[i])
 	}
+
 	objects = append(objects, additional...)
 
 	return newFakeClient(t, objects...)

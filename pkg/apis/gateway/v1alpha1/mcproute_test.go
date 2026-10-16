@@ -16,6 +16,7 @@ func TestMCPRouteDefaultingPreservesExplicitPaths(t *testing.T) {
 	if err := AddToScheme(scheme); err != nil {
 		t.Fatalf("AddToScheme() error = %v, want nil", err)
 	}
+
 	for _, tt := range []struct {
 		name  string
 		input *string
@@ -42,6 +43,7 @@ func TestMCPRouteDefaultingPreservesExplicitPaths(t *testing.T) {
 			if diff := cmp.Diff(want, route); diff != "" {
 				t.Errorf("Scheme.Default(MCPRoute %s) mismatch (-want +got):\n%s", tt.name, diff)
 			}
+
 			scheme.Default(list)
 			if diff := cmp.Diff(*want, list.Items[0]); diff != "" {
 				t.Errorf("Scheme.Default(MCPRouteList %s) mismatch (-want +got):\n%s", tt.name, diff)
@@ -93,9 +95,11 @@ func TestMCPRouteConversion(t *testing.T) {
 	if err := gateway.AddToScheme(scheme); err != nil {
 		t.Fatalf("gateway.AddToScheme() error = %v, want nil", err)
 	}
+
 	if err := AddToScheme(scheme); err != nil {
 		t.Fatalf("AddToScheme() error = %v, want nil", err)
 	}
+
 	input := &MCPRoute{
 		ObjectMeta: metav1.ObjectMeta{Name: "tools", ResourceVersion: "12", Generation: 3},
 		Spec: MCPRouteSpec{
@@ -114,6 +118,7 @@ func TestMCPRouteConversion(t *testing.T) {
 	if err := scheme.Convert(input, &internal, nil); err != nil {
 		t.Fatalf("Scheme.Convert(MCPRoute, internal) error = %v, want nil", err)
 	}
+
 	wantSpec := gateway.MCPRouteSpec{
 		DisplayName: "工具入口",
 		ParentRefs:  []gateway.ParentReference{{Name: "edge", SectionName: "http"}},
@@ -123,10 +128,12 @@ func TestMCPRouteConversion(t *testing.T) {
 	if diff := cmp.Diff(wantSpec, internal.Spec); diff != "" {
 		t.Errorf("Scheme.Convert(MCPRoute, internal).Spec mismatch (-want +got):\n%s", diff)
 	}
+
 	var roundTrip MCPRoute
 	if err := scheme.Convert(&internal, &roundTrip, nil); err != nil {
 		t.Fatalf("Scheme.Convert(internal MCPRoute, external) error = %v, want nil", err)
 	}
+
 	if diff := cmp.Diff(input, &roundTrip); diff != "" {
 		t.Errorf("MCPRoute conversion round trip mismatch (-want +got):\n%s", diff)
 	}

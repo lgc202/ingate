@@ -31,6 +31,7 @@ func ModelTargetName(backend Backend, network NetworkBackend) (string, error) {
 		if order := cmp.Compare(a.Address, b.Address); order != 0 {
 			return order
 		}
+
 		if order := cmp.Compare(a.Port, b.Port); order != 0 {
 			return order
 		}
@@ -44,5 +45,6 @@ func ModelTargetName(backend Backend, network NetworkBackend) (string, error) {
 	}
 
 	sum := sha256.Sum256(data)
+
 	return "ai/target/" + hex.EncodeToString(sum[:]), nil
 }

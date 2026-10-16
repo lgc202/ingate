@@ -1,4 +1,4 @@
-package backend
+package handler
 
 import (
 	"cmp"
@@ -6,72 +6,64 @@ import (
 	"errors"
 	"slices"
 
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	adminhandler "github.com/lgc202/ingate/internal/adminapi/handler"
+	"github.com/lgc202/ingate/internal/adminapi/errno"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
 	backendservice "github.com/lgc202/ingate/internal/adminapi/service/backend"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
-const (
-	reasonInvalidArgument = "BACKEND_INVALID_ARGUMENT"
-	reasonAlreadyExists   = "BACKEND_ALREADY_EXISTS"
-	reasonNotFound        = "BACKEND_NOT_FOUND"
-	reasonConflict        = "BACKEND_CONFLICT"
-)
-
 var (
-	_ adminv1.BackendServiceServer     = (*Handler)(nil)
-	_ adminv1.BackendServiceHTTPServer = (*Handler)(nil)
+	_ adminv1.BackendServiceServer     = (*BackendHandler)(nil)
+	_ adminv1.BackendServiceHTTPServer = (*BackendHandler)(nil)
 )
 
-// Handler 实现 Backend 的 gRPC 和 HTTP 协议入口。
-type Handler struct {
+// BackendHandler 实现 Backend 的 gRPC 和 HTTP 协议入口。
+type BackendHandler struct {
 	adminv1.UnimplementedBackendServiceServer
 
 	service *backendservice.Service
 }
 
-// New 创建 Backend Handler。
-func New(service *backendservice.Service) *Handler {
-	return &Handler{service: service}
+// NewBackend 创建后端资源协议入口，复用注入的业务服务。
+func NewBackend(service *backendservice.Service) *BackendHandler {
+	return &BackendHandler{service: service}
 }
 
 // CreateBackend 创建 Backend。
-func (h *Handler) CreateBackend(
+func (h *BackendHandler) CreateBackend(
 	ctx context.Context,
 	req *adminv1.CreateBackendRequest,
 ) (*adminv1.CreateBackendReply, error) {
 	created, err := h.service.Create(ctx, backendservice.CreateParams{
 		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
-		Endpoints:   endpointsFromProto(req.GetEndpoints()),
+		Endpoints:   backendEndpointsFromProto(req.GetEndpoints()),
 	})
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toBackendError(err)
 	}
 
 	return &adminv1.CreateBackendReply{Backend: backendToProto(created)}, nil
 }
 
 // GetBackend 读取指定 Backend。
-func (h *Handler) GetBackend(
+func (h *BackendHandler) GetBackend(
 	ctx context.Context,
 	req *adminv1.GetBackendRequest,
 ) (*adminv1.GetBackendReply, error) {
 	backend, err := h.service.Get(ctx, req.GetNamespace(), req.GetName())
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toBackendError(err)
 	}
 
 	return &adminv1.GetBackendReply{Backend: backendToProto(backend)}, nil
 }
 
 // ListBackends 分页列出 Backend。
-func (h *Handler) ListBackends(
+func (h *BackendHandler) ListBackends(
 	ctx context.Context,
 	req *adminv1.ListBackendsRequest,
 ) (*adminv1.ListBackendsReply, error) {
@@ -82,7 +74,7 @@ func (h *Handler) ListBackends(
 		DisplayName: req.GetDisplayName(),
 	})
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toBackendError(err)
 	}
 
 	backends := make([]*adminv1.Backend, len(page.Items))
@@ -94,7 +86,7 @@ func (h *Handler) ListBackends(
 }
 
 // UpdateBackend 完整替换 Backend 的可编辑配置。
-func (h *Handler) UpdateBackend(
+func (h *BackendHandler) UpdateBackend(
 	ctx context.Context,
 	req *adminv1.UpdateBackendRequest,
 ) (*adminv1.UpdateBackendReply, error) {
@@ -103,28 +95,28 @@ func (h *Handler) UpdateBackend(
 		DisplayName: req.GetDisplayName(),
 		Name:        req.GetName(),
 		Version:     req.GetVersion(),
-		Endpoints:   endpointsFromProto(req.GetEndpoints()),
+		Endpoints:   backendEndpointsFromProto(req.GetEndpoints()),
 	})
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toBackendError(err)
 	}
 
 	return &adminv1.UpdateBackendReply{Backend: backendToProto(updated)}, nil
 }
 
 // DeleteBackend 删除指定 Backend。
-func (h *Handler) DeleteBackend(
+func (h *BackendHandler) DeleteBackend(
 	ctx context.Context,
 	req *adminv1.DeleteBackendRequest,
 ) (*adminv1.DeleteBackendReply, error) {
 	if err := h.service.Delete(ctx, req.GetNamespace(), req.GetName()); err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toBackendError(err)
 	}
 
 	return &adminv1.DeleteBackendReply{}, nil
 }
 
-func endpointsFromProto(items []*adminv1.Endpoint) []gatewayv1alpha1.Endpoint {
+func backendEndpointsFromProto(items []*adminv1.Endpoint) []gatewayv1alpha1.Endpoint {
 	endpoints := make([]gatewayv1alpha1.Endpoint, len(items))
 	for i, endpoint := range items {
 		endpoints[i] = gatewayv1alpha1.Endpoint{
@@ -146,6 +138,7 @@ func backendToProto(backend repository.BackendInfo) *adminv1.Backend {
 			Weight:  endpoint.Weight,
 		}
 	}
+
 	// 端点顺序不是业务状态；统一排序，使写入响应与投影查询结果一致。
 	slices.SortFunc(endpoints, func(a, b *adminv1.Endpoint) int {
 		if order := cmp.Compare(a.Address, b.Address); order != 0 {
@@ -165,17 +158,17 @@ func backendToProto(backend repository.BackendInfo) *adminv1.Backend {
 	}
 }
 
-func toTransportError(ctx context.Context, err error) error {
+func toBackendError(err error) error {
 	switch {
 	case errors.Is(err, backendservice.ErrInvalidArgument):
-		return kratoserrors.BadRequest(reasonInvalidArgument, "后端资源参数不合法").WithCause(err)
+		return errno.ErrBackendInvalidArgument.WithCause(err)
 	case errors.Is(err, backendservice.ErrAlreadyExists):
-		return kratoserrors.Conflict(reasonAlreadyExists, "资源标识冲突，请重新创建").WithCause(err)
+		return errno.ErrBackendAlreadyExists.WithCause(err)
 	case errors.Is(err, backendservice.ErrNotFound):
-		return kratoserrors.NotFound(reasonNotFound, "后端资源不存在").WithCause(err)
+		return errno.ErrBackendNotFound.WithCause(err)
 	case errors.Is(err, backendservice.ErrConflict):
-		return kratoserrors.Conflict(reasonConflict, "后端资源已被修改，请刷新后重试").WithCause(err)
+		return errno.ErrBackendConflict.WithCause(err)
 	default:
-		return adminhandler.ToTransportError(ctx, err)
+		return errno.Fallback(err)
 	}
 }

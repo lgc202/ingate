@@ -45,6 +45,7 @@ func (r *ModelRouteReconciler) Reconcile(ctx context.Context, request ctrl.Reque
 	if request.Namespace == "" && request.Name == modelRouteInitialSyncName {
 		return ctrl.Result{}, r.syncAll(ctx)
 	}
+
 	return ctrl.Result{}, r.syncModelRoute(ctx, request.NamespacedName)
 }
 
@@ -54,9 +55,11 @@ func (r *ModelRouteReconciler) syncModelRoute(ctx context.Context, key types.Nam
 		if !apierrors.IsNotFound(err) {
 			return fmt.Errorf("get ModelRoute %q: %w", key.String(), err)
 		}
+
 		if err := r.store.DeleteModelRoute(ctx, key.Namespace, key.Name); err != nil {
 			return fmt.Errorf("delete ModelRoute %q from MySQL: %w", key.String(), err)
 		}
+
 		return nil
 	}
 
@@ -79,6 +82,7 @@ func (r *ModelRouteReconciler) syncAll(ctx context.Context) error {
 		if err := r.store.UpsertModelRoute(ctx, modelRouteToMySQL(route)); err != nil {
 			return fmt.Errorf("sync ModelRoute %q to MySQL: %w", client.ObjectKeyFromObject(route).String(), err)
 		}
+
 		current[client.ObjectKeyFromObject(route)] = struct{}{}
 	}
 
@@ -91,6 +95,7 @@ func (r *ModelRouteReconciler) syncAll(ctx context.Context) error {
 		if _, exists := current[key]; exists {
 			continue
 		}
+
 		if err := r.store.DeleteModelRoute(ctx, key.Namespace, key.Name); err != nil {
 			return fmt.Errorf("delete stale ModelRoute %q from MySQL: %w", key.String(), err)
 		}
@@ -111,6 +116,7 @@ func modelRouteToMySQL(route *gatewayv1alpha1.ModelRoute) mysql.ModelRoute {
 	for _, ref := range route.Spec.ParentRefs {
 		result.Parents = append(result.Parents, mysql.ModelRouteParent{Name: ref.Name, SectionName: ref.SectionName})
 	}
+
 	for _, rule := range route.Spec.Rules {
 		target := mysql.ModelRouteRule{Name: rule.Name}
 		for _, match := range rule.Matches {
@@ -122,14 +128,17 @@ func modelRouteToMySQL(route *gatewayv1alpha1.ModelRoute) mysql.ModelRoute {
 					Value: header.Value,
 				})
 			}
+
 			target.Matches = append(target.Matches, condition)
 		}
+
 		for _, ref := range rule.BackendRefs {
 			target.BackendRefs = append(target.BackendRefs, mysql.ModelRouteBackendRef{
 				Name:              ref.Name,
 				ModelNameOverride: ref.ModelNameOverride,
 			})
 		}
+
 		result.Rules = append(result.Rules, target)
 	}
 

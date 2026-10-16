@@ -1,6 +1,7 @@
 package apiserver
 
 import (
+	"errors"
 	"fmt"
 	"net"
 
@@ -92,7 +93,11 @@ func (o *Options) Config() (*Config, error) {
 	// ApplyTo 准备存储、认证和 HTTPS Listener，但不启动请求处理循环。
 	namespaceInitializer, err := o.applyRecommendedOptions(genericConfig)
 	if err != nil {
-		return nil, fmt.Errorf("apply recommended API server options: %w", err)
+		// ApplyTo 可能在后续初始化失败前已准备 HTTPS；此时还没有 Server 接管。
+		return nil, errors.Join(
+			fmt.Errorf("apply recommended API server options: %w", err),
+			closeSecureServing(genericConfig.SecureServing),
+		)
 	}
 
 	return &Config{
@@ -112,6 +117,7 @@ func (o *Options) applyRecommendedOptions(
 		if err != nil {
 			return nil, err
 		}
+
 		if err := options.ApplyWithStorageFactoryTo(factory, &config.Config); err != nil {
 			return nil, fmt.Errorf("apply resource storage options: %w", err)
 		}
@@ -138,16 +144,19 @@ func (o *Options) applyRecommendedOptions(
 			if err != nil {
 				return nil, err
 			}
+
 			// 框架先向插件注入宿主依赖，再依次执行额外初始化器；放在最后才能让
 			// NamespaceLifecycle 最终使用本地依赖，而不改变其它插件和原扩展的接线。
 			return append(initializers, namespaceInitializer), nil
 		}
 	}
+
 	if err := recommended.ApplyTo(config); err != nil {
 		// 后续框架装配失败时，没有 Server 接管工厂；此时 Hook 尚未执行，可以直接关闭。
 		if namespaceInitializer != nil {
 			namespaceInitializer.informers.Shutdown()
 		}
+
 		return nil, err
 	}
 

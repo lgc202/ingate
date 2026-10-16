@@ -44,6 +44,7 @@ func Run(ctx context.Context, configFile string) (runErr error) {
 	if err != nil {
 		return fmt.Errorf("initialize AI Proxy log: %w", err)
 	}
+
 	defer func() {
 		if err := closeLog(); err != nil {
 			runErr = errors.Join(runErr, fmt.Errorf("close AI Proxy log: %w", err))
@@ -147,6 +148,7 @@ func runApp(ctx context.Context, app *kratos.App, loader *aiconfig.Loader) error
 		if err != nil && !errors.Is(err, context.Canceled) {
 			err = errors.Join(err, app.Stop())
 		}
+
 		done <- err
 	}()
 
@@ -165,6 +167,7 @@ func newConfigLoader(config *conf.APIServer, logger *slog.Logger) (*aiconfig.Loa
 	if err != nil {
 		return nil, nil, fmt.Errorf("build Ingate API client configuration: %w", err)
 	}
+
 	restConfig = rest.AddUserAgent(restConfig, componentName)
 
 	apiHTTP, err := rest.HTTPClientFor(restConfig)
@@ -178,11 +181,7 @@ func newConfigLoader(config *conf.APIServer, logger *slog.Logger) (*aiconfig.Loa
 		return nil, nil, fmt.Errorf("create Ingate API client: %w", err)
 	}
 
-	loader, err := aiconfig.NewLoader(apiClient, config.GetAiConfigNamespace(), logger)
-	if err != nil {
-		apiHTTP.CloseIdleConnections()
-		return nil, nil, fmt.Errorf("create AI configuration loader: %w", err)
-	}
+	loader := aiconfig.NewLoader(apiClient, config.GetAiConfigNamespace(), logger)
 
 	return loader, apiHTTP.CloseIdleConnections, nil
 }

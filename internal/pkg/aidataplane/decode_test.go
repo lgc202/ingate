@@ -39,6 +39,7 @@ func TestDecodeJSONFormatting(t *testing.T) {
 	if err := json.Unmarshal(golden, &document); err != nil {
 		t.Fatalf("Unmarshal(golden document) error = %v", err)
 	}
+
 	formatted, err := json.MarshalIndent(document, "", "  ")
 	if err != nil {
 		t.Fatalf("MarshalIndent(golden document) error = %v", err)
@@ -109,6 +110,7 @@ func TestDecodeEmptyRequiredStrings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encode(empty required strings) error = %v", err)
 	}
+
 	roundTrip, err := Decode(encoded)
 	if err != nil {
 		t.Fatalf("Decode(Encode(empty required strings)) error = %v", err)
@@ -130,6 +132,7 @@ func TestDecodeRequiredFields(t *testing.T) {
 			if location == "config" && field == "revision" {
 				continue // revision 的缺失/null 单独验证，不能在准备输入时补回。
 			}
+
 			for _, operation := range []string{"missing", "null"} {
 				t.Run(location+"."+field+"."+operation, func(t *testing.T) {
 					document, targets := fixtureObjects(t, golden)
@@ -138,6 +141,7 @@ func TestDecodeRequiredFields(t *testing.T) {
 					} else {
 						targets[location][field] = nil
 					}
+
 					data := documentWithRevision(t, document)
 
 					got, err := Decode(data)
@@ -309,6 +313,7 @@ func TestDecodeInvalidUTF8(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encode(replacement rune) error = %v", err)
 	}
+
 	data = bytes.Replace(data, []byte("\ufffd"), []byte{0xff}, 1)
 
 	if got, err := Decode(data); err == nil || got != nil {
@@ -324,6 +329,7 @@ func TestDecodeOwnership(t *testing.T) {
 	if err != nil || first == nil {
 		t.Fatalf("Decode(first) config/error = %+v/%v, want non-nil config and nil error", first, err)
 	}
+
 	second, err := Decode(golden)
 	if err != nil || second == nil {
 		t.Fatalf("Decode(second) config/error = %+v/%v, want non-nil config and nil error", second, err)
@@ -373,6 +379,7 @@ func fixtureObjects(t *testing.T, data []byte) (map[string]any, map[string]map[s
 		"network":  network,
 		"endpoint": firstFixtureObject(t, network, "endpoints"),
 	}
+
 	return document, objects
 }
 
@@ -394,12 +401,14 @@ func documentWithRevision(t *testing.T, document map[string]any) []byte {
 	if err != nil {
 		t.Fatalf("contentRevision(modified document) error = %v", err)
 	}
+
 	document["revision"] = revision
 
 	data, err = json.Marshal(document)
 	if err != nil {
 		t.Fatalf("Marshal(modified document revision) error = %v", err)
 	}
+
 	return data
 }
 
@@ -410,6 +419,7 @@ func firstFixtureObject(t *testing.T, parent map[string]any, field string) map[s
 	if !ok || len(values) == 0 {
 		t.Fatalf("fixture %s = %#v, want non-empty array", field, parent[field])
 	}
+
 	return fixtureObject(t, values[0], field+"[0]")
 }
 
@@ -420,5 +430,6 @@ func fixtureObject(t *testing.T, value any, field string) map[string]any {
 	if !ok {
 		t.Fatalf("fixture %s = %#v, want object", field, value)
 	}
+
 	return object
 }

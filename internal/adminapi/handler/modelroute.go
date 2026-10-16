@@ -1,81 +1,72 @@
-// Package modelroute 适配 ModelRouteService 的 HTTP 和 gRPC 协议。
-package modelroute
+package handler
 
 import (
 	"context"
 	"errors"
 
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	adminhandler "github.com/lgc202/ingate/internal/adminapi/handler"
+	"github.com/lgc202/ingate/internal/adminapi/errno"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
-	routeservice "github.com/lgc202/ingate/internal/adminapi/service/modelroute"
+	modelrouteservice "github.com/lgc202/ingate/internal/adminapi/service/modelroute"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
-const (
-	reasonInvalidArgument = "MODEL_ROUTE_INVALID_ARGUMENT"
-	reasonAlreadyExists   = "MODEL_ROUTE_ALREADY_EXISTS"
-	reasonNotFound        = "MODEL_ROUTE_NOT_FOUND"
-	reasonConflict        = "MODEL_ROUTE_CONFLICT"
-)
-
 var (
-	_ adminv1.ModelRouteServiceServer     = (*Handler)(nil)
-	_ adminv1.ModelRouteServiceHTTPServer = (*Handler)(nil)
+	_ adminv1.ModelRouteServiceServer     = (*ModelRouteHandler)(nil)
+	_ adminv1.ModelRouteServiceHTTPServer = (*ModelRouteHandler)(nil)
 )
 
-// Handler 实现 ModelRoute 的 gRPC 和 HTTP 协议入口。
-type Handler struct {
+// ModelRouteHandler 实现 ModelRoute 的 gRPC 和 HTTP 协议入口。
+type ModelRouteHandler struct {
 	adminv1.UnimplementedModelRouteServiceServer
 
-	service *routeservice.Service
+	service *modelrouteservice.Service
 }
 
-// New 创建 ModelRoute Handler。
-func New(service *routeservice.Service) *Handler {
-	return &Handler{service: service}
+// NewModelRoute 创建模型路由协议入口，复用注入的业务服务。
+func NewModelRoute(service *modelrouteservice.Service) *ModelRouteHandler {
+	return &ModelRouteHandler{service: service}
 }
 
 // CreateModelRoute 创建 ModelRoute。
-func (h *Handler) CreateModelRoute(
+func (h *ModelRouteHandler) CreateModelRoute(
 	ctx context.Context,
 	req *adminv1.CreateModelRouteRequest,
 ) (*adminv1.CreateModelRouteReply, error) {
-	created, err := h.service.Create(ctx, routeservice.CreateParams{
+	created, err := h.service.Create(ctx, modelrouteservice.CreateParams{
 		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
-		ParentRefs:  parentsFromProto(req.GetParentRefs()),
-		Rules:       rulesFromProto(req.GetRules()),
+		ParentRefs:  modelRouteParentsFromProto(req.GetParentRefs()),
+		Rules:       modelRouteRulesFromProto(req.GetRules()),
 	})
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toModelRouteError(err)
 	}
 
-	return &adminv1.CreateModelRouteReply{Route: routeToProto(created)}, nil
+	return &adminv1.CreateModelRouteReply{Route: modelRouteToProto(created)}, nil
 }
 
 // GetModelRoute 读取指定 ModelRoute。
-func (h *Handler) GetModelRoute(
+func (h *ModelRouteHandler) GetModelRoute(
 	ctx context.Context,
 	req *adminv1.GetModelRouteRequest,
 ) (*adminv1.GetModelRouteReply, error) {
 	route, err := h.service.Get(ctx, req.GetNamespace(), req.GetName())
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toModelRouteError(err)
 	}
 
-	return &adminv1.GetModelRouteReply{Route: routeToProto(route)}, nil
+	return &adminv1.GetModelRouteReply{Route: modelRouteToProto(route)}, nil
 }
 
 // ListModelRoutes 分页列出 ModelRoute。
-func (h *Handler) ListModelRoutes(
+func (h *ModelRouteHandler) ListModelRoutes(
 	ctx context.Context,
 	req *adminv1.ListModelRoutesRequest,
 ) (*adminv1.ListModelRoutesReply, error) {
-	page, err := h.service.List(ctx, routeservice.ListParams{
+	page, err := h.service.List(ctx, modelrouteservice.ListParams{
 		Namespace:   req.GetNamespace(),
 		PageSize:    req.GetPageSize(),
 		PageNum:     req.GetPageNum(),
@@ -83,58 +74,59 @@ func (h *Handler) ListModelRoutes(
 		GatewayName: req.GetGatewayName(),
 	})
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toModelRouteError(err)
 	}
 
 	routes := make([]*adminv1.ModelRoute, len(page.Items))
 	for i, route := range page.Items {
-		routes[i] = routeToProto(route)
+		routes[i] = modelRouteToProto(route)
 	}
 
 	return &adminv1.ListModelRoutesReply{Routes: routes, TotalCount: page.TotalCount}, nil
 }
 
 // UpdateModelRoute 完整替换 ModelRoute 的可编辑配置。
-func (h *Handler) UpdateModelRoute(
+func (h *ModelRouteHandler) UpdateModelRoute(
 	ctx context.Context,
 	req *adminv1.UpdateModelRouteRequest,
 ) (*adminv1.UpdateModelRouteReply, error) {
-	updated, err := h.service.Update(ctx, routeservice.UpdateParams{
+	updated, err := h.service.Update(ctx, modelrouteservice.UpdateParams{
 		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
 		Name:        req.GetName(),
 		Version:     req.GetVersion(),
-		ParentRefs:  parentsFromProto(req.GetParentRefs()),
-		Rules:       rulesFromProto(req.GetRules()),
+		ParentRefs:  modelRouteParentsFromProto(req.GetParentRefs()),
+		Rules:       modelRouteRulesFromProto(req.GetRules()),
 	})
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toModelRouteError(err)
 	}
 
-	return &adminv1.UpdateModelRouteReply{Route: routeToProto(updated)}, nil
+	return &adminv1.UpdateModelRouteReply{Route: modelRouteToProto(updated)}, nil
 }
 
 // DeleteModelRoute 删除指定 ModelRoute。
-func (h *Handler) DeleteModelRoute(
+func (h *ModelRouteHandler) DeleteModelRoute(
 	ctx context.Context,
 	req *adminv1.DeleteModelRouteRequest,
 ) (*adminv1.DeleteModelRouteReply, error) {
 	if err := h.service.Delete(ctx, req.GetNamespace(), req.GetName()); err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toModelRouteError(err)
 	}
 
 	return &adminv1.DeleteModelRouteReply{}, nil
 }
 
-func parentsFromProto(refs []*adminv1.ParentReference) []gatewayv1alpha1.ParentReference {
+func modelRouteParentsFromProto(refs []*adminv1.ParentReference) []gatewayv1alpha1.ParentReference {
 	result := make([]gatewayv1alpha1.ParentReference, len(refs))
 	for i, ref := range refs {
 		result[i] = gatewayv1alpha1.ParentReference{Name: ref.GetName(), SectionName: ref.GetSectionName()}
 	}
+
 	return result
 }
 
-func rulesFromProto(rules []*adminv1.ModelRouteRule) []gatewayv1alpha1.ModelRouteRule {
+func modelRouteRulesFromProto(rules []*adminv1.ModelRouteRule) []gatewayv1alpha1.ModelRouteRule {
 	result := make([]gatewayv1alpha1.ModelRouteRule, len(rules))
 	for i, rule := range rules {
 		target := &result[i]
@@ -148,8 +140,10 @@ func rulesFromProto(rules []*adminv1.ModelRouteRule) []gatewayv1alpha1.ModelRout
 					Value: header.GetValue(),
 				})
 			}
+
 			target.Matches = append(target.Matches, condition)
 		}
+
 		for _, ref := range rule.GetBackendRefs() {
 			target.BackendRefs = append(target.BackendRefs, gatewayv1alpha1.AIBackendReference{
 				Name:              ref.GetName(),
@@ -157,10 +151,11 @@ func rulesFromProto(rules []*adminv1.ModelRouteRule) []gatewayv1alpha1.ModelRout
 			})
 		}
 	}
+
 	return result
 }
 
-func routeToProto(route repository.ModelRouteInfo) *adminv1.ModelRoute {
+func modelRouteToProto(route repository.ModelRouteInfo) *adminv1.ModelRoute {
 	result := &adminv1.ModelRoute{
 		Namespace:   route.Namespace,
 		Name:        route.Name,
@@ -172,6 +167,7 @@ func routeToProto(route repository.ModelRouteInfo) *adminv1.ModelRoute {
 	for _, ref := range route.ParentRefs {
 		result.ParentRefs = append(result.ParentRefs, &adminv1.ParentReference{Name: ref.Name, SectionName: ref.SectionName})
 	}
+
 	for _, rule := range route.Rules {
 		target := &adminv1.ModelRouteRule{Name: rule.Name}
 		for _, match := range rule.Matches {
@@ -183,31 +179,34 @@ func routeToProto(route repository.ModelRouteInfo) *adminv1.ModelRoute {
 					Value: header.Value,
 				})
 			}
+
 			target.Matches = append(target.Matches, condition)
 		}
+
 		for _, ref := range rule.BackendRefs {
 			target.BackendRefs = append(target.BackendRefs, &adminv1.AIBackendReference{
 				Name:              ref.Name,
 				ModelNameOverride: ref.ModelNameOverride,
 			})
 		}
+
 		result.Rules = append(result.Rules, target)
 	}
 
 	return result
 }
 
-func toTransportError(ctx context.Context, err error) error {
+func toModelRouteError(err error) error {
 	switch {
-	case errors.Is(err, routeservice.ErrInvalidArgument):
-		return kratoserrors.BadRequest(reasonInvalidArgument, "模型路由参数不合法").WithCause(err)
-	case errors.Is(err, routeservice.ErrAlreadyExists):
-		return kratoserrors.Conflict(reasonAlreadyExists, "资源标识冲突，请重新创建").WithCause(err)
-	case errors.Is(err, routeservice.ErrNotFound):
-		return kratoserrors.NotFound(reasonNotFound, "模型路由不存在").WithCause(err)
-	case errors.Is(err, routeservice.ErrConflict):
-		return kratoserrors.Conflict(reasonConflict, "模型路由已被修改，请刷新后重试").WithCause(err)
+	case errors.Is(err, modelrouteservice.ErrInvalidArgument):
+		return errno.ErrModelRouteInvalidArgument.WithCause(err)
+	case errors.Is(err, modelrouteservice.ErrAlreadyExists):
+		return errno.ErrModelRouteAlreadyExists.WithCause(err)
+	case errors.Is(err, modelrouteservice.ErrNotFound):
+		return errno.ErrModelRouteNotFound.WithCause(err)
+	case errors.Is(err, modelrouteservice.ErrConflict):
+		return errno.ErrModelRouteConflict.WithCause(err)
 	default:
-		return adminhandler.ToTransportError(ctx, err)
+		return errno.Fallback(err)
 	}
 }

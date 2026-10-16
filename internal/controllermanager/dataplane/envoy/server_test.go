@@ -21,8 +21,10 @@ import (
 )
 
 // callbackLogWriter 适配异步日志与测试断言；超时或取消后不阻塞 ADS 清理。
+// 对象只用于一次 ADS 测试，Context 由该测试创建和取消，gRPC 停止后不再复用。
+// io.Writer 的固定签名没有 Context 参数，因此在此保存该次测试的截止时间。
 type callbackLogWriter struct {
-	ctx  context.Context
+	ctx  context.Context //nolint:containedctx // 单次 ADS 测试的 io.Writer 适配，生命周期由测试取消并等待 gRPC 退出。
 	logs chan string
 }
 
@@ -41,6 +43,7 @@ func TestServerLifecycle(t *testing.T) {
 	if !server.NeedLeaderElection() {
 		t.Error("NeedLeaderElection() = false, want true")
 	}
+
 	if err := server.CheckReady(nil); err == nil {
 		t.Error("CheckReady(before Start) error = nil, want not listening")
 	}
@@ -60,12 +63,15 @@ func TestServerLifecycle(t *testing.T) {
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
+
 	if err := server.CheckReady(nil); err == nil {
 		t.Error("CheckReady(before initial Publish) error = nil, want missing configuration")
 	}
+
 	if err := publisher.Publish(ctx, dataplane.Config{}); err != nil {
 		t.Fatalf("Publish(empty) error = %v, want nil", err)
 	}
+
 	if err := server.CheckReady(nil); err != nil {
 		t.Errorf("CheckReady(after initial Publish) error = %v, want nil", err)
 	}
@@ -79,6 +85,7 @@ func TestServerLifecycle(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Start() did not stop within 2s after cancellation")
 	}
+
 	if err := server.CheckReady(nil); err == nil {
 		t.Error("CheckReady(after Stop) error = nil, want not listening")
 	}
@@ -89,6 +96,7 @@ func TestServerStartReportsBindError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("net.Listen() error = %v, want nil", err)
 	}
+
 	t.Cleanup(func() { _ = listener.Close() })
 
 	server := NewServer(listener.Addr().String(), NewPublisher("", ""), logr.Discard())
@@ -157,12 +165,14 @@ func TestADSStreamsPublishedResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("grpc.NewClient(bufconn) error = %v, want nil", err)
 	}
+
 	defer func() { _ = conn.Close() }()
 
 	stream, err := discoveryv3.NewAggregatedDiscoveryServiceClient(conn).StreamAggregatedResources(ctx)
 	if err != nil {
 		t.Fatalf("StreamAggregatedResources() error = %v, want nil", err)
 	}
+
 	for _, request := range []struct {
 		typeURL string
 		name    string
@@ -179,16 +189,20 @@ func TestADSStreamsPublishedResources(t *testing.T) {
 		if request.name != "" {
 			message.ResourceNames = []string{request.name}
 		}
+
 		if err := stream.Send(message); err != nil {
 			t.Fatalf("ADS Send(%s) error = %v, want nil", request.typeURL, err)
 		}
+
 		response, err := stream.Recv()
 		if err != nil {
 			t.Fatalf("ADS Recv(%s) error = %v, want nil", request.typeURL, err)
 		}
+
 		if got := response.TypeUrl; got != request.typeURL {
 			t.Errorf("ADS Recv(%s) type = %q, want %q", request.typeURL, got, request.typeURL)
 		}
+
 		if got := len(response.Resources); got != 1 {
 			t.Errorf("ADS Recv(%s) resources = %d, want 1", request.typeURL, got)
 		}
@@ -202,6 +216,7 @@ func TestADSStreamsPublishedResources(t *testing.T) {
 		if err := stream.Send(feedback); err != nil {
 			t.Fatalf("ADS Send(ACK %s) = %v", request.typeURL, err)
 		}
+
 		record := receiveCallbackLog(t, ctx, logs)
 		if record["result"] != "ack" || record["response_version"] != response.VersionInfo ||
 			record["nonce"] != response.Nonce || record["node_id"] != "envoy-1" {
@@ -214,6 +229,7 @@ func TestADSStreamsPublishedResources(t *testing.T) {
 			if err := stream.Send(feedback); err != nil {
 				t.Fatalf("ADS Send(NACK) = %v", err)
 			}
+
 			record := receiveCallbackLog(t, ctx, logs)
 			if record["result"] != "nack" || record["response_version"] != response.VersionInfo ||
 				record["client_version"] != "previous" {

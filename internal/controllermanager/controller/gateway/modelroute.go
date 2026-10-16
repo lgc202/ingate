@@ -23,6 +23,7 @@ func (c *aiCompilation) compileModelRoutes(routes []gatewayv1alpha1.ModelRoute) 
 		if !route.DeletionTimestamp.IsZero() {
 			continue
 		}
+
 		listeners := c.matchingListeners(route.Namespace, route.Spec.ParentRefs)
 		if len(listeners) == 0 {
 			continue
@@ -36,6 +37,7 @@ func (c *aiCompilation) compileModelRoutes(routes []gatewayv1alpha1.ModelRoute) 
 					i,
 				)
 			}
+
 			backendName := c.bindModelBackend(&route, i, rule.BackendRefs[0])
 			matches := rule.Matches
 			if len(matches) == 0 {

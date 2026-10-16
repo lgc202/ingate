@@ -14,10 +14,12 @@ func TestUpRejectsInvalidDSNBeforeOpeningConnection(t *testing.T) {
 	if wantCause == nil {
 		t.Fatal("ParseDSN(invalid DSN) error = nil, want driver parse failure")
 	}
+
 	err := Up(t.Context(), dsn)
 	if !errors.Is(err, wantCause) {
 		t.Errorf("Up(invalid DSN) error = %v, want driver cause %v", err, wantCause)
 	}
+
 	if err == nil || !strings.HasPrefix(err.Error(), "parse MySQL DSN: ") {
 		t.Errorf("Up(invalid DSN) error = %v, want original parse context", err)
 	}

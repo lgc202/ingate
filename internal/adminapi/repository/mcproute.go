@@ -75,6 +75,7 @@ func (r *MCPRoute) Get(
 		if errors.Is(err, mysql.ErrNotFound) {
 			return MCPRouteInfo{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 		}
+
 		return MCPRouteInfo{}, err
 	}
 
@@ -135,6 +136,7 @@ func (r *MCPRoute) Delete(ctx context.Context, namespace, name string) error {
 
 func mcpRouteFromAPI(route *gatewayv1alpha1.MCPRoute) MCPRouteInfo {
 	spec := route.Spec.DeepCopy()
+
 	return MCPRouteInfo{
 		Namespace:   route.Namespace,
 		Name:        route.Name,

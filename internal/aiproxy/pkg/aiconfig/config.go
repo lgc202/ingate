@@ -63,11 +63,13 @@ func newConfig(data []byte) (*Config, error) {
 			hosts[hostKey{port: listener.Port, name: host.Name}] = host
 		}
 	}
+
 	backends := make(map[string]ModelBackend, len(config.Backends))
 	networks := make(map[string]aidataplane.NetworkBackend, len(config.NetworkBackends))
 	for _, network := range config.NetworkBackends {
 		networks[network.Name] = network
 	}
+
 	for _, backend := range config.Backends {
 		target, err := aidataplane.ModelTargetName(backend, networks[backend.NetworkBackendName])
 		if err != nil {
@@ -111,6 +113,7 @@ func (c *Config) ResolveModel(port int32, hostName, modelName string) (ModelBack
 		if len(route.Headers) != 0 && route.Headers[0].Value != modelName {
 			continue
 		}
+
 		if *route.BackendName == "" {
 			return ModelBackend{}, fmt.Errorf("route %q: %w", route.Name, ErrModelBackendUnavailable)
 		}

@@ -101,6 +101,7 @@ func (s *Service) ChatCompletion(
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrForwardFailed, err)
 	}
+
 	if response.StatusCode == http.StatusSwitchingProtocols {
 		// 模型入口没有请求协议升级；不能把上游双向连接当作普通正文交付。
 		cause := errors.Join(errors.New("unexpected model protocol upgrade"), response.Body.Close())
@@ -120,6 +121,7 @@ func newChatCompletionRequest(
 	if err != nil {
 		return nil, fmt.Errorf("build model operation path: %w", err)
 	}
+
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://ingate-ai-egress"+path, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("build model request: %w", err)

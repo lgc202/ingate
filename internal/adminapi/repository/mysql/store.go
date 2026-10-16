@@ -51,5 +51,6 @@ func filterDisplayName(db *gorm.DB, name string) *gorm.DB {
 
 	// 显式使用 ! 转义，避免依赖 MySQL 的反斜杠 SQL 模式。
 	escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(name)
+
 	return db.Where("display_name LIKE ? ESCAPE '!'", "%"+escaped+"%")
 }

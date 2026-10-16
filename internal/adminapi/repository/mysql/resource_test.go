@@ -25,6 +25,7 @@ func (r *transactionRecorder) BeginTx(ctx context.Context, opts *sql.TxOptions) 
 	if opts != nil {
 		options = *opts
 	}
+
 	r.options = append(r.options, options)
 
 	return r.DB.BeginTx(ctx, opts)
@@ -49,10 +50,12 @@ func TestGetGatewayReadsListenersInOneTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetGateway(edge): %v", err)
 	}
+
 	if gateway.Version != "7" || len(gateway.Listeners) != 1 {
 		t.Errorf("GetGateway(edge) = %+v, want version 7 and one listener", gateway)
 		return
 	}
+
 	if gateway.Listeners[0].Name != "http" || gateway.Listeners[0].Port != 8080 {
 		t.Errorf("GetGateway(edge) listener = %+v, want http on port 8080", gateway.Listeners[0])
 	}
@@ -279,6 +282,7 @@ func TestGetGatewayRollsBackListenerReadFailure(t *testing.T) {
 	if !errors.Is(err, wantErr) {
 		t.Errorf("GetGateway(edge, listener failure) error = %v, want wrapped %v", err, wantErr)
 	}
+
 	if diff := cmp.Diff(Gateway{}, got); diff != "" {
 		t.Errorf("GetGateway(edge, listener failure) returned partial state (-want +got):\n%s", diff)
 	}
@@ -291,6 +295,7 @@ func recordReadOnlyTransaction(t *testing.T, store *Store) {
 	if err != nil {
 		t.Fatalf("gorm.DB.DB() error = %v, want nil", err)
 	}
+
 	recorder := &transactionRecorder{DB: db}
 	// 只改本测试的 GORM 连接池入口，不改变 SQL、事务执行或清理责任。
 	store.db.Statement.ConnPool = recorder
@@ -315,6 +320,7 @@ func newResourceTestStore(t *testing.T) (*Store, sqlmock.Sqlmock) {
 		if err := db.Close(); err != nil {
 			t.Errorf("Close(): %v", err)
 		}
+
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Errorf("SQL expectations: %v", err)
 		}

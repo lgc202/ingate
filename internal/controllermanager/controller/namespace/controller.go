@@ -55,6 +55,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.
 		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
+
 		return ctrl.Result{}, fmt.Errorf("get namespace %q from cache: %w", request.Name, err)
 	}
 
@@ -71,11 +72,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.
 	if err == nil {
 		return ctrl.Result{}, nil
 	}
+
 	if remaining, ok := errors.AsType[*deletion.ResourcesRemainingError](err); ok {
 		// 沿用官方 Estimate/2+1 的检查间隔；正常等待不进入失败退避或重复错误日志。
 		delay := time.Duration(remaining.Estimate/2+1) * time.Second
 		return ctrl.Result{RequeueAfter: delay}, nil
 	}
+
 	return ctrl.Result{}, err
 }
 

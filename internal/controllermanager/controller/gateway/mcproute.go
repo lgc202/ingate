@@ -22,10 +22,12 @@ func (c *aiCompilation) compileMCPRoutes(routes []gatewayv1alpha1.MCPRoute) erro
 		if !route.DeletionTimestamp.IsZero() {
 			continue
 		}
+
 		listeners := c.matchingListeners(route.Namespace, route.Spec.ParentRefs)
 		if len(listeners) == 0 {
 			continue
 		}
+
 		if len(route.Spec.BackendRefs) != 1 {
 			return fmt.Errorf("MCPRoute %q requires exactly one Backend reference", client.ObjectKeyFromObject(&route).String())
 		}

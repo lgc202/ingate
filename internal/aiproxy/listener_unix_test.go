@@ -17,6 +17,7 @@ func TestListenUnixProtectsAndUnlinksOwnedSocket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listenUnix(private directory) error = %v", err)
 	}
+
 	t.Cleanup(func() {
 		// 显式关闭路径之后的重复清理只允许 net.ErrClosed。
 		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
@@ -51,6 +52,7 @@ func TestListenUnixDoesNotAlterOccupiedPath(t *testing.T) {
 	if err == nil || listener != nil {
 		t.Fatalf("listenUnix(occupied path) = (%v, %v), want bind rejection", listener, err)
 	}
+
 	data, err := os.ReadFile(socket)
 	if err != nil {
 		t.Fatalf("ReadFile(occupied path) error = %v", err)
@@ -66,19 +68,23 @@ func TestListenUnixRejectsExposedDirectory(t *testing.T) {
 	if err := os.Chmod(directory, 0o755); err != nil {
 		t.Fatalf("Chmod(exposed directory) error = %v", err)
 	}
+
 	socket := filepath.Join(directory, "ingress.sock")
 
 	listener, err := listenUnix(socket)
 	if err == nil || listener != nil {
 		t.Fatalf("listenUnix(exposed directory) = (%v, %v), want rejection before binding", listener, err)
 	}
+
 	if _, err := os.Stat(socket); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("listenUnix(exposed directory) socket path error = %v, want no created socket", err)
 	}
+
 	info, err := os.Stat(directory)
 	if err != nil {
 		t.Fatalf("Stat(exposed directory) error = %v", err)
 	}
+
 	if info.Mode().Perm() != 0o755 {
 		t.Errorf("listenUnix(exposed directory) mode = %v, want unchanged directory", info.Mode())
 	}

@@ -64,6 +64,7 @@ func TestHTTPRouteRejectsInvalidContractBeforeWriting(t *testing.T) {
 			if !errors.Is(err, ErrInvalid) {
 				t.Errorf("Create error = %v, want ErrInvalid", err)
 			}
+
 			if actions := client.Actions(); len(actions) != 0 {
 				t.Errorf("invalid write caused API actions: %v", actions)
 			}
@@ -100,22 +101,28 @@ func TestHTTPRouteDefaultingCopiesInputAndPreservesRuleOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if len(created.Rules) != 2 || len(created.ParentRefs) != 2 {
 		t.Fatalf("lost route children: %+v", created)
 	}
+
 	if created.Rules[0].Name != "z-first" || created.Rules[1].Name != "a-second" {
 		t.Errorf("rule order = %+v", created.Rules)
 	}
+
 	if got := created.Rules[0].Matches[0].Path; got == nil || got.Type != "PathPrefix" || got.Value != "/" {
 		t.Errorf("default path = %+v", got)
 	}
+
 	stored, err := client.GatewayV1alpha1().HTTPRoutes("team-a").Get(t.Context(), input.Name, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if diff := cmp.Diff(want.Spec, stored.Spec); diff != "" {
 		t.Errorf("saved spec (-want +got):\n%s", diff)
 	}
+
 	created.Rules[1].Matches[0].Path.Value = "/changed"
 	if diff := cmp.Diff(before, &input); diff != "" {
 		t.Errorf("conversion mutated caller input (-want +got):\n%s", diff)

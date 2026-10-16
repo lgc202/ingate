@@ -32,6 +32,7 @@ func TestGetAIBackend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAIBackend(models) error = %v, want nil", err)
 	}
+
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("GetAIBackend(models) mismatch (-want +got):\n%s", diff)
 	}
@@ -45,6 +46,7 @@ func TestGetAIBackendNotFound(t *testing.T) {
 	if !errors.Is(err, ErrNotFound) || !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Errorf("GetAIBackend(missing) error = %v, want ErrNotFound and GORM cause", err)
 	}
+
 	if diff := cmp.Diff(AIBackend{}, got); diff != "" {
 		t.Errorf("GetAIBackend(missing) returned partial state (-want +got):\n%s", diff)
 	}
@@ -113,6 +115,7 @@ func TestListAIBackendsFiltersAndPaginates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListAIBackends(filtered page 2) error = %v, want nil", err)
 	}
+
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("ListAIBackends(filtered page 2) mismatch (-want +got):\n%s", diff)
 	}
@@ -130,6 +133,7 @@ func TestListAIBackendsReturnsNoPartialPageOnFailure(t *testing.T) {
 	if !errors.Is(err, wantErr) {
 		t.Errorf("ListAIBackends(page failure) error = %v, want wrapped %v", err, wantErr)
 	}
+
 	if diff := cmp.Diff(AIBackendPage{}, got); diff != "" {
 		t.Errorf("ListAIBackends(page failure) returned partial page (-want +got):\n%s", diff)
 	}
@@ -147,6 +151,7 @@ func TestListAIBackendsNoMatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListAIBackends(no match) error = %v, want nil", err)
 	}
+
 	if len(got.Items) != 0 || got.TotalCount != 0 {
 		t.Errorf("ListAIBackends(no match) = %+v, want empty page and total 0", got)
 	}

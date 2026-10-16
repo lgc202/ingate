@@ -44,14 +44,17 @@ func (r *resolution) selectHTTPRoutes(
 	for _, gateway := range r.gateways {
 		gatewaysByKey[client.ObjectKeyFromObject(gateway)] = gateway
 	}
+
 	backendsByKey := make(map[client.ObjectKey]*gatewayv1alpha1.Backend, len(backends))
 	for i := range backends {
 		backendsByKey[client.ObjectKeyFromObject(&backends[i])] = &backends[i]
 	}
+
 	ordered := make([]*gatewayv1alpha1.HTTPRoute, len(routes))
 	for i := range routes {
 		ordered[i] = &routes[i]
 	}
+
 	slices.SortFunc(ordered, func(a, b *gatewayv1alpha1.HTTPRoute) int {
 		return compareMeta(a.ObjectMeta, b.ObjectMeta)
 	})
@@ -69,6 +72,7 @@ func (r *resolution) selectHTTPRoutes(
 					}
 				}
 			}
+
 			r.parents = append(r.parents, state)
 		}
 	}
@@ -102,6 +106,7 @@ func (r *resolution) attachHTTPRouteParent(
 		if listener.Protocol != gatewayv1alpha1.ProtocolHTTP {
 			continue
 		}
+
 		if parent.SectionName != "" && parent.SectionName != listener.Name {
 			continue
 		}
@@ -137,6 +142,7 @@ func (r *resolution) bindHTTPRouteRules(
 		if len(matches) == 0 {
 			matches = []gatewayv1alpha1.HTTPRouteMatch{{}}
 		}
+
 		for j, match := range matches {
 			r.bindings = append(r.bindings, httpRouteBinding{
 				route:        route,
@@ -183,6 +189,7 @@ func (r *Reconciler) updateHTTPRouteStatuses(
 			if !state.accepted {
 				accepted.Status = metav1.ConditionFalse
 			}
+
 			meta.SetStatusCondition(&parent.Conditions, accepted)
 
 			resolved := metav1.Condition{
@@ -197,6 +204,7 @@ func (r *Reconciler) updateHTTPRouteStatuses(
 				resolved.Reason = "BackendNotFound"
 				resolved.Message = fmt.Sprintf("Backend %q does not exist", state.missingBackend)
 			}
+
 			meta.SetStatusCondition(&parent.Conditions, resolved)
 			desired = append(desired, parent)
 		}
@@ -207,6 +215,7 @@ func (r *Reconciler) updateHTTPRouteStatuses(
 				desired = append(desired, parent)
 			}
 		}
+
 		if apiequality.Semantic.DeepEqual(route.Status.Parents, desired) {
 			continue
 		}
@@ -226,12 +235,15 @@ func defaultHTTPRoutePath(path *gatewayv1alpha1.PathMatch) gatewayv1alpha1.PathM
 		if path.Type != "" {
 			result.Type = path.Type
 		}
+
 		if path.Value != "" {
 			result.Value = path.Value
 		}
 	}
+
 	if result.Type == gatewayv1alpha1.PathMatchPrefix && result.Value != "/" {
 		result.Value = strings.TrimSuffix(result.Value, "/")
 	}
+
 	return result
 }

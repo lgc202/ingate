@@ -64,6 +64,7 @@ func (r *AIBackend) Get(
 		if errors.Is(err, mysql.ErrNotFound) {
 			return AIBackendInfo{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 		}
+
 		return AIBackendInfo{}, err
 	}
 
@@ -123,6 +124,7 @@ func (r *AIBackend) Delete(ctx context.Context, namespace, name string) error {
 
 func aiBackendFromAPI(backend *gatewayv1alpha1.AIBackend) AIBackendInfo {
 	spec := backend.Spec
+
 	return AIBackendInfo{
 		Namespace:   backend.Namespace,
 		Name:        backend.Name,

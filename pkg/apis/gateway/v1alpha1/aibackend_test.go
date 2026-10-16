@@ -32,6 +32,7 @@ func TestAIBackendDefaulting(t *testing.T) {
 		if got := backend.Spec.Schema.Prefix; got != tt.want {
 			t.Errorf("Scheme.Default(AIBackend schema %q prefix %q).Prefix = %q, want %q", tt.name, tt.prefix, got, tt.want)
 		}
+
 		if got := backend.Spec.Schema.Name; got != tt.name {
 			t.Errorf("Scheme.Default(AIBackend schema %q).Name = %q, want unchanged", tt.name, got)
 		}
@@ -49,6 +50,7 @@ func TestAIBackendConversion(t *testing.T) {
 	if err := gateway.AddToScheme(scheme); err != nil {
 		t.Fatalf("gateway.AddToScheme() error = %v, want nil", err)
 	}
+
 	if err := AddToScheme(scheme); err != nil {
 		t.Fatalf("AddToScheme() error = %v, want nil", err)
 	}
@@ -66,6 +68,7 @@ func TestAIBackendConversion(t *testing.T) {
 	if err := scheme.Convert(input, &internal, nil); err != nil {
 		t.Fatalf("Scheme.Convert(AIBackend, internal) error = %v, want nil", err)
 	}
+
 	wantSpec := gateway.AIBackendSpec{
 		DisplayName: "模型服务",
 		BackendRef:  gateway.BackendReference{Name: "model-network"},
@@ -79,6 +82,7 @@ func TestAIBackendConversion(t *testing.T) {
 	if err := scheme.Convert(&internal, &roundTrip, nil); err != nil {
 		t.Fatalf("Scheme.Convert(internal AIBackend, external) error = %v, want nil", err)
 	}
+
 	if diff := cmp.Diff(input, &roundTrip); diff != "" {
 		t.Errorf("AIBackend conversion round trip mismatch (-want +got):\n%s", diff)
 	}

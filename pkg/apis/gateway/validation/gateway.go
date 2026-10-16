@@ -24,12 +24,14 @@ func ValidateGateway(gateway *gateway.Gateway) field.ErrorList {
 		apivalidation.NameIsDNSSubdomain,
 		field.NewPath("metadata"),
 	)
+
 	return append(errs, validateSpec(&gateway.Spec, field.NewPath("spec"))...)
 }
 
 // ValidateGatewayUpdate 校验更新后的 Gateway 资源。
 func ValidateGatewayUpdate(next, previous *gateway.Gateway) field.ErrorList {
 	errs := ValidateGateway(next)
+
 	return append(errs, apivalidation.ValidateObjectMetaUpdate(
 		&next.ObjectMeta,
 		&previous.ObjectMeta,
@@ -44,6 +46,7 @@ func ValidateGatewayStatusUpdate(next, previous *gateway.Gateway) field.ErrorLis
 		&previous.ObjectMeta,
 		field.NewPath("metadata"),
 	)
+
 	return append(errs, validateConditions(next.Status.Conditions, next.Generation)...)
 }
 
@@ -66,12 +69,14 @@ func validateSpec(spec *gateway.GatewaySpec, path *field.Path) field.ErrorList {
 				errs = append(errs, field.Duplicate(listenerPath.Child("name"), listener.Name))
 				continue
 			}
+
 			names[listener.Name] = true
 		}
 
 		if len(listenerErrs) > 0 {
 			continue
 		}
+
 		for _, existing := range validListeners {
 			if existing.Port == listener.Port &&
 				(existing.Hostname == "" || listener.Hostname == "" || existing.Hostname == listener.Hostname) {
@@ -83,6 +88,7 @@ func validateSpec(spec *gateway.GatewaySpec, path *field.Path) field.ErrorList {
 				break
 			}
 		}
+
 		validListeners = append(validListeners, listener)
 	}
 

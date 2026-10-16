@@ -82,6 +82,7 @@ func (o *Options) Config() (*Config, error) {
 	if err := validateAISockets(o.AIIngressSocket, o.AIEgressSocket); err != nil {
 		return nil, err
 	}
+
 	if messages := validation.IsDNS1123Label(o.AIConfigNamespace); len(messages) != 0 {
 		return nil, fmt.Errorf("AI configuration namespace %q must be a valid DNS label", o.AIConfigNamespace)
 	}
@@ -90,12 +91,14 @@ func (o *Options) Config() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("build API server client config: %w", err)
 	}
+
 	restConfig = rest.AddUserAgent(restConfig, componentName)
 
 	scheme := runtime.NewScheme()
 	if err := corev1.AddToScheme(scheme); err != nil {
 		return nil, fmt.Errorf("register core API types: %w", err)
 	}
+
 	if err := gatewayv1alpha1.AddToScheme(scheme); err != nil {
 		return nil, fmt.Errorf("register Gateway API types: %w", err)
 	}
@@ -120,9 +123,11 @@ func validateAISockets(ingress, egress string) error {
 	if ingress != "" && (!filepath.IsAbs(ingress) || strings.ContainsRune(ingress, 0)) {
 		return errors.New("AI ingress socket must be an absolute path without NUL")
 	}
+
 	if egress != "" && (!filepath.IsAbs(egress) || strings.ContainsRune(egress, 0)) {
 		return errors.New("AI egress socket must be an absolute path without NUL")
 	}
+
 	if ingress != "" && filepath.Clean(ingress) == filepath.Clean(egress) {
 		return errors.New("AI ingress and egress sockets must differ")
 	}

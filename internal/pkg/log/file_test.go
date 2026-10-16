@@ -26,21 +26,26 @@ func TestFileOutputIsLazyAndMatchesStandardOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newLogger(stdout, file) error = %v, want nil", err)
 	}
+
 	cleanupLog(t, closeLog)
 	if _, err := os.Stat(filepath.Dir(path)); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("New(file) parent directory error = %v, want not created before first write", err)
 	}
+
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "visible", 0)
 	if err := logger.Handler().Handle(t.Context(), record); err != nil {
 		t.Fatalf("Handle(file) error = %v, want nil", err)
 	}
+
 	if err := closeLog(); err != nil {
 		t.Errorf("Close(file) error = %v, want nil", err)
 	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("ReadFile(log) error = %v, want nil", err)
 	}
+
 	if string(data) != stdout.String() || !strings.Contains(string(data), `"msg":"visible"`) || stderr.Len() != 0 {
 		t.Errorf("file/stdout/stderr = %q/%q/%q, want identical visible record in file/stdout only", data, stdout.String(), stderr.String())
 	}
@@ -51,16 +56,19 @@ func TestFileOutputAppendsExistingFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte("existing\n"), 0o600); err != nil {
 		t.Fatalf("write existing log: %v", err)
 	}
+
 	logger, closeLog, err := New(Config{Outputs: []Output{OutputFile}, File: FileConfig{Path: path}})
 	if err != nil {
 		t.Fatalf("New(existing file) error = %v, want nil", err)
 	}
+
 	cleanupLog(t, closeLog)
 	logger.Info("appended")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("ReadFile(appended log) error = %v, want nil", err)
 	}
+
 	if !strings.HasPrefix(string(data), "existing\n") || !strings.Contains(string(data), `"msg":"appended"`) {
 		t.Errorf("existing log after write = %q, want existing contents followed by appended record", data)
 	}
@@ -72,9 +80,11 @@ func TestClosingLoggerDoesNotCloseStandardStreams(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newLogger(standard streams) error = %v, want nil", err)
 	}
+
 	if err := closeLog(); err != nil {
 		t.Errorf("Close(standard streams) error = %v, want nil", err)
 	}
+
 	logger.Info("still writable")
 	if stdout.closeCalls != 0 || stderr.closeCalls != 0 || stdout.Len() == 0 || stdout.String() != stderr.String() {
 		t.Errorf("standard stream close calls = %d/%d, outputs = %q/%q, want 0/0 and identical records", stdout.closeCalls, stderr.closeCalls, stdout.String(), stderr.String())
@@ -87,6 +97,7 @@ func TestNewRejectsUnsafeFilePathsAndRotationLimits(t *testing.T) {
 	if err := os.WriteFile(parentFile, []byte("unchanged"), 0o600); err != nil {
 		t.Fatalf("create non-directory parent: %v", err)
 	}
+
 	tests := []struct {
 		name string
 		file FileConfig
@@ -108,6 +119,7 @@ func TestNewRejectsUnsafeFilePathsAndRotationLimits(t *testing.T) {
 			}
 		})
 	}
+
 	data, err := os.ReadFile(parentFile)
 	if err != nil || string(data) != "unchanged" {
 		t.Errorf("unsafe path validation changed parent file: contents=%q, error=%v, want unchanged/nil", data, err)
@@ -121,6 +133,7 @@ func TestLaterInvalidOutputDoesNotCreateLogFile(t *testing.T) {
 		if logger != nil || closeLog != nil || err == nil {
 			t.Errorf("New(outputs=%v) = %v, close present=%t, error=%v, want nil/nil/error", outputs, logger, closeLog != nil, err)
 		}
+
 		if _, err := os.Stat(filepath.Dir(path)); !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("New(outputs=%v) parent directory error = %v, want no filesystem side effect", outputs, err)
 		}
@@ -134,22 +147,27 @@ func TestFileSizeRotation(t *testing.T) {
 	if err := os.WriteFile(path, seed, 0o600); err != nil {
 		t.Fatalf("write full log: %v", err)
 	}
+
 	logger, closeLog, err := New(Config{Outputs: []Output{OutputFile}, File: FileConfig{Path: path, MaxSizeMB: 1}})
 	if err != nil {
 		t.Fatalf("New(size-limited file) error = %v, want nil", err)
 	}
+
 	cleanupLog(t, closeLog)
 	if err := logger.Handler().Handle(t.Context(), slog.NewRecord(time.Now(), slog.LevelInfo, "rotated", 0)); err != nil {
 		t.Fatalf("Handle(rotation) error = %v, want nil", err)
 	}
+
 	backups, err := filepath.Glob(filepath.Join(dir, "app-*.log"))
 	if err != nil || len(backups) != 1 {
 		t.Fatalf("rotation backups = %v, error=%v, want one backup", backups, err)
 	}
+
 	data, err := os.ReadFile(backups[0])
 	if err != nil || !bytes.Equal(data, seed) {
 		t.Errorf("rotation backup size=%d, error=%v, want original %d bytes", len(data), err, len(seed))
 	}
+
 	current, err := os.ReadFile(path)
 	if err != nil || !strings.Contains(string(current), `"msg":"rotated"`) || len(current) >= len(seed) {
 		t.Errorf("current log size=%d, error=%v, want only new rotated record", len(current), err)
@@ -177,11 +195,13 @@ func TestFileBackupRetentionAndCompression(t *testing.T) {
 					t.Fatalf("seed backup: %v", err)
 				}
 			}
+
 			tt.file.Path = filepath.Join(dir, "app.log")
 			logger, closeLog, err := New(Config{Outputs: []Output{OutputFile}, File: tt.file})
 			if err != nil {
 				t.Fatalf("New(%s retention) error = %v, want nil", tt.name, err)
 			}
+
 			cleanupLog(t, closeLog)
 			logger.Info("trigger cleanup")
 			waitForLogMaintenance(t, old, fresh, tt.keepOld)
@@ -189,6 +209,7 @@ func TestFileBackupRetentionAndCompression(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Open(compressed backup) error = %v, want nil", err)
 			}
+
 			defer func() {
 				if err := file.Close(); err != nil {
 					t.Errorf("Close(compressed backup) error = %v, want nil", err)
@@ -198,10 +219,12 @@ func TestFileBackupRetentionAndCompression(t *testing.T) {
 			if err != nil {
 				t.Fatalf("gzip.NewReader() error = %v, want nil", err)
 			}
+
 			data, err := io.ReadAll(reader)
 			if err != nil || string(data) != "backup contents\n" {
 				t.Errorf("compressed backup contents=%q, error=%v, want original contents/nil", data, err)
 			}
+
 			if err := reader.Close(); err != nil {
 				t.Errorf("Close(gzip reader) error = %v, want nil", err)
 			}

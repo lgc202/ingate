@@ -1,9 +1,11 @@
 package apiserver
 
 import (
+	"errors"
 	"fmt"
 
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	"k8s.io/klog/v2"
 )
 
 // Server 保存组装完成、尚未运行的 Generic API Server。
@@ -22,8 +24,21 @@ func (c completedConfig) New() (*Server, error) {
 		if c.namespaceInitializer != nil {
 			c.namespaceInitializer.informers.Shutdown()
 		}
-		return nil, fmt.Errorf("create generic API server: %w", err)
+
+		return nil, errors.Join(
+			fmt.Errorf("create generic API server: %w", err),
+			closeSecureServing(c.genericConfig.SecureServing),
+		)
 	}
+
+	// Run 正常关闭 HTTP Listener；在 API 安装失败、运行失败或重复 Destroy 时，
+	// 仍由框架同一个销毁入口回收。原生 Listener 的重复 Close 被视为已完成清理。
+	genericServer.RegisterDestroyFunc(func() {
+		if err := closeSecureServing(c.genericConfig.SecureServing); err != nil {
+			klog.Background().Error(err, "Failed to close API server listener")
+		}
+	})
+
 	if c.namespaceInitializer != nil {
 		// 接管工厂清理：安装失败时 Destroy 立即释放；正常退出时框架先取消 Hook
 		// 的 Context，再调用 Destroy，Shutdown 在此等待 Informer 工作协程结束。

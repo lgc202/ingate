@@ -39,6 +39,7 @@ func TestCreateModelRouteReturnsSavedStateHTTP(t *testing.T) {
 		gatewayv1alpha1.SetDefaultsModelRoute(route)
 		route.ResourceVersion = "9"
 		route.CreationTimestamp = metav1.NewTime(createdAt)
+
 		return true, route, nil
 	})
 	server := httptest.NewServer(httpServer)
@@ -47,6 +48,7 @@ func TestCreateModelRouteReturnsSavedStateHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("http.NewClient() error = %v, want nil", err)
 	}
+
 	t.Cleanup(func() {
 		if err := httpClient.Close(); err != nil {
 			t.Errorf("Client.Close() error = %v, want nil", err)
@@ -76,10 +78,12 @@ func TestCreateModelRouteReturnsSavedStateHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateModelRoute(HTTP round trip) error = %v, want nil", err)
 	}
+
 	name := reply.GetRoute().GetName()
 	if !strings.HasPrefix(name, "modelroute-") {
 		t.Errorf("CreateModelRoute().name = %q, want generated modelroute ID", name)
 	}
+
 	want := &adminv1.ModelRoute{
 		Namespace:   "team-a",
 		Name:        name,
@@ -136,6 +140,7 @@ func TestModelRouteUpdateAndDeleteHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get(ModelRoute after stale update) error = %v, want nil", err)
 	}
+
 	if diff := cmp.Diff(seed, stored); diff != "" {
 		t.Errorf("UpdateModelRoute(stale) changed state (-want +got):\n%s", diff)
 	}
@@ -147,6 +152,7 @@ func TestModelRouteUpdateAndDeleteHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get(updated ModelRoute) error = %v, want nil", err)
 	}
+
 	want := seed.DeepCopy()
 	want.Spec = gatewayv1alpha1.ModelRouteSpec{
 		ParentRefs: []gatewayv1alpha1.ParentReference{{Name: "other"}},
@@ -158,6 +164,7 @@ func TestModelRouteUpdateAndDeleteHTTP(t *testing.T) {
 	if diff := cmp.Diff(want, stored); diff != "" {
 		t.Errorf("UpdateModelRoute(full PUT, metadata/status preserved) mismatch (-want +got):\n%s", diff)
 	}
+
 	var reply adminv1.UpdateModelRouteReply
 	decodeReply(t, response, &reply)
 	wantReply := &adminv1.ModelRoute{
@@ -180,6 +187,7 @@ func TestModelRouteUpdateAndDeleteHTTP(t *testing.T) {
 	if _, err := client.GatewayV1alpha1().ModelRoutes("team-a").Get(t.Context(), "models", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("Get(deleted ModelRoute) error = %v, want NotFound", err)
 	}
+
 	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/namespaces/team-a/model-routes/models", "")
 	requireHTTPStatus(t, response, http.StatusNotFound)
 }
@@ -230,6 +238,7 @@ func TestModelRouteAuthenticationHTTP(t *testing.T) {
 		response := requestResource(httpServer, tt.method, tt.path, tt.body)
 		requireHTTPStatus(t, response, http.StatusUnauthorized)
 	}
+
 	if calls != 5 || len(client.Actions()) != 0 {
 		t.Errorf("ModelRoute unauthenticated requests = %d auth calls and %v API actions, want 5 and none", calls, client.Actions())
 	}
@@ -308,9 +317,11 @@ func TestModelRouteGRPC(t *testing.T) {
 	if _, err := client.CreateModelRoute(t.Context(), &adminv1.CreateModelRouteRequest{Namespace: "team-a"}); status.Code(err) != codes.InvalidArgument {
 		t.Errorf("CreateModelRoute(empty) error = %v, want InvalidArgument", err)
 	}
+
 	if actions := backend.Actions(); len(actions) != 0 {
 		t.Errorf("CreateModelRoute(empty) API actions = %v, want none", actions)
 	}
+
 	request := &adminv1.CreateModelRouteRequest{
 		Namespace:   "team-a",
 		DisplayName: "模型路由",
@@ -321,10 +332,12 @@ func TestModelRouteGRPC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateModelRoute(first) error = %v, want nil", err)
 	}
+
 	second, err := client.CreateModelRoute(t.Context(), request)
 	if err != nil {
 		t.Fatalf("CreateModelRoute(duplicate display name) error = %v, want nil", err)
 	}
+
 	if first.GetRoute().GetName() == second.GetRoute().GetName() || second.GetRoute().GetDisplayName() != "模型路由" {
 		t.Errorf("CreateModelRoute(duplicate display name) = %v, want distinct ID and same display name", second)
 	}
@@ -345,6 +358,7 @@ func TestModelRouteGRPC(t *testing.T) {
 	if _, err := client.CreateModelRoute(t.Context(), request); status.Code(err) != codes.InvalidArgument || kratoserrors.Reason(err) != "MODEL_ROUTE_INVALID_ARGUMENT" {
 		t.Errorf("CreateModelRoute(API validation error) = %v, want InvalidArgument/MODEL_ROUTE_INVALID_ARGUMENT", err)
 	}
+
 	backend.PrependReactor("create", "modelroutes", func(clienttesting.Action) (bool, runtime.Object, error) {
 		return true, nil, errors.New("private storage failure")
 	})

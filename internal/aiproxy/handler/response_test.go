@@ -36,10 +36,12 @@ func TestWriteModelResponsePreservesStatusAndEndToEndHeaders(t *testing.T) {
 	if response.Code != 429 || response.Body.String() != `{"error":"provider limit"}` || body.closes != 1 {
 		t.Errorf("writeModelResponse(provider error) = (%d, %s, closes %d), want original response and one close", response.Code, response.Body, body.closes)
 	}
+
 	want := http.Header{"Content-Type": {"application/json"}, "X-Provider": {"original"}}
 	if diff := cmp.Diff(want, response.Header()); diff != "" {
 		t.Errorf("writeModelResponse() headers mismatch (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(before, upstream.Header); diff != "" {
 		t.Errorf("writeModelResponse() modified source headers (-want +got):\n%s", diff)
 	}

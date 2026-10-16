@@ -43,8 +43,10 @@ func TestRunStartsUnixServerAndStopsConfigWatch(t *testing.T) {
 		if r.URL.Path != "/api/v1/namespaces/control-plane/configmaps" || r.URL.Query().Get("fieldSelector") != "metadata.name="+aidataplane.ConfigMapName {
 			t.Errorf("AI config API request = %s, want scoped ConfigMap List/Watch", r.URL)
 			w.WriteHeader(http.StatusBadRequest)
+
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Query().Get("watch") == "true" {
 			w.WriteHeader(http.StatusOK)
@@ -52,11 +54,14 @@ func TestRunStartsUnixServerAndStopsConfigWatch(t *testing.T) {
 				t.Errorf("Flush(config watch) error = %v", err)
 				return
 			}
+
 			started.Do(func() { close(watchStarted) })
 			<-r.Context().Done()
 			stopped.Do(func() { close(watchStopped) })
+
 			return
 		}
+
 		if _, err := io.WriteString(w, `{"apiVersion":"v1","kind":"ConfigMapList","metadata":{"resourceVersion":"1"},"items":[]}`); err != nil {
 			t.Errorf("WriteString(config list) error = %v", err)
 		}
@@ -79,10 +84,12 @@ func TestRunStartsUnixServerAndStopsConfigWatch(t *testing.T) {
 	case <-deadline.Done():
 		t.Fatal("Run(runtime config) did not start the configuration Watch")
 	}
+
 	client, err := envoyclient.New(socket)
 	if err != nil {
 		t.Fatalf("New(Unix ingress client) error = %v", err)
 	}
+
 	t.Cleanup(client.CloseIdleConnections)
 	request, err := http.NewRequestWithContext(deadline, http.MethodPost, "http://ingate-ai-ingress/v1/chat/completions", strings.NewReader(`{"model":"coding"}`))
 	if err != nil {
@@ -93,9 +100,11 @@ func TestRunStartsUnixServerAndStopsConfigWatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Do(runtime Unix ingress) error = %v", err)
 	}
+
 	if err := response.Body.Close(); err != nil {
 		t.Errorf("Close(runtime response) error = %v", err)
 	}
+
 	if response.StatusCode != http.StatusBadRequest {
 		t.Errorf("Run(runtime ingress without entry headers) status = %d, want 400", response.StatusCode)
 	}
@@ -110,11 +119,13 @@ func TestRunStartsUnixServerAndStopsConfigWatch(t *testing.T) {
 	case <-deadline.Done():
 		t.Fatal("Run(cancelled runtime) did not stop")
 	}
+
 	select {
 	case <-watchStopped:
 	case <-deadline.Done():
 		t.Error("Run(cancelled runtime) left an API Watch request active")
 	}
+
 	if _, err := os.Stat(socket); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("Run(cancelled runtime) socket path error = %v, want owned socket removed", err)
 	}
@@ -127,10 +138,10 @@ func TestRunRejectsClientConfigBeforeBinding(t *testing.T) {
 	configFile := writeStartupConfig(t, data)
 
 	err := Run(t.Context(), configFile)
-
 	if err == nil {
 		t.Fatal("Run(missing kubeconfig) error = nil, want startup failure")
 	}
+
 	if _, err := os.Stat(socket); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("Run(missing kubeconfig) socket path error = %v, want no bound socket", err)
 	}
@@ -159,10 +170,12 @@ func TestAppStopTimeoutCancelsOpenStream(t *testing.T) {
 			t.Errorf("WriteString(shutdown stream) error = %v", err)
 			return
 		}
+
 		if err := http.NewResponseController(w).Flush(); err != nil {
 			t.Errorf("Flush(shutdown stream) error = %v", err)
 			return
 		}
+
 		<-r.Context().Done()
 	})}}
 	peer.Start()
@@ -172,15 +185,14 @@ func TestAppStopTimeoutCancelsOpenStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile(shutdown config fixture) error = %v", err)
 	}
+
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "control-plane", Name: aidataplane.ConfigMapName, UID: "shutdown"},
 		Data:       map[string]string{aidataplane.ConfigMapDataKey: string(data)},
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	loader, err := aiconfig.NewLoader(fake.NewClientset(configMap), "control-plane", logger)
-	if err != nil {
-		t.Fatalf("NewLoader(shutdown test) error = %v", err)
-	}
+	loader := aiconfig.NewLoader(fake.NewClientset(configMap), "control-plane", logger)
+
 	config := &conf.Bootstrap{
 		Server: &conf.Server{
 			Socket:              ingress.Addr().String(),
@@ -194,6 +206,7 @@ func TestAppStopTimeoutCancelsOpenStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newApp(shutdown test) error = %v", err)
 	}
+
 	t.Cleanup(closeIdle)
 	result := make(chan error, 1)
 	var worker sync.WaitGroup
@@ -208,15 +221,18 @@ func TestAppStopTimeoutCancelsOpenStream(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Capture(shutdown test fixture) did not become available: %v", err)
 	}
+
 	client, err := envoyclient.New(ingress.Addr().String())
 	if err != nil {
 		t.Fatalf("New(shutdown test client) error = %v", err)
 	}
+
 	t.Cleanup(client.CloseIdleConnections)
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://ingate-ai-ingress/v1/chat/completions", strings.NewReader(`{"model":"coding","stream":true}`))
 	if err != nil {
 		t.Fatalf("NewRequestWithContext(shutdown test) error = %v", err)
 	}
+
 	request.Header.Set(aidataplane.ListenerPortHeader, "8080")
 	request.Header.Set(aidataplane.HostNameHeader, "gateway/team-a/public/listener/api")
 
@@ -224,6 +240,7 @@ func TestAppStopTimeoutCancelsOpenStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Do(shutdown stream) error = %v", err)
 	}
+
 	t.Cleanup(func() {
 		if err := response.Body.Close(); err != nil {
 			t.Errorf("Close(shutdown response) error = %v", err)
@@ -246,14 +263,17 @@ func TestAppStopTimeoutCancelsOpenStream(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("runApp(shutdown deadline) did not terminate open SSE")
 	}
+
 	if ctx.Err() != nil {
 		t.Error("runApp stopped because the outer test expired, not the configured shutdown timeout")
 	}
+
 	select {
 	case <-ended:
 	case <-ctx.Done():
 		t.Error("shutdown timeout did not cancel the upstream Unix request")
 	}
+
 	if _, loaded := loader.Capture(); loaded {
 		t.Error("runApp returned before the configuration Loader cleared its state")
 	}
@@ -270,6 +290,7 @@ func writeRuntimeConfig(t *testing.T, socket, endpoint string) string {
 	if err := clientcmd.WriteToFile(connection, kubeconfig); err != nil {
 		t.Fatalf("WriteToFile(runtime kubeconfig) error = %v", err)
 	}
+
 	data := strings.ReplaceAll(validStartupYAML, "/run/ingate/ingress.sock", socket)
 	data = strings.ReplaceAll(data, "/etc/ingate/ai-proxy.kubeconfig", kubeconfig)
 

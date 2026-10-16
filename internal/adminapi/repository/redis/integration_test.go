@@ -32,23 +32,29 @@ func TestSessionIntegration(t *testing.T) {
 	if _, err := store.GetSession(ctx, ids[0]); !errors.Is(err, ErrNotFound) {
 		t.Errorf("GetSession(missing) error = %v, want ErrNotFound", err)
 	}
+
 	if err := store.CreateSession(ctx, ids[0], want, time.Now().Add(time.Minute)); err != nil {
 		t.Fatalf("CreateSession() error = %v, want nil", err)
 	}
+
 	got, err := store.GetSession(ctx, ids[0])
 	if err != nil || got != want {
 		t.Errorf("GetSession() = %+v, %v, want %+v, nil", got, err, want)
 	}
+
 	value, err := client.Get(ctx, sessionKey(ids[0])).Result()
 	if err != nil || value != `{"account_id":17,"account_version":3}` {
 		t.Errorf("raw session = %q, %v, want original JSON fields", value, err)
 	}
+
 	if err := store.DeleteSession(ctx, ids[0]); err != nil {
 		t.Errorf("DeleteSession() error = %v, want nil", err)
 	}
+
 	if _, err := store.GetSession(ctx, ids[0]); !errors.Is(err, ErrNotFound) {
 		t.Errorf("GetSession(deleted) error = %v, want ErrNotFound", err)
 	}
+
 	if err := store.DeleteSession(ctx, ids[0]); err != nil {
 		t.Errorf("DeleteSession(missing) error = %v, want nil", err)
 	}
@@ -56,12 +62,15 @@ func TestSessionIntegration(t *testing.T) {
 	if err := store.CreateSession(ctx, ids[2], want, time.Now().Add(-time.Minute)); err != nil {
 		t.Fatalf("CreateSession(past deadline) error = %v, want nil", err)
 	}
+
 	if _, err := store.GetSession(ctx, ids[2]); !errors.Is(err, ErrNotFound) {
 		t.Errorf("GetSession(past deadline) error = %v, want ErrNotFound", err)
 	}
+
 	if err := store.CreateSession(ctx, ids[1], want, time.Now().Add(3*time.Second)); err != nil {
 		t.Fatalf("CreateSession(expiring) error = %v, want nil", err)
 	}
+
 	if ttl, err := client.PTTL(ctx, sessionKey(ids[1])).Result(); err != nil || ttl <= 0 || ttl > 3*time.Second {
 		t.Errorf("session PTTL = %v, %v, want positive TTL within deadline", ttl, err)
 	}
@@ -73,6 +82,7 @@ func TestSessionIntegration(t *testing.T) {
 		if errors.Is(err, ErrNotFound) {
 			return
 		}
+
 		if err != nil {
 			t.Fatalf("GetSession(expiring) error = %v, want nil or ErrNotFound", err)
 		}
@@ -90,6 +100,7 @@ func TestClusterRoutesSessionsAcrossMasters(t *testing.T) {
 	if config.MasterName != "" || (!config.IsClusterMode && len(config.Addrs) == 1) {
 		t.Skip("requires Redis Cluster with at least two masters owning slots")
 	}
+
 	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Second)
 	defer cancel()
 	client := newIntegrationClient(t, ctx, config)
@@ -97,12 +108,14 @@ func TestClusterRoutesSessionsAcrossMasters(t *testing.T) {
 	if !ok {
 		t.Fatalf("New() type = %T, want *redis.ClusterClient", client)
 	}
+
 	store := New(client)
 	ids := make([]string, 24)
 	prefix := fmt.Sprintf("integration-cluster-%d", time.Now().UnixNano())
 	for i := range ids {
 		ids[i] = fmt.Sprintf("%s-%d", prefix, i)
 	}
+
 	cleanupIntegrationSessions(t, store, ids)
 	masters := make(map[string]bool)
 
@@ -111,22 +124,27 @@ func TestClusterRoutesSessionsAcrossMasters(t *testing.T) {
 		if err := store.CreateSession(ctx, id, want, time.Now().Add(time.Minute)); err != nil {
 			t.Fatalf("CreateSession(%d) error = %v, want nil", i, err)
 		}
+
 		master, err := cluster.MasterForKey(ctx, sessionKey(id))
 		if err != nil {
 			t.Fatalf("MasterForKey(%d) error = %v, want nil", i, err)
 		}
+
 		masters[master.Options().Addr] = true
 		got, err := store.GetSession(ctx, id)
 		if err != nil || got != want {
 			t.Errorf("GetSession(%d) = %+v, %v, want %+v, nil", i, got, err, want)
 		}
+
 		if err := store.DeleteSession(ctx, id); err != nil {
 			t.Errorf("DeleteSession(%d) error = %v, want nil", i, err)
 		}
+
 		if _, err := store.GetSession(ctx, id); !errors.Is(err, ErrNotFound) {
 			t.Errorf("GetSession(deleted %d) error = %v, want ErrNotFound", i, err)
 		}
 	}
+
 	if len(masters) < 2 {
 		t.Errorf("sessions covered %d masters, want at least two", len(masters))
 	}
@@ -151,11 +169,13 @@ func TestIntegrationRejectsInvalidCredentials(t *testing.T) {
 				if tt.config.MasterName == "" || tt.config.SentinelPassword == "" {
 					t.Skip("requires password-protected Sentinel")
 				}
+
 				tt.config.SentinelPassword += "-wrong"
 			} else {
 				if tt.config.Password == "" {
 					t.Skip("requires password-protected Redis")
 				}
+
 				tt.config.Password += "-wrong"
 			}
 
@@ -163,6 +183,7 @@ func TestIntegrationRejectsInvalidCredentials(t *testing.T) {
 			if err != nil {
 				t.Fatalf("New() error = %v, want nil before authentication", err)
 			}
+
 			t.Cleanup(func() {
 				if err := client.Close(); err != nil {
 					t.Errorf("Close() error = %v, want nil", err)
@@ -194,6 +215,7 @@ func TestIntegrationNetworkReadUsesContextDeadline(t *testing.T) {
 			t.Errorf("BLPop() error = %v, want deadline or network timeout", err)
 		}
 	}
+
 	if elapsed > time.Second {
 		t.Errorf("BLPop() took %v, want network deadline to stop it within 1s", elapsed)
 	}
@@ -205,12 +227,14 @@ func integrationConfig(t *testing.T) redisclient.Config {
 	if raw == "" {
 		t.Skip("set INGATE_REDIS_TEST_CONFIG to test a dedicated Redis deployment")
 	}
+
 	var config redisclient.Config
 	decoder := json.NewDecoder(strings.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&config); err != nil {
 		t.Fatal("invalid INGATE_REDIS_TEST_CONFIG JSON")
 	}
+
 	return config
 }
 
@@ -220,6 +244,7 @@ func newIntegrationClient(t *testing.T, ctx context.Context, config redisclient.
 	if err != nil {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
+
 	t.Cleanup(func() {
 		if err := client.Close(); err != nil {
 			t.Errorf("Close() error = %v, want nil", err)
@@ -228,6 +253,7 @@ func newIntegrationClient(t *testing.T, ctx context.Context, config redisclient.
 	if err := client.Ping(ctx).Err(); err != nil {
 		t.Fatalf("Ping() error = %v, want nil", err)
 	}
+
 	return client
 }
 

@@ -76,16 +76,20 @@ func TestRESTDefaultAttributes(t *testing.T) {
 			if tt.attrs == nil {
 				t.Fatal("NewREST() attributes = nil, want completed default function")
 			}
+
 			gotLabels, gotFields, err := tt.attrs(backend)
 			if err != nil {
 				t.Fatalf("attributes(%T) error = %v, want nil", backend, err)
 			}
+
 			if diff := cmp.Diff(labels.Set{"environment": "production"}, gotLabels); diff != "" {
 				t.Errorf("attributes(%T) labels mismatch (-want +got):\n%s", backend, diff)
 			}
+
 			if diff := cmp.Diff(fields.Set{"metadata.name": "network", "metadata.namespace": "team-a"}, gotFields); diff != "" {
 				t.Errorf("attributes(%T) fields mismatch (-want +got):\n%s", backend, diff)
 			}
+
 			if _, _, err := tt.attrs(&runtime.Unknown{}); err == nil {
 				t.Error("attributes(*runtime.Unknown) error = nil, want missing metadata error")
 			}
@@ -143,6 +147,7 @@ func TestRESTDefaultSelection(t *testing.T) {
 				t.Fatalf("PredicateFunc(%q, %q).Matches(%q) error = %v, want nil",
 					tt.labelSelector, tt.fieldSelector, backend.Name, err)
 			}
+
 			if got != tt.want {
 				t.Errorf("PredicateFunc(%q, %q).Matches(%q) = %t, want %t",
 					tt.labelSelector, tt.fieldSelector, backend.Name, got, tt.want)
@@ -159,6 +164,7 @@ func TestNewRESTReturnsOptionsError(t *testing.T) {
 	if !errors.Is(err, wantErr) {
 		t.Errorf("NewREST() error = %v, want errors.Is(error, %v)", err, wantErr)
 	}
+
 	if mainREST != nil || statusREST != nil {
 		t.Errorf("NewREST() = (%v, %v), want (nil, nil)", mainREST, statusREST)
 	}
@@ -172,6 +178,7 @@ func newRESTForTest(t *testing.T) (*REST, storage.AttrFunc) {
 	if err != nil {
 		t.Fatalf("NewREST() error = %v, want nil", err)
 	}
+
 	t.Cleanup(mainREST.Destroy)
 	if mainREST.PredicateFunc == nil || spy.attrs == nil {
 		t.Fatal("NewREST() predicate/attributes = nil, want completed defaults")

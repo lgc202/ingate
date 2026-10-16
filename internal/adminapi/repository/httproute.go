@@ -81,6 +81,7 @@ func (r *HTTPRoute) Get(
 		if errors.Is(err, mysql.ErrNotFound) {
 			return HTTPRouteInfo{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 		}
+
 		return HTTPRouteInfo{}, err
 	}
 
@@ -150,14 +151,17 @@ func validateRoute(route *gatewayv1alpha1.HTTPRoute) error {
 	if err := gatewayv1alpha1.Convert_v1alpha1_HTTPRoute_To_gateway_HTTPRoute(route, &internal, nil); err != nil {
 		return fmt.Errorf("convert HTTPRoute: %w", err)
 	}
+
 	if errs := gatewayvalidation.ValidateHTTPRoute(&internal); len(errs) > 0 {
 		return fmt.Errorf("%w: %w", ErrInvalid, errs.ToAggregate())
 	}
+
 	return nil
 }
 
 func routeFromAPI(route *gatewayv1alpha1.HTTPRoute) HTTPRouteInfo {
 	spec := route.DeepCopy().Spec
+
 	return HTTPRouteInfo{
 		Namespace:   route.Namespace,
 		Name:        route.Name,
@@ -184,6 +188,7 @@ func routeFromMySQL(route mysql.HTTPRoute) HTTPRouteInfo {
 			SectionName: ref.SectionName,
 		})
 	}
+
 	for _, rule := range route.Rules {
 		target := gatewayv1alpha1.HTTPRouteRule{Name: rule.Name}
 		for _, match := range rule.Matches {
@@ -194,9 +199,11 @@ func routeFromMySQL(route mysql.HTTPRoute) HTTPRouteInfo {
 				},
 			})
 		}
+
 		for _, ref := range rule.BackendRefs {
 			target.BackendRefs = append(target.BackendRefs, gatewayv1alpha1.BackendReference{Name: ref.Name})
 		}
+
 		result.Rules = append(result.Rules, target)
 	}
 

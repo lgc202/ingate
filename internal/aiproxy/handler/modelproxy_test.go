@@ -44,12 +44,15 @@ func TestModelProxyHandlerChatCompletion(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&fields); err != nil {
 				t.Errorf("Decode(outbound body) error = %v", err)
 			}
+
 			if string(fields["model"]) != `"code-v2"` {
 				t.Errorf("ChatCompletion() outbound model = %s, want code-v2", fields["model"])
 			}
+
 			if r.Header.Get(aidataplane.TargetHeader) == "spoofed" || r.Header.Get(aidataplane.TargetHeader) == "" {
 				t.Errorf("ChatCompletion() target = %q, want generated target", r.Header.Get(aidataplane.TargetHeader))
 			}
+
 			for _, name := range []string{
 				"Authorization", "Cookie", "X-Api-Key", "X-Custom-Secret", "Forwarded", "X-Forwarded-For",
 				"X-Envoy-Upstream-Rq-Timeout-Ms", "X-Ai-Eg-Model", "Content-Length", "Trailer",
@@ -58,9 +61,11 @@ func TestModelProxyHandlerChatCompletion(t *testing.T) {
 					t.Errorf("ChatCompletion() retained client header %q", name)
 				}
 			}
+
 			if r.URL.Host != "ingate-ai-egress" || r.URL.RawQuery != "" || r.GetBody != nil || len(r.TransferEncoding) != 0 || len(r.Trailer) != 0 {
 				t.Errorf("ChatCompletion() outbound request = %s, want fixed fresh request without replay or framing inheritance", r.URL)
 			}
+
 			if r.Header.Get("Accept") != "text/event-stream" || r.Header.Get("User-Agent") != "" {
 				t.Errorf("ChatCompletion() Accept/User-Agent = %q/%q, want allowed negotiation and no client identity", r.Header.Get("Accept"), r.Header.Get("User-Agent"))
 			}
@@ -95,6 +100,7 @@ func TestModelProxyHandlerChatCompletion(t *testing.T) {
 		if !called || response.Code != http.StatusAccepted || response.Body.String() != `{"accepted":true}` {
 			t.Errorf("ChatCompletion() = (called %t, status %d, body %s), want original upstream response", called, response.Code, response.Body)
 		}
+
 		if request.URL.Host != "untrusted.example" || request.Header.Get("Content-Length") != "999" || request.GetBody == nil || len(request.Trailer) != 1 {
 			t.Error("ChatCompletion() modified the original request metadata")
 		}
@@ -129,6 +135,7 @@ func TestModelProxyHandlerRejectsBeforeClientCall(t *testing.T) {
 				if tt.trusted {
 					request = request.WithContext(WithModelEntry(t.Context(), 8080, "gateway/team-a/public/listener/api"))
 				}
+
 				response := httptest.NewRecorder()
 
 				router.ServeHTTP(response, request)
@@ -179,6 +186,7 @@ func TestModelProxyHandlerMiddlewarePrecedesReadAndPreservesContext(t *testing.T
 			if _, ok := r.Context().Value(modelEntryKey{}).(modelEntry); !ok {
 				t.Error("ChatCompletion() lost the middleware-derived request context")
 			}
+
 			return modelResponse(http.StatusNoContent, "", nil), nil
 		})
 		service := startModelService(t, transport, modelConfigMap(t))
@@ -242,6 +250,7 @@ func TestModelProxyHandlerReadFailures(t *testing.T) {
 					request = request.WithContext(ctx)
 					wantStatus, wantReads = 499, 0
 				}
+
 				response := httptest.NewRecorder()
 
 				router.ServeHTTP(response, request)
@@ -255,10 +264,8 @@ func TestModelProxyHandlerReadFailures(t *testing.T) {
 }
 
 func TestNewModelProxyRejectsInvalidBodyLimit(t *testing.T) {
-	loader, err := aiconfig.NewLoader(fake.NewClientset(), "control-plane", slog.Default())
-	if err != nil {
-		t.Fatalf("NewLoader(constructor test) error = %v", err)
-	}
+	loader := aiconfig.NewLoader(fake.NewClientset(), "control-plane", slog.Default())
+
 	service := modelproxy.New(loader, &http.Client{})
 	for _, limit := range []int64{0, -1} {
 		modelProxyHandler, err := NewModelProxy(service, limit, slog.Default())
@@ -271,17 +278,61 @@ func TestNewModelProxyRejectsInvalidBodyLimit(t *testing.T) {
 
 func TestModelTransportError(t *testing.T) {
 	for _, tt := range []struct {
-		name       string
-		cause      error
-		wantStatus int
+		name        string
+		cause       error
+		wantStatus  int
+		wantReason  string
+		wantMessage string
 	}{
-		{name: "invalid", cause: modelproxy.ErrInvalidArgument, wantStatus: 400},
-		{name: "not found", cause: modelproxy.ErrModelNotFound, wantStatus: 404},
-		{name: "unavailable", cause: modelproxy.ErrUnavailable, wantStatus: 503},
-		{name: "forward failed", cause: modelproxy.ErrForwardFailed, wantStatus: 502},
-		{name: "canceled", cause: fmt.Errorf("%w: %w", modelproxy.ErrForwardFailed, context.Canceled), wantStatus: 499},
-		{name: "deadline", cause: fmt.Errorf("%w: %w", modelproxy.ErrForwardFailed, context.DeadlineExceeded), wantStatus: 504},
-		{name: "unknown protocol error", cause: kratoserrors.BadRequest("PRIVATE", "sensitive detail").WithMetadata(map[string]string{"secret": "private"}), wantStatus: 500},
+		{
+			name:        "invalid",
+			cause:       modelproxy.ErrInvalidArgument,
+			wantStatus:  400,
+			wantReason:  "MODEL_INVALID_ARGUMENT",
+			wantMessage: "invalid model request",
+		},
+		{
+			name:        "not found",
+			cause:       modelproxy.ErrModelNotFound,
+			wantStatus:  404,
+			wantReason:  "MODEL_NOT_FOUND",
+			wantMessage: "model is not available at this entry",
+		},
+		{
+			name:        "unavailable",
+			cause:       modelproxy.ErrUnavailable,
+			wantStatus:  503,
+			wantReason:  "MODEL_UNAVAILABLE",
+			wantMessage: "model service is unavailable",
+		},
+		{
+			name:        "forward failed",
+			cause:       modelproxy.ErrForwardFailed,
+			wantStatus:  502,
+			wantReason:  "MODEL_FORWARD_FAILED",
+			wantMessage: "model forwarding failed",
+		},
+		{
+			name:        "canceled",
+			cause:       fmt.Errorf("%w: %w", modelproxy.ErrForwardFailed, context.Canceled),
+			wantStatus:  499,
+			wantReason:  "REQUEST_CANCELED",
+			wantMessage: "request was canceled",
+		},
+		{
+			name:        "deadline",
+			cause:       fmt.Errorf("%w: %w", modelproxy.ErrForwardFailed, context.DeadlineExceeded),
+			wantStatus:  504,
+			wantReason:  "DEADLINE_EXCEEDED",
+			wantMessage: "request deadline exceeded",
+		},
+		{
+			name:        "unknown protocol error",
+			cause:       kratoserrors.BadRequest("PRIVATE", "sensitive detail").WithMetadata(map[string]string{"secret": "private"}),
+			wantStatus:  500,
+			wantReason:  "INTERNAL_SERVER_ERROR",
+			wantMessage: "internal server error",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			mapped := toModelTransportError(t.Context(), fmt.Errorf("private cause: %w", tt.cause), slog.Default())
@@ -293,6 +344,20 @@ func TestModelTransportError(t *testing.T) {
 			if response.Code != tt.wantStatus || !errors.Is(mapped, tt.cause) {
 				t.Errorf("toModelTransportError(%s) = (%d, %v), want %d with cause", tt.name, response.Code, mapped, tt.wantStatus)
 			}
+
+			var result struct {
+				Code    int    `json:"code"`
+				Reason  string `json:"reason"`
+				Message string `json:"message"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+				t.Fatalf("decode toModelTransportError(%s) response: %v", tt.name, err)
+			}
+
+			if result.Code != tt.wantStatus || result.Reason != tt.wantReason || result.Message != tt.wantMessage {
+				t.Errorf("toModelTransportError(%s) response = %+v, want %d/%s/%s", tt.name, result, tt.wantStatus, tt.wantReason, tt.wantMessage)
+			}
+
 			for _, forbidden := range []string{"sensitive", "private", "secret", "PRIVATE"} {
 				if strings.Contains(response.Body.String(), forbidden) {
 					t.Errorf("toModelTransportError(%s) exposed %q in %s", tt.name, forbidden, response.Body)
@@ -312,14 +377,17 @@ func TestModelTransportErrorUsesInjectedLoggerOnce(t *testing.T) {
 	if !errors.Is(mapped, cause) {
 		t.Errorf("toModelTransportError(unknown failure) = %v, want preserved cause", mapped)
 	}
+
 	decoder := json.NewDecoder(&output)
 	var record map[string]any
 	if err := decoder.Decode(&record); err != nil {
 		t.Fatalf("Decode(injected error log) error = %v", err)
 	}
+
 	if record["service"] != "ai-proxy-test" || record["err"] != "private failure" {
 		t.Errorf("toModelTransportError(unknown failure) log = %v, want injected service and cause", record)
 	}
+
 	if err := decoder.Decode(&record); !errors.Is(err, io.EOF) {
 		t.Errorf("toModelTransportError(unknown failure) extra log = %v, want exactly one record", err)
 	}
@@ -331,6 +399,7 @@ func TestModelTransportErrorUsesInjectedLoggerOnce(t *testing.T) {
 	if !errors.Is(mapped, context.Canceled) {
 		t.Errorf("toModelTransportError(canceled) = %v, want preserved cancellation", mapped)
 	}
+
 	if output.Len() != 0 {
 		t.Errorf("toModelTransportError(canceled) wrote %q, want no request error log", output.String())
 	}
@@ -362,6 +431,7 @@ func newModelRouter(
 	if err != nil {
 		t.Fatalf("NewModelProxy(test router) error = %v", err)
 	}
+
 	options = append([]kratoshttp.ServerOption{kratoshttp.Timeout(0)}, options...)
 	router := kratoshttp.NewServer(options...)
 	router.Route("/").POST("/v1/chat/completions", modelProxyHandler.ChatCompletion)
@@ -372,10 +442,8 @@ func newModelRouter(
 func startModelService(t *testing.T, transport http.RoundTripper, objects ...runtime.Object) *modelproxy.Service {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	loader, err := aiconfig.NewLoader(fake.NewClientset(objects...), "control-plane", logger)
-	if err != nil {
-		t.Fatalf("NewLoader(test handler) error = %v", err)
-	}
+	loader := aiconfig.NewLoader(fake.NewClientset(objects...), "control-plane", logger)
+
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() { done <- loader.Run(ctx) }()

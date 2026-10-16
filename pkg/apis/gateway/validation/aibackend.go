@@ -25,6 +25,7 @@ func ValidateAIBackend(backend *gateway.AIBackend) field.ErrorList {
 // ValidateAIBackendUpdate 校验 AIBackend 的资源更新及元数据并发前提。
 func ValidateAIBackendUpdate(next, previous *gateway.AIBackend) field.ErrorList {
 	errs := ValidateAIBackend(next)
+
 	return append(errs, apivalidation.ValidateObjectMetaUpdate(
 		&next.ObjectMeta,
 		&previous.ObjectMeta,
@@ -64,6 +65,7 @@ func validateAPISchemaPrefix(prefix string, path *field.Path) field.ErrorList {
 	if err != nil {
 		return field.ErrorList{field.Invalid(path, prefix, "must be a valid API path prefix")}
 	}
+
 	if parsed.IsAbs() || parsed.Host != "" || parsed.User != nil || strings.ContainsAny(prefix, "?#") {
 		return field.ErrorList{field.Invalid(path, prefix, "must be a path prefix without an authority, query or fragment")}
 	}

@@ -57,9 +57,11 @@ func TestNewStorageFailureCleanup(t *testing.T) {
 			if !errors.Is(err, failure) {
 				t.Errorf("NewStorage(%s failure) error = %v, want wrapped setup error", tt.resource, err)
 			}
+
 			if result != nil {
 				t.Errorf("NewStorage(%s failure) storage = %v, want no partial map", tt.resource, result)
 			}
+
 			if destroys != tt.wantDestroys {
 				t.Errorf("NewStorage(%s failure) Destroy calls = %d, want %d", tt.resource, destroys, tt.wantDestroys)
 			}

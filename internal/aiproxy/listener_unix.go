@@ -20,6 +20,7 @@ func listenUnix(socket string) (*net.UnixListener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("inspect AI ingress directory %q: %w", directory, err)
 	}
+
 	stat := info.Sys().(*syscall.Stat_t)
 	if !info.IsDir() || info.Mode().Perm()&0o077 != 0 || int(stat.Uid) != os.Geteuid() {
 		return nil, fmt.Errorf("AI ingress directory %q must be private and owned by the runtime user", directory)
@@ -29,6 +30,7 @@ func listenUnix(socket string) (*net.UnixListener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listen on AI ingress socket: %w", err)
 	}
+
 	if err := os.Chmod(socket, 0o600); err != nil {
 		return nil, errors.Join(fmt.Errorf("protect AI ingress socket: %w", err), listener.Close())
 	}

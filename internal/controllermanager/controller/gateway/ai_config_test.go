@@ -41,6 +41,7 @@ func TestAIConfigWriterCreatesAndRevokes(t *testing.T) {
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("write(initial configuration) ConfigMap mismatch (-want +got):\n%s", diff)
 	}
+
 	if got.ResourceVersion == "" {
 		t.Error("write(initial configuration) resourceVersion is empty")
 	}
@@ -77,7 +78,9 @@ func TestAIConfigWriterPreservesOtherFields(t *testing.T) {
 			if gotCtx != ctx || object.GetResourceVersion() != existing.ResourceVersion {
 				t.Errorf("Update() context/version = %v/%q, want original context and version %q", gotCtx, object.GetResourceVersion(), existing.ResourceVersion)
 			}
+
 			updates++
+
 			return underlying.Update(gotCtx, object, options...)
 		},
 	})
@@ -117,6 +120,7 @@ func TestAIConfigWriterPreservesOtherFields(t *testing.T) {
 	if updates != 1 || got.ResourceVersion == existing.ResourceVersion {
 		t.Errorf("write(changed configuration) updates/version = %d/%q, want one update and changed version", updates, got.ResourceVersion)
 	}
+
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("write(changed configuration) replaced unrelated fields (-want +got):\n%s", diff)
 	}
@@ -210,10 +214,12 @@ func TestAIConfigWriterRejectsUnsafeWrites(t *testing.T) {
 			if tt.change != nil {
 				tt.change(&namespace, &existing)
 			}
+
 			objects := []client.Object{&existing}
 			if !tt.omitNamespace {
 				objects = append(objects, &namespace)
 			}
+
 			apiClient := aiConfigClient(t, objects...)
 			before := storedAIConfigMap(t, apiClient)
 			writer := aiConfigWriter{client: forbiddenAIConfigWrites(t, apiClient), reader: apiClient, namespace: "control-plane"}
@@ -227,9 +233,11 @@ func TestAIConfigWriterRejectsUnsafeWrites(t *testing.T) {
 			if tt.conflict && !apierrors.IsConflict(err) {
 				t.Errorf("write(%s) error = %v, want Conflict", tt.name, err)
 			}
+
 			if tt.omitNamespace && !apierrors.IsNotFound(err) {
 				t.Errorf("write(missing Namespace) error = %v, want wrapped NotFound", err)
 			}
+
 			if diff := cmp.Diff(before, storedAIConfigMap(t, apiClient)); diff != "" {
 				t.Errorf("write(%s) changed stored object (-want +got):\n%s", tt.name, diff)
 			}
@@ -252,6 +260,7 @@ func TestAIConfigWriterAcceptsSizeLimit(t *testing.T) {
 	if size := configMapDataSize(&got); size != corev1.MaxSecretSize {
 		t.Errorf("write(exact size limit) data size = %d, want %d", size, corev1.MaxSecretSize)
 	}
+
 	if got.Data[aidataplane.ConfigMapDataKey] != string(data) {
 		t.Errorf("write(exact size limit) payload = %q, want %q", got.Data[aidataplane.ConfigMapDataKey], data)
 	}
@@ -310,6 +319,7 @@ func TestAIConfigWriterReturnsAPIErrors(t *testing.T) {
 				configMap := managedAIConfigMap("old")
 				objects = append(objects, &configMap)
 			}
+
 			apiClient := aiConfigClient(t, objects...)
 			var failures int
 			reader := interceptor.NewClient(apiClient, interceptor.Funcs{
@@ -333,14 +343,18 @@ func TestAIConfigWriterReturnsAPIErrors(t *testing.T) {
 					if tt.stage != "Create" {
 						t.Fatal("write() unexpectedly called Create after a read error")
 					}
+
 					failures++
+
 					return tt.cause
 				},
 				Update: func(context.Context, client.WithWatch, client.Object, ...client.UpdateOption) error {
 					if tt.stage != "Update" {
 						t.Fatal("write() unexpectedly called Update")
 					}
+
 					failures++
+
 					return tt.cause
 				},
 			})

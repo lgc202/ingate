@@ -2,6 +2,8 @@
 
 阅读顺序：先看当前能力和主链路，再看 AI 网关的已确认方向与待评审设计。
 
+- [GoCanon 模板对齐](decisions/0016-gocanon-template-alignment.md)：本轮规则版本、重构边界、实施顺序与验证进度；不把参考示例覆盖到产品业务。
+
 - [控制面 Namespace 初始化](control-plane-initialization.md)：通过 Ingate API 创建配置空间的清单与手动安装顺序，已提交为 `6979b0c5`，未执行真实安装；Controller 不自动创建 Namespace，不提前创建共享 ConfigMap。
 - [API 网关完成度与 AI 网关开发条件](api-gateway-readiness.md)：2026-10-10 的源码与验证快照。
 - [HTTP 主链路隔离验证方案](design/http-gateway-validation-plan.md)：留待后续统一测试的实库、Manager/Envoy 转发和 ACK/NACK 清单；不作为当前开发前置条件。

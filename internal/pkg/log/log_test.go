@@ -19,9 +19,11 @@ func TestNewDoesNotSetDefaultLogger(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(debug) error = %v, want nil", err)
 	}
+
 	if logger == nil || !logger.Enabled(t.Context(), slog.LevelDebug) {
 		t.Error("New(debug) logger does not enable debug, want native configured Logger")
 	}
+
 	if slog.Default() != before {
 		t.Error("New(debug) replaced process default Logger, want unchanged")
 	}
@@ -33,18 +35,22 @@ func TestDefaultJSONOutputFiltersDebug(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newLogger(defaults) error = %v, want nil", err)
 	}
+
 	logger.Debug("filtered")
 	logger.With("service", "test-service").Info("visible", "count", 3)
 	var record map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &record); err != nil {
 		t.Fatalf("default stdout JSON = %q, error = %v, want one JSON record", stdout.String(), err)
 	}
+
 	if record["level"] != "INFO" || record["msg"] != "visible" || record["service"] != "test-service" || record["count"] != float64(3) {
 		t.Errorf("default record = %v, want INFO, visible, test-service and count 3", record)
 	}
+
 	if _, found := record["source"]; found {
 		t.Error("default record includes source, want omitted")
 	}
+
 	if stderr.Len() != 0 {
 		t.Errorf("default stderr = %q, want empty", stderr.String())
 	}
@@ -68,12 +74,14 @@ func TestConfiguredLevels(t *testing.T) {
 			if err != nil {
 				t.Fatalf("newLogger(level=%q) error = %v, want nil", tt.level, err)
 			}
+
 			logger.Log(t.Context(), tt.want-1, "filtered")
 			logger.Log(t.Context(), tt.want, "visible")
 			var record map[string]any
 			if err := json.Unmarshal(stdout.Bytes(), &record); err != nil {
 				t.Fatalf("level=%q output = %q, error = %v, want one record", tt.level, stdout.String(), err)
 			}
+
 			if record["level"] != tt.want.String() || record["msg"] != "visible" {
 				t.Errorf("level=%q record = %v, want visible at %s", tt.level, record, tt.want)
 			}
@@ -87,6 +95,7 @@ func TestTextStderrAndSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newLogger(text stderr, source) error = %v, want nil", err)
 	}
+
 	logger.Info("visible", "count", 3)
 	if stdout.Len() != 0 || !strings.Contains(stderr.String(), "level=INFO") || !strings.Contains(stderr.String(), "count=3") || !strings.Contains(stderr.String(), "log_test.go:") {
 		t.Errorf("text stderr/source stdout/stderr = %q/%q, want empty stdout and INFO, count, source in stderr", stdout.String(), stderr.String())
@@ -99,16 +108,19 @@ func TestJSONSourceAndMultipleOutputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newLogger(multiple outputs, source) error = %v, want nil", err)
 	}
+
 	logger.Info("visible")
 	if stdout.String() != stderr.String() {
 		t.Errorf("multiple outputs stdout/stderr = %q/%q, want identical records", stdout.String(), stderr.String())
 	}
+
 	var record struct {
 		Source slog.Source `json:"source"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &record); err != nil {
 		t.Fatalf("multiple output JSON = %q, error = %v, want one record", stdout.String(), err)
 	}
+
 	if !strings.HasSuffix(record.Source.File, "log_test.go") || record.Source.Line <= 0 || !strings.HasSuffix(record.Source.Function, ".TestJSONSourceAndMultipleOutputs") {
 		t.Errorf("record source = %+v, want this test function, file and positive line", record.Source)
 	}
@@ -120,10 +132,12 @@ func TestOutputFailureDoesNotStopOtherOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newLogger(multiple outputs) error = %v, want nil", err)
 	}
+
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "visible", 0)
 	if err := logger.Handler().Handle(t.Context(), record); !errors.Is(err, io.ErrClosedPipe) {
 		t.Errorf("Handle(failed stdout) error = %v, want io.ErrClosedPipe", err)
 	}
+
 	if !strings.Contains(stderr.String(), `"msg":"visible"`) {
 		t.Errorf("Handle(failed stdout) stderr = %q, want visible record", stderr.String())
 	}

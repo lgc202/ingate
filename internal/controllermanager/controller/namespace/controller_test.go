@@ -34,6 +34,7 @@ func TestReconcileCompletesDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get(team-a) error = %v", err)
 	}
+
 	if !slices.Equal(namespace.Spec.Finalizers, []corev1.FinalizerName{"example.com/retain"}) {
 		t.Errorf("Reconcile(empty namespace) finalizers = %v, want custom finalizer retained", namespace.Spec.Finalizers)
 	}
@@ -59,6 +60,7 @@ func TestReconcileIgnoresInactiveNamespaces(t *testing.T) {
 			if err != nil || result.RequeueAfter != 0 {
 				t.Errorf("Reconcile(%s) = %v, %v, want no retry and nil", tt.name, result, err)
 			}
+
 			if len(kubeClient.Actions()) != 0 || len(metadataClient.Actions()) != 0 {
 				t.Errorf("Reconcile(%s) accesses deletion clients, want skipped cleanup", tt.name)
 			}
@@ -75,6 +77,7 @@ func TestReconcileDeletionGracePeriod(t *testing.T) {
 	if err != nil || result.RequeueAfter <= 0 || result.RequeueAfter > namespaceDeletionGracePeriod {
 		t.Errorf("Reconcile(recent deletion) = %v, %v, want delayed retry within %v", result, err, namespaceDeletionGracePeriod)
 	}
+
 	if len(kubeClient.Actions()) != 0 || len(metadataClient.Actions()) != 0 {
 		t.Error("Reconcile(recent deletion) accesses deletion clients before grace period ends")
 	}
@@ -110,6 +113,7 @@ func TestReconcileWaitsWithoutFailure(t *testing.T) {
 	if err != nil || result.RequeueAfter != 8*time.Second {
 		t.Errorf("Reconcile(content finalizer) = %v, %v, want retry in 8s without error", result, err)
 	}
+
 	for _, action := range kubeClient.Actions() {
 		if action.GetSubresource() == "finalize" {
 			t.Error("Reconcile(content finalizer) releases Namespace finalizer, want retained")
@@ -150,6 +154,7 @@ func TestReconcileReturnsReadCause(t *testing.T) {
 	if !errors.Is(err, wantErr) || result.RequeueAfter != 0 {
 		t.Errorf("Reconcile(read failure) = %v, %v, want read cause preserved", result, err)
 	}
+
 	if len(kubeClient.Actions()) != 0 || len(metadataClient.Actions()) != 0 {
 		t.Error("Reconcile(read failure) accesses deletion clients, want stopped before cleanup")
 	}
@@ -226,9 +231,11 @@ func TestNamespaceEvents(t *testing.T) {
 			}
 		})
 	}
+
 	if filter.Create(event.CreateEvent{Object: active}) || !filter.Create(event.CreateEvent{Object: deleting}) {
 		t.Error("namespaceEvents.Create() does not distinguish Active and existing Terminating namespaces")
 	}
+
 	if filter.Delete(event.DeleteEvent{Object: deleting}) || filter.Generic(event.GenericEvent{Object: deleting}) {
 		t.Error("namespaceEvents() accepts removed or generic objects, want ignored")
 	}
@@ -245,27 +252,32 @@ func reconcileFixture(
 	if err := corev1.AddToScheme(scheme); err != nil {
 		t.Fatalf("AddToScheme() error = %v", err)
 	}
+
 	readerBuilder := fake.NewClientBuilder().WithScheme(scheme)
 	var namespaces []runtime.Object
 	if namespace != nil {
 		readerBuilder.WithObjects(namespace)
 		namespaces = append(namespaces, namespace)
 	}
+
 	kubeClient := kubefake.NewClientset(namespaces...)
 	metadataScheme := metadatafake.NewTestScheme()
 	if err := metav1.AddMetaToScheme(metadataScheme); err != nil {
 		t.Fatalf("AddMetaToScheme() error = %v", err)
 	}
+
 	metadataClient := metadatafake.NewSimpleMetadataClient(metadataScheme, content...)
 	discoverResources := func(context.Context) ([]*metav1.APIResourceList, error) {
 		return nil, nil
 	}
 	deleter := deletion.New(kubeClient.CoreV1().Namespaces(), metadataClient, discoverResources)
+
 	return New(readerBuilder.Build(), deleter), kubeClient, metadataClient
 }
 
 func terminatingNamespace() *corev1.Namespace {
 	deletedAt := metav1.NewTime(time.Now().Add(-time.Minute))
+
 	return &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              "team-a",

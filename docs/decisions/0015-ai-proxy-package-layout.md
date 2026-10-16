@@ -18,6 +18,7 @@ internal/
 ├── aiproxy/
 │   ├── app.go                # Run 拥有资源生命周期；显式装配 Client、Service、Handler 和 Server
 │   ├── conf/                 # 进程启动配置 protobuf，不含动态路由
+│   ├── errno/                # 组件本地产生的公开协议错误，不包含上游错误响应
 │   ├── server/               # 原生 HTTP 构造、Unix 入口 Header 适配、路由与 ErrorEncoder
 │   ├── handler/              # 可信入口读取、协议错误和响应流写回
 │   ├── service/
@@ -44,6 +45,26 @@ HTTP 装配切片已通过 review，并获准本地提交：[NewHTTPServer](../.
 Controller 继续只依赖 `internal/pkg/aidataplane`，不导入 Proxy 的 aiconfig。顶层 `pkg/apis`、`pkg/generated` 的公开契约定位不变；不把 Proxy 私有实现搬到那里，也不把仅有一个组件所有者的包提升到仓库级 internal/pkg。
 
 ## 当前实施范围与行为
+
+2026-10-16 用户指出 Loader 的重复防御。本轮确认生产路径仅由 `loadConfig` 校验
+namespace，再由组合根成功构造 API Client 与 Logger 后注入 Loader。NewLoader 只
+保存已校验的范围和有效依赖，直接返回 `*Loader`，不再判空或重复校验 namespace；
+同步删除调用方的虚假失败分支和只为这些分支构造非法依赖的测试。配置入口的非法
+namespace 校验、真实 List/Watch 失败以及配置替换与撤回语义保持不变。
+本轮目标工作区 `make -j4 verify`、AI Proxy 全包普通测试与竞态测试通过；未执行
+真实外部组件联调；已纳入 0016 的独立复查与本地提交范围。
+
+2026-10-16 用户确认将本地产生的公开错误集中到 `internal/aiproxy/errno/errno.go`。
+当前入口校验和模型 Handler 已分别构造公开错误，入口无效的定义在 Server 中重复。
+本次仅移动 code、reason 和英文 message，调用点使用包级只读定义，并通过 Kratos
+原生 WithCause 保留每次请求的内部原因；Service sentinel 与 Handler 的业务映射、
+错误日志所有者保持不变。不复用 Admin API 的 errno，不新增错误注册、Clone 或框架。
+上游错误响应仍流式透传，响应开始后的失败仍中断连接；不将当前 Kratos 编码声明为
+最终 OpenAI 兼容错误格式。成功条件是公开字段、原因链与现有 HTTP/SSE 行为不变。
+
+本次抽取的错误契约断言在旧实现和新实现均通过；目标工作区 `make -j4 verify` 和
+`go test -race -mod=readonly ./internal/aiproxy/... -count=1` 通过。未执行真实
+Envoy/模型上游联调；已纳入 0016 的独立复查与本地提交范围。
 
 用户确认应用用例命名为 modelproxy。原 service/model 和 ModelHandler 容易被误读为模型资源管理，实际职责是模型请求代理；本次仅使用重命名迁移包、Handler、装配引用与文档，减少概念歧义，不增加分层或改变协议。行为基线为重命名前的模型匹配、Header 隔离、普通响应、SSE 与取消测试；成功条件是引用统一到 service/modelproxy、无旧名称兼容别名、公开路径/错误/数据契约不变且回归通过。旧 pkg/modelproxy 转发器仍保持删除，不因同名恢复旧方案。
 

@@ -46,12 +46,14 @@ func buildResources(config dataplane.Config) (resourceSet, error) {
 		if err != nil {
 			return resourceSet{}, err
 		}
+
 		resources.routes = append(resources.routes, routeConfig)
 
 		xdsListener, err := newListener(listener.Port)
 		if err != nil {
 			return resourceSet{}, err
 		}
+
 		resources.listeners = append(resources.listeners, xdsListener)
 	}
 
@@ -60,6 +62,7 @@ func buildResources(config dataplane.Config) (resourceSet, error) {
 		if err != nil {
 			return resourceSet{}, err
 		}
+
 		resources.clusters = append(resources.clusters, cluster)
 		if cluster.GetType() == clusterv3.Cluster_EDS {
 			resources.endpoints = append(resources.endpoints, assignment)
@@ -79,6 +82,7 @@ func newRouteConfiguration(listener dataplane.Listener) (*routev3.RouteConfigura
 		if err != nil {
 			return nil, err
 		}
+
 		config.VirtualHosts = append(config.VirtualHosts, virtualHost)
 	}
 
@@ -94,6 +98,7 @@ func newVirtualHost(host dataplane.Host) (*routev3.VirtualHost, error) {
 	if domain == "" {
 		domain = "*"
 	}
+
 	virtualHost := &routev3.VirtualHost{Name: host.Name, Domains: []string{domain}}
 
 	routes := slices.Clone(host.Routes)
@@ -103,6 +108,7 @@ func newVirtualHost(host dataplane.Host) (*routev3.VirtualHost, error) {
 		if err != nil {
 			return nil, fmt.Errorf("route %q: %w", route.Name, err)
 		}
+
 		xdsRoute := &routev3.Route{
 			Name:  route.Name,
 			Match: match,
@@ -113,6 +119,7 @@ func newVirtualHost(host dataplane.Host) (*routev3.VirtualHost, error) {
 		if route.BackendName == "" {
 			xdsRoute.Action = &routev3.Route_DirectResponse{DirectResponse: &routev3.DirectResponseAction{Status: 500}}
 		}
+
 		virtualHost.Routes = append(virtualHost.Routes, xdsRoute)
 	}
 
@@ -125,9 +132,11 @@ func compareRoutes(a, b dataplane.Route) int {
 		if a.PathType == dataplane.PathMatchExact {
 			return -1
 		}
+
 		if b.PathType == dataplane.PathMatchExact {
 			return 1
 		}
+
 		return cmp.Compare(a.PathType, b.PathType)
 	}
 
@@ -177,6 +186,7 @@ func newListener(port int32) (*listenerv3.Listener, error) {
 	if err := hcm.ValidateAll(); err != nil {
 		return nil, fmt.Errorf("validate HTTP connection manager for port %d: %w", port, err)
 	}
+
 	hcmConfig, err := anypb.New(hcm)
 	if err != nil {
 		return nil, fmt.Errorf("marshal HTTP connection manager: %w", err)
@@ -223,6 +233,7 @@ func newCluster(backend dataplane.Backend) (*clusterv3.Cluster, *endpointv3.Clus
 	if err := cluster.ValidateAll(); err != nil {
 		return nil, nil, fmt.Errorf("validate cluster %q: %w", name, err)
 	}
+
 	if err := assignment.ValidateAll(); err != nil {
 		return nil, nil, fmt.Errorf("validate endpoints for %q: %w", name, err)
 	}
@@ -251,6 +262,7 @@ func newEndpointAssignment(name string, endpoints []dataplane.Endpoint) (*endpoi
 		if _, err := netip.ParseAddr(endpoint.Address); err != nil {
 			hasDNSName = true
 		}
+
 		locality.LbEndpoints = append(locality.LbEndpoints, &endpointv3.LbEndpoint{
 			HostIdentifier: &endpointv3.LbEndpoint_Endpoint{Endpoint: &endpointv3.Endpoint{
 				Address: socketAddress(endpoint.Address, endpoint.Port),

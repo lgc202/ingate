@@ -145,16 +145,20 @@ func TestMCPRouteDefaultingAndValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create(MCPRoute with unresolved references) error = %v, want nil", err)
 	}
+
 	var got gatewayv1alpha1.MCPRoute
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(created.Object, &got); err != nil {
 		t.Fatalf("decode created MCPRoute error = %v, want nil", err)
 	}
+
 	if got.Spec.Path == nil || *got.Spec.Path != "/mcp" {
 		t.Errorf("Create(MCPRoute).path = %v, want /mcp", got.Spec.Path)
 	}
+
 	if len(got.Spec.BackendRefs) != 1 {
 		t.Fatalf("Create(MCPRoute).backendRefs = %+v, want one Backend", got.Spec.BackendRefs)
 	}
+
 	if got.Spec.BackendRefs[0].Path == nil || *got.Spec.BackendRefs[0].Path != "/mcp" {
 		t.Errorf("Create(MCPRoute).backendRefs[0].path = %v, want /mcp", got.Spec.BackendRefs[0].Path)
 	}
@@ -188,6 +192,7 @@ func TestMCPRouteDefaultingAndValidation(t *testing.T) {
 			}
 		})
 	}
+
 	unknown := route.DeepCopy()
 	unknown.SetName("unsupported-security-policy")
 	unknown.Object["spec"].(map[string]any)["backendRefs"] = []any{map[string]any{
@@ -213,21 +218,25 @@ func TestHTTPRouteDefaultingAndValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create(defaulted): %v", err)
 	}
+
 	rules, found, err := unstructured.NestedSlice(created.Object, "spec", "rules")
 	if err != nil || !found || len(rules) != 1 {
 		t.Fatalf("rules = %v, found %v, err %v", rules, found, err)
 	}
+
 	matches := rules[0].(map[string]any)["matches"].([]any)
 	path := matches[0].(map[string]any)["path"].(map[string]any)
 	if path["type"] != "PathPrefix" || path["value"] != "/" {
 		t.Errorf("default path = %v, want PathPrefix /", path)
 	}
+
 	invalid := route.DeepCopy()
 	invalid.SetName("invalid")
 	invalid.Object["spec"].(map[string]any)["parentRefs"] = []any{map[string]any{"name": "edge"}, map[string]any{"name": "edge", "sectionName": "http"}}
 	if _, err := resources.Create(t.Context(), invalid, metav1.CreateOptions{}); !apierrors.IsInvalid(err) {
 		t.Errorf("overlapping parents error = %v, want Invalid", err)
 	}
+
 	unknown := route.DeepCopy()
 	unknown.SetName("unsupported")
 	unknown.Object["spec"].(map[string]any)["rules"] = []any{map[string]any{
@@ -255,6 +264,7 @@ func TestAIBackendDefaultingAndValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create(AIBackend with unresolved reference) error = %v, want nil", err)
 	}
+
 	prefix, found, err := unstructured.NestedString(created.Object, "spec", "schema", "prefix")
 	if err != nil || !found || prefix != "/v1" {
 		t.Errorf("Create(AIBackend).schema.prefix = %q, found %t, error %v, want /v1", prefix, found, err)
@@ -266,11 +276,13 @@ func TestAIBackendDefaultingAndValidation(t *testing.T) {
 	if _, err := resources.Create(t.Context(), invalid, metav1.CreateOptions{}); !apierrors.IsInvalid(err) {
 		t.Errorf("Create(AIBackend unsupported schema) error = %v, want Invalid", err)
 	}
+
 	invalid.SetName("invalid-prefix")
 	invalid.Object["spec"].(map[string]any)["schema"] = map[string]any{"name": "OpenAI", "prefix": "https://api.example.com/v1"}
 	if _, err := resources.Create(t.Context(), invalid, metav1.CreateOptions{}); !apierrors.IsInvalid(err) {
 		t.Errorf("Create(AIBackend URL prefix) error = %v, want Invalid", err)
 	}
+
 	invalid.SetName("unsupported-version")
 	invalid.Object["spec"].(map[string]any)["schema"] = map[string]any{"name": "OpenAI", "version": "v1"}
 	if _, err := resources.Create(t.Context(), invalid, metav1.CreateOptions{FieldValidation: metav1.FieldValidationStrict}); !apierrors.IsBadRequest(err) {
@@ -299,13 +311,16 @@ func TestModelRouteDefaultingAndValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create(ModelRoute with unresolved references) error = %v, want nil", err)
 	}
+
 	var got gatewayv1alpha1.ModelRoute
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(created.Object, &got); err != nil {
 		t.Fatalf("decode created ModelRoute error = %v, want nil", err)
 	}
+
 	if len(got.Spec.Rules) != 1 || len(got.Spec.Rules[0].Matches) != 1 {
 		t.Fatalf("Create(ModelRoute).rules = %+v, want one rule with one match", got.Spec.Rules)
 	}
+
 	wantHeader := gatewayv1alpha1.HTTPHeaderMatch{
 		Name:  "X-AI-EG-MODEL",
 		Type:  gatewayv1alpha1.HeaderMatchExact,
@@ -355,9 +370,11 @@ func testResourceHTTPContract(
 	if err != nil {
 		t.Fatalf("Create(%s) error = %v", kind, err)
 	}
+
 	if created.GetGeneration() != 1 || created.GetResourceVersion() == "" {
 		t.Fatalf("Create(%s) metadata = %#v, want generation 1 and resourceVersion", kind, created.Object["metadata"])
 	}
+
 	assertConditions(t, created, 0)
 	if created.GetNamespace() != "team-a" {
 		t.Errorf("Create(%s).namespace = %q, want team-a", kind, created.GetNamespace())
@@ -371,27 +388,35 @@ func testResourceHTTPContract(
 	if err != nil {
 		t.Fatalf("Create(%s, same name in team-b) error = %v, want nil", kind, err)
 	}
+
 	if shadow.GetUID() == created.GetUID() || shadow.GetUID() == "" {
 		t.Errorf("Create(%s, team-b).UID = %q, want distinct nonempty UID", kind, shadow.GetUID())
 	}
+
 	if _, err := resources.Create(ctx, shadow.DeepCopy(), metav1.CreateOptions{}); !apierrors.IsBadRequest(err) {
 		t.Errorf("Create(%s, mismatched namespace) error = %v, want BadRequest", kind, err)
 	}
+
 	if _, err := allResources.Create(ctx, created.DeepCopy(), metav1.CreateOptions{}); !apierrors.IsMethodNotSupported(err) {
 		t.Errorf("Create(%s, cluster URL) error = %v, want MethodNotSupported", kind, err)
 	}
+
 	if _, err := allResources.Get(ctx, name, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("Get(%s, cluster URL) error = %v, want NotFound", kind, err)
 	}
+
 	if _, err := allResources.Update(ctx, created.DeepCopy(), metav1.UpdateOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("Update(%s, cluster URL) error = %v, want NotFound", kind, err)
 	}
+
 	if _, err := allResources.UpdateStatus(ctx, created.DeepCopy(), metav1.UpdateOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("UpdateStatus(%s, cluster URL) error = %v, want NotFound", kind, err)
 	}
+
 	if err := allResources.Delete(ctx, name, metav1.DeleteOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("Delete(%s, cluster URL) error = %v, want NotFound", kind, err)
 	}
+
 	duplicate := created.DeepCopy()
 	duplicate.SetName(name + "-duplicate")
 	duplicate.SetResourceVersion("")
@@ -400,9 +425,11 @@ func testResourceHTTPContract(
 	if err != nil {
 		t.Fatalf("Create(%s, duplicate display name) error = %v, want nil", kind, err)
 	}
+
 	if duplicate.GetUID() == created.GetUID() || duplicate.GetUID() == "" {
 		t.Errorf("Create(%s, duplicate display name) UID = %q, want distinct nonempty UID", kind, duplicate.GetUID())
 	}
+
 	if err := resources.Delete(ctx, duplicate.GetName(), metav1.DeleteOptions{}); err != nil {
 		t.Fatalf("Delete(%s duplicate) error = %v, want nil", kind, err)
 	}
@@ -411,6 +438,7 @@ func testResourceHTTPContract(
 	if err != nil {
 		t.Fatalf("Get(%s, %q) error = %v", kind, name, err)
 	}
+
 	if got.GetResourceVersion() != created.GetResourceVersion() {
 		t.Errorf("Get(%s, %q) resourceVersion = %q, want %q",
 			kind, name, got.GetResourceVersion(), created.GetResourceVersion())
@@ -423,6 +451,7 @@ func testResourceHTTPContract(
 	if err != nil {
 		t.Fatalf("List(%s) error = %v", kind, err)
 	}
+
 	if len(listed.Items) != 1 || listed.Items[0].GetName() != name {
 		t.Fatalf("List(%s) items = %#v, want only %q", kind, listed.Items, name)
 	}
@@ -436,6 +465,7 @@ func testResourceHTTPContract(
 		if err != nil {
 			t.Fatalf("List(%s, %+v) error = %v", kind, selector, err)
 		}
+
 		if len(listed.Items) != 0 {
 			t.Errorf("List(%s, %+v) items = %#v, want none", kind, selector, listed.Items)
 		}
@@ -445,16 +475,20 @@ func testResourceHTTPContract(
 	if err != nil {
 		t.Fatalf("List(%s, all namespaces) error = %v, want nil", kind, err)
 	}
+
 	if len(allListed.Items) != 2 {
 		t.Fatalf("List(%s, all namespaces) items = %v, want two same-name objects", kind, allListed.Items)
 	}
+
 	selected, err := allResources.List(ctx, metav1.ListOptions{FieldSelector: "metadata.namespace=team-b"})
 	if err != nil {
 		t.Fatalf("List(%s, namespace selector) error = %v, want nil", kind, err)
 	}
+
 	if len(selected.Items) != 1 || selected.Items[0].GetNamespace() != "team-b" {
 		t.Errorf("List(%s, namespace selector) items = %v, want team-b only", kind, selected.Items)
 	}
+
 	allStream, err := allResources.Watch(ctx, metav1.ListOptions{
 		ResourceVersion: allListed.GetResourceVersion(),
 		FieldSelector:   "metadata.name=" + name,
@@ -480,14 +514,17 @@ func testResourceHTTPContract(
 	if err != nil {
 		t.Fatalf("Update(%s spec) error = %v", kind, err)
 	}
+
 	if updated.GetGeneration() != 2 || updated.GetResourceVersion() == created.GetResourceVersion() {
 		t.Errorf("Update(%s spec) metadata = %#v, want new resourceVersion and generation 2",
 			kind, updated.Object["metadata"])
 	}
+
 	assertSpec(t, updated, updatedSpec)
 	if updated.GetName() != created.GetName() || updated.GetUID() != created.GetUID() {
 		t.Errorf("Update(%s rename) name/UID = %q/%q, want %q/%q", kind, updated.GetName(), updated.GetUID(), created.GetName(), created.GetUID())
 	}
+
 	assertConditions(t, updated, 0)
 	expectResourceEvent(t, stream, watch.Modified, name, updated.GetResourceVersion())
 	expectResourceEvent(t, allStream, watch.Modified, name, updated.GetResourceVersion())
@@ -495,6 +532,7 @@ func testResourceHTTPContract(
 	if _, err := resources.Update(ctx, created.DeepCopy(), metav1.UpdateOptions{}); !apierrors.IsConflict(err) {
 		t.Errorf("Update(%s, stale resourceVersion) error = %v, want Conflict", kind, err)
 	}
+
 	moved := updated.DeepCopy()
 	moved.SetNamespace("team-b")
 	if _, err := resources.Update(ctx, moved, metav1.UpdateOptions{}); !apierrors.IsBadRequest(err) {
@@ -514,9 +552,11 @@ func testResourceHTTPContract(
 	if err != nil {
 		t.Fatalf("UpdateStatus(%s) error = %v", kind, err)
 	}
+
 	if status.GetGeneration() != 2 {
 		t.Errorf("UpdateStatus(%s) generation = %d, want 2", kind, status.GetGeneration())
 	}
+
 	assertSpec(t, status, updatedSpec)
 	assertConditions(t, status, 1)
 	expectResourceEvent(t, stream, watch.Modified, name, status.GetResourceVersion())
@@ -525,15 +565,18 @@ func testResourceHTTPContract(
 	if err := resources.Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
 		t.Fatalf("Delete(%s, %q) error = %v", kind, name, err)
 	}
+
 	expectResourceEvent(t, stream, watch.Deleted, name, "")
 	expectResourceEvent(t, allStream, watch.Deleted, name, "")
 	remaining, err := otherResources.Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get(%s, team-b after team-a deletion) error = %v, want nil", kind, err)
 	}
+
 	if diff := cmp.Diff(shadow.Object, remaining.Object); diff != "" {
 		t.Errorf("team-a CRUD changed %s in team-b (-want +got):\n%s", kind, diff)
 	}
+
 	if _, err := resources.Get(ctx, name, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("Get(deleted %s, %q) error = %v, want NotFound", kind, name, err)
 	}
@@ -546,6 +589,7 @@ func startGatewayAPI(t *testing.T) dynamic.Interface {
 	if err != nil {
 		t.Fatalf("dynamic.NewForConfig() error = %v", err)
 	}
+
 	namespaces := client.Resource(schema.GroupVersionResource{Version: "v1", Resource: "namespaces"})
 	for _, namespace := range []string{"team-a", "team-b"} {
 		_, err := namespaces.Create(t.Context(), &unstructured.Unstructured{Object: map[string]any{
@@ -557,6 +601,7 @@ func startGatewayAPI(t *testing.T) dynamic.Interface {
 			t.Fatalf("Create(Namespace %q) error = %v, want nil", namespace, err)
 		}
 	}
+
 	return client
 }
 
@@ -567,6 +612,7 @@ func startAPIServer(t *testing.T) *rest.Config {
 	if err != nil {
 		t.Fatalf("NewOptions() error = %v", err)
 	}
+
 	options.RecommendedOptions.CoreAPI = nil
 	options.RecommendedOptions.Authentication = nil
 	options.RecommendedOptions.Authorization = nil
@@ -592,6 +638,7 @@ func startAPIServerWithOptions(t *testing.T, options *Options) *rest.Config {
 	if err != nil {
 		t.Fatalf("listen for API server: %v", err)
 	}
+
 	t.Cleanup(func() { _ = listener.Close() })
 
 	options.RecommendedOptions.Etcd.StorageConfig.Transport.ServerList = etcd.Endpoints()
@@ -602,6 +649,7 @@ func startAPIServerWithOptions(t *testing.T, options *Options) *rest.Config {
 	if err != nil {
 		t.Fatalf("Options.Config() error = %v", err)
 	}
+
 	server, err := config.Complete().New()
 	if err != nil {
 		t.Fatalf("CompletedConfig.New() error = %v", err)
@@ -643,15 +691,18 @@ func startAPIServerWithOptions(t *testing.T, options *Options) *rest.Config {
 		if err != nil {
 			t.Fatalf("build readiness request: %v", err)
 		}
+
 		response, err := httpClient.Do(request)
 		if err == nil {
 			if err := response.Body.Close(); err != nil {
 				t.Fatalf("close readiness response: %v", err)
 			}
+
 			if response.StatusCode == http.StatusOK {
 				break
 			}
 		}
+
 		select {
 		case <-finished:
 			t.Fatalf("API server stopped before readiness: %v", runErr)
@@ -677,14 +728,17 @@ func expectResourceEvent(
 		if !ok {
 			t.Fatal("resource watch closed before expected event")
 		}
+
 		resource, ok := event.Object.(*unstructured.Unstructured)
 		if !ok {
 			t.Fatalf("resource watch object = %T, want *unstructured.Unstructured", event.Object)
 		}
+
 		if event.Type != eventType || resource.GetName() != name {
 			t.Errorf("resource watch event = %s %q, want %s %q",
 				event.Type, resource.GetName(), eventType, name)
 		}
+
 		if resourceVersion != "" && resource.GetResourceVersion() != resourceVersion {
 			t.Errorf("resource watch resourceVersion = %q, want %q",
 				resource.GetResourceVersion(), resourceVersion)
@@ -701,6 +755,7 @@ func assertSpec(t *testing.T, resource *unstructured.Unstructured, want map[stri
 	if err != nil || !found {
 		t.Fatalf("read resource spec: found %t, error %v", found, err)
 	}
+
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("resource spec mismatch (-want +got):\n%s", diff)
 	}
@@ -715,14 +770,17 @@ func assertConditions(t *testing.T, resource *unstructured.Unstructured, want in
 		if parentErr != nil {
 			t.Fatalf("read status.parents: %v", parentErr)
 		}
+
 		found = exists && len(parents) > 0
 		if found {
 			conditions, _, err = unstructured.NestedSlice(parents[0].(map[string]any), "conditions")
 		}
 	}
+
 	if err != nil {
 		t.Fatalf("read resource status.conditions: %v", err)
 	}
+
 	if len(conditions) != want || (!found && want > 0) {
 		t.Errorf("resource status.conditions = %#v, want %d item(s)", conditions, want)
 	}
@@ -736,5 +794,6 @@ func statusForKind(kind string, conditions []any) map[string]any {
 			"conditions":     conditions,
 		}}}
 	}
+
 	return map[string]any{"conditions": conditions}
 }

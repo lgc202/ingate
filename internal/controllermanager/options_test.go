@@ -33,15 +33,19 @@ func TestOptionsConfigRegistersExternalTypes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Options.Config(temporary kubeconfig) error = %v, want nil", err)
 	}
+
 	if config.AIConfigNamespace != options.AIConfigNamespace {
 		t.Errorf("Options.Config() AIConfigNamespace = %q, want %q", config.AIConfigNamespace, options.AIConfigNamespace)
 	}
+
 	if config.AIEgressSocket != options.AIEgressSocket {
 		t.Errorf("Options.Config() AIEgressSocket = %q, want %q", config.AIEgressSocket, options.AIEgressSocket)
 	}
+
 	if config.AIIngressSocket != options.AIIngressSocket {
 		t.Errorf("Options.Config() AIIngressSocket = %q, want %q", config.AIIngressSocket, options.AIIngressSocket)
 	}
+
 	for _, kind := range []schema.GroupVersionKind{
 		corev1.SchemeGroupVersion.WithKind("Namespace"),
 		corev1.SchemeGroupVersion.WithKind("NamespaceList"),
@@ -53,6 +57,7 @@ func TestOptionsConfigRegistersExternalTypes(t *testing.T) {
 			t.Errorf("Options.Config() Scheme.Recognizes(%s) = false, want true", kind)
 		}
 	}
+
 	internalNamespace := corev1.SchemeGroupVersion.WithKind("Namespace")
 	internalNamespace.Version = runtime.APIVersionInternal
 	if config.ManagerOptions.Scheme.Recognizes(internalNamespace) {
@@ -101,9 +106,11 @@ func TestOptionsAISockets(t *testing.T) {
 	if err != nil || options.AIEgressSocket != "/run/ingate/egress.sock" {
 		t.Errorf("Parse(AI socket) = (%q, %v), want configured absolute path", options.AIEgressSocket, err)
 	}
+
 	if options.AIIngressSocket != "/run/ingate/ingress.sock" {
 		t.Errorf("Parse(AI socket) ingress = %q, want configured absolute path", options.AIIngressSocket)
 	}
+
 	for _, socket := range []string{"relative.sock", "/run/invalid\x00.sock"} {
 		options.AIEgressSocket = socket
 

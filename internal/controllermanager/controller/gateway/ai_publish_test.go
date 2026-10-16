@@ -29,8 +29,10 @@ func TestReconcilePublishesTypedAIConfiguration(t *testing.T) {
 			if ctx != t.Context() {
 				t.Error("PublishAI() did not receive Reconcile context")
 			}
+
 			calls++
 			published = config
+
 			return nil
 		},
 	}
@@ -45,9 +47,11 @@ func TestReconcilePublishesTypedAIConfiguration(t *testing.T) {
 	if err != nil || calls != 1 {
 		t.Fatalf("Reconcile(typed AI) error/calls = %v/%d, want nil/1", err, calls)
 	}
+
 	if diff := cmp.Diff(want, published); diff != "" {
 		t.Errorf("PublishAI() config mismatch (-want +got):\n%s", diff)
 	}
+
 	stored := storedAIConfigMap(t, apiClient)
 	encoded, err := aidataplane.Encode(published)
 	if err != nil || stored.Data[aidataplane.ConfigMapDataKey] != string(encoded) {
@@ -102,6 +106,7 @@ func TestReconcileAIOutputsFailIndependently(t *testing.T) {
 			if !errors.Is(err, cause) || xdsCalls != 1 || configMapCalls != 1 {
 				t.Errorf("Reconcile(%s) = (error %v, xDS %d, ConfigMap %d), want wrapped failure and both outputs attempted", tt.name, err, xdsCalls, configMapCalls)
 			}
+
 			if tt.failXDS && storedAIConfigMap(t, apiClient).Data[aidataplane.ConfigMapDataKey] == "" {
 				t.Error("Reconcile(xDS failure) did not store complete AI payload")
 			}

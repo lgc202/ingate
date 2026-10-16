@@ -34,23 +34,28 @@ func TestResourceNamespaceHTTPBoundary(t *testing.T) {
 			if len(actions) != 1 {
 				t.Fatalf("POST %s API actions = %v, want one create", path, actions)
 			}
+
 			create, ok := actions[0].(clienttesting.CreateAction)
 			if !ok {
 				t.Fatalf("POST %s action = %T, want CreateAction", path, actions[0])
 			}
+
 			object, err := meta.Accessor(create.GetObject())
 			if err != nil {
 				t.Fatalf("POST %s object metadata error = %v, want nil", path, err)
 			}
+
 			if create.GetNamespace() != "team-a" || object.GetNamespace() != "team-a" {
 				t.Errorf("POST %s action/object namespace = %q/%q, want team-a/team-a", path, create.GetNamespace(), object.GetNamespace())
 			}
+
 			client.ClearActions()
 
 			for _, namespace := range []string{"Team-A", "team.a", "-team"} {
 				response := requestResource(httpServer, http.MethodPost, "/api/admin/v1/namespaces/"+namespace+"/"+tt.path, tt.body)
 				requireHTTPStatus(t, response, http.StatusBadRequest)
 			}
+
 			for _, request := range []struct{ method, suffix string }{
 				{method: http.MethodPost},
 				{method: http.MethodGet},
@@ -61,6 +66,7 @@ func TestResourceNamespaceHTTPBoundary(t *testing.T) {
 				response := requestResource(httpServer, request.method, "/api/admin/v1/"+tt.path+request.suffix, tt.body)
 				requireHTTPStatus(t, response, http.StatusNotFound)
 			}
+
 			if actions := client.Actions(); len(actions) != 0 {
 				t.Errorf("invalid namespace or legacy %s requests API actions = %v, want none", tt.path, actions)
 			}

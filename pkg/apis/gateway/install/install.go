@@ -13,6 +13,7 @@ func Install(scheme *runtime.Scheme) error {
 	if err := gateway.AddToScheme(scheme); err != nil {
 		return err
 	}
+
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
 		return err
 	}

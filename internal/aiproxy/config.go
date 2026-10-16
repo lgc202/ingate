@@ -31,9 +31,11 @@ func loadConfig(configFile string) (*conf.Bootstrap, error) {
 	if err := protojson.Unmarshal(jsonData, config); err != nil {
 		return nil, fmt.Errorf("unmarshal config file %q: %w", configFile, err)
 	}
+
 	if err := protovalidate.Validate(config); err != nil {
 		return nil, fmt.Errorf("validate config file %q: %w", configFile, err)
 	}
+
 	if err := validateStartupConfig(config); err != nil {
 		return nil, fmt.Errorf("validate config file %q: %w", configFile, err)
 	}
@@ -54,9 +56,11 @@ func validateStartupConfig(config *conf.Bootstrap) error {
 	if !filepath.IsAbs(ingress) || strings.ContainsRune(ingress, 0) {
 		return errors.New("AI ingress socket must be an absolute path without NUL")
 	}
+
 	if !filepath.IsAbs(egress) || strings.ContainsRune(egress, 0) {
 		return errors.New("AI egress socket must be an absolute path without NUL")
 	}
+
 	if filepath.Clean(ingress) == filepath.Clean(egress) {
 		return errors.New("AI ingress and egress sockets must differ")
 	}

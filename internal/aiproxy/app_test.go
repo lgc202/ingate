@@ -29,6 +29,13 @@ import (
 )
 
 func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
+	previousMux := http.DefaultServeMux
+	http.DefaultServeMux = http.NewServeMux()
+	t.Cleanup(func() { http.DefaultServeMux = previousMux })
+	http.HandleFunc("/unintended-debug/", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	var calls atomic.Int32
 	egress := unixListener(t, "egress.sock")
 	peerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,10 +56,12 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 		if diff := cmp.Diff(wantFields, fields); diff != "" {
 			t.Errorf("model pipeline body mismatch (-want +got):\n%s", diff)
 		}
+
 		const target = "ai/target/96914ad662f712bc8376b8a6ec1aee8de3bb4f51dcd55f0670220c8fbe183d07"
 		if r.Header.Get(aidataplane.TargetHeader) != target || r.URL.Path != "/v1/chat/completions" {
 			t.Errorf("model pipeline target/path = %q/%q, want selected target and Chat Completions", r.Header.Get(aidataplane.TargetHeader), r.URL.Path)
 		}
+
 		if r.Header.Get(aidataplane.ListenerPortHeader) != "" || r.Header.Get(aidataplane.HostNameHeader) != "" {
 			t.Errorf("model pipeline forwarded entry headers to egress: %v", r.Header)
 		}
@@ -73,6 +82,7 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewHTTPServer(valid dependencies) error = %v", err)
 		}
+
 		t.Cleanup(closeIdle)
 		request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"coding","messages":[]}`))
 		request.Header.Set(aidataplane.ListenerPortHeader, "8080")
@@ -84,6 +94,7 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 		if response.Code != http.StatusAccepted || response.Body.String() != `{"accepted":true}` || calls.Load() != 1 {
 			t.Errorf("assembled model pipeline = (%d, %s, calls %d), want unchanged peer response and one call", response.Code, response.Body, calls.Load())
 		}
+
 		endpoint, err := httpServer.Endpoint()
 		if err != nil || endpoint.Scheme != "unix" || endpoint.Path != ingress.Addr().String() {
 			t.Errorf("Endpoint(assembled server) = (%v, %v), want supplied Unix listener", endpoint, err)
@@ -102,6 +113,7 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 			{name: "other namespace", path: "/v1/chat/completions", body: `{"model":"coding"}`, trusted: true, hostName: "gateway/team-b/public/listener/api", wantStatus: http.StatusNotFound},
 			{name: "oversized body", path: "/v1/chat/completions", body: strings.Repeat("x", 1025), trusted: true, wantStatus: http.StatusRequestEntityTooLarge},
 			{name: "unimplemented operation", path: "/v1/responses", body: `{}`, trusted: true, wantStatus: http.StatusNotFound},
+			{name: "global diagnostic mux", path: "/unintended-debug/", body: `{}`, wantStatus: http.StatusNotFound},
 		} {
 			request := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
 			request.Header.Set("x-ai-eg-model", "coding")
@@ -110,9 +122,11 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 				request.Header.Set(aidataplane.ListenerPortHeader, "8080")
 				request.Header.Set(aidataplane.HostNameHeader, "gateway/team-a/public/listener/api")
 			}
+
 			if tt.hostName != "" {
 				request.Header.Set(aidataplane.HostNameHeader, tt.hostName)
 			}
+
 			response := httptest.NewRecorder()
 
 			httpServer.ServeHTTP(response, request)
@@ -127,10 +141,7 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 func TestNewHTTPServerRejectsInvalidConfiguration(t *testing.T) {
 	listener := unixListener(t, "ingress.sock")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	loader, err := aiconfig.NewLoader(fake.NewClientset(), "control-plane", logger)
-	if err != nil {
-		t.Fatalf("NewLoader(constructor test) error = %v", err)
-	}
+	loader := aiconfig.NewLoader(fake.NewClientset(), "control-plane", logger)
 
 	for _, tt := range []struct {
 		name   string
@@ -146,10 +157,12 @@ func TestNewHTTPServerRejectsInvalidConfiguration(t *testing.T) {
 			if httpServer != nil || closeIdle != nil || err == nil {
 				t.Errorf("NewHTTPServer(%s) = (%v, cleanup %t, %v), want nil results and error", tt.name, httpServer, closeIdle != nil, err)
 			}
+
 			raw, err := listener.SyscallConn()
 			if err != nil {
 				t.Fatalf("SyscallConn(caller's listener) error = %v", err)
 			}
+
 			if err := raw.Control(func(uintptr) {}); err != nil {
 				t.Errorf("NewHTTPServer(%s) closed caller's listener: %v", tt.name, err)
 			}
@@ -171,10 +184,12 @@ func TestModelPipelineStreamsBeforeCompletionAndCancelsUpstream(t *testing.T) {
 			t.Errorf("WriteString(first event) error = %v", err)
 			return
 		}
+
 		if err := http.NewResponseController(w).Flush(); err != nil {
 			t.Errorf("Flush(first event) error = %v", err)
 			return
 		}
+
 		<-r.Context().Done()
 	})
 	peer := &httptest.Server{Listener: egress, Config: &http.Server{Handler: peerHandler}}
@@ -187,6 +202,7 @@ func TestModelPipelineStreamsBeforeCompletionAndCancelsUpstream(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewHTTPServer(stream) error = %v", err)
 		}
+
 		t.Cleanup(closeIdle)
 		entry := &httptest.Server{Listener: ingress, Config: &http.Server{Handler: httpServer}}
 		entry.Start()
@@ -195,6 +211,7 @@ func TestModelPipelineStreamsBeforeCompletionAndCancelsUpstream(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New(Unix ingress client) error = %v", err)
 		}
+
 		t.Cleanup(client.CloseIdleConnections)
 		request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://ingate-ai-ingress/v1/chat/completions", strings.NewReader(`{"model":"coding","stream":true}`))
 		if err != nil {
@@ -208,6 +225,7 @@ func TestModelPipelineStreamsBeforeCompletionAndCancelsUpstream(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Do(stream) error = %v", err)
 		}
+
 		defer func() {
 			if err := response.Body.Close(); err != nil {
 				t.Errorf("Close(stream response) error = %v", err)
@@ -218,6 +236,7 @@ func TestModelPipelineStreamsBeforeCompletionAndCancelsUpstream(t *testing.T) {
 		if err != nil || first != "data: first\n" {
 			t.Fatalf("ReadString(first event) = (%q, %v), want event while upstream is still open", first, err)
 		}
+
 		cancel()
 
 		select {
@@ -235,6 +254,7 @@ func loadedConfig(t *testing.T) *aiconfig.Loader {
 	if err != nil {
 		t.Fatalf("ReadFile(compiled configuration) error = %v", err)
 	}
+
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "control-plane", Name: aidataplane.ConfigMapName, UID: "fixture",
@@ -242,10 +262,8 @@ func loadedConfig(t *testing.T) *aiconfig.Loader {
 		Data: map[string]string{aidataplane.ConfigMapDataKey: string(data)},
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	loader, err := aiconfig.NewLoader(fake.NewClientset(configMap), "control-plane", logger)
-	if err != nil {
-		t.Fatalf("NewLoader(model pipeline) error = %v", err)
-	}
+	loader := aiconfig.NewLoader(fake.NewClientset(configMap), "control-plane", logger)
+
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() { done <- loader.Run(ctx) }()
@@ -270,6 +288,7 @@ func unixListener(t *testing.T, name string) *net.UnixListener {
 	if err != nil {
 		t.Fatalf("ListenUnix(test listener) error = %v", err)
 	}
+
 	t.Cleanup(func() {
 		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			t.Errorf("Close(test listener) error = %v", err)
@@ -286,6 +305,7 @@ func unixSocketDirectory(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("MkdirTemp(Unix listener) error = %v", err)
 	}
+
 	t.Cleanup(func() {
 		if err := os.RemoveAll(directory); err != nil {
 			t.Errorf("RemoveAll(test socket directory) error = %v", err)

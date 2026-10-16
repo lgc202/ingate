@@ -41,6 +41,7 @@ func (c *callbacks) OnStreamOpen(_ context.Context, streamID int64, _ string) er
 	c.mu.Lock()
 	c.streams[streamID] = &streamState{responses: make(map[string]responseState)}
 	c.mu.Unlock()
+
 	return nil
 }
 
@@ -77,8 +78,10 @@ func (c *callbacks) OnStreamRequest(streamID int64, request *discoveryv3.Discove
 			"response_version", response.version,
 			"error_code", detail.GetCode(),
 		)
+
 		return nil
 	}
+
 	if request.GetVersionInfo() != response.version {
 		logger.V(1).Info("xDS feedback version does not match response", "result", "unmatched")
 		return nil
@@ -88,6 +91,7 @@ func (c *callbacks) OnStreamRequest(streamID int64, request *discoveryv3.Discove
 		"result", "ack",
 		"response_version", response.version,
 	)
+
 	return nil
 }
 
@@ -124,11 +128,13 @@ func (c *callbacks) responseForRequest(
 	if state == nil {
 		return nodeID, responseState{}
 	}
+
 	if nodeID != "" {
 		state.nodeID = nodeID
 	} else {
 		nodeID = state.nodeID
 	}
+
 	return nodeID, state.responses[request.GetTypeUrl()]
 }
 

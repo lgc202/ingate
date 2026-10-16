@@ -44,6 +44,7 @@ func TestNewScheme(t *testing.T) {
 			t.Errorf("Scheme.New(%s) error = %v, want nil", tt.gvk, err)
 			continue
 		}
+
 		if got := reflect.TypeOf(obj); got != tt.wantType {
 			t.Errorf("Scheme.New(%s) type = %v, want %v", tt.gvk, got, tt.wantType)
 		}
@@ -61,10 +62,12 @@ func TestNewSchemeIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newScheme(first) error = %v", err)
 	}
+
 	second, err := newScheme()
 	if err != nil {
 		t.Fatalf("newScheme(second) error = %v", err)
 	}
+
 	if first == second || first == legacyscheme.Scheme || second == legacyscheme.Scheme {
 		t.Error("newScheme() reused an instance, want separate private schemes")
 	}
@@ -73,6 +76,7 @@ func TestNewSchemeIsolation(t *testing.T) {
 	if !first.Recognizes(gvk) || !second.Recognizes(gvk) {
 		t.Errorf("private Scheme recognizes %s = %t/%t, want true/true", gvk, first.Recognizes(gvk), second.Recognizes(gvk))
 	}
+
 	if legacyscheme.Scheme.Recognizes(gvk) {
 		t.Errorf("upstream global Scheme recognizes %s = true, want no business registration", gvk)
 	}

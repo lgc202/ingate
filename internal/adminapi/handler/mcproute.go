@@ -1,82 +1,73 @@
-// Package mcproute 适配 MCPRouteService 的 HTTP 和 gRPC 协议。
-package mcproute
+package handler
 
 import (
 	"context"
 	"errors"
 
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	adminhandler "github.com/lgc202/ingate/internal/adminapi/handler"
+	"github.com/lgc202/ingate/internal/adminapi/errno"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
-	routeservice "github.com/lgc202/ingate/internal/adminapi/service/mcproute"
+	mcprouteservice "github.com/lgc202/ingate/internal/adminapi/service/mcproute"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
-const (
-	reasonInvalidArgument = "MCP_ROUTE_INVALID_ARGUMENT"
-	reasonAlreadyExists   = "MCP_ROUTE_ALREADY_EXISTS"
-	reasonNotFound        = "MCP_ROUTE_NOT_FOUND"
-	reasonConflict        = "MCP_ROUTE_CONFLICT"
-)
-
 var (
-	_ adminv1.MCPRouteServiceServer     = (*Handler)(nil)
-	_ adminv1.MCPRouteServiceHTTPServer = (*Handler)(nil)
+	_ adminv1.MCPRouteServiceServer     = (*MCPRouteHandler)(nil)
+	_ adminv1.MCPRouteServiceHTTPServer = (*MCPRouteHandler)(nil)
 )
 
-// Handler 实现 MCPRoute 的 gRPC 和 HTTP 协议入口。
-type Handler struct {
+// MCPRouteHandler 实现 MCPRoute 的 gRPC 和 HTTP 协议入口。
+type MCPRouteHandler struct {
 	adminv1.UnimplementedMCPRouteServiceServer
 
-	service *routeservice.Service
+	service *mcprouteservice.Service
 }
 
-// New 创建 MCPRoute Handler。
-func New(service *routeservice.Service) *Handler {
-	return &Handler{service: service}
+// NewMCPRoute 创建 MCP 路由协议入口，复用注入的业务服务。
+func NewMCPRoute(service *mcprouteservice.Service) *MCPRouteHandler {
+	return &MCPRouteHandler{service: service}
 }
 
 // CreateMCPRoute 创建 MCPRoute。
-func (h *Handler) CreateMCPRoute(
+func (h *MCPRouteHandler) CreateMCPRoute(
 	ctx context.Context,
 	req *adminv1.CreateMCPRouteRequest,
 ) (*adminv1.CreateMCPRouteReply, error) {
-	created, err := h.service.Create(ctx, routeservice.CreateParams{
+	created, err := h.service.Create(ctx, mcprouteservice.CreateParams{
 		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
-		ParentRefs:  parentsFromProto(req.GetParentRefs()),
+		ParentRefs:  mcpRouteParentsFromProto(req.GetParentRefs()),
 		Path:        req.Path,
-		BackendRefs: backendRefsFromProto(req.GetBackendRefs()),
+		BackendRefs: mcpRouteBackendRefsFromProto(req.GetBackendRefs()),
 	})
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toMCPRouteError(err)
 	}
 
-	return &adminv1.CreateMCPRouteReply{Route: routeToProto(created)}, nil
+	return &adminv1.CreateMCPRouteReply{Route: mcpRouteToProto(created)}, nil
 }
 
 // GetMCPRoute 读取指定 MCPRoute。
-func (h *Handler) GetMCPRoute(
+func (h *MCPRouteHandler) GetMCPRoute(
 	ctx context.Context,
 	req *adminv1.GetMCPRouteRequest,
 ) (*adminv1.GetMCPRouteReply, error) {
 	route, err := h.service.Get(ctx, req.GetNamespace(), req.GetName())
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toMCPRouteError(err)
 	}
 
-	return &adminv1.GetMCPRouteReply{Route: routeToProto(route)}, nil
+	return &adminv1.GetMCPRouteReply{Route: mcpRouteToProto(route)}, nil
 }
 
 // ListMCPRoutes 分页列出 MCPRoute。
-func (h *Handler) ListMCPRoutes(
+func (h *MCPRouteHandler) ListMCPRoutes(
 	ctx context.Context,
 	req *adminv1.ListMCPRoutesRequest,
 ) (*adminv1.ListMCPRoutesReply, error) {
-	page, err := h.service.List(ctx, routeservice.ListParams{
+	page, err := h.service.List(ctx, mcprouteservice.ListParams{
 		Namespace:   req.GetNamespace(),
 		PageSize:    req.GetPageSize(),
 		PageNum:     req.GetPageNum(),
@@ -84,59 +75,60 @@ func (h *Handler) ListMCPRoutes(
 		GatewayName: req.GetGatewayName(),
 	})
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toMCPRouteError(err)
 	}
 
 	routes := make([]*adminv1.MCPRoute, len(page.Items))
 	for i, route := range page.Items {
-		routes[i] = routeToProto(route)
+		routes[i] = mcpRouteToProto(route)
 	}
 
 	return &adminv1.ListMCPRoutesReply{Routes: routes, TotalCount: page.TotalCount}, nil
 }
 
 // UpdateMCPRoute 完整替换 MCPRoute 的可编辑配置。
-func (h *Handler) UpdateMCPRoute(
+func (h *MCPRouteHandler) UpdateMCPRoute(
 	ctx context.Context,
 	req *adminv1.UpdateMCPRouteRequest,
 ) (*adminv1.UpdateMCPRouteReply, error) {
-	updated, err := h.service.Update(ctx, routeservice.UpdateParams{
+	updated, err := h.service.Update(ctx, mcprouteservice.UpdateParams{
 		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
 		Name:        req.GetName(),
 		Version:     req.GetVersion(),
-		ParentRefs:  parentsFromProto(req.GetParentRefs()),
+		ParentRefs:  mcpRouteParentsFromProto(req.GetParentRefs()),
 		Path:        req.Path,
-		BackendRefs: backendRefsFromProto(req.GetBackendRefs()),
+		BackendRefs: mcpRouteBackendRefsFromProto(req.GetBackendRefs()),
 	})
 	if err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toMCPRouteError(err)
 	}
 
-	return &adminv1.UpdateMCPRouteReply{Route: routeToProto(updated)}, nil
+	return &adminv1.UpdateMCPRouteReply{Route: mcpRouteToProto(updated)}, nil
 }
 
 // DeleteMCPRoute 删除指定 MCPRoute。
-func (h *Handler) DeleteMCPRoute(
+func (h *MCPRouteHandler) DeleteMCPRoute(
 	ctx context.Context,
 	req *adminv1.DeleteMCPRouteRequest,
 ) (*adminv1.DeleteMCPRouteReply, error) {
 	if err := h.service.Delete(ctx, req.GetNamespace(), req.GetName()); err != nil {
-		return nil, toTransportError(ctx, err)
+		return nil, toMCPRouteError(err)
 	}
 
 	return &adminv1.DeleteMCPRouteReply{}, nil
 }
 
-func parentsFromProto(refs []*adminv1.ParentReference) []gatewayv1alpha1.ParentReference {
+func mcpRouteParentsFromProto(refs []*adminv1.ParentReference) []gatewayv1alpha1.ParentReference {
 	result := make([]gatewayv1alpha1.ParentReference, len(refs))
 	for i, ref := range refs {
 		result[i] = gatewayv1alpha1.ParentReference{Name: ref.GetName(), SectionName: ref.GetSectionName()}
 	}
+
 	return result
 }
 
-func backendRefsFromProto(refs []*adminv1.MCPBackendReference) []gatewayv1alpha1.MCPBackendReference {
+func mcpRouteBackendRefsFromProto(refs []*adminv1.MCPBackendReference) []gatewayv1alpha1.MCPBackendReference {
 	result := make([]gatewayv1alpha1.MCPBackendReference, len(refs))
 	for i, ref := range refs {
 		result[i] = gatewayv1alpha1.MCPBackendReference{
@@ -144,10 +136,11 @@ func backendRefsFromProto(refs []*adminv1.MCPBackendReference) []gatewayv1alpha1
 			Path: ref.Path,
 		}
 	}
+
 	return result
 }
 
-func routeToProto(route repository.MCPRouteInfo) *adminv1.MCPRoute {
+func mcpRouteToProto(route repository.MCPRouteInfo) *adminv1.MCPRoute {
 	result := &adminv1.MCPRoute{
 		Namespace:   route.Namespace,
 		Name:        route.Name,
@@ -160,6 +153,7 @@ func routeToProto(route repository.MCPRouteInfo) *adminv1.MCPRoute {
 	for _, ref := range route.ParentRefs {
 		result.ParentRefs = append(result.ParentRefs, &adminv1.ParentReference{Name: ref.Name, SectionName: ref.SectionName})
 	}
+
 	for _, ref := range route.BackendRefs {
 		result.BackendRefs = append(result.BackendRefs, &adminv1.MCPBackendReference{
 			Name: ref.Name,
@@ -170,17 +164,17 @@ func routeToProto(route repository.MCPRouteInfo) *adminv1.MCPRoute {
 	return result
 }
 
-func toTransportError(ctx context.Context, err error) error {
+func toMCPRouteError(err error) error {
 	switch {
-	case errors.Is(err, routeservice.ErrInvalidArgument):
-		return kratoserrors.BadRequest(reasonInvalidArgument, "MCP 路由参数不合法").WithCause(err)
-	case errors.Is(err, routeservice.ErrAlreadyExists):
-		return kratoserrors.Conflict(reasonAlreadyExists, "资源标识冲突，请重新创建").WithCause(err)
-	case errors.Is(err, routeservice.ErrNotFound):
-		return kratoserrors.NotFound(reasonNotFound, "MCP 路由不存在").WithCause(err)
-	case errors.Is(err, routeservice.ErrConflict):
-		return kratoserrors.Conflict(reasonConflict, "MCP 路由已被修改，请刷新后重试").WithCause(err)
+	case errors.Is(err, mcprouteservice.ErrInvalidArgument):
+		return errno.ErrMCPRouteInvalidArgument.WithCause(err)
+	case errors.Is(err, mcprouteservice.ErrAlreadyExists):
+		return errno.ErrMCPRouteAlreadyExists.WithCause(err)
+	case errors.Is(err, mcprouteservice.ErrNotFound):
+		return errno.ErrMCPRouteNotFound.WithCause(err)
+	case errors.Is(err, mcprouteservice.ErrConflict):
+		return errno.ErrMCPRouteConflict.WithCause(err)
 	default:
-		return adminhandler.ToTransportError(ctx, err)
+		return errno.Fallback(err)
 	}
 }

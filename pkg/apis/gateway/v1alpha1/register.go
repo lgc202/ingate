@@ -34,5 +34,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&MCPRoute{}, &MCPRouteList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
+
 	return nil
 }

@@ -19,14 +19,17 @@ func SetDefaultsHTTPRoute(route *HTTPRoute) {
 		if len(rule.Matches) == 0 {
 			rule.Matches = []HTTPRouteMatch{{}}
 		}
+
 		for j := range rule.Matches {
 			match := &rule.Matches[j]
 			if match.Path == nil {
 				match.Path = &PathMatch{}
 			}
+
 			if match.Path.Type == "" {
 				match.Path.Type = PathMatchPrefix
 			}
+
 			if match.Path.Value == "" {
 				match.Path.Value = "/"
 			}
@@ -55,6 +58,7 @@ func SetDefaultsMCPRoute(route *MCPRoute) {
 	if route.Spec.Path == nil {
 		route.Spec.Path = ptr.To("/mcp")
 	}
+
 	for i := range route.Spec.BackendRefs {
 		if route.Spec.BackendRefs[i].Path == nil {
 			route.Spec.BackendRefs[i].Path = ptr.To("/mcp")
@@ -99,5 +103,6 @@ func addDefaultingFuncs(scheme *runtime.Scheme) error {
 			SetDefaultsHTTPRoute(&list.Items[i])
 		}
 	})
+
 	return nil
 }

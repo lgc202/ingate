@@ -41,6 +41,7 @@ func TestListMCPRoutesPreservesPathsAndParents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListMCPRoutes(page 1) error = %v, want nil", err)
 	}
+
 	want := MCPRoutePage{Items: []MCPRoute{route}, TotalCount: 1}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("ListMCPRoutes(paths and parents) mismatch (-want +got):\n%s", diff)
@@ -55,6 +56,7 @@ func TestGetMCPRouteRejectsInvalidJSONWithoutPartialState(t *testing.T) {
 	if err == nil {
 		t.Fatal("GetMCPRoute(broken) error = nil, want JSON decoding error")
 	}
+
 	if diff := cmp.Diff(MCPRoute{}, got); diff != "" {
 		t.Errorf("GetMCPRoute(broken) returned partial state (-want +got):\n%s", diff)
 	}
@@ -68,6 +70,7 @@ func TestGetMCPRoutePreservesNotFoundCause(t *testing.T) {
 	if !errors.Is(err, ErrNotFound) || !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Errorf("GetMCPRoute(missing) error = %v, want ErrNotFound and GORM cause", err)
 	}
+
 	if diff := cmp.Diff(MCPRoute{}, got); diff != "" {
 		t.Errorf("GetMCPRoute(missing) returned state (-want +got):\n%s", diff)
 	}
@@ -108,6 +111,7 @@ func TestListMCPRoutesRejectsInvalidJSONWithoutPartialPage(t *testing.T) {
 	if err == nil {
 		t.Fatal("ListMCPRoutes(broken JSON) error = nil, want decoding error")
 	}
+
 	if diff := cmp.Diff(MCPRoutePage{}, got); diff != "" {
 		t.Errorf("ListMCPRoutes(broken JSON) returned partial page (-want +got):\n%s", diff)
 	}
@@ -146,6 +150,7 @@ func TestListMCPRoutesCombinesLiteralNameAndGatewayFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListMCPRoutes(filtered) error = %v, want nil", err)
 	}
+
 	if len(got.Items) != 0 || got.TotalCount != 0 {
 		t.Errorf("ListMCPRoutes(no match) = %+v, want empty page and total 0", got)
 	}

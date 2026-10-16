@@ -29,6 +29,7 @@ func TestRunRejectsUnknownFlagAndMissingConfig(t *testing.T) {
 		want int
 	}{
 		{name: "unknown flag", args: []string{"--unknown"}, want: 2},
+		{name: "positional argument", args: []string{"unused"}, want: 2},
 		{name: "missing config", args: []string{"--conf", filepath.Join(t.TempDir(), "missing.yaml")}, want: 1},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

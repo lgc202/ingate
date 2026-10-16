@@ -5,24 +5,18 @@ import (
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
-	accounthandler "github.com/lgc202/ingate/internal/adminapi/handler/account"
-	aibackendhandler "github.com/lgc202/ingate/internal/adminapi/handler/aibackend"
-	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
-	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
-	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
-	mcproutehandler "github.com/lgc202/ingate/internal/adminapi/handler/mcproute"
-	modelroutehandler "github.com/lgc202/ingate/internal/adminapi/handler/modelroute"
+	"github.com/lgc202/ingate/internal/adminapi/handler"
 )
 
 // Handlers 保存 Admin API 需要注册的业务 Handler。
 type Handlers struct {
-	Gateway    *gatewayhandler.Handler
-	HTTPRoute  *routehandler.Handler
-	Backend    *backendhandler.Handler
-	AIBackend  *aibackendhandler.Handler
-	ModelRoute *modelroutehandler.Handler
-	MCPRoute   *mcproutehandler.Handler
-	Account    *accounthandler.Handler
+	Gateway    *handler.GatewayHandler
+	HTTPRoute  *handler.HTTPRouteHandler
+	Backend    *handler.BackendHandler
+	AIBackend  *handler.AIBackendHandler
+	ModelRoute *handler.ModelRouteHandler
+	MCPRoute   *handler.MCPRouteHandler
+	Account    *handler.AccountHandler
 }
 
 // New 构造并注册 Admin API 的入站服务，但不开始监听端口。
@@ -45,10 +39,13 @@ func New(
 
 	adminv1.RegisterBackendServiceHTTPServer(httpServer, handlers.Backend)
 	adminv1.RegisterBackendServiceServer(grpcServer, handlers.Backend)
+
 	adminv1.RegisterAIBackendServiceHTTPServer(httpServer, handlers.AIBackend)
 	adminv1.RegisterAIBackendServiceServer(grpcServer, handlers.AIBackend)
+
 	adminv1.RegisterModelRouteServiceHTTPServer(httpServer, handlers.ModelRoute)
 	adminv1.RegisterModelRouteServiceServer(grpcServer, handlers.ModelRoute)
+
 	adminv1.RegisterMCPRouteServiceHTTPServer(httpServer, handlers.MCPRoute)
 	adminv1.RegisterMCPRouteServiceServer(grpcServer, handlers.MCPRoute)
 

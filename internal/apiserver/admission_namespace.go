@@ -38,6 +38,7 @@ func newNamespaceLifecycleInitializer(
 	if err != nil {
 		return nil, fmt.Errorf("create NamespaceLifecycle loopback client: %w", err)
 	}
+
 	// 0 关闭周期性 resync，不关闭 List/Watch。缓存仍按官方 Informer 机制持续更新。
 	factory := informers.NewSharedInformerFactory(client, 0)
 	// 服务启动后才能通过 Loopback 请求自身；退出时由框架取消此 Context，停止 List/Watch。

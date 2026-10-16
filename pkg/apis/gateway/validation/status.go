@@ -35,15 +35,18 @@ func validateRouteParentStatuses(parents []gateway.RouteParentStatus, generation
 		if parent.ParentRef.SectionName != "" {
 			errs = append(errs, validateListenerName(parent.ParentRef.SectionName, path.Child("parentRef", "sectionName"))...)
 		}
+
 		if parent.ControllerName == "" {
 			errs = append(errs, field.Required(path.Child("controllerName"), "is required"))
 		} else {
 			errs = append(errs, validation.IsDomainPrefixedPath(path.Child("controllerName"), parent.ControllerName)...)
 		}
+
 		key := parent.ControllerName + "/" + parent.ParentRef.Name + "/" + parent.ParentRef.SectionName
 		if seen[key] {
 			errs = append(errs, field.Duplicate(path, key))
 		}
+
 		seen[key] = true
 		errs = append(errs, metav1validation.ValidateConditions(parent.Conditions, path.Child("conditions"))...)
 		for j, condition := range parent.Conditions {

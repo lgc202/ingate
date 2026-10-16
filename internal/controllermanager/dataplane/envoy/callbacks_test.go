@@ -146,12 +146,14 @@ func TestCallbacksFeedback(t *testing.T) {
 			if err := callback.OnStreamOpen(t.Context(), 1, resourcev3.AnyType); err != nil {
 				t.Fatalf("OnStreamOpen() = %v", err)
 			}
+
 			if err := callback.OnStreamRequest(1, &discoveryv3.DiscoveryRequest{
 				Node:    &corev3.Node{Id: "envoy-1"},
 				TypeUrl: resourcev3.ListenerType,
 			}); err != nil {
 				t.Fatalf("OnStreamRequest(subscription) = %v", err)
 			}
+
 			callback.OnStreamResponse(t.Context(), 1, nil, &discoveryv3.DiscoveryResponse{
 				TypeUrl:     resourcev3.ListenerType,
 				Nonce:       "old",
@@ -170,12 +172,15 @@ func TestCallbacksFeedback(t *testing.T) {
 				if logs.Len() != 0 {
 					t.Fatalf("unexpected feedback log: %s", logs.String())
 				}
+
 				return
 			}
+
 			record := readCallbackLog(t, logs)
 			if got := record["result"]; got != tt.wantResult {
 				t.Errorf("result = %v, want %q", got, tt.wantResult)
 			}
+
 			if got, exists := record["response_version"]; tt.wantVersion == "" {
 				if exists {
 					t.Errorf("unmatched feedback has response_version = %v", got)
@@ -183,15 +188,19 @@ func TestCallbacksFeedback(t *testing.T) {
 			} else if got != tt.wantVersion {
 				t.Errorf("response_version = %v, want %q", got, tt.wantVersion)
 			}
+
 			if got := record["client_version"]; got != tt.request.GetVersionInfo() {
 				t.Errorf("client_version = %v, want %q", got, tt.request.GetVersionInfo())
 			}
+
 			if tt.streamID == 1 && record["node_id"] != "envoy-1" {
 				t.Errorf("node_id = %v, want cached envoy-1", record["node_id"])
 			}
+
 			if tt.wantResult == "nack" && record["error_code"] != float64(tt.wantErrorCode) {
 				t.Errorf("error_code = %v, want %d", record["error_code"], tt.wantErrorCode)
 			}
+
 			if strings.Contains(logs.String(), "secret configuration") {
 				t.Error("log exposes ErrorDetail.Message")
 			}
@@ -206,12 +215,14 @@ func TestCallbacksStreamIsolationAndCleanup(t *testing.T) {
 		if err := callback.OnStreamOpen(t.Context(), streamID, resourcev3.AnyType); err != nil {
 			t.Fatalf("OnStreamOpen(%d) = %v", streamID, err)
 		}
+
 		callback.OnStreamResponse(t.Context(), streamID, nil, &discoveryv3.DiscoveryResponse{
 			TypeUrl:     resourcev3.ClusterType,
 			Nonce:       "1",
 			VersionInfo: version,
 		})
 	}
+
 	for streamID, version := range versions {
 		if err := callback.OnStreamRequest(streamID, &discoveryv3.DiscoveryRequest{
 			TypeUrl:       resourcev3.ClusterType,
@@ -220,10 +231,12 @@ func TestCallbacksStreamIsolationAndCleanup(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("OnStreamRequest(%d) = %v", streamID, err)
 		}
+
 		record := readCallbackLog(t, logs)
 		if record["result"] != "ack" || record["response_version"] != version {
 			t.Errorf("stream %d feedback = %v, want ACK of %s", streamID, record, version)
 		}
+
 		logs.Reset()
 	}
 
@@ -236,12 +249,15 @@ func TestCallbacksStreamIsolationAndCleanup(t *testing.T) {
 	if _, exists := callback.streams[1]; exists {
 		t.Fatal("late response recreated closed stream")
 	}
+
 	if len(callback.streams) != 1 {
 		t.Fatalf("active streams = %d, want remaining stream only", len(callback.streams))
 	}
+
 	if err := callback.OnStreamOpen(t.Context(), 3, resourcev3.AnyType); err != nil {
 		t.Fatalf("OnStreamOpen(reconnect) = %v", err)
 	}
+
 	if err := callback.OnStreamRequest(3, &discoveryv3.DiscoveryRequest{
 		TypeUrl:       resourcev3.ClusterType,
 		ResponseNonce: "1",
@@ -249,10 +265,12 @@ func TestCallbacksStreamIsolationAndCleanup(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("OnStreamRequest(reconnect) = %v", err)
 	}
+
 	record := readCallbackLog(t, logs)
 	if record["result"] != "unmatched" || record["response_version"] != nil {
 		t.Errorf("reconnected feedback = %v, want unmatched without response version", record)
 	}
+
 	callback.OnStreamClosed(2, nil)
 	callback.OnStreamClosed(3, nil)
 	if len(callback.streams) != 0 {
@@ -265,6 +283,7 @@ func TestCallbacksResponseStateBounded(t *testing.T) {
 	if err := callback.OnStreamOpen(t.Context(), 1, resourcev3.AnyType); err != nil {
 		t.Fatalf("OnStreamOpen() = %v", err)
 	}
+
 	for _, typeURL := range []string{
 		resourcev3.ListenerType, resourcev3.RouteType, resourcev3.ClusterType, resourcev3.EndpointType,
 	} {
@@ -283,16 +302,19 @@ func TestCallbacksResponseStateBounded(t *testing.T) {
 				VersionInfo: "v2",
 			})
 		}
+
 		if got := callback.streams[1].responses[typeURL]; got.nonce != "99" || got.version != "v2" {
 			t.Errorf("stored response for %s = %+v, want copied 99/v2", typeURL, got)
 		}
 	}
+
 	callback.OnStreamResponse(t.Context(), 1, nil, &discoveryv3.DiscoveryResponse{
 		TypeUrl: resourcev3.ListenerType, VersionInfo: "without-nonce",
 	})
 	if got := len(callback.streams[1].responses); got != 4 {
 		t.Errorf("stored response types = %d, want 4", got)
 	}
+
 	if got := callback.streams[1].responses[resourcev3.ListenerType].version; got != "v2" {
 		t.Errorf("empty nonce replaced response version with %q", got)
 	}
@@ -307,6 +329,7 @@ func TestCallbacksConcurrentStreams(t *testing.T) {
 				t.Errorf("OnStreamOpen(%d) = %v", streamID, err)
 				return
 			}
+
 			defer callback.OnStreamClosed(streamID, nil)
 			for range 100 {
 				callback.OnStreamResponse(context.Background(), streamID, nil, &discoveryv3.DiscoveryResponse{
@@ -325,6 +348,7 @@ func TestCallbacksConcurrentStreams(t *testing.T) {
 			}
 		})
 	}
+
 	workers.Wait()
 	if len(callback.streams) != 0 {
 		t.Errorf("active streams after workers stopped = %d, want 0", len(callback.streams))
@@ -335,6 +359,7 @@ func newTestCallbacks(t *testing.T) (*callbacks, *bytes.Buffer) {
 	t.Helper()
 	var logs bytes.Buffer
 	logger := logr.FromSlogHandler(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
 	return newCallbacks(logger), &logs
 }
 
@@ -345,9 +370,11 @@ func readCallbackLog(t *testing.T, logs *bytes.Buffer) map[string]any {
 	if err := decoder.Decode(&record); err != nil {
 		t.Fatalf("decode callback log: %v; logs = %s", err, logs.String())
 	}
+
 	var extra map[string]any
 	if err := decoder.Decode(&extra); err != io.EOF {
 		t.Fatalf("expected exactly one callback log, extra = %v, error = %v", extra, err)
 	}
+
 	return record
 }

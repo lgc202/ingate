@@ -31,6 +31,7 @@ func TestNewSelectsNativeClient(t *testing.T) {
 			if err != nil {
 				t.Fatalf("New() error = %v, want nil", err)
 			}
+
 			t.Cleanup(func() {
 				if err := client.Close(); err != nil {
 					t.Errorf("Close() error = %v, want nil", err)
@@ -42,13 +43,16 @@ func TestNewSelectsNativeClient(t *testing.T) {
 				if !ok {
 					t.Fatalf("New() type = %T, want *redis.ClusterClient", client)
 				}
+
 				options := cluster.Options()
 				if options.ReadOnly || options.RouteByLatency || options.RouteRandomly {
 					t.Error("New() enabled replica routing for sessions")
 				}
+
 				if tt.config.MasterName != "" && tt.config.DB != 0 && options.OnConnect == nil {
 					t.Error("Sentinel FailoverClusterClient has no SELECT hook for nonzero db")
 				}
+
 				return
 			}
 
@@ -56,6 +60,7 @@ func TestNewSelectsNativeClient(t *testing.T) {
 			if !ok {
 				t.Fatalf("New() type = %T, want *redis.Client", client)
 			}
+
 			if got := single.Options().DB; got != tt.config.DB {
 				t.Errorf("New() db = %d, want %d", got, tt.config.DB)
 			}
@@ -72,6 +77,7 @@ func TestNewDoesNotProbeUnavailableServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(unavailable server) error = %v, want nil before startup probe", err)
 	}
+
 	if err := client.Close(); err != nil {
 		t.Errorf("Close() error = %v, want nil", err)
 	}
@@ -98,9 +104,11 @@ func TestOptionsPreserveConfiguredFields(t *testing.T) {
 	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(goredis.UniversalOptions{}, "TLSConfig")); diff != "" {
 		t.Errorf("options() mismatch (-want +got):\n%s", diff)
 	}
+
 	if got.TLSConfig == nil {
 		t.Fatal("options() TLSConfig = nil, want certificate verification enabled")
 	}
+
 	if got.TLSConfig.MinVersion != tls.VersionTLS12 || got.TLSConfig.ServerName != "redis.example.com" || got.TLSConfig.InsecureSkipVerify || got.TLSConfig.RootCAs != nil {
 		t.Error("options() TLS settings do not use TLS 1.2 minimum, requested name and system certificate verification")
 	}
@@ -120,6 +128,7 @@ func TestClientDoesNotBorrowAddressSlice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
+
 	t.Cleanup(func() {
 		if err := client.Close(); err != nil {
 			t.Errorf("Close() error = %v, want nil", err)
@@ -166,8 +175,10 @@ func TestNewRejectsInvalidConfig(t *testing.T) {
 				if closeErr := client.Close(); closeErr != nil {
 					t.Errorf("Close() error = %v, want nil", closeErr)
 				}
+
 				t.Error("New() client is not nil, want nil")
 			}
+
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Errorf("New() error = %v, want %q", err, tt.wantErr)
 			}

@@ -22,6 +22,7 @@ func TestResourcePredicate(t *testing.T) {
 		if !filter.Create(event.CreateEvent{Object: resource}) || !filter.Delete(event.DeleteEvent{Object: resource}) {
 			t.Errorf("resourcePredicate(%T) filtered a create or delete event", resource)
 		}
+
 		if filter.Generic(event.GenericEvent{Object: resource}) {
 			t.Errorf("resourcePredicate(%T) accepted a generic event", resource)
 		}
@@ -81,12 +82,15 @@ func TestAIConfigPredicateScope(t *testing.T) {
 			if got := filter.Create(event.CreateEvent{Object: previous}); got != tt.want {
 				t.Errorf("predicate.Create(%s) = %t, want %t", tt.name, got, tt.want)
 			}
+
 			if got := filter.Delete(event.DeleteEvent{Object: previous}); got != tt.want {
 				t.Errorf("predicate.Delete(%s) = %t, want %t", tt.name, got, tt.want)
 			}
+
 			if got := filter.Update(event.UpdateEvent{ObjectOld: previous, ObjectNew: current}); got != tt.want {
 				t.Errorf("predicate.Update(%s) = %t, want %t", tt.name, got, tt.want)
 			}
+
 			if filter.Generic(event.GenericEvent{Object: current}) {
 				t.Error("predicate.Generic() = true, want false")
 			}

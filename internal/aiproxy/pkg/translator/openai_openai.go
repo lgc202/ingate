@@ -19,6 +19,7 @@ func TranslateChatCompletionOpenAIToOpenAI(body []byte, modelNameOverride string
 	if modelNameOverride == "" {
 		return bytes.Clone(body), nil
 	}
+
 	if !utf8.ValidString(modelNameOverride) {
 		return nil, errors.New("model name override must be valid UTF-8")
 	}
@@ -33,6 +34,7 @@ func TranslateChatCompletionOpenAIToOpenAI(body []byte, modelNameOverride string
 	if err := json.Unmarshal(fields["model"], &originalModel); err != nil {
 		return nil, fmt.Errorf("decode original chat completion model: %w", err)
 	}
+
 	if originalModel == modelNameOverride {
 		return bytes.Clone(body), nil
 	}
@@ -41,6 +43,7 @@ func TranslateChatCompletionOpenAIToOpenAI(body []byte, modelNameOverride string
 	if err != nil {
 		return nil, fmt.Errorf("encode model name override: %w", err)
 	}
+
 	fields["model"] = model
 	translated, err := json.Marshal(fields)
 	if err != nil {

@@ -24,6 +24,7 @@ func TestTranslateChatCompletionOpenAIToOpenAIPreservesFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseChatCompletions(provider extensions) error = %v", err)
 	}
+
 	want := decodeRequest(t, body)
 	want["model"] = "code-v2"
 
@@ -35,6 +36,7 @@ func TestTranslateChatCompletionOpenAIToOpenAIPreservesFields(t *testing.T) {
 	if diff := cmp.Diff(want, decodeRequest(t, encoded)); diff != "" {
 		t.Errorf("TranslateChatCompletionOpenAIToOpenAI(code-v2) changed unrelated JSON values (-want +got):\n%s", diff)
 	}
+
 	if got := request.Model; got != "coding" {
 		t.Errorf("ParseChatCompletions(original body).Model after translation = %q, want coding", got)
 	}
@@ -72,9 +74,11 @@ func TestTranslateChatCompletionOpenAIToOpenAIOwnsResult(t *testing.T) {
 		if diff := cmp.Diff(want, decodeRequest(t, encoded)); diff != "" {
 			t.Errorf("TranslateChatCompletionOpenAIToOpenAI(%q) mismatch (-want +got):\n%s", override, diff)
 		}
+
 		if (override == "" || override == "coding") && !bytes.Equal(encoded, original) {
 			t.Errorf("TranslateChatCompletionOpenAIToOpenAI(%q) = %q, want original bytes %q", override, encoded, original)
 		}
+
 		if !bytes.Equal(body, original) {
 			t.Errorf("TranslateChatCompletionOpenAIToOpenAI(%q) mutated source = %q, want %q", override, body, original)
 		}

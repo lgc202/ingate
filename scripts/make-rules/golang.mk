@@ -1,4 +1,6 @@
-.PHONY: build $(BINS) test fmt fmt-check vet go-lint
+LINT_TARGETS += go-lint-integration
+
+.PHONY: build $(BINS) test fmt fmt-check vet go-lint go-lint-integration
 
 build: $(BINS) ## 构建全部或 BINS 指定的二进制，输出到 bin/
 
@@ -24,3 +26,6 @@ vet: ## 运行 go vet 静态分析
 
 go-lint: ## 使用固定版本的 golangci-lint 检查 Go 代码
 	$(GOLANGCI_LINT) run --allow-serial-runners --config .golangci.yml ./...
+
+go-lint-integration: ## 静态检查 integration 标签文件，不运行测试或外部服务
+	$(GOLANGCI_LINT) run --allow-serial-runners --config .golangci.yml --build-tags integration ./...

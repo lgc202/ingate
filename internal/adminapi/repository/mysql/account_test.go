@@ -14,11 +14,13 @@ func TestUpdatePasswordChangesHashAndSessionVersionTogether(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock.New() error = %v, want nil", err)
 	}
+
 	t.Cleanup(func() {
 		mock.ExpectClose()
 		if err := db.Close(); err != nil {
 			t.Errorf("Close() error = %v, want nil", err)
 		}
+
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Errorf("SQL expectations error = %v, want nil", err)
 		}
@@ -31,6 +33,7 @@ func TestUpdatePasswordChangesHashAndSessionVersionTogether(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gorm.Open() error = %v, want nil", err)
 	}
+
 	store := &Store{db: gormDB}
 
 	query := "UPDATE `accounts` SET .*`session_version`=session_version \\+ 1.* WHERE id = \\? AND password_hash = \\?"

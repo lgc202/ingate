@@ -56,12 +56,15 @@ func TestNewClusterEndpointAssignment(t *testing.T) {
 			if err != nil {
 				t.Fatalf("newCluster(%v) error = %v, want nil", tt.endpoints, err)
 			}
+
 			if got := cluster.GetType(); got != tt.wantType {
 				t.Errorf("newCluster(%v) discovery type = %v, want %v", tt.endpoints, got, tt.wantType)
 			}
+
 			if got := assignment.ClusterName; got != "backend/backend" {
 				t.Errorf("newCluster(%v) assignment name = %q, want backend/backend", tt.endpoints, got)
 			}
+
 			if len(assignment.Endpoints) != 1 {
 				t.Fatalf("newCluster(%v) localities = %d, want 1", tt.endpoints, len(assignment.Endpoints))
 			}
@@ -74,12 +77,15 @@ func TestNewClusterEndpointAssignment(t *testing.T) {
 					Weight: int32(endpoint.GetLoadBalancingWeight().GetValue()),
 				})
 			}
+
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("newCluster(%v) endpoints mismatch (-want +got):\n%s", tt.endpoints, diff)
 			}
+
 			if diff := cmp.Diff(before, tt.endpoints); diff != "" {
 				t.Errorf("newCluster(%v) modified input (-want +got):\n%s", before, diff)
 			}
+
 			if tt.wantType == clusterv3.Cluster_STRICT_DNS {
 				if cluster.LoadAssignment != assignment || cluster.EdsClusterConfig != nil {
 					t.Errorf("newCluster(%v) did not embed DNS assignment or unexpectedly configured EDS", tt.endpoints)
@@ -105,9 +111,11 @@ func TestNewClusterRejectsInvalidEndpoint(t *testing.T) {
 			if err == nil {
 				t.Fatalf("newCluster(%+v) error = nil, want validation error", tt.endpoint)
 			}
+
 			if cluster != nil || assignment != nil {
 				t.Errorf("newCluster(%+v) = (%v, %v), want nil results on error", tt.endpoint, cluster, assignment)
 			}
+
 			if !strings.HasPrefix(err.Error(), tt.wantPrefix) {
 				t.Errorf("newCluster(%+v) error = %v, want prefix %q", tt.endpoint, err, tt.wantPrefix)
 			}
@@ -125,27 +133,34 @@ func TestInvalidBackendKeepsMatchBeforeFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newRouteConfiguration: %v", err)
 	}
+
 	routes := config.VirtualHosts[0].Routes
 	if len(routes) != 3 {
 		t.Fatalf("routes = %d, want invalid match and both valid candidates", len(routes))
 	}
+
 	if routes[0].Name != "z-first-rule" || routes[0].GetDirectResponse().GetStatus() != 500 || routes[0].GetRoute() != nil {
 		t.Errorf("first rule = %v, want 500 without forwarding", routes[0])
 	}
+
 	if routes[0].Match.GetPathSeparatedPrefix() != "/api" {
 		t.Errorf("invalid match lost segment boundary: %v", routes[0].Match)
 	}
+
 	if routes[1].Name != "a-second-rule" || routes[1].GetRoute().GetCluster() != "backend/valid" || routes[2].Name != "fallback" {
 		t.Errorf("candidate ordering = %v", routes)
 	}
+
 	listener.Hosts[0].Routes[1].BackendName = "restored"
 	restored, err := newRouteConfiguration(listener)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if first := restored.VirtualHosts[0].Routes[0]; first.GetDirectResponse() != nil || first.GetRoute().GetCluster() != "backend/restored" {
 		t.Errorf("restored target = %v", first)
 	}
+
 	if listener.Hosts[0].Routes[0].Name != "fallback" {
 		t.Error("adapter mutated input order")
 	}
@@ -175,48 +190,62 @@ func TestBuildResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildResources(config) error = %v, want nil", err)
 	}
+
 	if got, want := len(resources.listeners), 1; got != want {
 		t.Fatalf("buildResources(config) listeners = %d, want %d", got, want)
 	}
+
 	if got, want := len(resources.routes), 1; got != want {
 		t.Fatalf("buildResources(config) route configurations = %d, want %d", got, want)
 	}
+
 	if got, want := len(resources.clusters), 2; got != want {
 		t.Fatalf("buildResources(config) clusters = %d, want %d", got, want)
 	}
+
 	if got, want := len(resources.endpoints), 1; got != want {
 		t.Fatalf("buildResources(config) EDS assignments = %d, want %d", got, want)
 	}
+
 	if len(resources.routes) != 1 || len(resources.routes[0].VirtualHosts) != 1 {
 		t.Fatal("buildResources(config) did not create the expected virtual host")
 	}
+
 	routes := resources.routes[0].VirtualHosts[0].Routes
 	if got, want := len(routes), 4; got != want {
 		t.Fatalf("buildResources(config) virtual host routes = %d, want %d", got, want)
 	}
+
 	for i, want := range []string{"exact", "docs", "prefix", "root"} {
 		if got := routes[i].Name; got != want {
 			t.Errorf("buildResources(config) route[%d] = %q, want %q", i, got, want)
 		}
 	}
+
 	if got := routes[2].Match.GetPathSeparatedPrefix(); got != "/api" {
 		t.Errorf("buildResources(config) prefix match = %q, want /api", got)
 	}
+
 	if got := routes[0].Match.GetPath(); got != "/api" {
 		t.Errorf("buildResources(config) exact match = %q, want /api", got)
 	}
+
 	if got := routes[3].Match.GetPrefix(); got != "/" {
 		t.Errorf("buildResources(config) root match = %q, want /", got)
 	}
+
 	if got := routes[1].Match.GetPathSeparatedPrefix(); got != "/docs" {
 		t.Errorf("buildResources(config) path-separated prefix = %q, want /docs", got)
 	}
+
 	if got := resources.clusters[0].GetType(); got != clusterv3.Cluster_EDS {
 		t.Errorf("buildResources(config) IP cluster type = %v, want EDS", got)
 	}
+
 	if got := resources.clusters[1].GetType(); got != clusterv3.Cluster_STRICT_DNS {
 		t.Errorf("buildResources(config) DNS cluster type = %v, want STRICT_DNS", got)
 	}
+
 	if got := resources.endpoints[0].Endpoints[0].LbEndpoints[0].GetLoadBalancingWeight().GetValue(); got != 3 {
 		t.Errorf("buildResources(config) endpoint weight = %d, want 3", got)
 	}
@@ -225,15 +254,19 @@ func TestBuildResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newSnapshot(resources) error = %v, want nil", err)
 	}
+
 	if got, want := len(snapshot.GetResources(resourcev3.EndpointType)), 1; got != want {
 		t.Errorf("newSnapshot(resources) endpoints = %d, want %d", got, want)
 	}
+
 	if got, want := len(snapshot.GetResources(resourcev3.ClusterType)), 2; got != want {
 		t.Errorf("newSnapshot(resources) clusters = %d, want %d", got, want)
 	}
+
 	if got := routes[0].GetRoute().GetCluster(); got != "backend/ip" {
 		t.Errorf("buildResources(config) exact route cluster = %q, want backend/ip", got)
 	}
+
 	if got := snapshot.GetResources(resourcev3.RouteType)["route/8080"].(*routev3.RouteConfiguration).VirtualHosts[0].Domains[0]; got != "example.com" {
 		t.Errorf("newSnapshot(resources) virtual host domain = %q, want example.com", got)
 	}
@@ -246,6 +279,7 @@ func TestNewSnapshotRejectsMissingEDSAssignment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newCluster(backend) error = %v, want nil", err)
 	}
+
 	_, err = newSnapshot(resourceSet{clusters: []*clusterv3.Cluster{cluster}})
 	if err == nil {
 		t.Error("newSnapshot(cluster without EDS assignment) error = nil, want reference error")
@@ -275,17 +309,21 @@ func TestResourceVersionDependsOnContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resourceVersion(first) error = %v, want nil", err)
 	}
+
 	again, err := resourceVersion(first)
 	if err != nil {
 		t.Fatalf("resourceVersion(first) repeated error = %v, want nil", err)
 	}
+
 	if version != again {
 		t.Errorf("resourceVersion(first) repeated = %q, want %q", again, version)
 	}
+
 	changed, err := resourceVersion([]cachetypes.Resource{&routev3.RouteConfiguration{Name: "route/9090"}})
 	if err != nil {
 		t.Fatalf("resourceVersion(changed) error = %v, want nil", err)
 	}
+
 	if version == changed {
 		t.Errorf("resourceVersion(changed) = %q, want different from %q", changed, version)
 	}

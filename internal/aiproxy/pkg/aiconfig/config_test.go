@@ -17,6 +17,7 @@ func TestNewConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile(configuration fixture) error = %v", err)
 	}
+
 	want, err := aidataplane.Decode(data)
 	if err != nil {
 		t.Fatalf("Decode(configuration fixture) error = %v", err)
@@ -30,6 +31,7 @@ func TestNewConfig(t *testing.T) {
 	if diff := cmp.Diff(want, config.config); diff != "" {
 		t.Errorf("newConfig() changed compiled contents (-want +got):\n%s", diff)
 	}
+
 	if config.Revision() != want.Revision {
 		t.Errorf("Revision() = %q, want %q", config.Revision(), want.Revision)
 	}
@@ -55,10 +57,12 @@ func TestNewConfigRejectsInvalidPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encode(configuration fixture) error = %v", err)
 	}
+
 	compiled, err := aidataplane.Decode(data)
 	if err != nil {
 		t.Fatalf("Decode(encoded configuration) error = %v", err)
 	}
+
 	invalid := strings.Replace(string(data), compiled.Revision, strings.Repeat("z", 64), 1)
 
 	config, err := newConfig([]byte(invalid))
@@ -107,6 +111,7 @@ func TestResolveModelIgnoresUnrelatedRevisionChanges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveModel(original target) error = %v", err)
 	}
+
 	other := compiled.Backends[0]
 	other.Name += "/other"
 	other.ModelNameOverride = new("unrelated")
@@ -118,6 +123,7 @@ func TestResolveModelIgnoresUnrelatedRevisionChanges(t *testing.T) {
 	if err != nil || before != after {
 		t.Errorf("ResolveModel(unrelated update) = (%+v, %v), want unchanged target %+v", after, err, before)
 	}
+
 	if current.Revision() == previous.Revision() {
 		t.Error("test did not change the whole configuration revision, want different revisions with the same selected target")
 	}
@@ -220,6 +226,7 @@ func TestResolveModelSeparatesPorts(t *testing.T) {
 	if _, err := config.ResolveModel(8080, other.Name, "coding"); err != nil {
 		t.Errorf("ResolveModel(original port) error = %v, want nil", err)
 	}
+
 	if got, err := config.ResolveModel(8081, other.Name, "coding"); !errors.Is(err, ErrModelRouteNotFound) || got != (ModelBackend{}) {
 		t.Errorf("ResolveModel(other port) = (%+v, %v), want zero backend and ErrModelRouteNotFound", got, err)
 	}
@@ -239,6 +246,7 @@ func TestResolveModelEmptyConfig(t *testing.T) {
 	if !errors.Is(err, ErrModelRouteNotFound) || got != (ModelBackend{}) {
 		t.Errorf("ResolveModel(empty configuration) = (%+v, %v), want zero backend and ErrModelRouteNotFound", got, err)
 	}
+
 	if diff := cmp.Diff(compiled.Listeners, config.config.Listeners); diff != "" {
 		t.Errorf("newConfig(empty) listeners mismatch (-want +got):\n%s", diff)
 	}
@@ -292,6 +300,7 @@ func parseConfig(t *testing.T, compiled aidataplane.Config) *Config {
 	if err != nil {
 		t.Fatalf("Encode(test configuration) error = %v", err)
 	}
+
 	config, err := newConfig(data)
 	if err != nil {
 		t.Fatalf("newConfig(test configuration) error = %v", err)
@@ -306,6 +315,7 @@ func configFixture(t *testing.T) aidataplane.Config {
 	if err != nil {
 		t.Fatalf("ReadFile(configuration fixture) error = %v", err)
 	}
+
 	compiled, err := aidataplane.Decode(data)
 	if err != nil {
 		t.Fatalf("Decode(configuration fixture) error = %v", err)

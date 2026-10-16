@@ -19,12 +19,15 @@ func TestExampleConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfig(configs/admin-api.yaml) error = %v, want nil", err)
 	}
+
 	if config.GetApiServer().GetKubeconfig() == "" {
 		t.Error("loadConfig(configs/admin-api.yaml) kubeconfig is empty, want example path")
 	}
+
 	if diff := cmp.Diff([]string{"127.0.0.1:6379"}, config.GetRedis().GetAddrs()); diff != "" {
 		t.Errorf("example Redis addresses mismatch (-want +got):\n%s", diff)
 	}
+
 	wantLog := logconfig.Config{Level: "info", Format: logconfig.FormatJSON, Outputs: []logconfig.Output{logconfig.OutputStdout}}
 	if diff := cmp.Diff(wantLog, logConfig(config.GetLog())); diff != "" {
 		t.Errorf("example log config mismatch (-want +got):\n%s", diff)
@@ -58,6 +61,7 @@ func TestLoadConfigLogModesAndInvalidInputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read example config: %v", err)
 	}
+
 	base := strings.Replace(string(data), "log:\n  level: info\n  format: json\n  outputs: [stdout]\n", "", 1)
 	if base == string(data) {
 		t.Fatal("example config has no expected log block")
@@ -69,6 +73,7 @@ func TestLoadConfigLogModesAndInvalidInputs(t *testing.T) {
 			if err := os.WriteFile(path, []byte(base+tt.log), 0o600); err != nil {
 				t.Fatalf("write %s log test config: %v", tt.name, err)
 			}
+
 			_, err := loadConfig(path)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("loadConfig(%s log) error = %v, want error %t", tt.name, err, tt.wantErr)
@@ -89,6 +94,7 @@ func TestLogConfigPreservesFieldsAndDefaults(t *testing.T) {
 	if diff := cmp.Diff(want, logConfig(input)); diff != "" {
 		t.Errorf("logConfig(configured) mismatch (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(logconfig.Config{}, logConfig(nil)); diff != "" {
 		t.Errorf("logConfig(nil) mismatch (-want +got):\n%s", diff)
 	}
@@ -205,6 +211,7 @@ func writeRedisTestConfig(t *testing.T, redis string) string {
 	if err != nil {
 		t.Fatalf("read example config: %v", err)
 	}
+
 	prefix, _, ok := strings.Cut(string(data), "redis:\n")
 	if !ok {
 		t.Fatal("example config has no Redis block")
@@ -214,5 +221,6 @@ func writeRedisTestConfig(t *testing.T, redis string) string {
 	if err := os.WriteFile(path, []byte(prefix+"redis:\n"+redis), 0o600); err != nil {
 		t.Fatalf("write Redis test config: %v", err)
 	}
+
 	return path
 }

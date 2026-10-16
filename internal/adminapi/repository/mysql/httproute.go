@@ -78,8 +78,10 @@ func (s *Store) UpsertHTTPRoute(ctx context.Context, route HTTPRoute) error {
 			if err := tx.Create(&route).Error; err != nil {
 				return fmt.Errorf("create HTTPRoute projection: %w", err)
 			}
+
 			return nil
 		}
+
 		if err != nil {
 			return fmt.Errorf("get HTTPRoute projection: %w", err)
 		}
@@ -112,6 +114,7 @@ func (s *Store) ListHTTPRouteKeys(ctx context.Context) ([]types.NamespacedName, 
 	if err := query.Find(&keys).Error; err != nil {
 		return nil, fmt.Errorf("list HTTPRoute keys: %w", err)
 	}
+
 	return keys, nil
 }
 
@@ -122,6 +125,7 @@ func (s *Store) GetHTTPRoute(ctx context.Context, namespace, name string) (HTTPR
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return HTTPRoute{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 	}
+
 	if err != nil {
 		return HTTPRoute{}, fmt.Errorf("get HTTPRoute projection: %w", err)
 	}

@@ -50,6 +50,7 @@ func TestReconcileProjectsVersionAfterStatusOnlyUpdate(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Reconcile(%q) error = %v, want nil", tc.object.GetName(), err)
 			}
+
 			if diff := cmp.Diff(ctrl.Result{}, result); diff != "" {
 				t.Errorf("Reconcile(%q) result mismatch (-want +got):\n%s", tc.object.GetName(), diff)
 			}
@@ -58,6 +59,7 @@ func TestReconcileProjectsVersionAfterStatusOnlyUpdate(t *testing.T) {
 			if err := apiClient.Get(t.Context(), client.ObjectKeyFromObject(current), current); err != nil {
 				t.Fatalf("Get(%q) error = %v, want nil", current.GetName(), err)
 			}
+
 			condition := metav1.Condition{
 				Type: "Accepted", Status: metav1.ConditionTrue, Reason: "Accepted",
 				ObservedGeneration: current.GetGeneration(), LastTransitionTime: metav1.Now(),
@@ -88,9 +90,11 @@ func TestReconcileProjectsVersionAfterStatusOnlyUpdate(t *testing.T) {
 					Conditions:     []metav1.Condition{condition},
 				}}
 			}
+
 			if err := apiClient.Status().Update(t.Context(), current); err != nil {
 				t.Fatalf("Status.Update(%q) error = %v, want nil", current.GetName(), err)
 			}
+
 			if current.GetResourceVersion() == "8" || current.GetGeneration() != tc.object.GetGeneration() {
 				t.Fatalf("Status.Update(%q) version/generation = %q/%d, want new version and generation %d",
 					current.GetName(), current.GetResourceVersion(), current.GetGeneration(), tc.object.GetGeneration())
@@ -212,6 +216,7 @@ func TestInitialSyncUpsertFailureStopsCleanupAndCanRetry(t *testing.T) {
 			if !errors.Is(err, writeErr) {
 				t.Fatalf("Reconcile(%q) error = %v, want MySQL failure", tc.initialSyncName, err)
 			}
+
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Fatalf("failed initial sync SQL expectations error = %v, want nil", err)
 			}
@@ -250,6 +255,7 @@ func TestInitialSyncCleanupFailureCanRetryAfterPartialProgress(t *testing.T) {
 			if !errors.Is(err, deleteErr) {
 				t.Fatalf("Reconcile(%q) error = %v, want cleanup failure", tc.initialSyncName, err)
 			}
+
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Fatalf("partially completed initial sync SQL expectations error = %v, want nil", err)
 			}
@@ -319,6 +325,7 @@ func projectionTestCases() []projectionTestCase {
 	parentsJSON := `[{"name":"edge","sectionName":"http"}]`
 	rulesJSON := `[{"matches":[{"pathType":"PathPrefix","pathValue":"/api"}],"backendRefs":[{"name":"backend"}]}]`
 	modelRulesJSON := `[{"matches":[{"headers":[{"name":"x-ai-eg-model","type":"Exact","value":"model"}]}],"backendRefs":[{"name":"models","modelNameOverride":"provider-model"}]}]`
+
 	return []projectionTestCase{
 		{
 			name: "ModelRoute", table: "modelroutes", initialSyncName: modelRouteInitialSyncName,
@@ -558,11 +565,13 @@ func newProjectionTestStore(t *testing.T) (*mysql.Store, sqlmock.Sqlmock) {
 	if err != nil {
 		t.Fatalf("sqlmock.New() error = %v, want nil", err)
 	}
+
 	t.Cleanup(func() {
 		mock.ExpectClose()
 		if err := db.Close(); err != nil {
 			t.Errorf("SQL pool Close() error = %v, want nil", err)
 		}
+
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Errorf("projection SQL expectations error = %v, want nil", err)
 		}
@@ -574,6 +583,7 @@ func newProjectionTestStore(t *testing.T) (*mysql.Store, sqlmock.Sqlmock) {
 	if err != nil {
 		t.Fatalf("gorm.Open() error = %v, want nil", err)
 	}
+
 	return mysql.New(gormDB), mock
 }
 
@@ -583,6 +593,7 @@ func newProjectionTestClient(t *testing.T, objects ...client.Object) client.With
 	if err := gatewayv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("AddToScheme() error = %v, want nil", err)
 	}
+
 	return fake.NewClientBuilder().WithScheme(scheme).
 		WithStatusSubresource(&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.HTTPRoute{}, &gatewayv1alpha1.Backend{}, &gatewayv1alpha1.AIBackend{}, &gatewayv1alpha1.ModelRoute{}, &gatewayv1alpha1.MCPRoute{}).
 		WithObjects(objects...).Build()
@@ -598,6 +609,7 @@ func expectProjectionLookup(mock sqlmock.Sqlmock, table string, key types.Namesp
 	if exists {
 		rows.AddRow(41)
 	}
+
 	mock.ExpectQuery("SELECT `id` FROM `"+table+"` WHERE namespace = ? AND name = ? LIMIT ?").WithArgs(key.Namespace, key.Name, 1).WillReturnRows(rows)
 }
 
@@ -612,6 +624,7 @@ func expectProjectedKeys(mock sqlmock.Sqlmock, table string, keys ...types.Names
 	for _, key := range keys {
 		rows.AddRow(key.Namespace, key.Name)
 	}
+
 	mock.ExpectQuery("SELECT `namespace`,`name` FROM `" + table + "` ORDER BY namespace, name").WillReturnRows(rows)
 }
 

@@ -35,6 +35,7 @@ func TestGetAttrs(t *testing.T) {
 	if diff := cmp.Diff(labels.Set{"environment": "production"}, gotLabels); diff != "" {
 		t.Errorf("getAttrs(%T) labels mismatch (-want +got):\n%s", resource, diff)
 	}
+
 	if diff := cmp.Diff(fields.Set{"metadata.name": "edge", "metadata.namespace": "team-a"}, gotFields); diff != "" {
 		t.Errorf("getAttrs(%T) fields mismatch (-want +got):\n%s", resource, diff)
 	}
@@ -90,6 +91,7 @@ func TestMatcher(t *testing.T) {
 				t.Fatalf("matcher(%q, %q).Matches(%T) error = %v, want nil",
 					tt.labelSelector, tt.fieldSelector, resource, err)
 			}
+
 			if got != tt.want {
 				t.Errorf("matcher(%q, %q).Matches(%T) = %t, want %t",
 					tt.labelSelector, tt.fieldSelector, resource, got, tt.want)
@@ -116,9 +118,11 @@ func TestNewRESTReturnsOptionsError(t *testing.T) {
 		if resource != wantResource {
 			t.Errorf("NewREST() resource = %v, want %v", resource, wantResource)
 		}
+
 		if _, ok := obj.(*gatewayapi.MCPRoute); !ok {
 			t.Errorf("NewREST() object = %T, want *gateway.MCPRoute", obj)
 		}
+
 		return generic.RESTOptions{}, wantErr
 	})
 
@@ -126,6 +130,7 @@ func TestNewRESTReturnsOptionsError(t *testing.T) {
 	if !errors.Is(err, wantErr) {
 		t.Errorf("NewREST() error = %v, want errors.Is(error, %v)", err, wantErr)
 	}
+
 	if mainREST != nil || statusREST != nil {
 		t.Errorf("NewREST() = (%v, %v), want (nil, nil)", mainREST, statusREST)
 	}

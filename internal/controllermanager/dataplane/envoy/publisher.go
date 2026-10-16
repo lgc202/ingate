@@ -73,11 +73,6 @@ func (p *Publisher) PublishAI(ctx context.Context, config aidataplane.Config) er
 	return p.publish(ctx, p.httpResources, resources)
 }
 
-// ID 使用 node.cluster，让同一数据面组的所有 Envoy 副本取得相同配置。
-func (clusterHash) ID(node *corev3.Node) string {
-	return node.GetCluster()
-}
-
 func (p *Publisher) publish(ctx context.Context, httpResources, aiResources resourceSet) error {
 	resources := resourceSet{
 		listeners: append(slices.Clone(httpResources.listeners), aiResources.listeners...),
@@ -95,6 +90,7 @@ func (p *Publisher) publish(ctx context.Context, httpResources, aiResources reso
 	if err == nil && sameVersions(current, snapshot) {
 		desired = current
 	}
+
 	// 原生 Cache 先安装再通知，通知可因取消失败且部分 Watch 已收到结果。
 	// 记录同一份期望；即使版本未变也再次调用，以恢复上次失败后仍悬挂的 Watch。
 	p.httpResources = httpResources
@@ -104,6 +100,11 @@ func (p *Publisher) publish(ctx context.Context, httpResources, aiResources reso
 	}
 
 	return nil
+}
+
+// ID 使用 node.cluster，让同一数据面组的所有 Envoy 副本取得相同配置。
+func (clusterHash) ID(node *corev3.Node) string {
+	return node.GetCluster()
 }
 
 func newSnapshot(resources resourceSet) (*cachev3.Snapshot, error) {
@@ -124,12 +125,15 @@ func newSnapshot(resources resourceSet) (*cachev3.Snapshot, error) {
 	for _, resource := range resources.clusters {
 		groups[0].items = append(groups[0].items, resource)
 	}
+
 	for _, resource := range resources.endpoints {
 		groups[1].items = append(groups[1].items, resource)
 	}
+
 	for _, resource := range resources.listeners {
 		groups[2].items = append(groups[2].items, resource)
 	}
+
 	for _, resource := range resources.routes {
 		groups[3].items = append(groups[3].items, resource)
 	}
@@ -140,6 +144,7 @@ func newSnapshot(resources resourceSet) (*cachev3.Snapshot, error) {
 		if err != nil {
 			return nil, fmt.Errorf("version %s: %w", group.typeURL, err)
 		}
+
 		index := cachev3.GetResponseType(group.typeURL)
 		snapshot.Resources[index] = cachev3.NewResources(version, group.items)
 	}
@@ -156,6 +161,7 @@ func checkClusterReferences(resources resourceSet) error {
 	for _, cluster := range resources.clusters {
 		clusters[cluster.Name] = true
 	}
+
 	for _, routeConfig := range resources.routes {
 		for _, host := range routeConfig.VirtualHosts {
 			for _, route := range host.Routes {
@@ -171,6 +177,7 @@ func checkClusterReferences(resources resourceSet) error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -183,11 +190,13 @@ func resourceVersion(resources []cachetypes.Resource) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		data = binary.AppendUvarint(data, uint64(len(encoded)))
 		data = append(data, encoded...)
 	}
 
 	sum := sha256.Sum256(data)
+
 	return hex.EncodeToString(sum[:]), nil
 }
 
@@ -202,5 +211,6 @@ func sameVersions(current cachev3.ResourceSnapshot, next *cachev3.Snapshot) bool
 			return false
 		}
 	}
+
 	return true
 }

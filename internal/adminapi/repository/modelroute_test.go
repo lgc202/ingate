@@ -37,13 +37,16 @@ func TestModelRouteUpdatePreservesAPIConflictCause(t *testing.T) {
 	if !errors.Is(err, ErrConflict) || !errors.Is(err, storageErr) {
 		t.Errorf("ModelRoute.Update(API race) error = %v, want ErrConflict and API cause", err)
 	}
+
 	if diff := cmp.Diff(ModelRouteInfo{}, got); diff != "" {
 		t.Errorf("ModelRoute.Update(API race) returned partial result (-want +got):\n%s", diff)
 	}
+
 	stored, err := client.GatewayV1alpha1().ModelRoutes("team-a").Get(t.Context(), "models", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get(ModelRoute after API race) error = %v, want nil", err)
 	}
+
 	if diff := cmp.Diff(seed, stored); diff != "" {
 		t.Errorf("ModelRoute.Update(API race) changed state (-want +got):\n%s", diff)
 	}

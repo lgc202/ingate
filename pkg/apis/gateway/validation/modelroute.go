@@ -17,12 +17,14 @@ func ValidateModelRoute(route *gateway.ModelRoute) field.ErrorList {
 		apivalidation.NameIsDNSSubdomain,
 		field.NewPath("metadata"),
 	)
+
 	return append(errs, validateModelRouteSpec(&route.Spec, field.NewPath("spec"))...)
 }
 
 // ValidateModelRouteUpdate 校验更新后的 ModelRoute 及元数据并发前提。
 func ValidateModelRouteUpdate(next, previous *gateway.ModelRoute) field.ErrorList {
 	errs := ValidateModelRoute(next)
+
 	return append(errs, apivalidation.ValidateObjectMetaUpdate(
 		&next.ObjectMeta,
 		&previous.ObjectMeta,
@@ -37,6 +39,7 @@ func ValidateModelRouteStatusUpdate(next, previous *gateway.ModelRoute) field.Er
 		&previous.ObjectMeta,
 		field.NewPath("metadata"),
 	)
+
 	return append(errs, validateRouteParentStatuses(next.Status.Parents, next.Generation)...)
 }
 
@@ -51,6 +54,7 @@ func validateModelRouteSpec(spec *gateway.ModelRouteSpec, path *field.Path) fiel
 	if len(spec.Rules) == 0 {
 		errs = append(errs, field.Required(rulesPath, "at least one rule is required"))
 	}
+
 	if len(spec.Rules) > 15 {
 		errs = append(errs, field.TooMany(rulesPath, len(spec.Rules), 15))
 	}
@@ -63,8 +67,10 @@ func validateModelRouteSpec(spec *gateway.ModelRouteSpec, path *field.Path) fiel
 			if names[rule.Name] {
 				errs = append(errs, field.Duplicate(rulePath.Child("name"), rule.Name))
 			}
+
 			names[rule.Name] = true
 		}
+
 		errs = append(errs, validateModelRouteRule(&rule, rulePath)...)
 	}
 
@@ -77,6 +83,7 @@ func validateModelRouteRule(rule *gateway.ModelRouteRule, path *field.Path) fiel
 	if len(rule.BackendRefs) != 1 {
 		errs = append(errs, field.Invalid(refsPath, len(rule.BackendRefs), "exactly one AIBackend reference is supported"))
 	}
+
 	for i, ref := range rule.BackendRefs {
 		errs = append(errs, validateReferenceName(ref.Name, refsPath.Index(i).Child("name"))...)
 	}
@@ -85,11 +92,13 @@ func validateModelRouteRule(rule *gateway.ModelRouteRule, path *field.Path) fiel
 	if len(rule.Matches) > 128 {
 		errs = append(errs, field.TooMany(matchesPath, len(rule.Matches), 128))
 	}
+
 	for i, match := range rule.Matches {
 		headersPath := matchesPath.Index(i).Child("headers")
 		if len(match.Headers) > 1 {
 			errs = append(errs, field.TooMany(headersPath, len(match.Headers), 1))
 		}
+
 		for j, header := range match.Headers {
 			errs = append(errs, validateModelHeaderMatch(header, headersPath.Index(j))...)
 		}
@@ -105,9 +114,11 @@ func validateModelHeaderMatch(header gateway.HTTPHeaderMatch, path *field.Path) 
 	} else if !strings.EqualFold(header.Name, "x-ai-eg-model") {
 		errs = append(errs, field.NotSupported(path.Child("name"), header.Name, []string{"x-ai-eg-model"}))
 	}
+
 	if header.Type != "" && header.Type != gateway.HeaderMatchExact {
 		errs = append(errs, field.NotSupported(path.Child("type"), header.Type, []gateway.HeaderMatchType{gateway.HeaderMatchExact}))
 	}
+
 	if header.Value == "" {
 		errs = append(errs, field.Required(path.Child("value"), "a model name is required"))
 	}

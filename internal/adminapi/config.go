@@ -28,12 +28,15 @@ func loadConfig(path string) (*conf.Bootstrap, error) {
 	if err := protojson.Unmarshal(jsonData, config); err != nil {
 		return nil, fmt.Errorf("unmarshal config file %q: %w", path, err)
 	}
+
 	if err := protovalidate.Validate(config); err != nil {
 		return nil, fmt.Errorf("validate config file %q: %w", path, err)
 	}
+
 	if err := validateListenAddresses(config.GetServer()); err != nil {
 		return nil, fmt.Errorf("validate config file %q: %w", path, err)
 	}
+
 	if err := redisConfig(config.GetRedis()).Validate(); err != nil {
 		return nil, fmt.Errorf("validate Redis config file %q: %w", path, err)
 	}
@@ -46,6 +49,7 @@ func logConfig(config *conf.Log) logconfig.Config {
 	for _, output := range config.GetOutputs() {
 		outputs = append(outputs, logconfig.Output(output))
 	}
+
 	return logconfig.Config{
 		Level:     config.GetLevel(),
 		Format:    logconfig.Format(config.GetFormat()),
@@ -87,6 +91,7 @@ func validateListenAddresses(server *conf.Server) error {
 	if err := validateLoopbackAddress("HTTP", server.GetHttp().GetAddr()); err != nil {
 		return err
 	}
+
 	if err := validateLoopbackAddress("gRPC", server.GetGrpc().GetAddr()); err != nil {
 		return err
 	}
@@ -99,6 +104,7 @@ func validateLoopbackAddress(name, address string) error {
 	if err != nil {
 		return fmt.Errorf("%s listen address %q: %w", name, address, err)
 	}
+
 	if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
 		return fmt.Errorf("%s listen address %q must use a loopback IP", name, address)
 	}

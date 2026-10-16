@@ -30,6 +30,7 @@ func Decode(data []byte) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decode AI config: %w", err)
 	}
+
 	if len(strictErrors) != 0 {
 		return nil, fmt.Errorf("decode AI config fields: %w", errors.Join(strictErrors...))
 	}
@@ -41,6 +42,7 @@ func Decode(data []byte) (*Config, error) {
 	if len(c.Revision) != sha256.Size*2 || c.Revision != strings.ToLower(c.Revision) {
 		return nil, errors.New("revision must be 64 lowercase hexadecimal characters")
 	}
+
 	if _, err := hex.DecodeString(c.Revision); err != nil {
 		return nil, fmt.Errorf("decode revision: %w", err)
 	}
@@ -49,6 +51,7 @@ func Decode(data []byte) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("compute AI config revision: %w", err)
 	}
+
 	if revision != c.Revision {
 		return nil, errors.New("AI config revision does not match content")
 	}

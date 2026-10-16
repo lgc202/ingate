@@ -50,6 +50,7 @@ func TestMCPRouteToMySQLPreservesConfig(t *testing.T) {
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("mcpRouteToMySQL(config) mismatch (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(unchanged, route); diff != "" {
 		t.Errorf("mcpRouteToMySQL changed API object (-want +got):\n%s", diff)
 	}

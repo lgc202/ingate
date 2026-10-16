@@ -32,6 +32,7 @@ func TestNamespaceLifecycleLoopback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create host core client error = %v", err)
 	}
+
 	ctx := t.Context()
 	for _, name := range []string{"host-only", "shared"} {
 		namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}
@@ -57,6 +58,7 @@ func TestNamespaceLifecycleLoopback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewOptions() error = %v", err)
 	}
+
 	options.RecommendedOptions.CoreAPI.CoreAPIKubeconfigPath = path
 	options.RecommendedOptions.Authentication = nil
 	options.RecommendedOptions.Authorization = nil
@@ -72,22 +74,26 @@ func TestNamespaceLifecycleLoopback(t *testing.T) {
 		if config.ClientConfig == nil || config.ClientConfig.Host != hostConfig.Host {
 			t.Error("admission host ClientConfig changed, want original host core API")
 		}
+
 		return []admission.PluginInitializer{capture}, nil
 	}
 	localConfig := startAPIServerWithOptions(t, options)
 	if capture.plugin == nil {
 		t.Fatal("ExtraAdmissionInitializers did not capture NamespaceLifecycle, want preserved initializer")
 	}
+
 	localClient, err := typedcorev1.NewForConfig(localConfig)
 	if err != nil {
 		t.Fatalf("create local core client error = %v", err)
 	}
+
 	for _, name := range []string{"local-only", "shared"} {
 		namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}
 		if _, err := localClient.Namespaces().Create(ctx, namespace, metav1.CreateOptions{}); err != nil {
 			t.Fatalf("Create(local Namespace %q) error = %v", name, err)
 		}
 	}
+
 	if err := localClient.Namespaces().Delete(ctx, "shared", metav1.DeleteOptions{}); err != nil {
 		t.Fatalf("Delete(local Namespace shared) error = %v", err)
 	}
@@ -129,8 +135,10 @@ func TestNamespaceLifecycleLoopback(t *testing.T) {
 			if err != nil {
 				t.Errorf("Create(Gateway in %q) error = %v, want nil", tt.namespace, err)
 			}
+
 			continue
 		}
+
 		if got := apierrors.ReasonForError(err); got != tt.wantReason {
 			t.Errorf("Create(Gateway in %q) reason = %q, want %q (error = %v)", tt.namespace, got, tt.wantReason, err)
 		}

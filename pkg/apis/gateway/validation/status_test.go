@@ -25,6 +25,7 @@ func TestValidateStatusUpdate(t *testing.T) {
 				}}
 				next := previous.DeepCopy()
 				next.Status.Conditions = []metav1.Condition{condition}
+
 				return ValidateGatewayStatusUpdate(next, previous)
 			},
 		},
@@ -43,6 +44,7 @@ func TestValidateStatusUpdate(t *testing.T) {
 					ControllerName: "gateway.ingate.io/test",
 					Conditions:     []metav1.Condition{condition},
 				}}
+
 				return ValidateHTTPRouteStatusUpdate(next, previous)
 			},
 		},
@@ -57,6 +59,7 @@ func TestValidateStatusUpdate(t *testing.T) {
 				}}
 				next := previous.DeepCopy()
 				next.Status.Conditions = []metav1.Condition{condition}
+
 				return ValidateBackendStatusUpdate(next, previous)
 			},
 		},
@@ -73,6 +76,7 @@ func TestValidateStatusUpdate(t *testing.T) {
 			if tt.name == "HTTPRoute" {
 				wantField = "status.parents[0].conditions[0].observedGeneration"
 			}
+
 			if errs := tt.validate(condition); len(errs) != 0 {
 				t.Errorf("Validate%sStatusUpdate(observedGeneration=2) errors = %v, want none", tt.name, errs)
 			}

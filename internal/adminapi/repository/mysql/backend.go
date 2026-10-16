@@ -72,6 +72,7 @@ func (s *Store) UpsertBackend(ctx context.Context, backend Backend) error {
 		if err := tx.Create(&endpoints).Error; err != nil {
 			return fmt.Errorf("insert backend endpoints: %w", err)
 		}
+
 		return nil
 	})
 }
@@ -84,6 +85,7 @@ func (s *Store) DeleteBackend(ctx context.Context, namespace, name string) error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
+
 		if err != nil {
 			return fmt.Errorf("get backend: %w", err)
 		}
@@ -95,6 +97,7 @@ func (s *Store) DeleteBackend(ctx context.Context, namespace, name string) error
 		if err := tx.Delete(&backend).Error; err != nil {
 			return fmt.Errorf("delete backend: %w", err)
 		}
+
 		return nil
 	})
 }
@@ -107,6 +110,7 @@ func (s *Store) ListBackendKeys(ctx context.Context) ([]types.NamespacedName, er
 	if err := query.Find(&keys).Error; err != nil {
 		return nil, fmt.Errorf("list Backend keys: %w", err)
 	}
+
 	return keys, nil
 }
 
@@ -118,6 +122,7 @@ func (s *Store) GetBackend(ctx context.Context, namespace, name string) (Backend
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("%w: %w", ErrNotFound, err)
 		}
+
 		if err != nil {
 			return fmt.Errorf("get backend: %w", err)
 		}
@@ -152,6 +157,7 @@ func (s *Store) ListBackends(ctx context.Context, params ResourceListParams) (Ba
 		if err := backendQuery.Find(&result.Items).Error; err != nil {
 			return fmt.Errorf("list backends: %w", err)
 		}
+
 		if len(result.Items) == 0 {
 			return nil
 		}
@@ -199,8 +205,10 @@ func upsertBackendRow(tx *gorm.DB, backend Backend) (uint64, error) {
 		if err := tx.Create(&row).Error; err != nil {
 			return 0, fmt.Errorf("create backend: %w", err)
 		}
+
 		return row.ID, nil
 	}
+
 	if err != nil {
 		return 0, fmt.Errorf("get backend: %w", err)
 	}
@@ -213,5 +221,6 @@ func upsertBackendRow(tx *gorm.DB, backend Backend) (uint64, error) {
 	if err := tx.Model(&row).Updates(updates).Error; err != nil {
 		return 0, fmt.Errorf("update backend: %w", err)
 	}
+
 	return row.ID, nil
 }

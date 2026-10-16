@@ -22,6 +22,7 @@ func New(kubeconfig string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	config = rest.AddUserAgent(config, userAgent)
 
 	client, err := clientset.NewForConfig(config)

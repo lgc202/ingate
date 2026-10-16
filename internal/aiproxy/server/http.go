@@ -2,6 +2,7 @@ package server
 
 import (
 	"net"
+	"net/http"
 	"net/url"
 
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
@@ -17,5 +18,8 @@ func newHTTP(listener *net.UnixListener) *kratoshttp.Server {
 		kratoshttp.Timeout(0),
 		// 当前保留已映射的 Kratos 错误编码，不把它确定为最终模型错误协议。
 		kratoshttp.ErrorEncoder(kratoshttp.DefaultErrorEncoder),
+		// 业务入口只提供显式注册的模型路由，不回退到全局诊断路由。
+		kratoshttp.NotFoundHandler(http.NotFoundHandler()),
+		kratoshttp.MethodNotAllowedHandler(http.NotFoundHandler()),
 	)
 }

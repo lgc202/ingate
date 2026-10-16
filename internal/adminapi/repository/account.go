@@ -41,6 +41,7 @@ func (r *Account) Create(ctx context.Context, account domain.Account) error {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return fmt.Errorf("%w: %w", ErrAccountAlreadyExists, err)
 		}
+
 		return err
 	}
 
@@ -54,6 +55,7 @@ func (r *Account) Get(ctx context.Context, id uint64) (domain.Account, error) {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domain.Account{}, fmt.Errorf("%w: %w", ErrAccountNotFound, err)
 		}
+
 		return domain.Account{}, err
 	}
 
@@ -67,6 +69,7 @@ func (r *Account) GetByUsername(ctx context.Context, username string) (domain.Ac
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domain.Account{}, fmt.Errorf("%w: %w", ErrAccountNotFound, err)
 		}
+
 		return domain.Account{}, err
 	}
 
@@ -79,6 +82,7 @@ func (r *Account) UpdatePassword(ctx context.Context, id uint64, oldHash, newHas
 	if err != nil {
 		return err
 	}
+
 	if !updated {
 		return ErrAccountChanged
 	}

@@ -1,4 +1,4 @@
-package gateway
+package handler
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 func TestCreateGateway(t *testing.T) {
 	client := clientfake.NewSimpleClientset()
 	gateways := repository.NewGateway(client.GatewayV1alpha1(), nil)
-	handler := New(gatewayservice.New(gateways))
+	handler := NewGateway(gatewayservice.New(gateways))
 	request := &adminv1.CreateGatewayRequest{
 		Namespace:   "team-a",
 		DisplayName: "Public Gateway",
@@ -28,9 +28,11 @@ func TestCreateGateway(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateGateway(public-gateway) error = %v, want nil", err)
 	}
+
 	if name := reply.GetGateway().GetDisplayName(); name != "Public Gateway" {
 		t.Errorf("CreateGateway(public-gateway) display name = %q, want Public Gateway", name)
 	}
+
 	listeners := reply.GetGateway().GetListeners()
 	if len(listeners) != 1 || listeners[0].GetPort() != 8080 {
 		t.Errorf("CreateGateway(public-gateway) listeners = %v, want one listener on port 8080", listeners)
@@ -40,6 +42,7 @@ func TestCreateGateway(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateGateway(duplicate display name) error = %v, want nil", err)
 	}
+
 	if second.GetGateway().GetName() == reply.GetGateway().GetName() || second.GetGateway().GetDisplayName() != request.DisplayName {
 		t.Errorf("CreateGateway(duplicate display name) = %v, want distinct ID and unchanged display name", second)
 	}

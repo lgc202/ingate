@@ -74,6 +74,7 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway Gateway) error {
 		if err := tx.Create(&listeners).Error; err != nil {
 			return fmt.Errorf("insert gateway listeners: %w", err)
 		}
+
 		return nil
 	})
 }
@@ -86,6 +87,7 @@ func (s *Store) DeleteGateway(ctx context.Context, namespace, name string) error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
+
 		if err != nil {
 			return fmt.Errorf("get gateway: %w", err)
 		}
@@ -97,6 +99,7 @@ func (s *Store) DeleteGateway(ctx context.Context, namespace, name string) error
 		if err := tx.Delete(&gateway).Error; err != nil {
 			return fmt.Errorf("delete gateway: %w", err)
 		}
+
 		return nil
 	})
 }
@@ -109,6 +112,7 @@ func (s *Store) ListGatewayKeys(ctx context.Context) ([]types.NamespacedName, er
 	if err := query.Find(&keys).Error; err != nil {
 		return nil, fmt.Errorf("list Gateway keys: %w", err)
 	}
+
 	return keys, nil
 }
 
@@ -120,6 +124,7 @@ func (s *Store) GetGateway(ctx context.Context, namespace, name string) (Gateway
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("%w: %w", ErrNotFound, err)
 		}
+
 		if err != nil {
 			return fmt.Errorf("get gateway: %w", err)
 		}
@@ -154,6 +159,7 @@ func (s *Store) ListGateways(ctx context.Context, params ResourceListParams) (Ga
 		if err := gatewayQuery.Find(&result.Items).Error; err != nil {
 			return fmt.Errorf("list gateways: %w", err)
 		}
+
 		if len(result.Items) == 0 {
 			return nil
 		}
@@ -201,8 +207,10 @@ func upsertGatewayRow(tx *gorm.DB, gateway Gateway) (uint64, error) {
 		if err := tx.Create(&row).Error; err != nil {
 			return 0, fmt.Errorf("create gateway: %w", err)
 		}
+
 		return row.ID, nil
 	}
+
 	if err != nil {
 		return 0, fmt.Errorf("get gateway: %w", err)
 	}
@@ -215,5 +223,6 @@ func upsertGatewayRow(tx *gorm.DB, gateway Gateway) (uint64, error) {
 	if err := tx.Model(&row).Updates(updates).Error; err != nil {
 		return 0, fmt.Errorf("update gateway: %w", err)
 	}
+
 	return row.ID, nil
 }

@@ -45,6 +45,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, request ctrl.Reques
 	if request.Namespace == "" && request.Name == routeInitialSyncName {
 		return ctrl.Result{}, r.syncAll(ctx)
 	}
+
 	return ctrl.Result{}, r.syncHTTPRoute(ctx, request.NamespacedName)
 }
 
@@ -54,9 +55,11 @@ func (r *HTTPRouteReconciler) syncHTTPRoute(ctx context.Context, key types.Names
 		if !apierrors.IsNotFound(err) {
 			return fmt.Errorf("get HTTPRoute %q: %w", key.String(), err)
 		}
+
 		if err := r.store.DeleteHTTPRoute(ctx, key.Namespace, key.Name); err != nil {
 			return fmt.Errorf("delete HTTPRoute %q from MySQL: %w", key.String(), err)
 		}
+
 		return nil
 	}
 
@@ -79,6 +82,7 @@ func (r *HTTPRouteReconciler) syncAll(ctx context.Context) error {
 		if err := r.store.UpsertHTTPRoute(ctx, routeToMySQL(route)); err != nil {
 			return fmt.Errorf("sync HTTPRoute %q to MySQL: %w", client.ObjectKeyFromObject(route).String(), err)
 		}
+
 		current[client.ObjectKeyFromObject(route)] = struct{}{}
 	}
 
@@ -91,6 +95,7 @@ func (r *HTTPRouteReconciler) syncAll(ctx context.Context) error {
 		if _, exists := current[key]; exists {
 			continue
 		}
+
 		if err := r.store.DeleteHTTPRoute(ctx, key.Namespace, key.Name); err != nil {
 			return fmt.Errorf("delete stale HTTPRoute %q from MySQL: %w", key.String(), err)
 		}
@@ -113,6 +118,7 @@ func routeToMySQL(route *gatewayv1alpha1.HTTPRoute) mysql.HTTPRoute {
 	for _, ref := range defaulted.Spec.ParentRefs {
 		result.Parents = append(result.Parents, mysql.HTTPRouteParent{Name: ref.Name, SectionName: ref.SectionName})
 	}
+
 	for _, rule := range defaulted.Spec.Rules {
 		target := mysql.HTTPRouteRule{Name: rule.Name}
 		for _, match := range rule.Matches {
@@ -121,9 +127,11 @@ func routeToMySQL(route *gatewayv1alpha1.HTTPRoute) mysql.HTTPRoute {
 				PathValue: match.Path.Value,
 			})
 		}
+
 		for _, ref := range rule.BackendRefs {
 			target.BackendRefs = append(target.BackendRefs, mysql.HTTPRouteBackendRef{Name: ref.Name})
 		}
+
 		result.Rules = append(result.Rules, target)
 	}
 

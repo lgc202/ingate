@@ -19,12 +19,14 @@ func Encode(c Config) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("compute AI config revision: %w", err)
 	}
+
 	c.Revision = revision
 
 	data, err := json.Marshal(c)
 	if err != nil {
 		return nil, fmt.Errorf("encode AI config: %w", err)
 	}
+
 	return data, nil
 }
 
@@ -37,5 +39,6 @@ func contentRevision(c Config) (string, error) {
 	}
 
 	hash := sha256.Sum256(content)
+
 	return hex.EncodeToString(hash[:]), nil
 }

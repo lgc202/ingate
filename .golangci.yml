@@ -1,16 +1,61 @@
 version: "2"
 
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+  relative-path-mode: gomod
+
 linters:
   default: standard
   enable:
-    - whitespace
+    - containedctx
+    - depguard
+    - revive
     - wsl_v5
   settings:
+    depguard:
+      rules:
+        business-storage-boundary:
+          list-mode: lax
+          files:
+            - "${base-path}/internal/adminapi/service/**"
+            - "${base-path}/internal/adminapi/handler/**"
+            - "${base-path}/internal/service/**"
+            - "${base-path}/internal/handler/**"
+            - "!$test"
+          deny:
+            - pkg: "database/sql$"
+              desc: 业务层通过 Repository 资源门面访问存储
+            - pkg: "github.com/lgc202/ingate/internal/adminapi/repository/"
+              desc: 业务层通过 Repository 资源门面访问存储
+            - pkg: "github.com/lgc202/ingate/internal/repository/"
+              desc: 业务层通过 Repository 资源门面访问存储
+            - pkg: "github.com/lgc202/ingate/internal/pkg/mysql$"
+              desc: 业务层通过 Repository 资源门面访问存储
+            - pkg: "github.com/lgc202/ingate/internal/pkg/redis$"
+              desc: 业务层通过 Repository 资源门面访问存储
+            - pkg: "github.com/lgc202/ingate/pkg/generated/clientset/"
+              desc: 业务层通过 Repository 资源门面访问存储
+    revive:
+      enable-all-rules: false
+      enable-default-rules: false
+      rules:
+        - name: receiver-naming
+        - name: context-as-argument
+          arguments:
+            - allow-types-before: "*testing.T,*testing.B,*testing.F"
     wsl_v5:
-      # 只检查 switch 前的分隔；其他语义空行仍由代码评审判断。
       default: none
+      branch-max-lines: 2
+      case-max-lines: 0
       enable:
-        - switch
+        - err
+        - after-block
+        - return
+        - leading-whitespace
+        - trailing-whitespace
+  exclusions:
+    generated: strict
 
 issues:
   max-issues-per-linter: 0

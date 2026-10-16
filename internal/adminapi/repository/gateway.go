@@ -71,6 +71,7 @@ func (r *Gateway) Get(
 		if errors.Is(err, mysql.ErrNotFound) {
 			return GatewayInfo{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 		}
+
 		return GatewayInfo{}, err
 	}
 
@@ -130,6 +131,7 @@ func (r *Gateway) Delete(ctx context.Context, namespace, name string) error {
 
 func gatewayFromAPI(gateway *gatewayv1alpha1.Gateway) GatewayInfo {
 	spec := gateway.DeepCopy().Spec
+
 	return GatewayInfo{
 		Namespace:   gateway.Namespace,
 		Name:        gateway.Name,

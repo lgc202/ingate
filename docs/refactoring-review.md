@@ -52,3 +52,29 @@ MySQL、Redis、版本和日志的已确认选择分别见 [0006](decisions/0006
 真实 MySQL 的初始化、事务、迁移 SQL 执行和服务联合退出没有验证；sqlmock 只覆盖期望 SQL 与调用结果。没有执行 API Server → Manager → MySQL → Admin API → Envoy 的完整联动，没有用真实 Envoy 验证转发、ACK 或故障恢复。
 
 文件日志测试使用真实临时文件，但不能证明外部采集、磁盘故障或可靠审计。lumberjack.Close 只关闭当前文件，不等待后台压缩与清理。上述静态、单元及隔离组件检查不构成生产就绪结论。
+
+## 2026-10-15：GoCanon 模板对齐
+
+本节是新一轮审查，前文保留为历史记录。本轮基线为 `8a7b28f8`，分支为
+`codex/gocanon-template-refactor`，实现与独立复查完成，用户已授权审查通过后本地提交。
+范围、规则版本、改动原因及完整验证清单见
+[0016：GoCanon 模板对齐](decisions/0016-gocanon-template-alignment.md)。
+
+通过当前运行的 GoCanon MCP 读取规则，并在隔离目录生成参考骨架。普通 Web 的
+七种 Handler 迁入同包，公开错误集中到 errno；Service 与 Repository 保留已有
+业务边界。原生 Generic APIServer、controller-runtime、AI Proxy 流式转发及
+Controller 共享查询 Store 的已确认形式保持不变。没有新增通用 CRUD 或依赖注入框架。
+
+复现并修复两类非排版问题：新增资源的未知 JSON 字段被忽略并继续写入；API Server
+初始化失败后已创建的 HTTPS Listener 未关闭。另调整组合根的依赖检查顺序、客户端
+清理错误传播、请求完成日志和业务入口的 DefaultServeMux 隔离。空白检查采用固定
+GoCanon lint 配置，integration 标签下的手写代码也纳入 CI 静态检查。
+
+当前基线已有真实 RequireSession 回归，覆盖有效、缺失、伪造、过期、撤销会话与
+Redis 失败，并检查拒绝后的调用阻断和 Context 身份。本轮保留并运行这些断言；
+前文 2026-10-08 的测试缺口不能视作当前仍然缺少该测试。
+
+目标工作区 `make -j4 verify`、全仓库竞态测试、四个二进制版本入口和 CI 工作流
+语法检查通过。隔离副本的 API Server 内嵌 etcd 集成测试通过，代码生成前后文件
+哈希一致。真实 MySQL/Redis/Envoy/模型上游联调、生产部署及多副本验证未执行；
+不能据此声称所有运行条件下均达到模板级或生产就绪。

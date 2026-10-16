@@ -7,7 +7,7 @@ import (
 
 	"buf.build/go/protovalidate"
 	kratosmiddleware "github.com/go-kratos/kratos/v3/middleware"
-	adminhandler "github.com/lgc202/ingate/internal/adminapi/handler"
+	"github.com/lgc202/ingate/internal/adminapi/errno"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -22,9 +22,10 @@ func ValidateRequests() kratosmiddleware.Middleware {
 
 			if err := protovalidate.Validate(message); err != nil {
 				if _, ok := errors.AsType[*protovalidate.ValidationError](err); ok {
-					return nil, adminhandler.ToInvalidArgument(err)
+					return nil, errno.ErrInvalidArgument.WithCause(err)
 				}
-				return nil, adminhandler.ToTransportError(ctx, fmt.Errorf("validate request contract: %w", err))
+
+				return nil, errno.Fallback(fmt.Errorf("validate request contract: %w", err))
 			}
 
 			return next(ctx, req)

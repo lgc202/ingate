@@ -43,6 +43,7 @@ func NewServer(address string, publisher *Publisher, logger logr.Logger) *Server
 	discoveryv3.RegisterAggregatedDiscoveryServiceServer(grpcServer, &adsServer{
 		server: sotwv3.NewServer(context.Background(), publisher.cache, newCallbacks(logger)),
 	})
+
 	return &Server{
 		address:    address,
 		publisher:  publisher,
@@ -56,6 +57,7 @@ func (s *Server) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("listen for xDS on %q: %w", s.address, err)
 	}
+
 	s.listening.Store(true)
 	defer s.listening.Store(false)
 
@@ -85,9 +87,11 @@ func (s *Server) CheckReady(_ *http.Request) error {
 	if !s.listening.Load() {
 		return errors.New("xDS server is not listening")
 	}
+
 	if _, err := s.publisher.cache.GetSnapshot(sharedDataPlaneCluster); err != nil {
 		return fmt.Errorf("initial xDS configuration is unavailable: %w", err)
 	}
+
 	return nil
 }
 
@@ -102,5 +106,6 @@ func serveError(err error) error {
 	if err == nil || errors.Is(err, grpc.ErrServerStopped) {
 		return nil
 	}
+
 	return fmt.Errorf("serve xDS: %w", err)
 }

@@ -38,6 +38,7 @@ func TestCreateAIBackendReturnsSavedState(t *testing.T) {
 		gatewayv1alpha1.SetDefaultsAIBackend(backend)
 		backend.ResourceVersion = "9"
 		backend.CreationTimestamp = metav1.NewTime(createdAt)
+
 		return true, backend, nil
 	})
 	server := httptest.NewServer(httpServer)
@@ -46,6 +47,7 @@ func TestCreateAIBackendReturnsSavedState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("http.NewClient() error = %v, want nil", err)
 	}
+
 	t.Cleanup(func() {
 		if err := httpClient.Close(); err != nil {
 			t.Errorf("Client.Close() error = %v, want nil", err)
@@ -61,10 +63,12 @@ func TestCreateAIBackendReturnsSavedState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateAIBackend(saved state HTTP round trip) error = %v, want nil", err)
 	}
+
 	name := reply.GetBackend().GetName()
 	if !strings.HasPrefix(name, "aibackend-") {
 		t.Errorf("CreateAIBackend().name = %q, want generated aibackend ID", name)
 	}
+
 	want := &adminv1.AIBackend{
 		Namespace:   "team-a",
 		Name:        name,
@@ -104,6 +108,7 @@ func TestAIBackendUpdateAndDeleteHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get(AIBackend after stale update) error = %v, want nil", err)
 	}
+
 	if diff := cmp.Diff(seed, stored); diff != "" {
 		t.Errorf("UpdateAIBackend(stale) changed state (-want +got):\n%s", diff)
 	}
@@ -117,6 +122,7 @@ func TestAIBackendUpdateAndDeleteHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get(updated AIBackend) error = %v, want nil", err)
 	}
+
 	want := seed.DeepCopy()
 	want.Spec = gatewayv1alpha1.AIBackendSpec{
 		BackendRef: gatewayv1alpha1.BackendReference{Name: "other-network"},
@@ -125,6 +131,7 @@ func TestAIBackendUpdateAndDeleteHTTP(t *testing.T) {
 	if diff := cmp.Diff(want, stored); diff != "" {
 		t.Errorf("UpdateAIBackend(full spec, metadata/status preserved) mismatch (-want +got):\n%s", diff)
 	}
+
 	if got := reply.GetBackend(); got.GetDisplayName() != "" || got.GetBackendRef().GetName() != "other-network" || got.GetSchema().GetPrefix() != "/compat/v1" {
 		t.Errorf("UpdateAIBackend().backend = %v, want cleared display name and changed reference/prefix", got)
 	}
@@ -134,6 +141,7 @@ func TestAIBackendUpdateAndDeleteHTTP(t *testing.T) {
 	if _, err := client.GatewayV1alpha1().AIBackends("team-a").Get(t.Context(), "models", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("Get(deleted AIBackend) error = %v, want NotFound", err)
 	}
+
 	response = requestResource(httpServer, http.MethodDelete, "/api/admin/v1/namespaces/team-a/ai-backends/models", "")
 	requireHTTPStatus(t, response, http.StatusNotFound)
 }
@@ -183,6 +191,7 @@ func TestAIBackendAuthenticationHTTP(t *testing.T) {
 		response := requestResource(httpServer, tt.method, tt.path, tt.body)
 		requireHTTPStatus(t, response, http.StatusUnauthorized)
 	}
+
 	if calls != 5 || len(client.Actions()) != 0 {
 		t.Errorf("AIBackend unauthenticated requests = %d auth calls and %v API actions, want 5 and none", calls, client.Actions())
 	}
@@ -240,9 +249,11 @@ func TestAIBackendGRPC(t *testing.T) {
 	if _, err := client.CreateAIBackend(t.Context(), &adminv1.CreateAIBackendRequest{Namespace: "team-a"}); status.Code(err) != codes.InvalidArgument {
 		t.Errorf("CreateAIBackend(empty) error = %v, want InvalidArgument", err)
 	}
+
 	if actions := backend.Actions(); len(actions) != 0 {
 		t.Errorf("CreateAIBackend(empty) API actions = %v, want none", actions)
 	}
+
 	request := &adminv1.CreateAIBackendRequest{
 		Namespace:   "team-a",
 		DisplayName: "模型服务",
@@ -253,10 +264,12 @@ func TestAIBackendGRPC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateAIBackend(first) error = %v, want nil", err)
 	}
+
 	second, err := client.CreateAIBackend(t.Context(), request)
 	if err != nil {
 		t.Fatalf("CreateAIBackend(duplicate display name) error = %v, want nil", err)
 	}
+
 	if first.GetBackend().GetName() == second.GetBackend().GetName() || second.GetBackend().GetDisplayName() != "模型服务" {
 		t.Errorf("CreateAIBackend(duplicate display name) = %v, want distinct ID and same display name", second)
 	}
@@ -269,6 +282,7 @@ func TestAIBackendGRPC(t *testing.T) {
 	if _, err := client.CreateAIBackend(t.Context(), request); status.Code(err) != codes.Aborted || kratoserrors.Reason(err) != "AI_BACKEND_ALREADY_EXISTS" {
 		t.Errorf("CreateAIBackend(identity conflict) error = %v, want Aborted/AI_BACKEND_ALREADY_EXISTS", err)
 	}
+
 	backend.PrependReactor("create", "aibackends", func(clienttesting.Action) (bool, runtime.Object, error) {
 		return true, nil, errors.New("private storage failure")
 	})

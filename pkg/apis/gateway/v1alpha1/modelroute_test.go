@@ -15,6 +15,7 @@ func TestModelRouteDefaultingPreservesMatches(t *testing.T) {
 	if err := AddToScheme(scheme); err != nil {
 		t.Fatalf("AddToScheme() error = %v, want nil", err)
 	}
+
 	for _, tt := range []struct {
 		name  string
 		input HeaderMatchType
@@ -68,9 +69,11 @@ func TestModelRouteConversion(t *testing.T) {
 	if err := gateway.AddToScheme(scheme); err != nil {
 		t.Fatalf("gateway.AddToScheme() error = %v, want nil", err)
 	}
+
 	if err := AddToScheme(scheme); err != nil {
 		t.Fatalf("AddToScheme() error = %v, want nil", err)
 	}
+
 	input := &ModelRoute{
 		ObjectMeta: metav1.ObjectMeta{Name: "models", ResourceVersion: "12", Generation: 3},
 		Spec: ModelRouteSpec{
@@ -101,6 +104,7 @@ func TestModelRouteConversion(t *testing.T) {
 	if err := scheme.Convert(input, &internal, nil); err != nil {
 		t.Fatalf("Scheme.Convert(ModelRoute, internal) error = %v, want nil", err)
 	}
+
 	wantSpec := gateway.ModelRouteSpec{
 		DisplayName: "模型路由",
 		ParentRefs:  []gateway.ParentReference{{Name: "edge", SectionName: "http"}},
@@ -122,10 +126,12 @@ func TestModelRouteConversion(t *testing.T) {
 	if diff := cmp.Diff(wantSpec, internal.Spec); diff != "" {
 		t.Errorf("Scheme.Convert(ModelRoute, internal).Spec mismatch (-want +got):\n%s", diff)
 	}
+
 	var roundTrip ModelRoute
 	if err := scheme.Convert(&internal, &roundTrip, nil); err != nil {
 		t.Fatalf("Scheme.Convert(internal ModelRoute, external) error = %v, want nil", err)
 	}
+
 	if diff := cmp.Diff(input, &roundTrip); diff != "" {
 		t.Errorf("ModelRoute conversion round trip mismatch (-want +got):\n%s", diff)
 	}

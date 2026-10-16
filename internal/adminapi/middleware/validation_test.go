@@ -20,6 +20,7 @@ func TestValidateRequestsRejectsInvalidGateway(t *testing.T) {
 	if code := kratoserrors.Code(err); code != 400 {
 		t.Errorf("ValidateRequests(empty CreateGatewayRequest) code = %d, want 400; error = %v", code, err)
 	}
+
 	if called {
 		t.Error("ValidateRequests(empty CreateGatewayRequest) called next, want rejection")
 	}
@@ -45,6 +46,7 @@ func TestValidateRequestsAllowsValidGateway(t *testing.T) {
 	if err != nil {
 		t.Errorf("ValidateRequests(valid CreateGatewayRequest) error = %v, want nil", err)
 	}
+
 	if !called {
 		t.Error("ValidateRequests(valid CreateGatewayRequest) did not call next")
 	}

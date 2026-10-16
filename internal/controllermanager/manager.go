@@ -41,6 +41,7 @@ func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
 	if err := validateAISockets(c.AIIngressSocket, c.AIEgressSocket); err != nil {
 		return nil, err
 	}
+
 	if messages := validation.IsDNS1123Label(c.AIConfigNamespace); len(messages) != 0 {
 		return nil, fmt.Errorf("AI configuration namespace %q must be a valid DNS label", c.AIConfigNamespace)
 	}
@@ -64,6 +65,7 @@ func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
 	if err := reconciler.SetupWithManager(manager); err != nil {
 		return nil, fmt.Errorf("setup Gateway controller: %w", err)
 	}
+
 	if err := setupNamespaceController(manager); err != nil {
 		return nil, fmt.Errorf("setup Namespace controller: %w", err)
 	}
@@ -71,18 +73,23 @@ func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
 	if err := projection.NewGateway(manager.GetClient(), store).SetupWithManager(manager); err != nil {
 		return nil, fmt.Errorf("setup Gateway projection controller: %w", err)
 	}
+
 	if err := projection.NewHTTPRoute(manager.GetClient(), store).SetupWithManager(manager); err != nil {
 		return nil, fmt.Errorf("setup HTTPRoute projection controller: %w", err)
 	}
+
 	if err := projection.NewBackend(manager.GetClient(), store).SetupWithManager(manager); err != nil {
 		return nil, fmt.Errorf("setup Backend projection controller: %w", err)
 	}
+
 	if err := projection.NewAIBackend(manager.GetClient(), store).SetupWithManager(manager); err != nil {
 		return nil, fmt.Errorf("setup AIBackend projection controller: %w", err)
 	}
+
 	if err := projection.NewModelRoute(manager.GetClient(), store).SetupWithManager(manager); err != nil {
 		return nil, fmt.Errorf("setup ModelRoute projection controller: %w", err)
 	}
+
 	if err := projection.NewMCPRoute(manager.GetClient(), store).SetupWithManager(manager); err != nil {
 		return nil, fmt.Errorf("setup MCPRoute projection controller: %w", err)
 	}
@@ -102,11 +109,13 @@ func (c *Config) managerOptions() ctrl.Options {
 	if options.Cache.ByObject == nil {
 		options.Cache.ByObject = make(map[client.Object]cache.ByObject)
 	}
+
 	for object := range options.Cache.ByObject {
 		if _, isConfigMap := object.(*corev1.ConfigMap); isConfigMap {
 			delete(options.Cache.ByObject, object)
 		}
 	}
+
 	options.Cache.ByObject[&corev1.ConfigMap{}] = cache.ByObject{
 		Namespaces: map[string]cache.Config{
 			c.AIConfigNamespace: {FieldSelector: fields.OneTermEqualSelector("metadata.name", aidataplane.ConfigMapName)},
@@ -139,5 +148,6 @@ func setupNamespaceController(manager ctrl.Manager) error {
 	discoverResources := discoveryClient.ServerPreferredNamespacedResourcesWithContext
 	deleter := deletion.New(coreClient.Namespaces(), metadataClient, discoverResources)
 	reconciler := namespacecontroller.New(manager.GetClient(), deleter)
+
 	return reconciler.SetupWithManager(manager)
 }

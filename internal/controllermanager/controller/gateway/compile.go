@@ -64,6 +64,7 @@ func compile(result resolution) dataplane.Config {
 				Weight:  endpoint.Weight,
 			}
 		}
+
 		config.Backends = append(config.Backends, dataplane.Backend{
 			Name:      path.Join(backend.Namespace, backend.Name),
 			Endpoints: endpoints,

@@ -17,9 +17,11 @@ func TestNewCommandVersionSkipsConfigurationAndRun(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Errorf("Execute(--version, missing config) error = %v, want nil", err)
 	}
+
 	if got, want := stdout.String(), version.Get().Text()+"\n"; got != want {
 		t.Errorf("Execute(--version) stdout = %q, want %q", got, want)
 	}
+
 	if stderr.Len() != 0 {
 		t.Errorf("Execute(--version) stderr = %q, want empty", stderr.String())
 	}

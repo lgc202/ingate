@@ -55,9 +55,11 @@ func (r *MCPRouteReconciler) syncMCPRoute(ctx context.Context, key types.Namespa
 		if !apierrors.IsNotFound(err) {
 			return fmt.Errorf("get MCPRoute %q: %w", key.String(), err)
 		}
+
 		if err := r.store.DeleteMCPRoute(ctx, key.Namespace, key.Name); err != nil {
 			return fmt.Errorf("delete MCPRoute %q from MySQL: %w", key.String(), err)
 		}
+
 		return nil
 	}
 
@@ -80,6 +82,7 @@ func (r *MCPRouteReconciler) syncAll(ctx context.Context) error {
 		if err := r.store.UpsertMCPRoute(ctx, mcpRouteToMySQL(route)); err != nil {
 			return fmt.Errorf("sync MCPRoute %q to MySQL: %w", client.ObjectKeyFromObject(route).String(), err)
 		}
+
 		current[client.ObjectKeyFromObject(route)] = struct{}{}
 	}
 
@@ -92,6 +95,7 @@ func (r *MCPRouteReconciler) syncAll(ctx context.Context) error {
 		if _, exists := current[key]; exists {
 			continue
 		}
+
 		if err := r.store.DeleteMCPRoute(ctx, key.Namespace, key.Name); err != nil {
 			return fmt.Errorf("delete stale MCPRoute %q from MySQL: %w", key.String(), err)
 		}

@@ -37,13 +37,16 @@ func TestMCPRouteUpdatePreservesAPIConflictCause(t *testing.T) {
 	if !errors.Is(err, ErrConflict) || !errors.Is(err, storageErr) {
 		t.Errorf("MCPRoute.Update(API race) error = %v, want ErrConflict and API cause", err)
 	}
+
 	if diff := cmp.Diff(MCPRouteInfo{}, got); diff != "" {
 		t.Errorf("MCPRoute.Update(API race) returned partial result (-want +got):\n%s", diff)
 	}
+
 	stored, err := client.GatewayV1alpha1().MCPRoutes("team-a").Get(t.Context(), "tools", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get(MCPRoute after API race) error = %v, want nil", err)
 	}
+
 	if diff := cmp.Diff(seed, stored); diff != "" {
 		t.Errorf("MCPRoute.Update(API race) changed state (-want +got):\n%s", diff)
 	}

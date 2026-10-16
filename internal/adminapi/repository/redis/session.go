@@ -44,6 +44,7 @@ func (s *Store) GetSession(ctx context.Context, id string) (Session, error) {
 		if errors.Is(err, goredis.Nil) {
 			return Session{}, ErrNotFound
 		}
+
 		return Session{}, fmt.Errorf("get session: %w", err)
 	}
 

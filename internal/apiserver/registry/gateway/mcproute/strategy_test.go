@@ -18,6 +18,7 @@ func TestStrategyProtectsStatusAndGeneration(t *testing.T) {
 	if !strategy.NamespaceScoped() {
 		t.Error("NamespaceScoped() = false, want true")
 	}
+
 	if strategy.AllowCreateOnUpdate(ctx) || strategy.AllowUnconditionalUpdate(ctx) {
 		t.Error("MCPRoute strategy permits create-on-update or unconditional update, want both false")
 	}
@@ -29,9 +30,11 @@ func TestStrategyProtectsStatusAndGeneration(t *testing.T) {
 	if route.Generation != 1 || len(route.Status.Parents) != 0 {
 		t.Errorf("PrepareForCreate(MCPRoute) = generation %d, status %#v; want 1 and empty status", route.Generation, route.Status)
 	}
+
 	if errs := strategy.Validate(ctx, route); len(errs) != 0 {
 		t.Errorf("Validate(valid MCPRoute) = %v, want no errors", errs)
 	}
+
 	route.Spec.BackendRefs = nil
 	if errs := strategy.Validate(ctx, route); len(errs) == 0 {
 		t.Error("Validate(no Backend) = no errors, want validation error")
@@ -48,6 +51,7 @@ func TestStrategyProtectsStatusAndGeneration(t *testing.T) {
 	if metadataOnly.Generation != previous.Generation {
 		t.Errorf("PrepareForUpdate(metadata only).Generation = %d, want %d", metadataOnly.Generation, previous.Generation)
 	}
+
 	if diff := cmp.Diff(previous.Status, metadataOnly.Status); diff != "" {
 		t.Errorf("PrepareForUpdate(metadata only).Status mismatch (-want +got):\n%s", diff)
 	}
@@ -60,12 +64,15 @@ func TestStrategyProtectsStatusAndGeneration(t *testing.T) {
 	if next.Generation != previous.Generation+1 {
 		t.Errorf("PrepareForUpdate(changed path).Generation = %d, want %d", next.Generation, previous.Generation+1)
 	}
+
 	if diff := cmp.Diff(previous.Status, next.Status); diff != "" {
 		t.Errorf("PrepareForUpdate(changed path).Status mismatch (-want +got):\n%s", diff)
 	}
+
 	if errs := strategy.ValidateUpdate(ctx, next, previous); len(errs) != 0 {
 		t.Errorf("ValidateUpdate(valid MCPRoute) = %v, want no errors", errs)
 	}
+
 	next.Spec.BackendRefs[0].Name = ""
 	if errs := strategy.ValidateUpdate(ctx, next, previous); len(errs) == 0 {
 		t.Error("ValidateUpdate(empty Backend reference) = no errors, want validation error")
@@ -89,9 +96,11 @@ func TestStatusStrategyProtectsSpecAndMetadata(t *testing.T) {
 	if diff := cmp.Diff(previous.Spec, next.Spec); diff != "" {
 		t.Errorf("StatusStrategy.PrepareForUpdate().Spec mismatch (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(wantStatus, next.Status); diff != "" {
 		t.Errorf("StatusStrategy.PrepareForUpdate().Status mismatch (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(previous.ObjectMeta, next.ObjectMeta); diff != "" {
 		t.Errorf("StatusStrategy.PrepareForUpdate().ObjectMeta mismatch (-want +got):\n%s", diff)
 	}

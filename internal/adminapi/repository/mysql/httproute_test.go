@@ -73,6 +73,7 @@ func TestListHTTPRoutesPreservesJSONOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListHTTPRoutes(page 1) error = %v, want nil", err)
 	}
+
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("ListHTTPRoutes(page 1) mismatch (-want +got):\n%s", diff)
 	}
@@ -88,6 +89,7 @@ func TestGetHTTPRouteRejectsInvalidJSONWithoutPartialState(t *testing.T) {
 	if err == nil {
 		t.Fatal("GetHTTPRoute(broken) error = nil, want JSON decoding error")
 	}
+
 	if diff := cmp.Diff(HTTPRoute{}, got); diff != "" {
 		t.Errorf("GetHTTPRoute(broken) returned partial state (-want +got):\n%s", diff)
 	}
@@ -157,6 +159,7 @@ func TestListHTTPRoutesCombinesLiteralNameAndGatewayFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListHTTPRoutes(filtered) error = %v, want nil", err)
 	}
+
 	if len(got.Items) != 0 || got.TotalCount != 0 {
 		t.Errorf("ListHTTPRoutes(no match) = %+v, want empty page and total 0", got)
 	}
@@ -168,5 +171,6 @@ func projectionJSON(t *testing.T, value any) string {
 	if err != nil {
 		t.Fatalf("json.Marshal(%T) error = %v, want nil", value, err)
 	}
+
 	return string(data)
 }

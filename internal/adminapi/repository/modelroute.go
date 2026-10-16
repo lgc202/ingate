@@ -73,6 +73,7 @@ func (r *ModelRoute) Get(
 		if errors.Is(err, mysql.ErrNotFound) {
 			return ModelRouteInfo{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 		}
+
 		return ModelRouteInfo{}, err
 	}
 
@@ -133,6 +134,7 @@ func (r *ModelRoute) Delete(ctx context.Context, namespace, name string) error {
 
 func modelRouteFromAPI(route *gatewayv1alpha1.ModelRoute) ModelRouteInfo {
 	spec := route.Spec.DeepCopy()
+
 	return ModelRouteInfo{
 		Namespace:   route.Namespace,
 		Name:        route.Name,
@@ -159,6 +161,7 @@ func modelRouteFromMySQL(route mysql.ModelRoute) ModelRouteInfo {
 			SectionName: ref.SectionName,
 		})
 	}
+
 	for _, rule := range route.Rules {
 		target := gatewayv1alpha1.ModelRouteRule{Name: rule.Name}
 		for _, match := range rule.Matches {
@@ -170,14 +173,17 @@ func modelRouteFromMySQL(route mysql.ModelRoute) ModelRouteInfo {
 					Value: header.Value,
 				})
 			}
+
 			target.Matches = append(target.Matches, condition)
 		}
+
 		for _, ref := range rule.BackendRefs {
 			target.BackendRefs = append(target.BackendRefs, gatewayv1alpha1.AIBackendReference{
 				Name:              ref.Name,
 				ModelNameOverride: ref.ModelNameOverride,
 			})
 		}
+
 		result.Rules = append(result.Rules, target)
 	}
 

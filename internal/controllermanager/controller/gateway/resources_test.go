@@ -20,12 +20,15 @@ func TestReadResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("readResources() error = %v, want nil", err)
 	}
+
 	if diff := cmp.Diff([]gatewayv1alpha1.Gateway{gateway}, got.gateways.Items); diff != "" {
 		t.Errorf("readResources() Gateways mismatch (-want +got):\n%s", diff)
 	}
+
 	if len(got.httpRoutes.Items) != 0 {
 		t.Errorf("readResources() HTTPRoutes = %+v, want no protocol-specific input", got.httpRoutes.Items)
 	}
+
 	if diff := cmp.Diff([]gatewayv1alpha1.Backend{backend}, got.backends.Items); diff != "" {
 		t.Errorf("readResources() Backends mismatch (-want +got):\n%s", diff)
 	}

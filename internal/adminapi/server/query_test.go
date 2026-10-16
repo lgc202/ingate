@@ -92,6 +92,7 @@ func TestHTTPRouteQueryHTTP(t *testing.T) {
 	if got.GetName() != "public" || got.GetDisplayName() != "订单路由" || got.GetVersion() != "7" || len(got.GetRules()) != 1 || len(got.GetParentRefs()) != 1 {
 		t.Fatalf("GetHTTPRoute(public) = %v, want public with display name 订单路由, version 7, one rule and one parent", got)
 	}
+
 	if got.GetRules()[0].GetMatches()[0].GetPath().GetValue() != "/old" || got.GetRules()[0].GetBackendRefs()[0].GetName() != "backend" {
 		t.Errorf("lost rule children: %v", got)
 	}
@@ -191,9 +192,11 @@ func TestResourceListPaginationHTTP(t *testing.T) {
 		t.Errorf("ListGateways(page 2) = %v, want one Gateway and total 3", &reply)
 		return
 	}
+
 	if got := reply.GetGateways()[0].GetName(); got != "second" {
 		t.Errorf("ListGateways(page 2) name = %q, want second", got)
 	}
+
 	if actions := apiClient.Actions(); len(actions) != 0 {
 		t.Errorf("ListGateways(page 2) API Server actions = %v, want none", actions)
 	}
@@ -251,11 +254,13 @@ func newQueryTestServer(t *testing.T) (*kratoshttp.Server, *clientfake.Clientset
 	if err != nil {
 		t.Fatalf("sqlmock.New() error = %v, want nil", err)
 	}
+
 	t.Cleanup(func() {
 		mock.ExpectClose()
 		if err := db.Close(); err != nil {
 			t.Errorf("SQL pool Close() error = %v, want nil", err)
 		}
+
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Errorf("SQL expectations error = %v, want nil", err)
 		}
@@ -268,9 +273,11 @@ func newQueryTestServer(t *testing.T) (*kratoshttp.Server, *clientfake.Clientset
 	if err != nil {
 		t.Fatalf("gorm.Open() error = %v, want nil", err)
 	}
+
 	store := mysql.New(gormDB)
 
 	allow := func(next kratosmiddleware.Handler) kratosmiddleware.Handler { return next }
 	httpServer, _, apiClient := newTestServersWithStore(allow, store)
+
 	return httpServer, apiClient, mock
 }

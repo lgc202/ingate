@@ -109,6 +109,7 @@ func (s *Service) List(
 	if params.PageSize == 0 {
 		params.PageSize = defaultPageSize
 	}
+
 	if params.PageNum == 0 {
 		params.PageNum = 1
 	}

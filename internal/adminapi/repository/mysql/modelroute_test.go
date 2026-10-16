@@ -80,6 +80,7 @@ func TestListModelRoutesPreservesJSONOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListModelRoutes(page 1) error = %v, want nil", err)
 	}
+
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("ListModelRoutes(page 1) mismatch (-want +got):\n%s", diff)
 	}
@@ -95,6 +96,7 @@ func TestGetModelRouteRejectsInvalidJSONWithoutPartialState(t *testing.T) {
 	if err == nil {
 		t.Fatal("GetModelRoute(broken) error = nil, want JSON decoding error")
 	}
+
 	if diff := cmp.Diff(ModelRoute{}, got); diff != "" {
 		t.Errorf("GetModelRoute(broken) returned partial state (-want +got):\n%s", diff)
 	}
@@ -142,6 +144,7 @@ func TestListModelRoutesRejectsInvalidJSONWithoutPartialPage(t *testing.T) {
 	if err == nil {
 		t.Fatal("ListModelRoutes(broken JSON) error = nil, want decoding error")
 	}
+
 	if diff := cmp.Diff(ModelRoutePage{}, got); diff != "" {
 		t.Errorf("ListModelRoutes(broken JSON) returned partial page (-want +got):\n%s", diff)
 	}
@@ -182,6 +185,7 @@ func TestListModelRoutesCombinesLiteralNameAndGatewayFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListModelRoutes(filtered) error = %v, want nil", err)
 	}
+
 	if len(got.Items) != 0 || got.TotalCount != 0 {
 		t.Errorf("ListModelRoutes(no match) = %+v, want empty page and total 0", got)
 	}

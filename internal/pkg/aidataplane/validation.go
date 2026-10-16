@@ -17,6 +17,7 @@ func Validate(c Config) error {
 	if c.FormatVersion != FormatVersionV1 {
 		return fmt.Errorf("unsupported formatVersion %q", c.FormatVersion)
 	}
+
 	if c.Listeners == nil || c.Backends == nil || c.NetworkBackends == nil {
 		return errors.New("listeners, backends and networkBackends must be arrays")
 	}
@@ -39,12 +40,15 @@ func Validate(c Config) error {
 		if backend.Name == "" || backendNames[backend.Name] {
 			return fmt.Errorf("backends[%d].name must be nonempty and unique", i)
 		}
+
 		if backend.Schema.Name != APISchemaOpenAI {
 			return fmt.Errorf("backends[%d].schema.name must be OpenAI", i)
 		}
+
 		if err := validatePath(backend.Schema.Prefix); err != nil {
 			return fmt.Errorf("backends[%d].schema.prefix: %w", i, err)
 		}
+
 		if backend.ModelNameOverride == nil {
 			return fmt.Errorf("backends[%d].modelNameOverride must be a string", i)
 		}
@@ -88,6 +92,7 @@ func validateEndpoints(endpoints []Endpoint) error {
 				return fmt.Errorf("endpoints[%d].address: %s", i, strings.Join(messages, "; "))
 			}
 		}
+
 		if endpoint.Port < 1 || endpoint.Port > 65535 || endpoint.Weight <= 0 {
 			return fmt.Errorf("endpoints[%d] requires port between 1 and 65535 and positive weight", i)
 		}
@@ -113,9 +118,11 @@ func validateHosts(hosts []Host, backendNames, networkNames map[string]bool) err
 		if host.Name == "" || names[host.Name] {
 			return fmt.Errorf("hosts[%d].name must be nonempty and unique", i)
 		}
+
 		if host.Hostname == nil {
 			return fmt.Errorf("hosts[%d].hostname must be a string", i)
 		}
+
 		if *host.Hostname != "" {
 			if messages := validation.IsDNS1123Subdomain(*host.Hostname); len(messages) != 0 {
 				return fmt.Errorf("hosts[%d].hostname: %s", i, strings.Join(messages, "; "))
@@ -125,6 +132,7 @@ func validateHosts(hosts []Host, backendNames, networkNames map[string]bool) err
 		if err := validateModelRoutes(host.ModelRoutes, backendNames); err != nil {
 			return fmt.Errorf("hosts[%d]: %w", i, err)
 		}
+
 		if err := validateMCPRoutes(host.MCPRoutes, networkNames); err != nil {
 			return fmt.Errorf("hosts[%d]: %w", i, err)
 		}
@@ -145,9 +153,11 @@ func validateModelRoutes(routes []ModelRoute, backendNames map[string]bool) erro
 		if route.Name == "" || names[route.Name] {
 			return fmt.Errorf("modelRoutes[%d].name must be nonempty and unique", i)
 		}
+
 		if route.Headers == nil || len(route.Headers) > 1 {
 			return fmt.Errorf("modelRoutes[%d].headers must be an array with at most one match", i)
 		}
+
 		if len(route.Headers) == 1 {
 			header := route.Headers[0]
 			if header.Name != "x-ai-eg-model" || header.Type != HeaderMatchExact || header.Value == "" {
@@ -158,6 +168,7 @@ func validateModelRoutes(routes []ModelRoute, backendNames map[string]bool) erro
 		if route.BackendName == nil {
 			return fmt.Errorf("modelRoutes[%d].backendName must be a string", i)
 		}
+
 		if *route.BackendName != "" && !backendNames[*route.BackendName] {
 			return fmt.Errorf("modelRoutes[%d].backendName references a missing backend", i)
 		}
@@ -178,9 +189,11 @@ func validateMCPRoutes(routes []MCPRoute, networkNames map[string]bool) error {
 		if route.Name == "" || names[route.Name] {
 			return fmt.Errorf("mcpRoutes[%d].name must be nonempty and unique", i)
 		}
+
 		if !strings.HasPrefix(route.Path, "/") || utf8.RuneCountInString(route.Path) > 1024 {
 			return fmt.Errorf("mcpRoutes[%d].path must be an absolute path of at most 1024 characters", i)
 		}
+
 		if err := validatePath(route.Path); err != nil {
 			return fmt.Errorf("mcpRoutes[%d].path: %w", i, err)
 		}
@@ -188,6 +201,7 @@ func validateMCPRoutes(routes []MCPRoute, networkNames map[string]bool) error {
 		if !strings.HasPrefix(route.BackendPath, "/") || utf8.RuneCountInString(route.BackendPath) > 1024 {
 			return fmt.Errorf("mcpRoutes[%d].backendPath must be an absolute path of at most 1024 characters", i)
 		}
+
 		if err := validatePath(route.BackendPath); err != nil {
 			return fmt.Errorf("mcpRoutes[%d].backendPath: %w", i, err)
 		}
@@ -195,6 +209,7 @@ func validateMCPRoutes(routes []MCPRoute, networkNames map[string]bool) error {
 		if route.BackendName == nil {
 			return fmt.Errorf("mcpRoutes[%d].backendName must be a string", i)
 		}
+
 		if *route.BackendName != "" && !networkNames[*route.BackendName] {
 			return fmt.Errorf("mcpRoutes[%d].backendName references a missing network backend", i)
 		}
@@ -218,5 +233,6 @@ func validatePath(value string) error {
 	if parsed.IsAbs() || parsed.Host != "" || parsed.User != nil || strings.ContainsAny(value, "?#") {
 		return errors.New("path must not contain an authority, query or fragment")
 	}
+
 	return nil
 }

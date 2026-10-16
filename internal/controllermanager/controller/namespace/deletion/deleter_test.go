@@ -51,6 +51,7 @@ func TestDeleteIgnoresInactiveRequests(t *testing.T) {
 			if tt.namespace != nil {
 				objects = append(objects, tt.namespace)
 			}
+
 			kubeClient := fake.NewClientset(objects...)
 			metadataClient := metadatafake.NewSimpleMetadataClient(metadatafake.NewTestScheme())
 			called := false
@@ -63,9 +64,11 @@ func TestDeleteIgnoresInactiveRequests(t *testing.T) {
 			if err := deleter.Delete(t.Context(), "team-a"); err != nil {
 				t.Errorf("Delete(%s) error = %v, want nil", tt.name, err)
 			}
+
 			if called || len(metadataClient.Actions()) != 0 {
 				t.Errorf("Delete(%s) calls discovery or metadata client, want skipped cleanup", tt.name)
 			}
+
 			assertNoFinalize(t, kubeClient)
 		})
 	}
@@ -81,6 +84,7 @@ func TestDeleteEmptyNamespacePreservesOtherFinalizer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get(team-a) error = %v", err)
 	}
+
 	want := []corev1.FinalizerName{"example.com/retain"}
 	if !slices.Equal(got.Spec.Finalizers, want) {
 		t.Errorf("Delete(empty team-a) finalizers = %v, want %v", got.Spec.Finalizers, want)
@@ -97,9 +101,11 @@ func TestDeleteReadErrorPreservesCause(t *testing.T) {
 	if err := deleter.Delete(t.Context(), "team-a"); !errors.Is(err, wantErr) {
 		t.Errorf("Delete(read failure) error = %v, want cause %v", err, wantErr)
 	}
+
 	if len(metadataClient.Actions()) != 0 {
 		t.Errorf("Delete(read failure) metadata actions = %v, want none", metadataClient.Actions())
 	}
+
 	assertNoFinalize(t, kubeClient)
 }
 
@@ -135,19 +141,24 @@ func TestDeleteFallbackAndNamespaceIsolation(t *testing.T) {
 	if err := deleter.Delete(t.Context(), "team-a"); err != nil {
 		t.Fatalf("Delete(team-a fallback) error = %v, want nil", err)
 	}
+
 	deleted := false
 	for _, action := range metadataClient.Actions() {
 		if action.GetNamespace() != "team-a" || action.GetResource() != widgetResource() || action.GetVerb() == "delete-collection" {
 			t.Errorf("Delete(team-a fallback) metadata action = %v, want only team-a widgets List/Delete", action)
 		}
+
 		deleted = deleted || action.GetVerb() == "delete"
 	}
+
 	if !deleted {
 		t.Error("Delete(team-a fallback) has no per-item delete, want fallback executed")
 	}
+
 	if _, err := metadataClient.Resource(widgetResource()).Namespace("team-b").Get(t.Context(), "edge", metav1.GetOptions{}); err != nil {
 		t.Errorf("Get(team-b/edge) error = %v, want unchanged object", err)
 	}
+
 	if !hasFinalize(kubeClient) {
 		t.Error("Delete(team-a fallback) does not finalize, want completed cleanup")
 	}
@@ -162,6 +173,7 @@ func TestDeleteCollectionFallsBackOnMethodNotSupported(t *testing.T) {
 	if err := deleter.Delete(t.Context(), "team-a"); err != nil {
 		t.Fatalf("Delete(team-a unsupported collection) error = %v, want nil", err)
 	}
+
 	if _, err := metadataClient.Resource(widgetResource()).Namespace("team-a").Get(t.Context(), "edge", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("Get(team-a/edge) error = %v, want NotFound after fallback", err)
 	}
@@ -174,20 +186,24 @@ func TestDeleteCollectionClearsContent(t *testing.T) {
 		collections++
 		// Metadata fake 不模拟批量删除；显式移除目标对象，保留另一空间的同名对象。
 		err := metadataClient.Tracker().Delete(widgetResource(), action.GetNamespace(), "edge")
+
 		return true, &metav1.Status{Status: metav1.StatusSuccess}, err
 	})
 
 	if err := deleter.Delete(t.Context(), "team-a"); err != nil {
 		t.Fatalf("Delete(collection) error = %v, want nil", err)
 	}
+
 	if collections != 1 || !hasFinalize(kubeClient) {
 		t.Errorf("Delete(collection) calls = %d, finalized = %v, want one collection delete and finalize", collections, hasFinalize(kubeClient))
 	}
+
 	for _, action := range metadataClient.Actions() {
 		if action.GetNamespace() != "team-a" || action.GetVerb() == "delete" {
 			t.Errorf("Delete(collection) action = %v, want only team-a List/DeleteCollection", action)
 		}
 	}
+
 	if _, err := metadataClient.Resource(widgetResource()).Namespace("team-b").Get(t.Context(), "edge", metav1.GetOptions{}); err != nil {
 		t.Errorf("Get(team-b/edge) error = %v, want object retained", err)
 	}
@@ -207,6 +223,7 @@ func TestDeleteWaitsForContentFinalizers(t *testing.T) {
 	if !ok || remaining.Estimate != finalizerEstimateSeconds {
 		t.Fatalf("Delete(team-a pending content) error = %v, want ResourcesRemainingError with estimate %d", err, finalizerEstimateSeconds)
 	}
+
 	assertNoFinalize(t, kubeClient)
 	assertNamespaceCondition(t, kubeClient, corev1.NamespaceContentRemaining, corev1.ConditionTrue)
 	assertNamespaceCondition(t, kubeClient, corev1.NamespaceFinalizersRemaining, corev1.ConditionTrue)
@@ -224,9 +241,11 @@ func TestDeletePartialDiscoveryBlocksFinalize(t *testing.T) {
 	if err := deleter.Delete(t.Context(), "team-a"); !errors.Is(err, wantErr) {
 		t.Errorf("Delete(partial discovery) error = %v, want cause %v", err, wantErr)
 	}
+
 	if len(metadataClient.Actions()) == 0 {
 		t.Error("Delete(partial discovery) performs no known-resource cleanup, want progress on discovered resources")
 	}
+
 	assertNoFinalize(t, kubeClient)
 	assertNamespaceCondition(t, kubeClient, corev1.NamespaceDeletionDiscoveryFailure, corev1.ConditionTrue)
 }
@@ -241,6 +260,7 @@ func TestDeleteContentErrorBlocksFinalize(t *testing.T) {
 	if err := deleter.Delete(t.Context(), "team-a"); !errors.Is(err, wantErr) {
 		t.Errorf("Delete(content failure) error = %v, want cause %v", err, wantErr)
 	}
+
 	assertNoFinalize(t, kubeClient)
 	assertNamespaceCondition(t, kubeClient, corev1.NamespaceDeletionContentFailure, corev1.ConditionTrue)
 }
@@ -250,12 +270,14 @@ func TestDeleteInvalidGroupVersionBlocksFinalize(t *testing.T) {
 	deleter.discoverResourcesFn = func(context.Context) ([]*metav1.APIResourceList, error) {
 		resources := widgetDiscovery()
 		resources[0].GroupVersion = "invalid/group/version"
+
 		return resources, nil
 	}
 
 	if err := deleter.Delete(t.Context(), "team-a"); err == nil {
 		t.Error("Delete(invalid GroupVersion) error = nil, want parsing failure")
 	}
+
 	assertNoFinalize(t, kubeClient)
 	assertNamespaceCondition(t, kubeClient, corev1.NamespaceDeletionGVParsingFailure, corev1.ConditionTrue)
 }
@@ -270,6 +292,7 @@ func TestDeleteListErrorBlocksFinalize(t *testing.T) {
 	if err := deleter.Delete(t.Context(), "team-a"); !errors.Is(err, wantErr) {
 		t.Errorf("Delete(list failure) error = %v, want cause %v", err, wantErr)
 	}
+
 	assertNoFinalize(t, kubeClient)
 	assertNamespaceCondition(t, kubeClient, corev1.NamespaceDeletionContentFailure, corev1.ConditionTrue)
 }
@@ -285,6 +308,7 @@ func TestDeleteUnexpectedResidualBlocksFinalize(t *testing.T) {
 	if err == nil || waiting {
 		t.Errorf("Delete(unexplained residual) error = %v, want operation failure rather than finalizer wait", err)
 	}
+
 	assertNoFinalize(t, kubeClient)
 	assertNamespaceCondition(t, kubeClient, corev1.NamespaceContentRemaining, corev1.ConditionTrue)
 	assertNamespaceCondition(t, kubeClient, corev1.NamespaceDeletionContentFailure, corev1.ConditionTrue)
@@ -297,12 +321,14 @@ func TestDeleteStatusErrorBlocksFinalize(t *testing.T) {
 		if action.GetSubresource() == "status" {
 			return true, nil, wantErr
 		}
+
 		return false, nil, nil
 	})
 
 	if err := deleter.Delete(t.Context(), "team-a"); !errors.Is(err, wantErr) {
 		t.Errorf("Delete(status failure) error = %v, want cause %v", err, wantErr)
 	}
+
 	assertNoFinalize(t, kubeClient)
 }
 
@@ -313,25 +339,30 @@ func TestDeleteFinalizeConflictUIDChange(t *testing.T) {
 		if action.GetSubresource() != "finalize" {
 			return false, nil, nil
 		}
+
 		finalizeCalls++
 		replacement := deletingNamespace()
 		replacement.UID = "replacement"
 		if err := kubeClient.Tracker().Update(corev1.SchemeGroupVersion.WithResource("namespaces"), replacement, ""); err != nil {
 			return true, nil, err
 		}
+
 		return true, nil, apierrors.NewConflict(corev1.Resource("namespaces"), "team-a", errors.New("concurrent replacement"))
 	})
 
 	if err := deleter.Delete(t.Context(), "team-a"); err == nil {
 		t.Error("Delete(replaced Namespace) error = nil, want UID guard rejection")
 	}
+
 	if finalizeCalls != 1 {
 		t.Errorf("Delete(replaced Namespace) finalize calls = %d, want 1 without writing replacement", finalizeCalls)
 	}
+
 	got, err := kubeClient.CoreV1().Namespaces().Get(t.Context(), "team-a", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get(replacement) error = %v", err)
 	}
+
 	if got.UID != "replacement" || !slices.Contains(got.Spec.Finalizers, corev1.FinalizerKubernetes) {
 		t.Errorf("Delete(replaced Namespace) result = %v/%v, want replacement with kubernetes finalizer", got.UID, got.Spec.Finalizers)
 	}
@@ -344,16 +375,19 @@ func TestDeleteFinalizeErrorPreservesCause(t *testing.T) {
 		if action.GetSubresource() == "finalize" {
 			return true, nil, wantErr
 		}
+
 		return false, nil, nil
 	})
 
 	if err := deleter.Delete(t.Context(), "team-a"); !errors.Is(err, wantErr) {
 		t.Errorf("Delete(finalize failure) error = %v, want cause %v", err, wantErr)
 	}
+
 	namespace, err := kubeClient.CoreV1().Namespaces().Get(t.Context(), "team-a", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get(team-a) error = %v, want nil", err)
 	}
+
 	if !slices.Contains(namespace.Spec.Finalizers, corev1.FinalizerKubernetes) {
 		t.Errorf("Delete(finalize failure) finalizers = %v, want kubernetes finalizer retained", namespace.Spec.Finalizers)
 	}
@@ -366,13 +400,16 @@ func TestDeleteConflictRetriesAreBounded(t *testing.T) {
 		if action.GetSubresource() != "finalize" {
 			return false, nil, nil
 		}
+
 		finalizeCalls++
+
 		return true, nil, apierrors.NewConflict(corev1.Resource("namespaces"), "team-a", errors.New("concurrent write"))
 	})
 
 	if err := deleter.Delete(t.Context(), "team-a"); !apierrors.IsConflict(err) {
 		t.Errorf("Delete(permanent conflict) error = %v, want Conflict", err)
 	}
+
 	if finalizeCalls != retry.DefaultRetry.Steps {
 		t.Errorf("Delete(permanent conflict) calls = %d, want bounded %d", finalizeCalls, retry.DefaultRetry.Steps)
 	}
@@ -385,23 +422,28 @@ func TestDeleteConflictRecovers(t *testing.T) {
 		if action.GetSubresource() != "finalize" {
 			return false, nil, nil
 		}
+
 		finalizeCalls++
 		if finalizeCalls == 1 {
 			return true, nil, apierrors.NewConflict(corev1.Resource("namespaces"), "team-a", errors.New("concurrent update"))
 		}
+
 		return false, nil, nil
 	})
 
 	if err := deleter.Delete(t.Context(), "team-a"); err != nil {
 		t.Fatalf("Delete(recoverable conflict) error = %v, want nil", err)
 	}
+
 	if finalizeCalls != 2 {
 		t.Errorf("Delete(recoverable conflict) calls = %d, want two attempts", finalizeCalls)
 	}
+
 	got, err := kubeClient.CoreV1().Namespaces().Get(t.Context(), "team-a", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get(team-a) error = %v", err)
 	}
+
 	if !slices.Equal(got.Spec.Finalizers, []corev1.FinalizerName{"example.com/retain"}) {
 		t.Errorf("Delete(recoverable conflict) finalizers = %v, want only custom finalizer", got.Spec.Finalizers)
 	}
@@ -414,6 +456,7 @@ func TestDeleteCanceled(t *testing.T) {
 	if err := deleter.Delete(ctx, "team-a"); !errors.Is(err, context.Canceled) {
 		t.Errorf("Delete(canceled) error = %v, want context.Canceled", err)
 	}
+
 	assertNoFinalize(t, kubeClient)
 }
 
@@ -427,16 +470,20 @@ func TestDeletePropagatesDiscoveryContext(t *testing.T) {
 		if got != ctx {
 			t.Errorf("Delete(team-a) discovery Context = %v, want caller Context %v", got, ctx)
 		}
+
 		cancel()
+
 		return nil, got.Err()
 	}
 
 	if err := deleter.Delete(ctx, "team-a"); !errors.Is(err, context.Canceled) {
 		t.Errorf("Delete(canceled discovery) error = %v, want context.Canceled", err)
 	}
+
 	if !called {
 		t.Error("Delete(team-a) skips discovery, want discovery to observe cancellation")
 	}
+
 	assertNoFinalize(t, kubeClient)
 }
 
@@ -451,16 +498,19 @@ func deletionFixture(
 	if err := metav1.AddMetaToScheme(scheme); err != nil {
 		t.Fatalf("AddMetaToScheme() error = %v", err)
 	}
+
 	metadataClient := metadatafake.NewSimpleMetadataClient(scheme, objects...)
 	discoverResources := func(context.Context) ([]*metav1.APIResourceList, error) {
 		return widgetDiscovery(), nil
 	}
 	deleter := New(kubeClient.CoreV1().Namespaces(), metadataClient, discoverResources)
+
 	return deleter, kubeClient, metadataClient
 }
 
 func deletingNamespace() *corev1.Namespace {
 	deletedAt := metav1.Now()
+
 	return &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              "team-a",
@@ -512,6 +562,7 @@ func hasFinalize(kubeClient *fake.Clientset) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -527,6 +578,7 @@ func assertNamespaceCondition(
 	if err != nil {
 		t.Fatalf("Get(team-a) error = %v", err)
 	}
+
 	condition := getCondition(got.Status.Conditions, kind)
 	if condition == nil || condition.Status != want {
 		t.Errorf("Delete(team-a) condition %s = %v, want status %s", kind, condition, want)

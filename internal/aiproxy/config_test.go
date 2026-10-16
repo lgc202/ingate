@@ -88,6 +88,7 @@ func TestLoadConfigRejectsInvalidInputs(t *testing.T) {
 			if err == nil || config != nil {
 				t.Fatalf("loadConfig(%s) = (%v, %v), want nil configuration and error", tt.name, config, err)
 			}
+
 			if !strings.Contains(err.Error(), configFile) {
 				t.Errorf("loadConfig(%s) error = %v, want file context %q", tt.name, err, configFile)
 			}
@@ -111,6 +112,7 @@ func TestLoadConfigDoesNotAcquireRuntimeResources(t *testing.T) {
 	if config.GetServer().GetSocket() != ingress || config.GetApiServer().GetKubeconfig() != kubeconfig {
 		t.Errorf("loadConfig(unallocated resources) changed configured paths: %v", config)
 	}
+
 	if _, err := os.Stat(filepath.Dir(ingress)); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("loadConfig(unallocated resources) directory error = %v, want untouched filesystem", err)
 	}

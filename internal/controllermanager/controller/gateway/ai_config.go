@@ -35,9 +35,11 @@ func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {
 	if len(data) == 0 {
 		return errors.New("compiled AI configuration must not be empty")
 	}
+
 	if len(data) > corev1.MaxSecretSize {
 		return fmt.Errorf("compiled AI configuration data size %d exceeds %d bytes", len(data), corev1.MaxSecretSize)
 	}
+
 	if messages := validation.IsDNS1123Label(w.namespace); len(messages) != 0 {
 		return fmt.Errorf("AI configuration namespace %q must be a valid DNS label", w.namespace)
 	}
@@ -46,6 +48,7 @@ func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {
 	if err := w.reader.Get(ctx, client.ObjectKey{Name: w.namespace}, &namespace); err != nil {
 		return fmt.Errorf("get AI configuration Namespace %q: %w", w.namespace, err)
 	}
+
 	if !namespace.DeletionTimestamp.IsZero() || namespace.Status.Phase == corev1.NamespaceTerminating {
 		return fmt.Errorf("AI configuration Namespace %q is terminating", w.namespace)
 	}
@@ -59,6 +62,7 @@ func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {
 		if !apierrors.IsNotFound(err) {
 			return fmt.Errorf("get AI configuration ConfigMap %q: %w", key.String(), err)
 		}
+
 		create = true
 	}
 
@@ -83,15 +87,19 @@ func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {
 				),
 			)
 		}
+
 		if !configMap.DeletionTimestamp.IsZero() {
 			return fmt.Errorf("AI configuration ConfigMap %q is terminating", key.String())
 		}
+
 		if _, exists := configMap.BinaryData[aidataplane.ConfigMapDataKey]; exists {
 			return fmt.Errorf("AI configuration ConfigMap %q has binaryData occupying %q", key.String(), aidataplane.ConfigMapDataKey)
 		}
+
 		if configMap.Data[aidataplane.ConfigMapDataKey] == string(data) {
 			return nil
 		}
+
 		if configMap.Immutable != nil && *configMap.Immutable {
 			return fmt.Errorf("AI configuration ConfigMap %q is immutable", key.String())
 		}
@@ -100,6 +108,7 @@ func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {
 	if configMap.Data == nil {
 		configMap.Data = make(map[string]string)
 	}
+
 	configMap.Data[aidataplane.ConfigMapDataKey] = string(data)
 
 	// 原生校验按 data 与 binaryData 的值字节总量计算，不只计算所属 key。
@@ -127,6 +136,7 @@ func configMapDataSize(configMap *corev1.ConfigMap) int64 {
 	for _, value := range configMap.Data {
 		size += int64(len(value))
 	}
+
 	for _, value := range configMap.BinaryData {
 		size += int64(len(value))
 	}

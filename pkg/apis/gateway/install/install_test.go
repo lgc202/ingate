@@ -24,6 +24,7 @@ func TestInstall(t *testing.T) {
 				t.Errorf("Scheme.New(%s) error = %v, want nil", gvk, err)
 			}
 		}
+
 		for _, kind := range []string{"Route", "Upstream"} {
 			if gvk := version.WithKind(kind); scheme.Recognizes(gvk) {
 				t.Errorf("Scheme still registers removed resource %s", gvk)

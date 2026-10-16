@@ -79,6 +79,7 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 	if err == nil {
 		return requireInitialAdmin(account)
 	}
+
 	if !errors.Is(err, repository.ErrAccountNotFound) {
 		return fmt.Errorf("read initial admin: %w", err)
 	}
@@ -104,6 +105,7 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("read initial admin after conflict: %w", err)
 		}
+
 		return requireInitialAdmin(account)
 	}
 
@@ -117,12 +119,15 @@ func (s *Service) Login(ctx context.Context, username, password string) (LoginRe
 		if errors.Is(err, repository.ErrAccountNotFound) {
 			return LoginResult{}, ErrInvalidCredentials
 		}
+
 		return LoginResult{}, fmt.Errorf("%w: read account: %w", ErrUnavailable, err)
 	}
+
 	if err := verifyPassword(account.PasswordHash, password); err != nil {
 		if errors.Is(err, ErrInvalidCredentials) {
 			return LoginResult{}, ErrInvalidCredentials
 		}
+
 		return LoginResult{}, fmt.Errorf("%w: compare password: %w", ErrUnavailable, err)
 	}
 
@@ -130,6 +135,7 @@ func (s *Service) Login(ctx context.Context, username, password string) (LoginRe
 	if _, err := rand.Read(randomBytes); err != nil {
 		return LoginResult{}, fmt.Errorf("generate session token: %w", err)
 	}
+
 	token := base64.RawURLEncoding.EncodeToString(randomBytes)
 	expireTime := time.Now().UTC().Add(sessionDuration)
 	if err := s.sessions.Create(ctx, sessionID(token), domain.Session{
@@ -155,6 +161,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Authenticated
 		if errors.Is(err, repository.ErrSessionNotFound) {
 			return AuthenticatedSession{}, ErrSessionRequired
 		}
+
 		return AuthenticatedSession{}, fmt.Errorf("%w: read session: %w", ErrUnavailable, err)
 	}
 
@@ -163,8 +170,10 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Authenticated
 		if errors.Is(err, repository.ErrAccountNotFound) {
 			return AuthenticatedSession{}, ErrSessionRequired
 		}
+
 		return AuthenticatedSession{}, fmt.Errorf("%w: read account: %w", ErrUnavailable, err)
 	}
+
 	if account.SessionVersion != session.AccountVersion {
 		return AuthenticatedSession{}, ErrSessionRequired
 	}
@@ -188,6 +197,7 @@ func (s *Service) Get(ctx context.Context, accountID uint64) (domain.Account, er
 		if errors.Is(err, repository.ErrAccountNotFound) {
 			return domain.Account{}, ErrSessionRequired
 		}
+
 		return domain.Account{}, fmt.Errorf("%w: read account: %w", ErrUnavailable, err)
 	}
 
@@ -200,12 +210,15 @@ func (s *Service) ChangePassword(ctx context.Context, accountID uint64, currentP
 	if err != nil {
 		return err
 	}
+
 	if err := verifyPassword(account.PasswordHash, currentPassword); err != nil {
 		if errors.Is(err, ErrInvalidCredentials) {
 			return ErrInvalidCredentials
 		}
+
 		return fmt.Errorf("%w: compare current password: %w", ErrUnavailable, err)
 	}
+
 	if currentPassword == newPassword {
 		return ErrPasswordUnchanged
 	}
@@ -214,10 +227,12 @@ func (s *Service) ChangePassword(ctx context.Context, accountID uint64, currentP
 	if err != nil {
 		return fmt.Errorf("hash new password: %w", err)
 	}
+
 	if err := s.accounts.UpdatePassword(ctx, accountID, account.PasswordHash, string(hash)); err != nil {
 		if errors.Is(err, repository.ErrAccountChanged) {
 			return ErrInvalidCredentials
 		}
+
 		return fmt.Errorf("%w: update password: %w", ErrUnavailable, err)
 	}
 
@@ -238,6 +253,7 @@ func verifyPassword(hash, password string) error {
 	if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) || errors.Is(err, bcrypt.ErrPasswordTooLong) {
 		return ErrInvalidCredentials
 	}
+
 	return err
 }
 

@@ -42,12 +42,14 @@ func TestChatCompletionSendsPreparedRequest(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ChatCompletion(coding) error = %v", err)
 		}
+
 		data := readResponse(t, response)
 
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(data, &fields); err != nil {
 			t.Fatalf("Unmarshal(outbound body) error = %v", err)
 		}
+
 		wantFields := map[string]json.RawMessage{
 			"model": json.RawMessage(`"code-v2"`), "messages": json.RawMessage(`[]`),
 			"stream": json.RawMessage(`true`), "vendor": json.RawMessage(`{"enabled":true}`),
@@ -55,10 +57,12 @@ func TestChatCompletionSendsPreparedRequest(t *testing.T) {
 		if diff := cmp.Diff(wantFields, fields); diff != "" {
 			t.Errorf("ChatCompletion(coding) body mismatch (-want +got):\n%s", diff)
 		}
+
 		const target = "ai/target/96914ad662f712bc8376b8a6ec1aee8de3bb4f51dcd55f0670220c8fbe183d07"
 		if response.Header.Get("X-Test-Target") != target || response.Header.Get("X-Test-Path") != "/v1/chat/completions" {
 			t.Errorf("ChatCompletion(coding) target/path = %v, want original-model target and /v1 operation", response.Header)
 		}
+
 		if !bytes.Equal(body, original) {
 			t.Errorf("ChatCompletion(coding) modified input to %s, want %s", body, original)
 		}
@@ -79,6 +83,7 @@ func TestChatCompletionWithoutModelOverride(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ChatCompletion(no override) error = %v", err)
 		}
+
 		data := readResponse(t, response)
 
 		if !bytes.Equal(data, original) || !bytes.Equal(body, original) {
@@ -99,6 +104,7 @@ func TestChatCompletionUsesConfiguredEscapedPrefix(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ChatCompletion(escaped prefix) error = %v", err)
 		}
+
 		readResponse(t, response)
 
 		if path := response.Header.Get("X-Test-Path"); path != "/custom%20base/chat/completions" {
@@ -118,6 +124,7 @@ func TestChatCompletionRejectsInvalidRequests(t *testing.T) {
 				t.Errorf("ChatCompletion(%q) = (%v, %v), want nil and ErrInvalidArgument", body, response, err)
 			}
 		}
+
 		_, err := service.ChatCompletion(t.Context(), modelParams([]byte(`{"model":123}`)))
 
 		if _, ok := errors.AsType[*json.UnmarshalTypeError](err); !ok {
@@ -185,6 +192,7 @@ func TestChatCompletionConfigurationChanges(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ChatCompletion(initial configuration) error = %v", err)
 		}
+
 		previousBody := readResponse(t, previous)
 
 		compiled := decodeTestConfig(t, configMap)
@@ -194,17 +202,20 @@ func TestChatCompletionConfigurationChanges(t *testing.T) {
 		if _, err := apiClient.CoreV1().ConfigMaps(configMap.Namespace).Update(t.Context(), configMap, metav1.UpdateOptions{}); err != nil {
 			t.Fatalf("Update(configuration) error = %v", err)
 		}
+
 		synctest.Wait()
 
 		current, err := service.ChatCompletion(t.Context(), params)
 		if err != nil {
 			t.Fatalf("ChatCompletion(updated configuration) error = %v", err)
 		}
+
 		currentBody := readResponse(t, current)
 
 		if string(previousBody) != `{"model":"code-v2"}` || string(currentBody) != `{"model":"code-v3"}` || current.Header.Get("X-Test-Path") != "/v2/chat/completions" {
 			t.Errorf("ChatCompletion(config update) previous/current/path = %s/%s/%q, want independent code-v2/code-v3 and /v2", previousBody, currentBody, current.Header.Get("X-Test-Path"))
 		}
+
 		if previous.Header.Get("X-Test-Target") == current.Header.Get("X-Test-Target") {
 			t.Error("ChatCompletion(config update) reused target for different protocol content")
 		}
@@ -212,6 +223,7 @@ func TestChatCompletionConfigurationChanges(t *testing.T) {
 		if err := apiClient.CoreV1().ConfigMaps(configMap.Namespace).Delete(t.Context(), configMap.Name, metav1.DeleteOptions{}); err != nil {
 			t.Fatalf("Delete(configuration) error = %v", err)
 		}
+
 		synctest.Wait()
 		service.client.Transport = rejectUnexpectedRequest(t)
 
@@ -224,10 +236,8 @@ func TestChatCompletionConfigurationChanges(t *testing.T) {
 }
 
 func TestChatCompletionBeforeConfigurationAndCancelled(t *testing.T) {
-	loader, err := aiconfig.NewLoader(fake.NewClientset(), "control-plane", slog.Default())
-	if err != nil {
-		t.Fatalf("NewLoader(before load) error = %v", err)
-	}
+	loader := aiconfig.NewLoader(fake.NewClientset(), "control-plane", slog.Default())
+
 	service := New(loader, &http.Client{Transport: rejectUnexpectedRequest(t)})
 
 	response, err := service.ChatCompletion(t.Context(), ChatCompletionParams{})
@@ -272,6 +282,7 @@ func TestChatCompletionTransfersResponseBodyWithoutReading(t *testing.T) {
 		if err != nil || response != upstream || body.reads != 0 || body.closes != 0 {
 			t.Fatalf("ChatCompletion(stream response) = (%v, %v, reads %d, closes %d), want original response without consumption", response, err, body.reads, body.closes)
 		}
+
 		if err := response.Body.Close(); err != nil || body.closes != 1 {
 			t.Errorf("Close(transferred response) = (%v, closes %d), want caller-owned single close", err, body.closes)
 		}
@@ -318,10 +329,8 @@ func runTestService(t *testing.T, configMap *corev1.ConfigMap) (*Service, *fake.
 	t.Helper()
 	apiClient := fake.NewClientset(configMap)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	loader, err := aiconfig.NewLoader(apiClient, configMap.Namespace, logger)
-	if err != nil {
-		t.Fatalf("NewLoader(test service) error = %v", err)
-	}
+	loader := aiconfig.NewLoader(apiClient, configMap.Namespace, logger)
+
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() { done <- loader.Run(ctx) }()
@@ -337,12 +346,15 @@ func runTestService(t *testing.T, configMap *corev1.ConfigMap) (*Service, *fake.
 		if err != nil {
 			return nil, err
 		}
+
 		if request.Method != http.MethodPost || request.URL.Host != "ingate-ai-egress" || request.URL.RawQuery != "" || request.GetBody != nil {
 			t.Errorf("ChatCompletion() outbound request = %s %s, replay %t, want fixed POST without query or replay", request.Method, request.URL, request.GetBody != nil)
 		}
+
 		if request.ContentLength != int64(len(body)) || request.Header.Get("Content-Type") != "application/json" {
 			t.Errorf("ChatCompletion() outbound framing = %d/%v, want rewritten JSON length", request.ContentLength, request.Header)
 		}
+
 		return &http.Response{
 			StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(body)), ContentLength: int64(len(body)),
 			Header: http.Header{"X-Test-Target": {request.Header.Get(aidataplane.TargetHeader)}, "X-Test-Path": {request.URL.EscapedPath()}},
@@ -354,6 +366,7 @@ func runTestService(t *testing.T, configMap *corev1.ConfigMap) (*Service, *fake.
 
 func rejectUnexpectedRequest(t *testing.T) http.RoundTripper {
 	t.Helper()
+
 	return roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		t.Errorf("unexpected outbound request %s %s; validation must reject before calling the Client", request.Method, request.URL)
 		return nil, errors.New("unexpected outbound request")
@@ -408,5 +421,6 @@ func setTestConfig(t *testing.T, configMap *corev1.ConfigMap, compiled aidatapla
 	if err != nil {
 		t.Fatalf("Encode(test configuration) error = %v", err)
 	}
+
 	configMap.Data[aidataplane.ConfigMapDataKey] = string(data)
 }

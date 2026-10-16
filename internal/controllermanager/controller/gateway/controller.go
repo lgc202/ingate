@@ -134,6 +134,7 @@ func (r *Reconciler) reconcileHTTP(ctx context.Context, snapshot resources) erro
 	if err := r.updateGatewayStatuses(ctx, snapshot.gateways.Items, result.gatewayConflicts); err != nil {
 		return err
 	}
+
 	if err := r.updateHTTPRouteStatuses(ctx, snapshot.httpRoutes.Items, result.parents); err != nil {
 		return err
 	}
@@ -162,6 +163,7 @@ func (r *Reconciler) reconcileAI(ctx context.Context, snapshot resources) error 
 	if xdsErr != nil {
 		xdsErr = fmt.Errorf("publish AI xDS configuration: %w", xdsErr)
 	}
+
 	configErr := r.aiConfig.write(ctx, data)
 	if configErr != nil {
 		configErr = fmt.Errorf("publish AI data plane configuration: %w", configErr)

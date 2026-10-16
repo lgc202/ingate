@@ -64,6 +64,7 @@ func TestModelRouteProjectionPreservesOrderAndCatchAll(t *testing.T) {
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("modelRouteToMySQL(order, catch-all and model override) mismatch (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff(before, route); diff != "" {
 		t.Errorf("modelRouteToMySQL() changed input (-want +got):\n%s", diff)
 	}

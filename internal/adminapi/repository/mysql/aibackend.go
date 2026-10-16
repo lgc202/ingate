@@ -46,8 +46,10 @@ func (s *Store) UpsertAIBackend(ctx context.Context, backend AIBackend) error {
 			if err := tx.Create(&backend).Error; err != nil {
 				return fmt.Errorf("create AIBackend projection: %w", err)
 			}
+
 			return nil
 		}
+
 		if err != nil {
 			return fmt.Errorf("get AIBackend projection: %w", err)
 		}
@@ -80,6 +82,7 @@ func (s *Store) ListAIBackendKeys(ctx context.Context) ([]types.NamespacedName, 
 	if err := query.Find(&keys).Error; err != nil {
 		return nil, fmt.Errorf("list AIBackend keys: %w", err)
 	}
+
 	return keys, nil
 }
 
@@ -90,6 +93,7 @@ func (s *Store) GetAIBackend(ctx context.Context, namespace, name string) (AIBac
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return AIBackend{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 	}
+
 	if err != nil {
 		return AIBackend{}, fmt.Errorf("get AIBackend projection: %w", err)
 	}

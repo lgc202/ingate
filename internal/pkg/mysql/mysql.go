@@ -41,6 +41,7 @@ func ParseDSN(dsn string) (*mysqldriver.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse MySQL DSN: %w", err)
 	}
+
 	config.ParseTime = true
 	config.Loc = time.UTC
 	config.MultiStatements = false

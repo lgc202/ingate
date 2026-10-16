@@ -40,6 +40,7 @@ func TestPublishReplacesCompleteConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSnapshot(after config) error = %v, want nil", err)
 	}
+
 	for _, typeURL := range []resourcev3.Type{
 		resourcev3.ListenerType, resourcev3.RouteType, resourcev3.ClusterType, resourcev3.EndpointType,
 	} {
@@ -51,10 +52,12 @@ func TestPublishReplacesCompleteConfiguration(t *testing.T) {
 	if err := publisher.Publish(context.Background(), config); err != nil {
 		t.Fatalf("Publish(config) repeated error = %v, want nil", err)
 	}
+
 	again, err := publisher.cache.GetSnapshot(sharedDataPlaneCluster)
 	if err != nil {
 		t.Fatalf("GetSnapshot(after repeated publish) error = %v, want nil", err)
 	}
+
 	if again != first {
 		t.Error("Publish(config) repeated replaced an unchanged snapshot")
 	}
@@ -63,25 +66,31 @@ func TestPublishReplacesCompleteConfiguration(t *testing.T) {
 	if err := publisher.Publish(context.Background(), config); err == nil {
 		t.Error("Publish(invalid route) error = nil, want build error")
 	}
+
 	afterInvalid, err := publisher.cache.GetSnapshot(sharedDataPlaneCluster)
 	if err != nil {
 		t.Fatalf("GetSnapshot(after invalid publish) error = %v, want nil", err)
 	}
+
 	if afterInvalid != first {
 		t.Error("Publish(invalid route) replaced the last valid snapshot")
 	}
+
 	config.Listeners[0].Hosts[0].Routes[0].PathType = dataplane.PathMatchPrefix
 	config.Backends[0].Endpoints[0].Address = "192.0.2.2"
 	if err := publisher.Publish(context.Background(), config); err != nil {
 		t.Fatalf("Publish(changed endpoint) error = %v, want nil", err)
 	}
+
 	changed, err := publisher.cache.GetSnapshot(sharedDataPlaneCluster)
 	if err != nil {
 		t.Fatalf("GetSnapshot(after endpoint change) error = %v, want nil", err)
 	}
+
 	if got, want := changed.GetVersion(resourcev3.EndpointType), first.GetVersion(resourcev3.EndpointType); got == want {
 		t.Errorf("Publish(changed endpoint) EDS version = %q, want different from %q", got, want)
 	}
+
 	for _, typeURL := range []resourcev3.Type{resourcev3.ListenerType, resourcev3.RouteType, resourcev3.ClusterType} {
 		if got, want := changed.GetVersion(typeURL), first.GetVersion(typeURL); got != want {
 			t.Errorf("Publish(changed endpoint) %s version = %q, want %q", typeURL, got, want)
@@ -91,10 +100,12 @@ func TestPublishReplacesCompleteConfiguration(t *testing.T) {
 	if err := publisher.Publish(context.Background(), dataplane.Config{}); err != nil {
 		t.Fatalf("Publish(empty) error = %v, want nil", err)
 	}
+
 	empty, err := publisher.cache.GetSnapshot(sharedDataPlaneCluster)
 	if err != nil {
 		t.Fatalf("GetSnapshot(after empty publish) error = %v, want nil", err)
 	}
+
 	for _, typeURL := range []resourcev3.Type{
 		resourcev3.ListenerType, resourcev3.RouteType, resourcev3.ClusterType, resourcev3.EndpointType,
 	} {
@@ -127,6 +138,7 @@ func TestPublishDirectResponseAndRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	routes := snapshot.GetResources(resourcev3.RouteType)["route/8080"].(*routev3.RouteConfiguration)
 	if got := routes.VirtualHosts[0].Routes[0].GetDirectResponse().GetStatus(); got != 500 {
 		t.Errorf("direct response status = %d, want 500", got)
@@ -140,10 +152,12 @@ func TestPublishDirectResponseAndRecovery(t *testing.T) {
 	if err := publisher.Publish(t.Context(), config); err != nil {
 		t.Fatalf("Publish(recovered backend): %v", err)
 	}
+
 	snapshot, err = publisher.cache.GetSnapshot(sharedDataPlaneCluster)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	routes = snapshot.GetResources(resourcev3.RouteType)["route/8080"].(*routev3.RouteConfiguration)
 	if got := routes.VirtualHosts[0].Routes[0].GetRoute().GetCluster(); got != "backend/backend" {
 		t.Errorf("recovered route cluster = %q, want backend/backend", got)

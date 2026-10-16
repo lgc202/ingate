@@ -27,9 +27,11 @@ func ParseChatCompletions(body []byte) (*openai.ChatCompletionRequest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decode chat completion request: %w", err)
 	}
+
 	if len(strictErrors) != 0 {
 		return nil, fmt.Errorf("decode chat completion request fields: %w", errors.Join(strictErrors...))
 	}
+
 	if fields == nil {
 		return nil, errors.New("chat completion request must be a JSON object")
 	}
@@ -38,10 +40,12 @@ func ParseChatCompletions(body []byte) (*openai.ChatCompletionRequest, error) {
 	if !exists {
 		return nil, errors.New("chat completion request model is required")
 	}
+
 	var request openai.ChatCompletionRequest
 	if err := json.Unmarshal(model, &request.Model); err != nil {
 		return nil, fmt.Errorf("decode chat completion request model: %w", err)
 	}
+
 	if request.Model == "" {
 		return nil, errors.New("chat completion request model must be a nonempty string")
 	}

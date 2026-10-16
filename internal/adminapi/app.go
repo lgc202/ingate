@@ -6,16 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/go-kratos/kratos/v3"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
-	accounthandler "github.com/lgc202/ingate/internal/adminapi/handler/account"
-	aibackendhandler "github.com/lgc202/ingate/internal/adminapi/handler/aibackend"
-	backendhandler "github.com/lgc202/ingate/internal/adminapi/handler/backend"
-	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
-	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/httproute"
-	mcproutehandler "github.com/lgc202/ingate/internal/adminapi/handler/mcproute"
-	modelroutehandler "github.com/lgc202/ingate/internal/adminapi/handler/modelroute"
+	"github.com/lgc202/ingate/internal/adminapi/handler"
 	"github.com/lgc202/ingate/internal/adminapi/middleware"
 	"github.com/lgc202/ingate/internal/adminapi/repository"
 	apiserverstore "github.com/lgc202/ingate/internal/adminapi/repository/apiserver"
@@ -26,7 +21,7 @@ import (
 	aibackendservice "github.com/lgc202/ingate/internal/adminapi/service/aibackend"
 	backendservice "github.com/lgc202/ingate/internal/adminapi/service/backend"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
-	routeservice "github.com/lgc202/ingate/internal/adminapi/service/httproute"
+	httprouteservice "github.com/lgc202/ingate/internal/adminapi/service/httproute"
 	mcprouteservice "github.com/lgc202/ingate/internal/adminapi/service/mcproute"
 	modelrouteservice "github.com/lgc202/ingate/internal/adminapi/service/modelroute"
 	logconfig "github.com/lgc202/ingate/internal/pkg/log"
@@ -35,7 +30,11 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
-const componentName = "ingate-admin-api"
+const (
+	componentName = "ingate-admin-api"
+	// shutdownTimeout 限制 HTTP/gRPC 排空等待，避免退出被长请求无限拖住。
+	shutdownTimeout = 10 * time.Second
+)
 
 // Run 组装并运行 Admin API，直到 Context 取消或服务退出。
 func Run(ctx context.Context, configFile string) (runErr error) {
@@ -43,26 +42,38 @@ func Run(ctx context.Context, configFile string) (runErr error) {
 	if err != nil {
 		return fmt.Errorf("load Admin API config: %w", err)
 	}
+
 	logger, closeLog, err := logconfig.New(logConfig(config.GetLog()))
 	if err != nil {
 		return fmt.Errorf("initialize Admin API log: %w", err)
 	}
+
 	defer func() {
-		runErr = closeLogger(closeLog, runErr)
+		if err := closeLog(); err != nil {
+			runErr = errors.Join(runErr, fmt.Errorf("close Admin API log: %w", err))
+		}
 	}()
 	logger = logger.With("service", componentName)
+
+	// kubeconfig 的本地错误必须先于建库连接和初始化管理员被发现。
+	apiServerStore, err := apiserverstore.New(config.GetApiServer().GetKubeconfig())
+	if err != nil {
+		return fmt.Errorf("create API server store: %w", err)
+	}
 
 	db, err := mysqlclient.Open(config.GetMysql().GetDsn())
 	if err != nil {
 		return fmt.Errorf("open MySQL store: %w", err)
 	}
+
 	sqlDB, err := db.DB()
 	if err != nil {
 		return fmt.Errorf("get MySQL connection pool: %w", err)
 	}
+
 	defer func() {
 		if err := sqlDB.Close(); err != nil {
-			logger.ErrorContext(ctx, "close MySQL store", "err", err)
+			runErr = errors.Join(runErr, fmt.Errorf("close MySQL store: %w", err))
 		}
 	}()
 	mysqlStore := mysqlstore.New(db)
@@ -71,16 +82,16 @@ func Run(ctx context.Context, configFile string) (runErr error) {
 	if err != nil {
 		return fmt.Errorf("open session store: %w", err)
 	}
-	if err := redisClient.Ping(ctx).Err(); err != nil {
-		// 清理失败不覆盖原始连接错误，保持启动探测的返回语义。
-		_ = redisClient.Close()
-		return fmt.Errorf("open session store: ping Redis: %w", err)
-	}
+
 	defer func() {
 		if err := redisClient.Close(); err != nil {
-			logger.ErrorContext(ctx, "close session store", "err", err)
+			runErr = errors.Join(runErr, fmt.Errorf("close session store: %w", err))
 		}
 	}()
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("open session store: ping Redis: %w", err)
+	}
+
 	redisStore := redisstore.New(redisClient)
 
 	accounts := repository.NewAccount(mysqlStore)
@@ -88,11 +99,6 @@ func Run(ctx context.Context, configFile string) (runErr error) {
 	accountService := accountservice.New(accounts, sessions)
 	if err := accountService.Bootstrap(ctx); err != nil {
 		return fmt.Errorf("bootstrap initial admin: %w", err)
-	}
-
-	apiServerStore, err := apiserverstore.New(config.GetApiServer().GetKubeconfig())
-	if err != nil {
-		return fmt.Errorf("create API server store: %w", err)
 	}
 
 	app := newApp(ctx, config, apiServerStore, mysqlStore, accountService, logger)
@@ -112,37 +118,37 @@ func newApp(
 	logger *slog.Logger,
 ) *kratos.App {
 	gateways := repository.NewGateway(apiServerStore, mysqlStore)
-	routes := repository.NewHTTPRoute(apiServerStore, mysqlStore)
+	httpRoutes := repository.NewHTTPRoute(apiServerStore, mysqlStore)
 	backends := repository.NewBackend(apiServerStore, mysqlStore)
 	aiBackends := repository.NewAIBackend(apiServerStore, mysqlStore)
 	modelRoutes := repository.NewModelRoute(apiServerStore, mysqlStore)
 	mcpRoutes := repository.NewMCPRoute(apiServerStore, mysqlStore)
 
 	gatewayService := gatewayservice.New(gateways)
-	routeService := routeservice.New(routes)
+	httpRouteService := httprouteservice.New(httpRoutes)
 	backendService := backendservice.New(backends)
 	aiBackendService := aibackendservice.New(aiBackends)
 	modelRouteService := modelrouteservice.New(modelRoutes)
 	mcpRouteService := mcprouteservice.New(mcpRoutes)
 
-	gatewayHandler := gatewayhandler.New(gatewayService)
-	routeHandler := routehandler.New(routeService)
-	backendHandler := backendhandler.New(backendService)
-	aiBackendHandler := aibackendhandler.New(aiBackendService)
-	modelRouteHandler := modelroutehandler.New(modelRouteService)
-	mcpRouteHandler := mcproutehandler.New(mcpRouteService)
-	accountHandler := accounthandler.New(accountService)
+	gatewayHandler := handler.NewGateway(gatewayService)
+	httpRouteHandler := handler.NewHTTPRoute(httpRouteService)
+	backendHandler := handler.NewBackend(backendService)
+	aiBackendHandler := handler.NewAIBackend(aiBackendService)
+	modelRouteHandler := handler.NewModelRoute(modelRouteService)
+	mcpRouteHandler := handler.NewMCPRoute(mcpRouteService)
+	accountHandler := handler.NewAccount(accountService)
 
 	handlers := server.Handlers{
 		Gateway:    gatewayHandler,
-		HTTPRoute:  routeHandler,
+		HTTPRoute:  httpRouteHandler,
 		Backend:    backendHandler,
 		AIBackend:  aiBackendHandler,
 		ModelRoute: modelRouteHandler,
 		MCPRoute:   mcpRouteHandler,
 		Account:    accountHandler,
 	}
-	middlewareChain := server.NewMiddlewareChain(middleware.RequireSession(accountService))
+	middlewareChain := server.NewMiddlewareChain(logger, middleware.RequireSession(accountService))
 	httpServer, grpcServer := server.New(config.GetServer(), handlers, middlewareChain)
 
 	return kratos.New(
@@ -150,13 +156,7 @@ func newApp(
 		kratos.Name(componentName),
 		kratos.Version(version.Get().String()),
 		kratos.Logger(logger),
+		kratos.StopTimeout(shutdownTimeout),
 		kratos.Server(httpServer, grpcServer),
 	)
-}
-
-func closeLogger(closeLog func() error, runErr error) error {
-	if err := closeLog(); err != nil {
-		return errors.Join(runErr, fmt.Errorf("close Admin API log: %w", err))
-	}
-	return runErr
 }

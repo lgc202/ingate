@@ -100,9 +100,11 @@ func TestValidateMCPRoute(t *testing.T) {
 			if diff := cmp.Diff(before, route); diff != "" {
 				t.Errorf("ValidateMCPRoute(%s) changed input (-want +got):\n%s", tt.name, diff)
 			}
+
 			if tt.wantField == "" && len(errs) != 0 {
 				t.Errorf("ValidateMCPRoute(%s) = %v, want no errors", tt.name, errs)
 			}
+
 			if tt.wantField != "" && (len(errs) != 1 || errs[0].Field != tt.wantField || errs[0].Type != tt.wantType) {
 				t.Errorf("ValidateMCPRoute(%s) = %v, want one %s error at %s", tt.name, errs, tt.wantType, tt.wantField)
 			}
@@ -145,10 +147,12 @@ func TestValidateMCPRoutePaths(t *testing.T) {
 				} else {
 					route.Spec.BackendRefs[0].Path = tt.value
 				}
+
 				errs := ValidateMCPRoute(route)
 				if tt.wantType == "" && len(errs) != 0 {
 					t.Errorf("ValidateMCPRoute(%s at %s) = %v, want no errors", tt.name, target, errs)
 				}
+
 				if tt.wantType != "" && (len(errs) != 1 || errs[0].Field != target || errs[0].Type != tt.wantType) {
 					t.Errorf("ValidateMCPRoute(%s at %s) = %v, want one %s error", tt.name, target, errs, tt.wantType)
 				}
@@ -163,9 +167,11 @@ func TestMCPRouteParentLimit(t *testing.T) {
 	for i := range 16 {
 		route.Spec.ParentRefs = append(route.Spec.ParentRefs, gateway.ParentReference{Name: fmt.Sprintf("gateway-%d", i)})
 	}
+
 	if errs := ValidateMCPRoute(route); len(errs) != 0 {
 		t.Errorf("ValidateMCPRoute(16 parents) = %v, want no errors", errs)
 	}
+
 	route.Spec.ParentRefs = append(route.Spec.ParentRefs, gateway.ParentReference{Name: "gateway-16"})
 	errs := ValidateMCPRoute(route)
 	if len(errs) != 1 || errs[0].Field != "spec.parentRefs" || errs[0].Type != field.ErrorTypeTooMany {
@@ -182,6 +188,7 @@ func TestValidateMCPRouteUpdate(t *testing.T) {
 	if errs := ValidateMCPRouteUpdate(next, previous); len(errs) != 0 {
 		t.Errorf("ValidateMCPRouteUpdate(changed spec) = %v, want no errors", errs)
 	}
+
 	next.Name = "renamed"
 	errs := ValidateMCPRouteUpdate(next, previous)
 	if len(errs) != 1 || errs[0].Field != "metadata.name" || errs[0].Type != field.ErrorTypeInvalid {

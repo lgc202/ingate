@@ -62,8 +62,10 @@ func (s *Store) UpsertMCPRoute(ctx context.Context, route MCPRoute) error {
 			if err := tx.Create(&route).Error; err != nil {
 				return fmt.Errorf("create MCPRoute projection: %w", err)
 			}
+
 			return nil
 		}
+
 		if err != nil {
 			return fmt.Errorf("get MCPRoute projection: %w", err)
 		}
@@ -96,6 +98,7 @@ func (s *Store) ListMCPRouteKeys(ctx context.Context) ([]types.NamespacedName, e
 	if err := query.Find(&keys).Error; err != nil {
 		return nil, fmt.Errorf("list MCPRoute keys: %w", err)
 	}
+
 	return keys, nil
 }
 
@@ -106,6 +109,7 @@ func (s *Store) GetMCPRoute(ctx context.Context, namespace, name string) (MCPRou
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return MCPRoute{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 	}
+
 	if err != nil {
 		return MCPRoute{}, fmt.Errorf("get MCPRoute projection: %w", err)
 	}

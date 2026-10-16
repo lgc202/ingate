@@ -55,9 +55,11 @@ func (r *AIBackendReconciler) syncAIBackend(ctx context.Context, key types.Names
 		if !apierrors.IsNotFound(err) {
 			return fmt.Errorf("get AIBackend %q: %w", key.String(), err)
 		}
+
 		if err := r.store.DeleteAIBackend(ctx, key.Namespace, key.Name); err != nil {
 			return fmt.Errorf("delete AIBackend %q from MySQL: %w", key.String(), err)
 		}
+
 		return nil
 	}
 
@@ -80,6 +82,7 @@ func (r *AIBackendReconciler) syncAll(ctx context.Context) error {
 		if err := r.store.UpsertAIBackend(ctx, aiBackendToMySQL(backend)); err != nil {
 			return fmt.Errorf("sync AIBackend %q to MySQL: %w", client.ObjectKeyFromObject(backend).String(), err)
 		}
+
 		current[client.ObjectKeyFromObject(backend)] = struct{}{}
 	}
 
@@ -92,6 +95,7 @@ func (r *AIBackendReconciler) syncAll(ctx context.Context) error {
 		if _, exists := current[key]; exists {
 			continue
 		}
+
 		if err := r.store.DeleteAIBackend(ctx, key.Namespace, key.Name); err != nil {
 			return fmt.Errorf("delete stale AIBackend %q from MySQL: %w", key.String(), err)
 		}

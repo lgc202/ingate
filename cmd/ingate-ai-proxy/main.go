@@ -26,14 +26,22 @@ func run(args []string, stdout, stderr io.Writer) int {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
+
 		return 2
 	}
+
+	if flags.NArg() != 0 {
+		_, _ = fmt.Fprintf(stderr, "ingate-ai-proxy: unexpected positional arguments: %v\n", flags.Args())
+		return 2
+	}
+
 	if *showVersion {
 		if _, err := fmt.Fprintln(stdout, version.Get().Text()); err != nil {
 			// 最终诊断没有其他通道；输出失败保留退出码 1。
 			_, _ = fmt.Fprintf(stderr, "ingate-ai-proxy: print version: %v\n", err)
 			return 1
 		}
+
 		return 0
 	}
 

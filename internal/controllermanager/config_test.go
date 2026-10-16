@@ -11,6 +11,7 @@ func TestExampleConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfig(example) error = %v, want nil", err)
 	}
+
 	if config.GetMysql().GetDsn() == "" {
 		t.Error("loadConfig(example) MySQL DSN is empty")
 	}

@@ -36,10 +36,12 @@ func writeModelResponse(
 			response.Header().Add(name, value)
 		}
 	}
+
 	trailers := modelResponseHeaders(upstream.Trailer)
 	for name := range trailers {
 		response.Header().Add("Trailer", name)
 	}
+
 	response.WriteHeader(upstream.StatusCode)
 
 	controller := http.NewResponseController(response)
@@ -50,8 +52,10 @@ func writeModelResponse(
 		if err := controller.Flush(); err != nil {
 			abortModelResponse(ctx, err, logger)
 		}
+
 		destination = modelStreamWriter{response: response, controller: controller}
 	}
+
 	if _, err := io.Copy(destination, upstream.Body); err != nil {
 		abortModelResponse(ctx, err, logger)
 	}
@@ -62,6 +66,7 @@ func writeModelResponse(
 		if _, announced := trailers[name]; !announced {
 			key = http.TrailerPrefix + name
 		}
+
 		response.Header()[key] = slices.Clone(values)
 	}
 }
@@ -83,6 +88,7 @@ func modelResponseHeaders(source http.Header) http.Header {
 			headers.Del(strings.TrimSpace(name))
 		}
 	}
+
 	for _, name := range []string{
 		"Connection", "Proxy-Connection", "Keep-Alive", "Proxy-Authenticate",
 		"Proxy-Authorization", "Te", "Trailer", "Transfer-Encoding", "Upgrade",
@@ -97,6 +103,7 @@ func abortModelResponse(ctx context.Context, err error, logger *slog.Logger) {
 	if ctx.Err() == nil {
 		logger.ErrorContext(ctx, "Failed to write model response", "err", err)
 	}
+
 	// ErrAbortHandler 是 net/http 的连接/HTTP2 流中断约定，不是业务 panic 恢复机制。
 	panic(http.ErrAbortHandler)
 }

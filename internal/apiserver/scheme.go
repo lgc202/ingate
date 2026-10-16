@@ -17,6 +17,7 @@ func newScheme() (*runtime.Scheme, error) {
 	if err := metav1.AddMetaToScheme(scheme); err != nil {
 		return nil, fmt.Errorf("register meta.k8s.io/v1 types: %w", err)
 	}
+
 	metav1.AddToGroupVersion(scheme, metav1.SchemeGroupVersion)
 
 	// 上游原生存储需要其核心内部类型、转换及默认值；类型注册不安装 REST API。

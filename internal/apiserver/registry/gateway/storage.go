@@ -36,6 +36,7 @@ func NewStorage(
 	if err != nil {
 		routeREST.Destroy()
 		gatewayREST.Destroy()
+
 		return nil, fmt.Errorf("create Backend REST storage: %w", err)
 	}
 
@@ -44,6 +45,7 @@ func NewStorage(
 		backendREST.Destroy()
 		routeREST.Destroy()
 		gatewayREST.Destroy()
+
 		return nil, fmt.Errorf("create AIBackend REST storage: %w", err)
 	}
 
@@ -53,6 +55,7 @@ func NewStorage(
 		backendREST.Destroy()
 		routeREST.Destroy()
 		gatewayREST.Destroy()
+
 		return nil, fmt.Errorf("create ModelRoute REST storage: %w", err)
 	}
 
@@ -63,6 +66,7 @@ func NewStorage(
 		backendREST.Destroy()
 		routeREST.Destroy()
 		gatewayREST.Destroy()
+
 		return nil, fmt.Errorf("create MCPRoute REST storage: %w", err)
 	}
 

@@ -23,6 +23,7 @@ func TestNewOptions(t *testing.T) {
 	if got := options.RecommendedOptions.Etcd.StorageConfig.Prefix; got != defaultEtcdPathPrefix {
 		t.Errorf("NewOptions() etcd prefix = %q, want %q", got, defaultEtcdPathPrefix)
 	}
+
 	gvk := gatewayv1alpha1.SchemeGroupVersion.WithKind("Gateway")
 	if _, err := options.scheme.New(gvk); err != nil {
 		t.Errorf("NewOptions().scheme.New(%s) error = %v, want nil", gvk, err)
@@ -89,6 +90,7 @@ func TestNamespaceOpenAPIV2(t *testing.T) {
 			t.Errorf("Namespace v2 definitions[%q] missing, want defined", modelName)
 		}
 	}
+
 	if _, ok := swagger.Definitions[corev1.Pod{}.OpenAPIModelName()]; ok {
 		t.Error("Namespace v2 definitions include Pod, want only roots and dependencies")
 	}
@@ -125,6 +127,7 @@ func TestNamespaceOpenAPIV3(t *testing.T) {
 			t.Errorf("Namespace v3 schemas[%q] missing, want defined", modelName)
 		}
 	}
+
 	if _, ok := schemas[corev1.Pod{}.OpenAPIModelName()]; ok {
 		t.Error("Namespace v3 schemas include Pod, want only roots and dependencies")
 	}

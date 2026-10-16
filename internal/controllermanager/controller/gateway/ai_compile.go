@@ -53,6 +53,7 @@ func compileAI(snapshot resources) (aidataplane.Config, error) {
 			c.aiBackends[client.ObjectKeyFromObject(backend)] = backend
 		}
 	}
+
 	for i := range snapshot.backends.Items {
 		backend := &snapshot.backends.Items[i]
 		if backend.DeletionTimestamp.IsZero() {
@@ -63,6 +64,7 @@ func compileAI(snapshot resources) (aidataplane.Config, error) {
 	if err := c.compileModelRoutes(snapshot.modelRoutes.Items); err != nil {
 		return aidataplane.Config{}, err
 	}
+
 	if err := c.compileMCPRoutes(snapshot.mcpRoutes.Items); err != nil {
 		return aidataplane.Config{}, err
 	}
@@ -100,6 +102,7 @@ func (c *aiCompilation) buildConfig() aidataplane.Config {
 			if models == nil {
 				models = []aidataplane.ModelRoute{}
 			}
+
 			if mcp == nil {
 				mcp = []aidataplane.MCPRoute{}
 			}
@@ -109,6 +112,7 @@ func (c *aiCompilation) buildConfig() aidataplane.Config {
 				group = &aidataplane.Listener{Port: listener.Port, Hosts: []aidataplane.Host{}}
 				listeners[listener.Port] = group
 			}
+
 			group.Hosts = append(group.Hosts, aidataplane.Host{
 				Name:        path.Join("gateway", key.Namespace, key.Name, "listener", listener.Name),
 				Hostname:    new(listener.Hostname),
@@ -121,9 +125,11 @@ func (c *aiCompilation) buildConfig() aidataplane.Config {
 	for _, port := range slices.Sorted(maps.Keys(listeners)) {
 		config.Listeners = append(config.Listeners, *listeners[port])
 	}
+
 	for _, name := range slices.Sorted(maps.Keys(c.protocolBackends)) {
 		config.Backends = append(config.Backends, c.protocolBackends[name])
 	}
+
 	for _, name := range slices.Sorted(maps.Keys(c.networkBackends)) {
 		config.NetworkBackends = append(config.NetworkBackends, c.networkBackends[name])
 	}
@@ -146,6 +152,7 @@ func (c *aiCompilation) matchingListeners(
 			if listener.Protocol != gatewayv1alpha1.ProtocolHTTP {
 				continue
 			}
+
 			for _, parent := range parents {
 				if parent.Name != gateway.Name || (parent.SectionName != "" && parent.SectionName != listener.Name) {
 					continue
@@ -191,5 +198,6 @@ func (c *aiCompilation) bindNetworkBackend(key client.ObjectKey) string {
 	})
 
 	c.networkBackends[name] = aidataplane.NetworkBackend{Name: name, Endpoints: endpoints}
+
 	return name
 }

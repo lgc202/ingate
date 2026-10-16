@@ -35,6 +35,7 @@ func (r *Reconciler) readResources(ctx context.Context) (resources, error) {
 	if err := r.client.List(ctx, &result.gateways); err != nil {
 		return resources{}, fmt.Errorf("list Gateways: %w", err)
 	}
+
 	if err := r.client.List(ctx, &result.backends); err != nil {
 		return resources{}, fmt.Errorf("list Backends: %w", err)
 	}
@@ -47,9 +48,11 @@ func (r *Reconciler) readAIResources(ctx context.Context, snapshot resources) (r
 	if err := r.client.List(ctx, &snapshot.aiBackends); err != nil {
 		return resources{}, fmt.Errorf("list AIBackends: %w", err)
 	}
+
 	if err := r.client.List(ctx, &snapshot.modelRoutes); err != nil {
 		return resources{}, fmt.Errorf("list ModelRoutes: %w", err)
 	}
+
 	if err := r.client.List(ctx, &snapshot.mcpRoutes); err != nil {
 		return resources{}, fmt.Errorf("list MCPRoutes: %w", err)
 	}
@@ -74,6 +77,7 @@ func compareMeta(a, b metav1.ObjectMeta) int {
 	if order := a.CreationTimestamp.Compare(b.CreationTimestamp.Time); order != 0 {
 		return order
 	}
+
 	if order := cmp.Compare(a.Namespace, b.Namespace); order != 0 {
 		return order
 	}

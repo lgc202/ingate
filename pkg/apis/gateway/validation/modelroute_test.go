@@ -155,12 +155,15 @@ func TestValidateModelRoute(t *testing.T) {
 			if diff := cmp.Diff(before, route); diff != "" {
 				t.Errorf("ValidateModelRoute(%s) changed input (-want +got):\n%s", tt.name, diff)
 			}
+
 			if tt.wantField == "" {
 				if len(errs) != 0 {
 					t.Errorf("ValidateModelRoute(%s) = %v, want no errors", tt.name, errs)
 				}
+
 				return
 			}
+
 			if len(errs) != 1 || errs[0].Field != tt.wantField || errs[0].Type != tt.wantType {
 				t.Errorf("ValidateModelRoute(%s) = %v, want one %s error at %s", tt.name, errs, tt.wantType, tt.wantField)
 			}
@@ -212,6 +215,7 @@ func TestValidateModelRouteCollectionLimits(t *testing.T) {
 			if errs := ValidateModelRoute(route); len(errs) != 0 {
 				t.Errorf("ValidateModelRoute(%s count %d) = %v, want no errors", tt.name, tt.limit, errs)
 			}
+
 			tt.mutate(route, tt.limit+1)
 			errs := ValidateModelRoute(route)
 			if len(errs) != 1 || errs[0].Field != tt.field || errs[0].Type != field.ErrorTypeTooMany {
@@ -230,6 +234,7 @@ func TestValidateModelRouteUpdate(t *testing.T) {
 	if errs := ValidateModelRouteUpdate(next, previous); len(errs) != 0 {
 		t.Errorf("ValidateModelRouteUpdate(changed spec) = %v, want no errors", errs)
 	}
+
 	next.Name = "renamed"
 	errs := ValidateModelRouteUpdate(next, previous)
 	if len(errs) != 1 || errs[0].Field != "metadata.name" || errs[0].Type != field.ErrorTypeInvalid {
@@ -283,6 +288,7 @@ func TestRouteParentStatusValidationContract(t *testing.T) {
 			if tt.wantField == "" && len(errs) != 0 {
 				t.Errorf("ValidateModelRouteStatusUpdate(%s) = %v, want no errors", tt.name, errs)
 			}
+
 			if tt.wantField != "" && (len(errs) != 1 || errs[0].Field != tt.wantField) {
 				t.Errorf("ValidateModelRouteStatusUpdate(%s) = %v, want one error at %s", tt.name, errs, tt.wantField)
 			}
@@ -296,6 +302,7 @@ func TestRouteParentStatusValidationContract(t *testing.T) {
 			if diff := cmp.Diff(httpErrs, errs); diff != "" {
 				t.Errorf("route status validation(%s) differs (-HTTPRoute +ModelRoute):\n%s", tt.name, diff)
 			}
+
 			mcpPrevious := &gateway.MCPRoute{ObjectMeta: previous.ObjectMeta}
 			mcpNext := &gateway.MCPRoute{
 				ObjectMeta: next.ObjectMeta,

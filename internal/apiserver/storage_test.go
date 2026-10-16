@@ -101,6 +101,7 @@ func TestStorageFactoryCodecs(t *testing.T) {
 			if err := json.Unmarshal(data, &typeMeta); err != nil {
 				t.Fatalf("Unmarshal(%T metadata) error = %v", tt.object, err)
 			}
+
 			wantMeta := metav1.TypeMeta{APIVersion: tt.storageGVK.GroupVersion().String(), Kind: tt.storageGVK.Kind}
 			if diff := cmp.Diff(wantMeta, typeMeta); diff != "" {
 				t.Errorf("storage TypeMeta mismatch (-want +got):\n%s", diff)
@@ -110,12 +111,15 @@ func TestStorageFactoryCodecs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Decode(%T) error = %v", tt.object, err)
 			}
+
 			if diff := cmp.Diff(before, decoded); diff != "" {
 				t.Errorf("decoded internal object mismatch (-want +got):\n%s", diff)
 			}
+
 			if diff := cmp.Diff(before, tt.object); diff != "" {
 				t.Errorf("storage encoding mutated input (-want +got):\n%s", diff)
 			}
+
 			if got := factory.ResourcePrefix(tt.resource); got != tt.resource.Resource {
 				t.Errorf("Factory.ResourcePrefix(%s) = %q, want %q", tt.resource, got, tt.resource.Resource)
 			}
@@ -164,10 +168,12 @@ func TestStorageFactoryResourceServers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Factory.NewConfig(%s) error = %v", tt.resource, err)
 		}
+
 		if diff := cmp.Diff(tt.servers, storage.Transport.ServerList); diff != "" {
 			t.Errorf("Factory.NewConfig(%s) servers mismatch (-want +got):\n%s", tt.resource, diff)
 		}
 	}
+
 	if got := len(factory.Configs()); got != 2 {
 		t.Errorf("Factory.Configs() count = %d, want default and overridden backend", got)
 	}
@@ -177,6 +183,7 @@ func TestStorageFactoryResourceServers(t *testing.T) {
 	if wantErr == nil {
 		t.Fatal("ParseEtcdServersOverrides(malformed) error = nil, want parse error")
 	}
+
 	if _, err := newStorageFactory(etcd, options.scheme, options.codecs, config); !errors.Is(err, wantErr) {
 		t.Errorf("newStorageFactory(malformed servers override) error = %v, want wrapped %v", err, wantErr)
 	}
@@ -191,23 +198,29 @@ func TestStorageFactoryConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newStorageFactory() error = %v", err)
 	}
+
 	resource := corev1.SchemeGroupVersion.WithResource("namespaces").GroupResource()
 	storage, err := factory.NewConfig(resource, &coreapi.Namespace{})
 	if err != nil {
 		t.Fatalf("Factory.NewConfig(Namespace) error = %v", err)
 	}
+
 	if storage.Prefix != "/isolated" {
 		t.Errorf("storage prefix = %q, want /isolated", storage.Prefix)
 	}
+
 	if storage.StorageObjectCountTracker != config.StorageObjectCountTracker {
 		t.Error("storage count tracker differs from GenericConfig, want shared tracker")
 	}
+
 	if etcd.StorageConfig.StorageObjectCountTracker != nil {
 		t.Error("newStorageFactory() mutated original EtcdOptions count tracker")
 	}
+
 	if factory.APIResourceConfigSource.ResourceEnabled(corev1.SchemeGroupVersion.WithResource("pods")) {
 		t.Error("Factory enables Pod storage, want only supported core resources")
 	}
+
 	for _, resource := range []string{"namespaces", "configmaps"} {
 		if !factory.APIResourceConfigSource.ResourceEnabled(corev1.SchemeGroupVersion.WithResource(resource)) {
 			t.Errorf("Factory enables %q = false, want true", resource)
@@ -220,10 +233,12 @@ func TestStorageFactoryConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newStorageFactory(explicit count tracker) error = %v", err)
 	}
+
 	storage, err = factory.NewConfig(resource, &coreapi.Namespace{})
 	if err != nil {
 		t.Fatalf("Factory.NewConfig(explicit count tracker) error = %v", err)
 	}
+
 	if storage.StorageObjectCountTracker != explicitTracker || etcd.StorageConfig.StorageObjectCountTracker != explicitTracker {
 		t.Error("storage count tracker replaced explicit EtcdOptions tracker")
 	}
@@ -236,7 +251,9 @@ func storageTestOptions(t *testing.T) (*Options, *genericapiserver.RecommendedCo
 	if err != nil {
 		t.Fatalf("NewOptions() error = %v", err)
 	}
+
 	config := genericapiserver.NewRecommendedConfig(options.codecs)
 	config.EffectiveVersion = compatibility.DefaultBuildEffectiveVersion()
+
 	return options, config
 }

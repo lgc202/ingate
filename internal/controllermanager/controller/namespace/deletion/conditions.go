@@ -101,9 +101,11 @@ func (u *namespaceConditionUpdater) ProcessContentTotals(contentTotals allGVRDel
 			if numRemaining == 0 {
 				continue
 			}
+
 			message := fmt.Sprintf("%s.%s has %d resource instances", gvr.Resource, gvr.Group, numRemaining)
 			remainingResources = append(remainingResources, message)
 		}
+
 		// 固定消息顺序，避免 map 遍历顺序触发无意义的状态写入。
 		sort.Strings(remainingResources)
 		u.newConditions = append(u.newConditions, v1.NamespaceCondition{
@@ -121,9 +123,11 @@ func (u *namespaceConditionUpdater) ProcessContentTotals(contentTotals allGVRDel
 			if numRemaining == 0 {
 				continue
 			}
+
 			message := fmt.Sprintf("%s in %d resource instances", finalizer, numRemaining)
 			remainingByFinalizer = append(remainingByFinalizer, message)
 		}
+
 		// 固定消息顺序，避免 map 遍历顺序触发无意义的状态写入。
 		sort.Strings(remainingByFinalizer)
 		u.newConditions = append(u.newConditions, v1.NamespaceCondition{
@@ -143,6 +147,7 @@ func (u *namespaceConditionUpdater) Update(namespace *v1.Namespace) bool {
 			u.newConditions = append(u.newConditions, *c)
 		}
 	}
+
 	return updateConditions(&namespace.Status, u.newConditions)
 }
 
@@ -150,11 +155,14 @@ func makeDeleteContentCondition(errs []error) *v1.NamespaceCondition {
 	if len(errs) == 0 {
 		return nil
 	}
+
 	messages := make([]string, 0, len(errs))
 	for _, err := range errs {
 		messages = append(messages, err.Error())
 	}
+
 	sort.Strings(messages)
+
 	return &v1.NamespaceCondition{
 		Type:               v1.NamespaceDeletionContentFailure,
 		Status:             v1.ConditionTrue,
@@ -172,6 +180,7 @@ func updateConditions(status *v1.NamespaceStatus, newConditions []v1.NamespaceCo
 		if newCondition == nil {
 			newCondition = newSuccessfulCondition(conditionType)
 		}
+
 		oldCondition := getCondition(status.Conditions, conditionType)
 
 		// 首次出现的类型追加到列表，已有自定义 Conditions 保持原样。
@@ -180,6 +189,7 @@ func updateConditions(status *v1.NamespaceStatus, newConditions []v1.NamespaceCo
 			hasChanged = true
 			continue
 		}
+
 		if oldCondition.Status == newCondition.Status &&
 			oldCondition.Message == newCondition.Message &&
 			oldCondition.Reason == newCondition.Reason {
@@ -190,12 +200,14 @@ func updateConditions(status *v1.NamespaceStatus, newConditions []v1.NamespaceCo
 		if oldCondition.Status != newCondition.Status {
 			oldCondition.LastTransitionTime = metav1.Now()
 		}
+
 		oldCondition.Type = newCondition.Type
 		oldCondition.Status = newCondition.Status
 		oldCondition.Reason = newCondition.Reason
 		oldCondition.Message = newCondition.Message
 		hasChanged = true
 	}
+
 	return hasChanged
 }
 
@@ -215,5 +227,6 @@ func getCondition(conditions []v1.NamespaceCondition, conditionType v1.Namespace
 			return &conditions[i]
 		}
 	}
+
 	return nil
 }

@@ -1,4 +1,4 @@
-package backend
+package handler
 
 import (
 	"slices"
@@ -10,12 +10,12 @@ import (
 )
 
 func TestBackendToProtoOrdersEndpointsWithoutMutatingInput(t *testing.T) {
-	input := []gatewayv1alpha1.Endpoint{
+	endpoints := []gatewayv1alpha1.Endpoint{
 		{Address: "b.example.com", Port: 8080, Weight: 3},
 		{Address: "a.example.com", Port: 9090, Weight: 2},
 		{Address: "a.example.com", Port: 8080, Weight: 1},
 	}
-	backend := repository.BackendInfo{Endpoints: slices.Clone(input)}
+	backend := repository.BackendInfo{Endpoints: slices.Clone(endpoints)}
 
 	response := backendToProto(backend)
 	got := make([]gatewayv1alpha1.Endpoint, len(response.GetEndpoints()))
@@ -35,7 +35,8 @@ func TestBackendToProtoOrdersEndpointsWithoutMutatingInput(t *testing.T) {
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("backendToProto() endpoints mismatch (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff(input, backend.Endpoints); diff != "" {
+
+	if diff := cmp.Diff(endpoints, backend.Endpoints); diff != "" {
 		t.Errorf("backendToProto() modified input (-want +got):\n%s", diff)
 	}
 }

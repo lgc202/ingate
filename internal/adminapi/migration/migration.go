@@ -47,9 +47,11 @@ func Up(ctx context.Context, dsn string) (err error) {
 	if err != nil {
 		return fmt.Errorf("create migration provider: %w", err)
 	}
+
 	if err := provider.Ping(ctx); err != nil {
 		return fmt.Errorf("ping MySQL: %w", err)
 	}
+
 	if _, err := provider.Up(ctx); err != nil {
 		return fmt.Errorf("apply migrations: %w", err)
 	}

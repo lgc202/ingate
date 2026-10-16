@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"strings"
 
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
+	"github.com/lgc202/ingate/internal/aiproxy/errno"
 	"github.com/lgc202/ingate/internal/aiproxy/service/modelproxy"
 )
 
@@ -60,34 +60,29 @@ func (h *ModelProxyHandler) chatCompletion(
 	if err := ctx.Err(); err != nil {
 		return toModelTransportError(ctx, err, h.logger)
 	}
+
 	entry, ok := ctx.Value(modelEntryKey{}).(modelEntry)
 	if !ok {
-		return kratoserrors.ServiceUnavailable("MODEL_ENTRY_UNAVAILABLE", "model entry is unavailable")
+		return errno.ErrModelEntryUnavailable
 	}
+
 	for _, encoding := range request.Header.Values("Content-Encoding") {
 		if value := strings.TrimSpace(encoding); value != "" && !strings.EqualFold(value, "identity") {
-			return kratoserrors.New(
-				http.StatusUnsupportedMediaType,
-				"MODEL_ENCODING_UNSUPPORTED",
-				"compressed model requests are not supported",
-			)
+			return errno.ErrModelEncodingUnsupported
 		}
 	}
 
 	body, err := io.ReadAll(http.MaxBytesReader(response, request.Body, h.maxRequestBodyBytes))
 	if err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			return kratoserrors.New(
-				http.StatusRequestEntityTooLarge,
-				"MODEL_REQUEST_TOO_LARGE",
-				"model request body is too large",
-			).WithCause(err)
+			return errno.ErrModelRequestTooLarge.WithCause(err)
 		}
+
 		if err := ctx.Err(); err != nil {
 			return toModelTransportError(ctx, err, h.logger)
 		}
 
-		return kratoserrors.BadRequest("MODEL_REQUEST_READ_FAILED", "cannot read model request body").WithCause(err)
+		return errno.ErrModelRequestReadFailed.WithCause(err)
 	}
 
 	upstream, err := h.service.ChatCompletion(ctx, modelproxy.ChatCompletionParams{
@@ -108,21 +103,21 @@ func (h *ModelProxyHandler) chatCompletion(
 func toModelTransportError(ctx context.Context, err error, logger *slog.Logger) error {
 	switch {
 	case errors.Is(err, modelproxy.ErrInvalidArgument):
-		return kratoserrors.BadRequest("MODEL_INVALID_ARGUMENT", "invalid model request").WithCause(err)
+		return errno.ErrModelInvalidArgument.WithCause(err)
 	case errors.Is(err, modelproxy.ErrModelNotFound):
-		return kratoserrors.NotFound("MODEL_NOT_FOUND", "model is not available at this entry").WithCause(err)
+		return errno.ErrModelNotFound.WithCause(err)
 	case errors.Is(err, modelproxy.ErrUnavailable):
-		return kratoserrors.ServiceUnavailable("MODEL_UNAVAILABLE", "model service is unavailable").WithCause(err)
+		return errno.ErrModelUnavailable.WithCause(err)
 	case errors.Is(err, context.Canceled):
-		return kratoserrors.ClientClosed("REQUEST_CANCELED", "request was canceled").WithCause(err)
+		return errno.ErrRequestCanceled.WithCause(err)
 	case errors.Is(err, context.DeadlineExceeded):
-		return kratoserrors.GatewayTimeout("DEADLINE_EXCEEDED", "request deadline exceeded").WithCause(err)
+		return errno.ErrDeadlineExceeded.WithCause(err)
 	case errors.Is(err, modelproxy.ErrForwardFailed):
 		logger.ErrorContext(ctx, "AI Proxy model forwarding failed", "err", err)
-		return kratoserrors.New(http.StatusBadGateway, "MODEL_FORWARD_FAILED", "model forwarding failed").WithCause(err)
+		return errno.ErrModelForwardFailed.WithCause(err)
 	default:
 		// 未知错误只在此入站边界记录；Service 不打印，Server 只编码安全的公开结果。
 		logger.ErrorContext(ctx, "AI Proxy model request failed", "err", err)
-		return kratoserrors.InternalServer("INTERNAL_SERVER_ERROR", "internal server error").WithCause(err)
+		return errno.ErrInternal.WithCause(err)
 	}
 }

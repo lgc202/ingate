@@ -25,6 +25,7 @@ func loadConfig(path string) (*conf.Bootstrap, error) {
 	if err := protojson.Unmarshal(jsonData, config); err != nil {
 		return nil, fmt.Errorf("unmarshal config file %q: %w", path, err)
 	}
+
 	if err := protovalidate.Validate(config); err != nil {
 		return nil, fmt.Errorf("validate config file %q: %w", path, err)
 	}
