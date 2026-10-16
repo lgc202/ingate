@@ -1,6 +1,6 @@
 # AI 模型操作与数据面部署设计
 
-- 状态：Chat Completions 链路及启动日志已提交；2026-10-16 Responses 创建扩展已通过 review 并获准本地提交，尚未进行真实 Envoy 联调
+- 状态：Chat Completions 链路及启动日志已提交；2026-10-16 Responses 创建扩展已提交为 `42a6cba9`，尚未进行真实 Envoy 联调
 - 日期：2026-10-11
 - 资源字段对齐：2026-10-12；首步操作与本地通信确认：2026-10-15
 - Ingate 源码基线：`b247a4c6`，分支 `codex/rebuild-from-zero`
@@ -13,6 +13,62 @@
 建议 Envoy 与统一 Go AI Proxy 共同部署、分进程运行，本地 HTTP 通过 UDS 连接。Go 内部分模型与 MCP 模块，共用配置加载和进程生命周期；普通 HTTP 继续由 Envoy 直接转发。Controller 独立于请求数据面，按已确认方向向 Envoy 发布 xDS，向 Go 下发派生运行配置。
 
 2026-10-15 用户已确认开始实际 AI Proxy 开发，先做 Chat Completions，普通响应与 SSE 使用同协议转发，Envoy 与 Go 同机通过 UDS 通信，网络连接仍由 Envoy 管理。随后确认两路配置采用最终一致性，不增加每请求整份 revision 相等的准入条件、全局实例确认或发布协调系统；传播期间可能暂时失败，仍须保证目标绑定与失效拒绝。两个创建操作的长期建议保留，但本次确认不包括 Responses。凭据、安全和具体入口/出口关联方式不在本稿中用示例补全，确认方向不等于确认全部内部 Header 或冲突裁决。
+
+## 当前实现的数据流（2026-10-16）
+
+以下两图按 `42a6cba9` 的已提交代码描述配置与模型请求的正常路径。普通 HTTP 和
+两个模型创建接口的主链已实现；MCP 只有资源管理及配置编译，尚无请求代理。
+上游 TLS、提供商凭据和跨提供商协议转换未实现，真实 Envoy、API Server 与模型
+提供商的整链路尚未验收，不能把图中的连接当作已经完成部署验证。
+
+### 配置流转：从资源写入到两路配置消费
+
+![配置流转：Admin API 写入权威资源，Controller 向 Envoy 和 Go 下发配置并维护 MySQL 查询投影](../diagrams/ai-current-config-flow.svg)
+
+[Mermaid 源码](../diagrams/ai-current-config-flow.mmd) · [渲染说明](../diagrams/README.md)
+
+API Server/etcd 保存权威资源，MySQL 是可重建的异步查询投影，不参与请求选路。
+Controller 从六种领域资源解析引用并编译：Envoy 消费网络配置，Go 消费协议、模型
+规则和后端绑定，不在每个请求中重新查询 ModelRoute、AIBackend 或 Backend。
+
+AI 配置保存在部署侧预先创建的控制面 Namespace，固定 ConfigMap 名称为
+`ingate-shared-data-plane-ai`，`data["config.json"]` 保存完整 JSON。Loader 使用
+指定 Namespace 和对象名的 List/Watch，校验完整配置并建立索引后，替换当前只读快照。
+多个 Gateway 共用一份配置，请求仍按 Listener/Host 查找各自规则。
+
+xDS 与 ConfigMap 是独立下发的两路输出，不提供原子切换；更新传播期间可能因入口或
+目标暂时不可用而失败。发布到 xDS Cache 不表示 Envoy 已 ACK，成功保存 ConfigMap
+也不表示 Go 已加载。源码入口为 [Reconcile/reconcileAI](../../internal/controllermanager/controller/gateway/controller.go)、
+[ConfigMap 写入](../../internal/controllermanager/controller/gateway/ai_config.go)、
+[Loader.Run](../../internal/aiproxy/pkg/aiconfig/loader.go)及
+[查询投影](../../internal/controllermanager/controller/projection/modelroute.go)。
+
+### 请求流转：模型别名到真实上游
+
+以下为说明模型映射的示意配置：客户端使用 `coding`，ModelRoute 引用 AIBackend 并
+将模型名覆盖为 `code-v2`；AIBackend 使用 OpenAI schema、`/v1` prefix，再引用
+端点为 `10.0.0.20:8000` 的 Backend。地址和模型名只用于解释，不代表已部署的服务。
+
+![模型请求时序：同一个 Envoy 经两段 UDS 与 Go 交互，coding 映射为 code-v2，响应逐段返回客户端](../diagrams/ai-current-model-sequence.svg)
+
+[Mermaid 源码](../diagrams/ai-current-model-sequence.mmd) · [渲染说明](../diagrams/README.md)
+
+图中的 Envoy 是同一个进程；入站与出站分别使用两个 Unix 域套接字（UDS）。
+Envoy 入站覆盖内部入口标识，Go 只在受保护的 UDS 入口使用它们；标识用于定位
+Listener/Host，不替代客户端认证。Go 的 Handler 有界读取正文，Service 捕获一份
+只读配置，按原始模型名选路并覆盖顶层 model，再通过原生 HTTP Client 调用固定的
+Envoy 出口。Envoy 根据已绑定目标选择实际后端，并在发送上游前移除内部目标 Header。
+
+一次请求使用同一份已捕获的 Go 配置，处理中不混用后续版本。未知模型或失效目标
+拒绝访问，不回退普通 HTTP；客户端认证与内部目标 Header 不直接透传。普通响应和
+SSE 保留上游协议，不把 Responses 转为 Chat Completions。主流程见
+[ModelProxyHandler](../../internal/aiproxy/handler/modelproxy.go)、
+[Service.ChatCompletion/CreateResponse](../../internal/aiproxy/service/modelproxy/service.go)及
+[Envoy 出口](../../internal/controllermanager/dataplane/envoy/ai_resources.go)。
+
+普通 HTTP 请求沿「客户端 → Envoy → 普通 Backend」转发，不经过 Go AI Proxy。
+当前仅开放 `POST /v1/chat/completions` 和 `POST /v1/responses` 两个模型创建操作；
+Responses 后台任务、查询、删除、取消和 WebSocket 不在实现范围。
 
 ## 背景：官方如何设计
 
@@ -83,21 +139,9 @@ Go 出站只接受编译结果中已授权的目标，通过专用 Envoy 出站�
 
 ### 请求与配置使用的顺序
 
-```mermaid
-sequenceDiagram
-    participant E as Envoy 入站
-    participant P as Go AI Proxy
-    participant O as Envoy 出站
-    participant B as 模型后端
-    E->>P: 可信入口标识 + 原始请求
-    P->>P: 捕获一份 Go 配置，校验操作，选择模型与目标
-    P->>O: 已选 Backend，修改后的 model / 上游路径
-    O->>B: 对应目标的 HTTP(S) 请求
-    B-->>O: HTTP 响应或 SSE
-    O-->>P: 响应流
-    P-->>E: 原协议响应流
-    Note over E,B: Go 在请求内使用同一视图；两路配置最终一致，客户端断开向出站传播取消
-```
+已实现的完整请求时序见[请求流转：模型别名到真实上游](#请求流转模型别名到真实上游)。
+Go 在一次请求内使用同一份配置；两路配置最终一致，客户端断开的取消由出站请求
+Context 传播。上文部署图中的 TLS 与 MCP 属于目标范围，不表示当前已实现或验收。
 
 ### 配置更新：最终一致，按请求目标关联
 

@@ -1,0 +1,25 @@
+{
+  "theme": "neutral",
+  "deterministicIds": true,
+  "deterministicIDSeed": "ingate-current-diagrams",
+  "fontFamily": "Arial, PingFang SC, Microsoft YaHei, sans-serif",
+  "fontSize": 16,
+  "htmlLabels": false,
+  "themeCSS": ".edgeLabel rect { opacity: 1; }",
+  "flowchart": {
+    "htmlLabels": false,
+    "useMaxWidth": false,
+    "diagramPadding": 20,
+    "nodeSpacing": 24,
+    "rankSpacing": 40,
+    "padding": 12
+  },
+  "sequence": {
+    "useMaxWidth": false,
+    "diagramMarginX": 20,
+    "diagramMarginY": 20,
+    "actorMargin": 40,
+    "messageMargin": 32,
+    "mirrorActors": false
+  }
+}

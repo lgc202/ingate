@@ -1,0 +1,18 @@
+---
+config:
+  layout: elk
+  flowchart:
+    curve: rounded
+---
+flowchart TD
+    accTitle: Ingate 当前配置流转
+    accDescr: Admin API 将资源写入 API Server 和 etcd。Controller 订阅资源，向 Envoy 发布 xDS，向 API Server 写入供 Go AI Proxy 订阅的完整 ConfigMap，同时维护 MySQL 查询投影。Admin API 从 MySQL 查询列表和详情。
+    A[管理端调用方] --> B[Admin API]
+    B -->|创建、修改、删除| C[Ingate API Server]
+    C -->|持久化资源和 ConfigMap| E[(etcd)]
+    C -->|领域资源 List/Watch| D[Controller Manager]
+    D -->|编译并发布 xDS| F[Envoy]
+    D -->|写入完整 AI 配置 ConfigMap| C
+    C -->|ConfigMap List/Watch| G[Go AI Proxy]
+    D -->|异步同步查询投影| M[(MySQL)]
+    B -->|列表、详情查询| M

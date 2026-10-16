@@ -1,0 +1,18 @@
+sequenceDiagram
+    accTitle: Ingate 当前模型请求时序
+    accDescr: 客户端请求先进入 Envoy，再经入站 UDS 到 Go AI Proxy。Go 从配置中选路，将 coding 映射为 code-v2，经出站 UDS 返回同一个 Envoy，再访问模型服务。普通 JSON 或 SSE 按原路径返回客户端。
+    participant C as 客户端
+    participant E as Envoy（同一个进程）
+    participant G as Go AI Proxy
+    participant S as 模型服务
+
+    C->>E: POST /v1/responses，model=coding
+    E->>G: 入站 UDS，附带可信 Listener/Host 标识
+    G->>G: 捕获配置、匹配 coding、选中后端
+    G->>G: 将 model 覆盖为 code-v2
+    G->>E: 出站 UDS，携带已选目标标识
+    E->>S: POST /v1/responses，model=code-v2
+    S-->>E: 普通 JSON 或 SSE
+    E-->>G: 上游响应
+    G-->>E: 流式写回
+    E-->>C: 客户端收到响应
