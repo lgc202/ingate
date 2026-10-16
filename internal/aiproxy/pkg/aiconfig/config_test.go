@@ -323,3 +323,112 @@ func configFixture(t *testing.T) aidataplane.Config {
 
 	return *compiled
 }
+
+func TestResolveMCP(t *testing.T) {
+	config := parseConfig(t, configFixture(t))
+	want := MCPBackend{
+		RouteName:          "team-a/tools",
+		NetworkBackendName: "team-a/tools-network",
+		BackendPath:        "/stream",
+		TargetName:         "ai/mcp-target/f302e6faf73db6eca1dab4385f17012e06b05d90e0ca416ddfcec9aa73fb4af3",
+	}
+
+	got, err := config.ResolveMCP(8080, "gateway/team-a/public/listener/api", "/mcp")
+	if err != nil {
+		t.Fatalf("ResolveMCP(team-a, /mcp) error = %v", err)
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("ResolveMCP(team-a, /mcp) mismatch (-want +got):\n%s", diff)
+	}
+
+	got.BackendPath = "/changed"
+
+	again, err := config.ResolveMCP(8080, "gateway/team-a/public/listener/api", "/mcp")
+	if err != nil {
+		t.Fatalf("ResolveMCP(after result mutation) error = %v", err)
+	}
+
+	if diff := cmp.Diff(want, again); diff != "" {
+		t.Errorf("ResolveMCP() returned mutable shared state (-want +got):\n%s", diff)
+	}
+}
+
+func TestResolveMCPRequiresExactPathAndScope(t *testing.T) {
+	config := parseConfig(t, configFixture(t))
+	for _, tt := range []struct {
+		name string
+		port int32
+		host string
+		path string
+	}{
+		{name: "trailing slash", port: 8080, host: "gateway/team-a/public/listener/api", path: "/mcp/"},
+		{name: "prefix only", port: 8080, host: "gateway/team-a/public/listener/api", path: "/mcpx"},
+		{name: "other namespace", port: 8080, host: "gateway/team-b/public/listener/api", path: "/mcp"},
+		{name: "other listener", port: 8080, host: "gateway/team-a/public/listener/other", path: "/mcp"},
+		{name: "other port", port: 8081, host: "gateway/team-a/public/listener/api", path: "/mcp"},
+		{name: "public hostname", port: 8080, host: "gateway.example.com", path: "/mcp"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := config.ResolveMCP(tt.port, tt.host, tt.path)
+
+			if !errors.Is(err, ErrMCPRouteNotFound) || got != (MCPBackend{}) {
+				t.Errorf("ResolveMCP(%d, %q, %q) = (%+v, %v), want zero backend and ErrMCPRouteNotFound",
+					tt.port, tt.host, tt.path, got, err)
+			}
+		})
+	}
+}
+
+func TestResolveMCPRejectsUnavailableFirstMatch(t *testing.T) {
+	compiled := configFixture(t)
+	first := compiled.Listeners[0].Hosts[0].MCPRoutes[0]
+	first.Name = "team-a/tools-unavailable"
+	first.BackendName = new("")
+	compiled.Listeners[0].Hosts[0].MCPRoutes = append([]aidataplane.MCPRoute{first}, compiled.Listeners[0].Hosts[0].MCPRoutes...)
+	config := parseConfig(t, compiled)
+
+	got, err := config.ResolveMCP(8080, "gateway/team-a/public/listener/api", "/mcp")
+
+	if !errors.Is(err, ErrMCPBackendUnavailable) || got != (MCPBackend{}) {
+		t.Errorf("ResolveMCP(unavailable before valid match) = (%+v, %v), want zero backend and ErrMCPBackendUnavailable", got, err)
+	}
+}
+
+func TestResolveMCPReusesNetworkTarget(t *testing.T) {
+	compiled := configFixture(t)
+	compiled.Listeners[0].Hosts[0].MCPRoutes = append(compiled.Listeners[0].Hosts[0].MCPRoutes, aidataplane.MCPRoute{
+		Name:        "team-a/tools-extra",
+		Path:        "/mcp/extra",
+		BackendName: new("team-a/tools-network"),
+		BackendPath: "/stream",
+	})
+	config := parseConfig(t, compiled)
+
+	first, err := config.ResolveMCP(8080, "gateway/team-a/public/listener/api", "/mcp")
+	if err != nil {
+		t.Fatalf("ResolveMCP(/mcp) error = %v", err)
+	}
+
+	other, err := config.ResolveMCP(8080, "gateway/team-a/public/listener/api", "/mcp/extra")
+
+	if err != nil || first.TargetName != other.TargetName || first.RouteName == other.RouteName {
+		t.Errorf("ResolveMCP(shared network) = (%+v, %+v, %v), want distinct routes with one target", first, other, err)
+	}
+}
+
+func TestResolveMCPPreservesConfiguredTrailingSlash(t *testing.T) {
+	compiled := configFixture(t)
+	compiled.Listeners[0].Hosts[0].MCPRoutes[0].Path = "/mcp/"
+	config := parseConfig(t, compiled)
+
+	if _, err := config.ResolveMCP(8080, "gateway/team-a/public/listener/api", "/mcp/"); err != nil {
+		t.Fatalf("ResolveMCP(configured trailing slash) error = %v", err)
+	}
+
+	got, err := config.ResolveMCP(8080, "gateway/team-a/public/listener/api", "/mcp")
+
+	if !errors.Is(err, ErrMCPRouteNotFound) || got != (MCPBackend{}) {
+		t.Errorf("ResolveMCP(without configured trailing slash) = (%+v, %v), want zero backend and ErrMCPRouteNotFound", got, err)
+	}
+}

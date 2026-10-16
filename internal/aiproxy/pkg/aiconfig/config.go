@@ -12,6 +12,10 @@ var (
 	ErrModelRouteNotFound = errors.New("model route not found")
 	// ErrModelBackendUnavailable 表示首个命中路由的后端不可用，禁止跳到下一候选。
 	ErrModelBackendUnavailable = errors.New("model backend unavailable")
+	// ErrMCPRouteNotFound 表示指定入口没有路径完全相等的 MCP 路由。
+	ErrMCPRouteNotFound = errors.New("MCP route not found")
+	// ErrMCPBackendUnavailable 表示命中的 MCP 路由后端不可用，禁止回退到其他入口。
+	ErrMCPBackendUnavailable = errors.New("MCP backend unavailable")
 )
 
 // Config 是一份已校验且不可修改的运行配置，可由多个请求共同持有。
@@ -25,6 +29,8 @@ type Config struct {
 	config   *aidataplane.Config
 	hosts    map[hostKey]aidataplane.Host
 	backends map[string]ModelBackend
+	// mcpTargets 按网络后端编译标识保存出口名，供入口路径命中后直接交付。
+	mcpTargets map[string]string
 }
 
 // ModelBackend 是一次模型匹配的完整协议与网络绑定，不包含可变引用或网络端点。
@@ -39,6 +45,17 @@ type ModelBackend struct {
 	ModelNameOverride  string
 	NetworkBackendName string
 	// TargetName 同时绑定协议参数和网络快照，只能交给专用 Envoy 出口。
+	TargetName string
+}
+
+// MCPBackend 是一次 MCP 精确路径匹配的网络与上游路径绑定，不包含会话或工具状态。
+type MCPBackend struct {
+	RouteName string
+	// NetworkBackendName 是 Backend 的编译标识，不是领域资源名称。
+	NetworkBackendName string
+	// BackendPath 是已默认化的上游路径；Go 只拼接这一条固定路径，不从请求派生目标。
+	BackendPath string
+	// TargetName 绑定网络快照，只能交给专用 Envoy 出口。
 	TargetName string
 }
 
@@ -85,7 +102,18 @@ func newConfig(data []byte) (*Config, error) {
 		}
 	}
 
-	return &Config{config: config, hosts: hosts, backends: backends}, nil
+	// 同一网络被多个 MCP 入口复用时只计算一次；空闲网络也参与构建，代价是一份哈希。
+	mcpTargets := make(map[string]string, len(config.NetworkBackends))
+	for _, network := range config.NetworkBackends {
+		target, err := aidataplane.MCPTargetName(network)
+		if err != nil {
+			return nil, fmt.Errorf("build MCP target %q: %w", network.Name, err)
+		}
+
+		mcpTargets[network.Name] = target
+	}
+
+	return &Config{config: config, hosts: hosts, backends: backends, mcpTargets: mcpTargets}, nil
 }
 
 // Revision 返回本实例已校验的内容版本，不表示 Envoy 已加载同一版本。
@@ -125,4 +153,33 @@ func (c *Config) ResolveModel(port int32, hostName, modelName string) (ModelBack
 	}
 
 	return ModelBackend{}, fmt.Errorf("port %d host %q: %w", port, hostName, ErrModelRouteNotFound)
+}
+
+// ResolveMCP 根据可信入口和请求路径，查出应使用的网络后端标识与固定上游路径。
+//
+// 调用方须先确定可信的入口（port、hostName）与请求路径；path 是 HTTP 请求 URL 的
+// 路径部分，不是客户端自报的 Header 或 Host。本方法在该入口的 mcpRoutes 中按编译
+// 顺序寻找首个路径完全相等（含尾斜杠）的匹配；编译顺序为创建时间、Namespace、name。
+// 命中后 backendName 为空表示后端失效，返回 ErrMCPBackendUnavailable，不回退到后面的
+// 候选或普通 HTTP。没有匹配返回 ErrMCPRouteNotFound。
+// 这里只选择目标与已默认化的上游路径，不解析或改写 MCP 消息、不连接上游。
+func (c *Config) ResolveMCP(port int32, hostName, path string) (MCPBackend, error) {
+	for _, route := range c.hosts[hostKey{port: port, name: hostName}].MCPRoutes {
+		if route.Path != path {
+			continue
+		}
+
+		if *route.BackendName == "" {
+			return MCPBackend{}, fmt.Errorf("route %q: %w", route.Name, ErrMCPBackendUnavailable)
+		}
+
+		return MCPBackend{
+			RouteName:          route.Name,
+			NetworkBackendName: *route.BackendName,
+			BackendPath:        route.BackendPath,
+			TargetName:         c.mcpTargets[*route.BackendName],
+		}, nil
+	}
+
+	return MCPBackend{}, fmt.Errorf("port %d host %q path %q: %w", port, hostName, path, ErrMCPRouteNotFound)
 }
