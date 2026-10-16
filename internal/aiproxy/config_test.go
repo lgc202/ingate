@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/lgc202/ingate/internal/aiproxy/conf"
+	logconfig "github.com/lgc202/ingate/internal/pkg/log"
 )
 
 const validStartupYAML = `server:
@@ -37,6 +38,7 @@ func TestLoadConfigExample(t *testing.T) {
 			Kubeconfig: "/etc/ingate/ai-proxy.kubeconfig", AiConfigNamespace: "control-plane",
 		},
 		Envoy: &conf.Envoy{EgressSocket: "/run/ingate/egress.sock"},
+		Log:   &conf.Log{Level: "info", Format: "json", Outputs: []string{"stdout"}},
 	}
 
 	config, err := loadConfig("../../configs/ai-proxy.yaml")
@@ -80,6 +82,16 @@ func TestLoadConfigRejectsInvalidInputs(t *testing.T) {
 		{name: "NUL ingress", data: strings.Replace(validStartupYAML, "/run/ingate/ingress.sock", `"/run/invalid\0.sock"`, 1)},
 		{name: "NUL egress", data: strings.Replace(validStartupYAML, "/run/ingate/egress.sock", `"/run/invalid\0.sock"`, 1)},
 		{name: "same socket", data: strings.Replace(validStartupYAML, "/run/ingate/egress.sock", "/run/ingate/./ingress.sock", 1)},
+		{name: "unknown log level", data: validStartupYAML + "log: {level: verbose}\n"},
+		{name: "unknown log format", data: validStartupYAML + "log: {format: xml}\n"},
+		{name: "unknown log output", data: validStartupYAML + "log: {outputs: [remote]}\n"},
+		{name: "duplicate log output", data: validStartupYAML + "log: {outputs: [stdout, stdout]}\n"},
+		{name: "missing log file", data: validStartupYAML + "log: {outputs: [file]}\n"},
+		{name: "empty log file path", data: validStartupYAML + "log: {outputs: [file], file: {path: ''}}\n"},
+		{name: "negative log file size", data: validStartupYAML + "log: {file: {max_size_mb: -1}}\n"},
+		{name: "negative log file backups", data: validStartupYAML + "log: {file: {max_backups: -1}}\n"},
+		{name: "negative log file age", data: validStartupYAML + "log: {file: {max_age_days: -1}}\n"},
+		{name: "unknown log field", data: validStartupYAML + "log: {levle: info}\n"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			configFile := writeStartupConfig(t, tt.data)
@@ -102,6 +114,7 @@ func TestLoadConfigDoesNotAcquireRuntimeResources(t *testing.T) {
 	kubeconfig := filepath.Join(directory, "missing.kubeconfig")
 	data := strings.ReplaceAll(validStartupYAML, "/run/ingate/ingress.sock", ingress)
 	data = strings.ReplaceAll(data, "/etc/ingate/ai-proxy.kubeconfig", kubeconfig)
+	data += "log:\n  outputs: [file]\n  file:\n    path: " + filepath.Join(directory, "not-created", "ai-proxy.log") + "\n"
 	configFile := writeStartupConfig(t, data)
 
 	config, err := loadConfig(configFile)
@@ -138,6 +151,60 @@ func TestLoadConfigPreservesReadFailure(t *testing.T) {
 	config, err := loadConfig(configFile)
 	if !errors.Is(err, os.ErrNotExist) || config != nil {
 		t.Errorf("loadConfig(missing file) = (%v, %v), want nil and os.ErrNotExist", config, err)
+	}
+}
+
+func TestLoadConfigLogOptions(t *testing.T) {
+	data := validStartupYAML + `log:
+  level: warn
+  format: text
+  outputs: [stderr, stdout, file]
+  add_source: true
+  file:
+    path: ai-proxy.log
+    max_size_mb: 11
+    max_backups: 3
+    max_age_days: 4
+    compress: true
+`
+	configFile := writeStartupConfig(t, data)
+	want := logconfig.Config{
+		Level:     "warn",
+		Format:    logconfig.FormatText,
+		Outputs:   []logconfig.Output{logconfig.OutputStderr, logconfig.OutputStdout, logconfig.OutputFile},
+		AddSource: true,
+		File: logconfig.FileConfig{
+			Path:       "ai-proxy.log",
+			MaxSizeMB:  11,
+			MaxBackups: 3,
+			MaxAgeDays: 4,
+			Compress:   true,
+		},
+	}
+
+	config, err := loadConfig(configFile)
+	if err != nil {
+		t.Fatalf("loadConfig(log options) error = %v, want nil", err)
+	}
+
+	if diff := cmp.Diff(want, logConfig(config.GetLog())); diff != "" {
+		t.Errorf("logConfig(loaded options) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestLoadConfigLogDefaults(t *testing.T) {
+	for _, suffix := range []string{"", "log: {}\n"} {
+		configFile := writeStartupConfig(t, validStartupYAML+suffix)
+
+		config, err := loadConfig(configFile)
+		if err != nil {
+			t.Fatalf("loadConfig(%q) error = %v, want nil", suffix, err)
+		}
+
+		// 默认值由共享日志包确定；组件转换不覆盖默认值或制造文件输出。
+		if diff := cmp.Diff(logconfig.Config{}, logConfig(config.GetLog())); diff != "" {
+			t.Errorf("logConfig(%q) mismatch (-want +got):\n%s", suffix, diff)
+		}
 	}
 }
 

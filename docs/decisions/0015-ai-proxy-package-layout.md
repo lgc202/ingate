@@ -117,6 +117,25 @@ apischema/openai 只定义当前需要提取的 model 字段，不宣称覆盖�
 
 ## 验证边界
 
+2026-10-16 用户暂缓 Listener 级接纳调整，继续组件开发。本次独立切片为 AI Proxy
+接入已有普通运行日志配置：沿用 Admin API 的 level、format、outputs、add_source
+与 file 轮转选项，省略时仍使用共享日志包的 info/JSON/stdout 默认值。配置由本组件
+protobuf 定义、现有 Buf 命令生成，组合根转换为 `internal/pkg/log.Config` 并初始化。
+不导入 Admin API 的配置类型，不重新实现 Writer 或轮转；共享日志包不设置全局 Logger，
+组合根沿用已有 Kratos Logger 入口，由框架设置进程默认日志。
+仅在启动时读取；原有错误日志归属、关闭顺序和关闭错误聚合不变，不新增请求正文日志、
+热更新、依赖或模型接口。实现与手写代码复查完成，用户已通过 review 并授权本地提交。
+
+GoCanon MCP 快照仍为 `6f63ad2a7eb341a15ab99453619a907422bcdc7a`、clean；
+复核配置与生命周期规范及 GoCanon 已接受的 `0045-logging-initialization.md`，
+并用基础日志包只读计划和完整接入示例核对初始化及关闭责任，
+没有运行覆盖已有包的生成操作。配置正反例、全部日志字段转换及纯加载无文件副作用
+检查通过；Run 的日志路径失败用例先在未接线实现上失败，接线后先于 API Client
+构造返回日志初始化错误。全仓库格式、空白、lint、vet、test、build 与 Buf lint
+通过，AI Proxy 全包非缓存竞态测试通过；固定版本重复生成仅改变本组件 conf.pb.go，
+生成结果 SHA-256 一致。
+没有改动领域 API 或存储契约，未执行 API integration 或真实 Envoy/提供商联调。
+
 模型入口切片已提交为 `d988f8df`，启动配置切片已提交为 `0b0eea18`。conf 保存 protobuf，组件根目录 config.go 读取并校验；示例为 configs/ai-proxy.yaml。这里复用 Admin API 的严格 YAML → protojson → Protovalidate 方式，不导入 Admin API 的配置类型，也不增加全仓库加载器。上文“不预建 conf”针对此前协议切片；当前 conf 已有明确的启动输入契约和校验测试，不是占位包。
 
 当前 Run/命令切片已通过 review 并获准本地提交：cmd/ingate-ai-proxy 只负责参数、版本和退出码；app.go 的 Run 创建日志、API Client、Loader 和受保护的 Unix Listener，newApp 只装配原生 Kratos App。Run 拥有并等待 Watch，HTTP 的启动、停止和超时强制关闭复用锁定版本的 Kratos，不增加第二套信号或关闭管理器。Handler 接收组件 Logger，不修改全局 slog。具体顺序、启动约束和验证范围见[运行入口与退出](../design/ai-model-operations-and-deployment.md#运行入口与退出已通过-review)。此前缺少进程入口的描述属于历史切片范围。

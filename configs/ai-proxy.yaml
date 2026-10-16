@@ -13,3 +13,8 @@ api_server:
   ai_config_namespace: control-plane
 envoy:
   egress_socket: /run/ingate/egress.sock
+# 仅启动时读取；省略整个 log 配置也使用以下默认值。
+log:
+  level: info
+  format: json
+  outputs: [stdout]

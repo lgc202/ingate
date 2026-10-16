@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/lgc202/ingate/internal/aiproxy/conf"
+	logconfig "github.com/lgc202/ingate/internal/pkg/log"
 )
 
 // loadConfig 只读取、解码和校验启动配置，不创建客户端、监听 socket 或启动 Watch。
@@ -66,4 +67,25 @@ func validateStartupConfig(config *conf.Bootstrap) error {
 	}
 
 	return nil
+}
+
+func logConfig(config *conf.Log) logconfig.Config {
+	var outputs []logconfig.Output
+	for _, output := range config.GetOutputs() {
+		outputs = append(outputs, logconfig.Output(output))
+	}
+
+	return logconfig.Config{
+		Level:     config.GetLevel(),
+		Format:    logconfig.Format(config.GetFormat()),
+		Outputs:   outputs,
+		AddSource: config.GetAddSource(),
+		File: logconfig.FileConfig{
+			Path:       config.GetFile().GetPath(),
+			MaxSizeMB:  int(config.GetFile().GetMaxSizeMb()),
+			MaxBackups: int(config.GetFile().GetMaxBackups()),
+			MaxAgeDays: int(config.GetFile().GetMaxAgeDays()),
+			Compress:   config.GetFile().GetCompress(),
+		},
+	}
 }

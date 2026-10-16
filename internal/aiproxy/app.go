@@ -40,7 +40,7 @@ func Run(ctx context.Context, configFile string) (runErr error) {
 		return fmt.Errorf("load AI Proxy config: %w", err)
 	}
 
-	logger, closeLog, err := logconfig.New(logconfig.Config{})
+	logger, closeLog, err := logconfig.New(logConfig(config.GetLog()))
 	if err != nil {
 		return fmt.Errorf("initialize AI Proxy log: %w", err)
 	}

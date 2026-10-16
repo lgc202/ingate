@@ -31,7 +31,9 @@ type Bootstrap struct {
 	// api_server 配置 Ingate API 连接及编译配置的读取空间。
 	ApiServer *APIServer `protobuf:"bytes,2,opt,name=api_server,json=apiServer,proto3" json:"api_server,omitempty"`
 	// envoy 配置模型请求使用的本地 Envoy 出口。
-	Envoy         *Envoy `protobuf:"bytes,3,opt,name=envoy,proto3" json:"envoy,omitempty"`
+	Envoy *Envoy `protobuf:"bytes,3,opt,name=envoy,proto3" json:"envoy,omitempty"`
+	// log 配置普通运行日志；省略时使用 info、JSON 和 stdout。
+	Log           *Log `protobuf:"bytes,4,opt,name=log,proto3" json:"log,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -87,6 +89,95 @@ func (x *Bootstrap) GetEnvoy() *Envoy {
 	return nil
 }
 
+func (x *Bootstrap) GetLog() *Log {
+	if x != nil {
+		return x.Log
+	}
+	return nil
+}
+
+// Log 配置启动时固定的原生 slog 输出，不包含请求正文或上游响应。
+type Log struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// level 省略时为 info。
+	Level string `protobuf:"bytes,1,opt,name=level,proto3" json:"level,omitempty"`
+	// format 省略时为 json。
+	Format string `protobuf:"bytes,2,opt,name=format,proto3" json:"format,omitempty"`
+	// outputs 可组合但不能重复；省略时只输出 stdout。
+	Outputs []string `protobuf:"bytes,3,rep,name=outputs,proto3" json:"outputs,omitempty"`
+	// add_source 是否在日志中附带调用位置。
+	AddSource bool `protobuf:"varint,4,opt,name=add_source,json=addSource,proto3" json:"add_source,omitempty"`
+	// file 仅在选择 file 输出时启用。
+	File          *Log_File `protobuf:"bytes,5,opt,name=file,proto3" json:"file,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Log) Reset() {
+	*x = Log{}
+	mi := &file_aiproxy_conf_conf_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Log) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Log) ProtoMessage() {}
+
+func (x *Log) ProtoReflect() protoreflect.Message {
+	mi := &file_aiproxy_conf_conf_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Log.ProtoReflect.Descriptor instead.
+func (*Log) Descriptor() ([]byte, []int) {
+	return file_aiproxy_conf_conf_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Log) GetLevel() string {
+	if x != nil {
+		return x.Level
+	}
+	return ""
+}
+
+func (x *Log) GetFormat() string {
+	if x != nil {
+		return x.Format
+	}
+	return ""
+}
+
+func (x *Log) GetOutputs() []string {
+	if x != nil {
+		return x.Outputs
+	}
+	return nil
+}
+
+func (x *Log) GetAddSource() bool {
+	if x != nil {
+		return x.AddSource
+	}
+	return false
+}
+
+func (x *Log) GetFile() *Log_File {
+	if x != nil {
+		return x.File
+	}
+	return nil
+}
+
 // Server 只配置已实现的 Unix HTTP 入口，不开放 TCP 或 gRPC 监听。
 type Server struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -102,7 +193,7 @@ type Server struct {
 
 func (x *Server) Reset() {
 	*x = Server{}
-	mi := &file_aiproxy_conf_conf_proto_msgTypes[1]
+	mi := &file_aiproxy_conf_conf_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -114,7 +205,7 @@ func (x *Server) String() string {
 func (*Server) ProtoMessage() {}
 
 func (x *Server) ProtoReflect() protoreflect.Message {
-	mi := &file_aiproxy_conf_conf_proto_msgTypes[1]
+	mi := &file_aiproxy_conf_conf_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -127,7 +218,7 @@ func (x *Server) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Server.ProtoReflect.Descriptor instead.
 func (*Server) Descriptor() ([]byte, []int) {
-	return file_aiproxy_conf_conf_proto_rawDescGZIP(), []int{1}
+	return file_aiproxy_conf_conf_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Server) GetSocket() string {
@@ -164,7 +255,7 @@ type APIServer struct {
 
 func (x *APIServer) Reset() {
 	*x = APIServer{}
-	mi := &file_aiproxy_conf_conf_proto_msgTypes[2]
+	mi := &file_aiproxy_conf_conf_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -176,7 +267,7 @@ func (x *APIServer) String() string {
 func (*APIServer) ProtoMessage() {}
 
 func (x *APIServer) ProtoReflect() protoreflect.Message {
-	mi := &file_aiproxy_conf_conf_proto_msgTypes[2]
+	mi := &file_aiproxy_conf_conf_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -189,7 +280,7 @@ func (x *APIServer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use APIServer.ProtoReflect.Descriptor instead.
 func (*APIServer) Descriptor() ([]byte, []int) {
-	return file_aiproxy_conf_conf_proto_rawDescGZIP(), []int{2}
+	return file_aiproxy_conf_conf_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *APIServer) GetKubeconfig() string {
@@ -217,7 +308,7 @@ type Envoy struct {
 
 func (x *Envoy) Reset() {
 	*x = Envoy{}
-	mi := &file_aiproxy_conf_conf_proto_msgTypes[3]
+	mi := &file_aiproxy_conf_conf_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -229,7 +320,7 @@ func (x *Envoy) String() string {
 func (*Envoy) ProtoMessage() {}
 
 func (x *Envoy) ProtoReflect() protoreflect.Message {
-	mi := &file_aiproxy_conf_conf_proto_msgTypes[3]
+	mi := &file_aiproxy_conf_conf_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -242,7 +333,7 @@ func (x *Envoy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Envoy.ProtoReflect.Descriptor instead.
 func (*Envoy) Descriptor() ([]byte, []int) {
-	return file_aiproxy_conf_conf_proto_rawDescGZIP(), []int{3}
+	return file_aiproxy_conf_conf_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Envoy) GetEgressSocket() string {
@@ -252,16 +343,115 @@ func (x *Envoy) GetEgressSocket() string {
 	return ""
 }
 
+// File 配置一个进程独占的轮转文件，路径相对进程工作目录解析。
+type Log_File struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// path 在选择 file 输出时必须非空。
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// max_size_mb 为 0 时沿用 lumberjack 的 100 MiB 默认值。
+	MaxSizeMb int32 `protobuf:"varint,2,opt,name=max_size_mb,json=maxSizeMb,proto3" json:"max_size_mb,omitempty"`
+	// max_backups 为 0 时不按数量清理备份。
+	MaxBackups int32 `protobuf:"varint,3,opt,name=max_backups,json=maxBackups,proto3" json:"max_backups,omitempty"`
+	// max_age_days 为 0 时不按天数清理备份。
+	MaxAgeDays int32 `protobuf:"varint,4,opt,name=max_age_days,json=maxAgeDays,proto3" json:"max_age_days,omitempty"`
+	// compress 是否使用 gzip 压缩备份。
+	Compress      bool `protobuf:"varint,5,opt,name=compress,proto3" json:"compress,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Log_File) Reset() {
+	*x = Log_File{}
+	mi := &file_aiproxy_conf_conf_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Log_File) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Log_File) ProtoMessage() {}
+
+func (x *Log_File) ProtoReflect() protoreflect.Message {
+	mi := &file_aiproxy_conf_conf_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Log_File.ProtoReflect.Descriptor instead.
+func (*Log_File) Descriptor() ([]byte, []int) {
+	return file_aiproxy_conf_conf_proto_rawDescGZIP(), []int{1, 0}
+}
+
+func (x *Log_File) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *Log_File) GetMaxSizeMb() int32 {
+	if x != nil {
+		return x.MaxSizeMb
+	}
+	return 0
+}
+
+func (x *Log_File) GetMaxBackups() int32 {
+	if x != nil {
+		return x.MaxBackups
+	}
+	return 0
+}
+
+func (x *Log_File) GetMaxAgeDays() int32 {
+	if x != nil {
+		return x.MaxAgeDays
+	}
+	return 0
+}
+
+func (x *Log_File) GetCompress() bool {
+	if x != nil {
+		return x.Compress
+	}
+	return false
+}
+
 var File_aiproxy_conf_conf_proto protoreflect.FileDescriptor
 
 const file_aiproxy_conf_conf_proto_rawDesc = "" +
 	"\n" +
-	"\x17aiproxy/conf/conf.proto\x12\faiproxy.conf\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\"\xb4\x01\n" +
+	"\x17aiproxy/conf/conf.proto\x12\faiproxy.conf\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\"\xd9\x01\n" +
 	"\tBootstrap\x124\n" +
 	"\x06server\x18\x01 \x01(\v2\x14.aiproxy.conf.ServerB\x06\xbaH\x03\xc8\x01\x01R\x06server\x12>\n" +
 	"\n" +
 	"api_server\x18\x02 \x01(\v2\x17.aiproxy.conf.APIServerB\x06\xbaH\x03\xc8\x01\x01R\tapiServer\x121\n" +
-	"\x05envoy\x18\x03 \x01(\v2\x13.aiproxy.conf.EnvoyB\x06\xbaH\x03\xc8\x01\x01R\x05envoy\"\xba\x01\n" +
+	"\x05envoy\x18\x03 \x01(\v2\x13.aiproxy.conf.EnvoyB\x06\xbaH\x03\xc8\x01\x01R\x05envoy\x12#\n" +
+	"\x03log\x18\x04 \x01(\v2\x11.aiproxy.conf.LogR\x03log\"\xb7\x04\n" +
+	"\x03Log\x127\n" +
+	"\x05level\x18\x01 \x01(\tB!\xbaH\x1er\x1cR\x00R\x05debugR\x04infoR\x04warnR\x05errorR\x05level\x12+\n" +
+	"\x06format\x18\x02 \x01(\tB\x13\xbaH\x10r\x0eR\x00R\x04jsonR\x04textR\x06format\x12<\n" +
+	"\aoutputs\x18\x03 \x03(\tB\"\xbaH\x1f\x92\x01\x1c\x18\x01\"\x18r\x16R\x06stdoutR\x06stderrR\x04fileR\aoutputs\x12\x1d\n" +
+	"\n" +
+	"add_source\x18\x04 \x01(\bR\taddSource\x12*\n" +
+	"\x04file\x18\x05 \x01(\v2\x16.aiproxy.conf.Log.FileR\x04file\x1a\xb4\x01\n" +
+	"\x04File\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12'\n" +
+	"\vmax_size_mb\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\tmaxSizeMb\x12(\n" +
+	"\vmax_backups\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\n" +
+	"maxBackups\x12)\n" +
+	"\fmax_age_days\x18\x04 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\n" +
+	"maxAgeDays\x12\x1a\n" +
+	"\bcompress\x18\x05 \x01(\bR\bcompress:\x89\x01\xbaH\x85\x01\x1a\x82\x01\n" +
+	"\rlog.file_path\x12*file output requires a non-empty file path\x1aE!('file' in this.outputs) || (has(this.file) && this.file.path != '')\"\xba\x01\n" +
 	"\x06Server\x12\x1f\n" +
 	"\x06socket\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06socket\x12<\n" +
 	"\x16max_request_body_bytes\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x13maxRequestBodyBytes\x12Q\n" +
@@ -286,24 +476,28 @@ func file_aiproxy_conf_conf_proto_rawDescGZIP() []byte {
 	return file_aiproxy_conf_conf_proto_rawDescData
 }
 
-var file_aiproxy_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_aiproxy_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_aiproxy_conf_conf_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: aiproxy.conf.Bootstrap
-	(*Server)(nil),              // 1: aiproxy.conf.Server
-	(*APIServer)(nil),           // 2: aiproxy.conf.APIServer
-	(*Envoy)(nil),               // 3: aiproxy.conf.Envoy
-	(*durationpb.Duration)(nil), // 4: google.protobuf.Duration
+	(*Log)(nil),                 // 1: aiproxy.conf.Log
+	(*Server)(nil),              // 2: aiproxy.conf.Server
+	(*APIServer)(nil),           // 3: aiproxy.conf.APIServer
+	(*Envoy)(nil),               // 4: aiproxy.conf.Envoy
+	(*Log_File)(nil),            // 5: aiproxy.conf.Log.File
+	(*durationpb.Duration)(nil), // 6: google.protobuf.Duration
 }
 var file_aiproxy_conf_conf_proto_depIdxs = []int32{
-	1, // 0: aiproxy.conf.Bootstrap.server:type_name -> aiproxy.conf.Server
-	2, // 1: aiproxy.conf.Bootstrap.api_server:type_name -> aiproxy.conf.APIServer
-	3, // 2: aiproxy.conf.Bootstrap.envoy:type_name -> aiproxy.conf.Envoy
-	4, // 3: aiproxy.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	2, // 0: aiproxy.conf.Bootstrap.server:type_name -> aiproxy.conf.Server
+	3, // 1: aiproxy.conf.Bootstrap.api_server:type_name -> aiproxy.conf.APIServer
+	4, // 2: aiproxy.conf.Bootstrap.envoy:type_name -> aiproxy.conf.Envoy
+	1, // 3: aiproxy.conf.Bootstrap.log:type_name -> aiproxy.conf.Log
+	5, // 4: aiproxy.conf.Log.file:type_name -> aiproxy.conf.Log.File
+	6, // 5: aiproxy.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_aiproxy_conf_conf_proto_init() }
@@ -317,7 +511,7 @@ func file_aiproxy_conf_conf_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_aiproxy_conf_conf_proto_rawDesc), len(file_aiproxy_conf_conf_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

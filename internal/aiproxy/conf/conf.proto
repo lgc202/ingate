@@ -15,6 +15,45 @@ message Bootstrap {
   APIServer api_server = 2 [(buf.validate.field).required = true];
   // envoy 配置模型请求使用的本地 Envoy 出口。
   Envoy envoy = 3 [(buf.validate.field).required = true];
+  // log 配置普通运行日志；省略时使用 info、JSON 和 stdout。
+  Log log = 4;
+}
+
+// Log 配置启动时固定的原生 slog 输出，不包含请求正文或上游响应。
+message Log {
+  option (buf.validate.message).cel = {
+    id: "log.file_path"
+    message: "file output requires a non-empty file path"
+    expression: "!('file' in this.outputs) || (has(this.file) && this.file.path != '')"
+  };
+
+  // File 配置一个进程独占的轮转文件，路径相对进程工作目录解析。
+  message File {
+    // path 在选择 file 输出时必须非空。
+    string path = 1;
+    // max_size_mb 为 0 时沿用 lumberjack 的 100 MiB 默认值。
+    int32 max_size_mb = 2 [(buf.validate.field).int32.gte = 0];
+    // max_backups 为 0 时不按数量清理备份。
+    int32 max_backups = 3 [(buf.validate.field).int32.gte = 0];
+    // max_age_days 为 0 时不按天数清理备份。
+    int32 max_age_days = 4 [(buf.validate.field).int32.gte = 0];
+    // compress 是否使用 gzip 压缩备份。
+    bool compress = 5;
+  }
+
+  // level 省略时为 info。
+  string level = 1 [(buf.validate.field).string = {in: ["", "debug", "info", "warn", "error"]}];
+  // format 省略时为 json。
+  string format = 2 [(buf.validate.field).string = {in: ["", "json", "text"]}];
+  // outputs 可组合但不能重复；省略时只输出 stdout。
+  repeated string outputs = 3 [(buf.validate.field).repeated = {
+    unique: true
+    items: {string: {in: ["stdout", "stderr", "file"]}}
+  }];
+  // add_source 是否在日志中附带调用位置。
+  bool add_source = 4;
+  // file 仅在选择 file 输出时启用。
+  File file = 5;
 }
 
 // Server 只配置已实现的 Unix HTTP 入口，不开放 TCP 或 gRPC 监听。

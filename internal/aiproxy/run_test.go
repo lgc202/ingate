@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -144,6 +145,25 @@ func TestRunRejectsClientConfigBeforeBinding(t *testing.T) {
 
 	if _, err := os.Stat(socket); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("Run(missing kubeconfig) socket path error = %v, want no bound socket", err)
+	}
+}
+
+func TestRunRejectsLogFileBeforeCreatingAPIClient(t *testing.T) {
+	directory := t.TempDir()
+	socket := filepath.Join(directory, "ingress.sock")
+	data := strings.ReplaceAll(validStartupYAML, "/run/ingate/ingress.sock", socket)
+	data = strings.ReplaceAll(data, "/etc/ingate/ai-proxy.kubeconfig", filepath.Join(directory, "missing.kubeconfig"))
+	data += fmt.Sprintf("log:\n  outputs: [file]\n  file:\n    path: %q\n", directory)
+	configFile := writeStartupConfig(t, data)
+
+	err := Run(t.Context(), configFile)
+
+	if err == nil || !strings.Contains(err.Error(), "initialize AI Proxy log") {
+		t.Fatalf("Run(directory as log file) error = %v, want log initialization failure before missing kubeconfig", err)
+	}
+
+	if _, err := os.Stat(socket); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("Run(invalid log file) socket error = %v, want no bound socket", err)
 	}
 }
 
