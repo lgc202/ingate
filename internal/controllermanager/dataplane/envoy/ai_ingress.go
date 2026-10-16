@@ -18,7 +18,7 @@ import (
 
 const aiIngressName = "ai/ingress"
 
-type modelEntryKey struct {
+type entryKey struct {
 	routeName string
 	hostName  string
 }
@@ -44,18 +44,26 @@ func newAIIngressCluster(socket string) (*clusterv3.Cluster, error) {
 	return cluster, nil
 }
 
-func newAIIngressRoute(port int32, hostName, operationPath string) *routev3.Route {
+// newAIIngressRoute 为模型或 MCP 生成转到 Go 的精确路径路由。
+// MCP 接管所有方法，由 Go 返回非 POST 的 405；模型只注册已实现的 POST 操作。
+func newAIIngressRoute(port int32, hostName, entryPath, protocol string) *routev3.Route {
+	match := &routev3.RouteMatch{PathSpecifier: &routev3.RouteMatch_Path{Path: entryPath}}
+	if protocol == "model" {
+		match.Headers = []*routev3.HeaderMatcher{exactAIHeader(":method", "POST")}
+	}
+
 	return &routev3.Route{
-		Name: aiIngressName + "/" + hostName + operationPath,
-		Match: &routev3.RouteMatch{
-			PathSpecifier: &routev3.RouteMatch_Path{Path: operationPath},
-			Headers:       []*routev3.HeaderMatcher{exactAIHeader(":method", "POST")},
-		},
+		Name:  aiIngressName + "/" + hostName + entryPath,
+		Match: match,
 		Action: &routev3.Route_Route{Route: &routev3.RouteAction{
 			ClusterSpecifier: &routev3.RouteAction_Cluster{Cluster: aiIngressName},
 			Timeout:          durationpb.New(0),
 		}},
 		RequestHeadersToAdd: []*corev3.HeaderValueOption{
+			{
+				Header:       &corev3.HeaderValue{Key: aidataplane.EntryProtocolHeader, Value: protocol},
+				AppendAction: corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD,
+			},
 			{
 				Header:       &corev3.HeaderValue{Key: aidataplane.ListenerPortHeader, Value: strconv.Itoa(int(port))},
 				AppendAction: corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD,
@@ -69,21 +77,20 @@ func newAIIngressRoute(port int32, hostName, operationPath string) *routev3.Rout
 	}
 }
 
-// mergeAIIngress 按 Listener/Host 合入模型入口。POST 精确匹配排在普通 HTTPRoute
-// 之前，其他请求保持原匹配顺序；只有 MCPRoute 的 Host 不会增加模型入口。
-// HTTP 与 AI 视图独立到达，尚未出现的公共 Host 不凭 AI 配置单独开放。
-// 不修改传入 proto，防止更新污染已发布的 Snapshot 或积累重复路由。
+// mergeAIIngress 按 Listener/Host 合入模型与 MCP 入口。AI 入口排在普通 HTTPRoute
+// 之前，其他请求保持原匹配顺序；HTTP 与 AI 视图独立到达，尚未出现的公共 Host
+// 不凭 AI 配置单独开放。不修改传入 proto，防止更新污染已发布的 Snapshot 或积累重复路由。
 func mergeAIIngress(
 	routes []*routev3.RouteConfiguration,
-	models map[modelEntryKey][]*routev3.Route,
+	entries map[entryKey][]*routev3.Route,
 ) []*routev3.RouteConfiguration {
 	merged := make([]*routev3.RouteConfiguration, 0, len(routes))
 	for _, config := range routes {
 		clone := proto.Clone(config).(*routev3.RouteConfiguration)
 		for _, host := range clone.VirtualHosts {
-			key := modelEntryKey{routeName: config.Name, hostName: host.Name}
-			if entries := models[key]; len(entries) != 0 {
-				host.Routes = slices.Concat(entries, host.Routes)
+			key := entryKey{routeName: config.Name, hostName: host.Name}
+			if matched := entries[key]; len(matched) != 0 {
+				host.Routes = slices.Concat(matched, host.Routes)
 			}
 		}
 

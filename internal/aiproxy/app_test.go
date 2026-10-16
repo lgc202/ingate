@@ -115,7 +115,8 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 			{name: "oversized body", path: "/v1/chat/completions", body: strings.Repeat("x", 1025), trusted: true, wantStatus: http.StatusRequestEntityTooLarge, wantCode: "MODEL_REQUEST_TOO_LARGE"},
 			{name: "invalid JSON", path: "/v1/chat/completions", body: `{"model":`, trusted: true, wantStatus: http.StatusBadRequest, wantCode: "MODEL_INVALID_ARGUMENT"},
 			{name: "unimplemented operation", path: "/v1/responses/resp_1", body: `{}`, trusted: true, wantStatus: http.StatusNotFound},
-			{name: "global diagnostic mux", path: "/unintended-debug/", body: `{}`, wantStatus: http.StatusNotFound},
+			// 路径与全局诊断 mux 的注册项相同，仍须由 MCP 入口拒绝而不是回退到诊断 handler。
+			{name: "global diagnostic mux", path: "/unintended-debug/", body: `{}`, trusted: true, wantStatus: http.StatusNotFound},
 		} {
 			request := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
 			request.Header.Set("x-ai-eg-model", "coding")

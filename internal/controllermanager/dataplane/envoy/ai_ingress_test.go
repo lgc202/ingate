@@ -64,8 +64,8 @@ func TestAIIngressSharesHTTPListener(t *testing.T) {
 			}
 
 			host := routes.VirtualHosts[0]
-			if len(host.Routes) != 5 || len(routes.VirtualHosts[1].Routes) != 0 {
-				t.Fatalf("Publish(%s) host route counts = %d/%d, want 5/0 without cross-host entry", order, len(host.Routes), len(routes.VirtualHosts[1].Routes))
+			if len(host.Routes) != 6 || len(routes.VirtualHosts[1].Routes) != 0 {
+				t.Fatalf("Publish(%s) host route counts = %d/%d, want 6/0 without cross-host entry", order, len(host.Routes), len(routes.VirtualHosts[1].Routes))
 			}
 
 			for i, operationPath := range []string{"/v1/chat/completions", "/v1/responses"} {
@@ -78,9 +78,9 @@ func TestAIIngressSharesHTTPListener(t *testing.T) {
 					t.Errorf("model entry(%s) action = %v, want fixed Go cluster without total timeout or retries", operationPath, entry.GetRoute())
 				}
 
-				wantHeaders := map[string]string{aidataplane.ListenerPortHeader: "8080", aidataplane.HostNameHeader: hostName}
+				wantHeaders := map[string]string{aidataplane.ListenerPortHeader: "8080", aidataplane.HostNameHeader: hostName, aidataplane.EntryProtocolHeader: "model"}
 				if len(entry.RequestHeadersToAdd) != len(wantHeaders) {
-					t.Fatalf("model entry(%s) headers = %v, want exactly port and host", operationPath, entry.RequestHeadersToAdd)
+					t.Fatalf("model entry(%s) headers = %v, want exactly protocol, port and host", operationPath, entry.RequestHeadersToAdd)
 				}
 
 				for _, header := range entry.RequestHeadersToAdd {
@@ -95,7 +95,20 @@ func TestAIIngressSharesHTTPListener(t *testing.T) {
 				}
 			}
 
-			if host.Routes[2].Name != "ordinary exact" || host.Routes[3].Name != "ordinary Responses" || host.Routes[4].Name != "ordinary prefix" {
+			mcpEntry := host.Routes[2]
+			if mcpEntry.Match.GetPath() != "/mcp" || len(mcpEntry.Match.Headers) != 0 {
+				t.Errorf("MCP entry match = %v, want exact /mcp without a method restriction", mcpEntry.Match)
+			}
+
+			if mcpEntry.GetRoute().GetCluster() != aiIngressName || mcpEntry.GetRoute().Timeout == nil || mcpEntry.GetRoute().Timeout.AsDuration() != 0 {
+				t.Errorf("MCP entry action = %v, want fixed Go cluster without total timeout", mcpEntry.GetRoute())
+			}
+
+			if !slices.Equal(mcpEntry.RequestHeadersToRemove, []string{aidataplane.TargetHeader}) {
+				t.Errorf("MCP entry removed headers = %v, want client target removed", mcpEntry.RequestHeadersToRemove)
+			}
+
+			if host.Routes[3].Name != "ordinary exact" || host.Routes[4].Name != "ordinary Responses" || host.Routes[5].Name != "ordinary prefix" {
 				t.Errorf("model entry changed ordinary route order: %v", host.Routes)
 			}
 
@@ -132,7 +145,7 @@ func TestAIIngressSharesHTTPListener(t *testing.T) {
 			}
 
 			ordinary := revoked.GetResources(resourcev3.RouteType)[routeName(8080)].(*routev3.RouteConfiguration)
-			if len(ordinary.VirtualHosts[0].Routes) != 3 || ordinary.VirtualHosts[0].Routes[0].Name != "ordinary exact" || len(revoked.GetResources(resourcev3.ClusterType)) != 0 {
+			if len(ordinary.VirtualHosts[0].Routes) != 4 || ordinary.VirtualHosts[0].Routes[0].Match.GetPath() != "/mcp" || len(revoked.GetResources(resourcev3.ClusterType)) != 2 {
 				t.Errorf("PublishAI(MCP only) retained model ingress or lost HTTP routes: %v", ordinary)
 			}
 
@@ -153,5 +166,60 @@ func TestAIIngressRequiresDedicatedAbsoluteSocket(t *testing.T) {
 				t.Errorf("buildAIResources(ingress %q) error = nil, want invalid or shared path rejected", socket)
 			}
 		})
+	}
+}
+
+func TestBuildAIResourcesDeduplicatesMCPEntryPaths(t *testing.T) {
+	config := aiFixture(t)
+	host := &config.Listeners[0].Hosts[0]
+	second := host.MCPRoutes[0]
+	second.Name = "team-a/tools-other"
+	host.MCPRoutes = append(host.MCPRoutes, second)
+
+	resources, err := buildAIResources(config, "/run/ingate/ingress.sock", "/run/ingate/egress.sock")
+	if err != nil {
+		t.Fatalf("buildAIResources(duplicate MCP paths) error = %v", err)
+	}
+
+	key := entryKey{routeName: routeName(8080), hostName: host.Name}
+	count := 0
+	for _, route := range resources.ingressRoutes[key] {
+		if route.Match.GetPath() == "/mcp" {
+			count++
+		}
+	}
+
+	if count != 1 {
+		t.Errorf("buildAIResources(duplicate MCP paths) MCP entries = %d, want one route for the shared exact path", count)
+	}
+}
+
+func TestPublishAIRejectsOverlappingModelMCPEntries(t *testing.T) {
+	publisher := NewPublisher("/run/ingate/ingress.sock", "/run/ingate/egress.sock")
+	config := aiFixture(t)
+	if err := publisher.PublishAI(t.Context(), config); err != nil {
+		t.Fatal(err)
+	}
+
+	previous, err := publisher.cache.GetSnapshot(sharedDataPlaneCluster)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	config.Listeners[0].Hosts[0].MCPRoutes[0].Path = aidataplane.ModelResponsesPath
+
+	err = publisher.PublishAI(t.Context(), config)
+	if err == nil {
+		t.Fatal("overlapping model/MCP entries published")
+	}
+
+	current, err := publisher.cache.GetSnapshot(sharedDataPlaneCluster)
+	if err != nil || current != previous {
+		t.Fatal("invalid overlap replaced previous snapshot")
+	}
+
+	config.Listeners[0].Hosts[0].ModelRoutes = []aidataplane.ModelRoute{}
+	if err := publisher.PublishAI(t.Context(), config); err != nil {
+		t.Fatalf("MCP-only model path rejected: %v", err)
 	}
 }

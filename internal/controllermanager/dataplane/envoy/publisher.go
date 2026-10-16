@@ -76,7 +76,7 @@ func (p *Publisher) PublishAI(ctx context.Context, config aidataplane.Config) er
 func (p *Publisher) publish(ctx context.Context, httpResources, aiResources resourceSet) error {
 	resources := resourceSet{
 		listeners: append(slices.Clone(httpResources.listeners), aiResources.listeners...),
-		routes:    append(mergeAIIngress(httpResources.routes, aiResources.modelRoutes), aiResources.routes...),
+		routes:    append(mergeAIIngress(httpResources.routes, aiResources.ingressRoutes), aiResources.routes...),
 		clusters:  append(slices.Clone(httpResources.clusters), aiResources.clusters...),
 		endpoints: append(slices.Clone(httpResources.endpoints), aiResources.endpoints...),
 	}

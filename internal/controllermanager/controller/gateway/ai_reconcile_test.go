@@ -293,6 +293,30 @@ func TestReconcileReturnsBothOutputErrors(t *testing.T) {
 	}
 }
 
+func TestReconcileKeepsAIConfigurationAfterMCPModelConflict(t *testing.T) {
+	snapshot := aiResourceSnapshot()
+	snapshot.mcpRoutes.Items[0].Spec.Path = new(aidataplane.ModelResponsesPath)
+	previous := managedAIConfigMap(string(aiConfigPayload(t, resources{})))
+	apiClient := aiResourceClient(t, snapshot, &previous)
+	writes := forbiddenAIConfigWrites(t, apiClient)
+	var httpCalls, aiCalls int
+	publisher := aiPublisherStub{
+		publisherFunc: func(context.Context, dataplane.Config) error { httpCalls++; return nil },
+		publishAI:     func(context.Context, aidataplane.Config) error { aiCalls++; return nil },
+	}
+	reconciler := New(writes, apiClient, publisher, "control-plane")
+
+	_, err := reconciler.Reconcile(t.Context(), sharedRequest())
+
+	if err == nil || httpCalls != 1 || aiCalls != 0 {
+		t.Fatalf("Reconcile(conflict)=%v, HTTP/AI calls=%d/%d", err, httpCalls, aiCalls)
+	}
+
+	if diff := cmp.Diff(previous, storedAIConfigMap(t, apiClient)); diff != "" {
+		t.Errorf("conflict replaced valid configuration (-want +got):\n%s", diff)
+	}
+}
+
 func aiResourceClient(t *testing.T, snapshot resources, additional ...client.Object) client.WithWatch {
 	t.Helper()
 

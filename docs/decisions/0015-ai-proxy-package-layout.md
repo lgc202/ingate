@@ -22,12 +22,14 @@ internal/
 │   ├── server/               # 原生 HTTP 构造、Unix 入口 Header 适配、路由与 ErrorEncoder
 │   ├── handler/              # 可信入口读取、协议错误和响应流写回
 │   ├── service/
+│   │   ├── mcpproxy/         # 单 Backend MCP 选路、信封校验及 Envoy HTTP 调用
 │   │   └── modelproxy/       # 解析、选路、适配及 Envoy HTTP 调用
 │   └── pkg/
 │       ├── aiconfig/          # ConfigMap 加载、只读配置发布与查询
 │       ├── apischema/
 │       │   └── openai/       # 当前实际使用的 OpenAI 协议字段
 │       ├── endpointspec/     # 客户端操作的请求解析与校验
+│       ├── mcpprotocol/      # 现代 MCP 信封及标准镜像 Header 校验
 │       ├── envoyclient/      # 固定 Envoy UDS 的原生 HTTP Client 构造
 │       └── translator/       # 当前 OpenAI 到 OpenAI 的模型覆盖
 └── pkg/
@@ -157,3 +159,11 @@ GoCanon MCP 快照仍为 `6f63ad2a7eb341a15ab99453619a907422bcdc7a`、clean；
 本轮重新查询 GoCanon MCP，来源 `/Users/lgc202/workspace/source/lgc202/gocanon`，revision `08260b72394a104ebe8286088eb23383cd6a6235`、版本 `08260b7-dirty`；沿用已完整读取且来源未变的开发入口和相关规范，草案不等同于稳定约束。已审查全部手写文件和删除路径，迁移包逐文件比对确认除夹具路径外内容一致；新拆分逻辑逐函数检查职责、命名、错误保留与反例断言，再独立复查 GO-FUNC-012/013/014 的声明顺序、签名、换行及语义空行。
 
 `gofmt -l cmd internal pkg`、`git diff --check` 和全部未跟踪文件的空白检查无诊断；`golangci-lint run ./...` 为 0 issues，`go vet ./...`、`go test ./... -count=1`、`go build ./...` 与 `go test -race ./internal/aiproxy/... -count=10` 均通过。没有变更声明式 API、存储契约、依赖或生成源，未执行 API integration 或重新生成；真实组件验证及性能验证未执行。本轮实现已通过用户 review 并获准本地提交；下一步继续独立的 HTTP 入口切片。
+
+## MCP 请求链（2026-10-16）
+
+首版单 Backend 远程 MCP 透明代理复用既有分层，新增 service/mcpproxy 和 pkg/mcpprotocol，
+Handler 负责有界读取、Origin、方法及错误响应，Service 捕获一次配置、选择路径并调用固定 Envoy 出口。
+模型与 MCP 共用入口 Context 和上游流写回，不新建总业务容器、协议框架或会话存储。
+现代协议边界、官方源码评估与本地验证范围见
+[首版 MCP](../design/ai-model-operations-and-deployment.md#首版-mcpstreamable-http2026-07-28)。

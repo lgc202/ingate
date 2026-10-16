@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -606,6 +607,32 @@ func TestCompileAIPathError(t *testing.T) {
 }
 
 // aiResourceSnapshot 对应共享契约 golden 的领域输入，不引入独立示例业务。
+
+func TestCompileAIMCPModelPathConflicts(t *testing.T) {
+	for _, entryPath := range []string{aidataplane.ModelChatCompletionsPath, aidataplane.ModelResponsesPath} {
+		t.Run(entryPath, func(t *testing.T) {
+			snapshot := aiResourceSnapshot()
+			snapshot.mcpRoutes.Items[0].Spec.Path = new(entryPath)
+
+			_, err := compileAI(snapshot)
+
+			if err == nil || !strings.Contains(err.Error(), "conflicts with model operations") {
+				t.Fatalf("compileAI(overlapping entries)=%v, want diagnostic", err)
+			}
+
+			snapshot.modelRoutes.Items = nil
+			config, err := compileAI(snapshot)
+			if err != nil {
+				t.Fatalf("compileAI(MCP-only fixed path)=%v", err)
+			}
+
+			if config.Listeners[0].Hosts[0].MCPRoutes[0].Path != entryPath {
+				t.Fatal("MCP-only entry changed path")
+			}
+		})
+	}
+}
+
 func aiResourceSnapshot() resources {
 	gw := gatewayResource("public", 1, listener("api", 8080, "gateway.example.com"))
 	gw.Namespace = "team-a"

@@ -28,13 +28,18 @@ func TestBuildAIResources(t *testing.T) {
 		t.Fatalf("ModelTargetName(golden) error = %v", err)
 	}
 
+	mcpTarget, err := aidataplane.MCPTargetName(config.NetworkBackends[1])
+	if err != nil {
+		t.Fatalf("MCPTargetName(golden) error = %v", err)
+	}
+
 	resources, err := buildAIResources(config, "/run/ingate/ingress.sock", "/run/ingate/egress.sock")
 	if err != nil {
 		t.Fatalf("buildAIResources(golden) error = %v", err)
 	}
 
-	if len(resources.listeners) != 1 || len(resources.routes) != 1 || len(resources.clusters) != 2 || len(resources.endpoints) != 0 {
-		t.Fatalf("buildAIResources(golden) counts = %d/%d/%d/%d, want one egress listener, route, ingress and DNS clusters without MCP", len(resources.listeners), len(resources.routes), len(resources.clusters), len(resources.endpoints))
+	if len(resources.listeners) != 1 || len(resources.routes) != 1 || len(resources.clusters) != 3 || len(resources.endpoints) != 0 {
+		t.Fatalf("buildAIResources(golden) counts = %d/%d/%d/%d, want one egress listener and route with ingress, model and MCP DNS clusters", len(resources.listeners), len(resources.routes), len(resources.clusters), len(resources.endpoints))
 	}
 
 	pipe := resources.listeners[0].Address.GetPipe()
@@ -43,8 +48,8 @@ func TestBuildAIResources(t *testing.T) {
 	}
 
 	routes := resources.routes[0].VirtualHosts[0].Routes
-	if len(routes) != 2 {
-		t.Fatalf("buildAIResources() route count = %d, want exact target and rejection", len(routes))
+	if len(routes) != 3 {
+		t.Fatalf("buildAIResources() route count = %d, want model, MCP and rejection", len(routes))
 	}
 
 	selected := routes[0]
@@ -69,8 +74,17 @@ func TestBuildAIResources(t *testing.T) {
 		t.Errorf("buildAIResources() header removal = %v, want private target removed before upstream", selected.RequestHeadersToRemove)
 	}
 
-	if routes[1].GetDirectResponse().GetStatus() != 503 || routes[1].GetRoute() != nil {
-		t.Errorf("buildAIResources() fallback = %v, want direct 503 without another backend", routes[1])
+	mcp := routes[1]
+	if len(mcp.Match.Headers) != 2 || mcp.Match.Headers[0].GetStringMatch().GetExact() != mcpTarget || mcp.Match.Headers[1].GetStringMatch().GetExact() != "POST" {
+		t.Errorf("buildAIResources() MCP match = %v, want the target header and POST", mcp.Match.Headers)
+	}
+
+	if mcp.GetRoute().GetCluster() != clusterName(mcpTarget) || !mcp.GetRoute().GetAutoHostRewrite().GetValue() {
+		t.Errorf("buildAIResources() MCP action = %v, want static MCP cluster and endpoint Host rewrite", mcp.GetRoute())
+	}
+
+	if routes[2].GetDirectResponse().GetStatus() != 503 || routes[2].GetRoute() != nil {
+		t.Errorf("buildAIResources() fallback = %v, want direct 503 without another backend", routes[2])
 	}
 
 	cluster := resources.clusters[1]
@@ -81,6 +95,12 @@ func TestBuildAIResources(t *testing.T) {
 	endpoint := cluster.LoadAssignment.Endpoints[0].LbEndpoints[0].GetEndpoint()
 	if endpoint.Hostname != "model.internal.example:8081" {
 		t.Errorf("buildAIResources() endpoint Host = %q, want backend authority", endpoint.Hostname)
+	}
+
+	mcpCluster := resources.clusters[2]
+	mcpEndpoint := mcpCluster.LoadAssignment.Endpoints[0].LbEndpoints[0].GetEndpoint()
+	if mcpCluster.GetType() != clusterv3.Cluster_STRICT_DNS || mcpEndpoint.Hostname != "tools.internal.example:8082" {
+		t.Errorf("buildAIResources() MCP cluster = %v/%q, want the tools backend authority", mcpCluster.GetType(), mcpEndpoint.Hostname)
 	}
 
 	if config.NetworkBackends[0].Endpoints[0] != before {
@@ -95,10 +115,11 @@ func TestBuildAIResourcesRejectsAndRevokes(t *testing.T) {
 	}
 
 	config.Listeners[0].Hosts[0].ModelRoutes[0].BackendName = new("")
+	config.Listeners[0].Hosts[0].MCPRoutes[0].BackendName = new("")
 
 	resources, err := buildAIResources(config, "/run/ingate/ingress.sock", "")
-	if err != nil || len(resources.listeners) != 0 || len(resources.clusters) != 1 || len(resources.modelRoutes) != 1 {
-		t.Errorf("buildAIResources(no usable model) = (%+v, %v), want Go ingress retained without an outlet", resources, err)
+	if err != nil || len(resources.listeners) != 0 || len(resources.clusters) != 1 || len(resources.ingressRoutes) != 1 {
+		t.Errorf("buildAIResources(no usable target) = (%+v, %v), want Go ingress retained without an outlet", resources, err)
 	}
 
 	config = aiFixture(t)
@@ -136,7 +157,7 @@ func TestPublishAIAndHTTPPreserveEachOther(t *testing.T) {
 		t.Fatalf("GetSnapshot(combined) error = %v", err)
 	}
 
-	if len(combined.GetResources(resourcev3.ClusterType)) != 3 || len(combined.GetResources(resourcev3.ListenerType)) != 1 {
+	if len(combined.GetResources(resourcev3.ClusterType)) != 4 || len(combined.GetResources(resourcev3.ListenerType)) != 1 {
 		t.Fatalf("combined snapshot lost HTTP or AI: clusters=%v listeners=%v", combined.GetResources(resourcev3.ClusterType), combined.GetResources(resourcev3.ListenerType))
 	}
 
@@ -230,7 +251,7 @@ func TestPublishRetriesWatchAfterCacheInstallation(t *testing.T) {
 	}
 
 	installed, err := publisher.cache.GetSnapshot(sharedDataPlaneCluster)
-	if err != nil || len(installed.GetResources(resourcev3.ClusterType)) != 2 {
+	if err != nil || len(installed.GetResources(resourcev3.ClusterType)) != 3 {
 		t.Fatalf("SetSnapshot notification failure did not retain installed AI: snapshot=%v, error=%v", installed, err)
 	}
 
@@ -244,8 +265,8 @@ func TestPublishRetriesWatchAfterCacheInstallation(t *testing.T) {
 
 	select {
 	case response := <-responses:
-		if len(response.GetReturnedResources()) != 2 {
-			t.Errorf("retry Watch resources = %v, want the installed AI ingress and target clusters", response.GetReturnedResources())
+		if len(response.GetReturnedResources()) != 3 {
+			t.Errorf("retry Watch resources = %v, want the installed AI ingress, model and MCP clusters", response.GetReturnedResources())
 		}
 	case <-retryCtx.Done():
 		t.Fatal("Publish(retry unchanged snapshot) did not resume the pending native Watch")

@@ -32,11 +32,18 @@ func (c *aiCompilation) compileMCPRoutes(routes []gatewayv1alpha1.MCPRoute) erro
 			return fmt.Errorf("MCPRoute %q requires exactly one Backend reference", client.ObjectKeyFromObject(&route).String())
 		}
 
+		entryPath := ptr.Deref(route.Spec.Path, "/mcp")
+		for _, listener := range listeners {
+			if len(c.modelRoutes[listener]) != 0 && (entryPath == aidataplane.ModelChatCompletionsPath || entryPath == aidataplane.ModelResponsesPath) {
+				return fmt.Errorf("MCPRoute %q path %q conflicts with model operations on listener %q", client.ObjectKeyFromObject(&route).String(), entryPath, listener.listenerName)
+			}
+		}
+
 		ref := route.Spec.BackendRefs[0]
 		backendName := c.bindNetworkBackend(client.ObjectKey{Namespace: route.Namespace, Name: ref.Name})
 		compiled := aidataplane.MCPRoute{
 			Name:        path.Join(route.Namespace, route.Name),
-			Path:        ptr.Deref(route.Spec.Path, "/mcp"),
+			Path:        entryPath,
 			BackendName: new(backendName),
 			BackendPath: ptr.Deref(ref.Path, "/mcp"),
 		}

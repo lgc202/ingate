@@ -133,7 +133,7 @@ func TestModelProxyHandlerRejectsBeforeClientCall(t *testing.T) {
 				request.Header.Set("x-ingate-ai-listener-port", "8080")
 				request.Header.Set("x-ingate-ai-host", "gateway/team-a/public/listener/api")
 				if tt.trusted {
-					request = request.WithContext(WithModelEntry(t.Context(), 8080, "gateway/team-a/public/listener/api"))
+					request = request.WithContext(WithEntry(t.Context(), 8080, "gateway/team-a/public/listener/api"))
 				}
 
 				response := httptest.NewRecorder()
@@ -183,7 +183,7 @@ func TestModelProxyHandlerMiddlewarePrecedesReadAndPreservesContext(t *testing.T
 		called := false
 		transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			called = true
-			if _, ok := r.Context().Value(modelEntryKey{}).(modelEntry); !ok {
+			if _, ok := r.Context().Value(entryKey{}).(entry); !ok {
 				t.Error("ChatCompletion() lost the middleware-derived request context")
 			}
 
@@ -207,12 +207,12 @@ func TestModelProxyHandlerMiddlewarePrecedesReadAndPreservesContext(t *testing.T
 			t.Errorf("ChatCompletion(denied) status/called/reads = %d/%t/%d, want 403/false/0", response.Code, called, body.reads)
 		}
 
-		entry := func(next middleware.Handler) middleware.Handler {
+		withEntry := func(next middleware.Handler) middleware.Handler {
 			return func(ctx context.Context, request any) (any, error) {
-				return next(WithModelEntry(ctx, 8080, "gateway/team-a/public/listener/api"), request)
+				return next(WithEntry(ctx, 8080, "gateway/team-a/public/listener/api"), request)
 			}
 		}
-		router = newModelRouter(t, service, 1024, kratoshttp.Middleware(entry))
+		router = newModelRouter(t, service, 1024, kratoshttp.Middleware(withEntry))
 		response = httptest.NewRecorder()
 
 		router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"coding"}`)))
@@ -462,7 +462,7 @@ func trustedModelRequest(t *testing.T, body string) *http.Request {
 	t.Helper()
 	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
 
-	return request.WithContext(WithModelEntry(t.Context(), 8080, "gateway/team-a/public/listener/api"))
+	return request.WithContext(WithEntry(t.Context(), 8080, "gateway/team-a/public/listener/api"))
 }
 
 func modelResponse(status int, body string, headers http.Header) *http.Response {

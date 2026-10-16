@@ -1,6 +1,6 @@
 # 三类路由复用 Backend，以 AIBackend 定义模型服务访问契约
 
-- 状态：六种资源的声明、管理与投影、共享协调器及 Namespace 基础设施均已提交；本轮业务资源 Namespace 全链路切换待 review；不新增协议数据面业务
+- 状态：六种资源、Namespace 管理与投影及共享协调器均已提交；模型链已接入，MCP 现代透明代理在本轮接通，详见文末
 - 作者：Ingate 开发协作
 - 更新日期：2026-10-13
 - 讨论入口：本仓库文档 review，依据 [0010 决策](../decisions/0010-unified-ai-proxy-config-delivery.md)及用户确认的资源关系
@@ -512,3 +512,14 @@ ParentReference 出现第二个实际管理协议消费者，从 httproute.proto
 按文档任务沿用本连续任务已完整读取且本次未修改的 Generic APIServer、Controller Manager、参数校验规范；它们仍为草案，仅作为设计审查依据。继续核对 API 的校验/默认值、Spec/Status 隔离、单对象和跨对象职责，不套入 GoCanon 的参考业务。
 
 契约修订用 technical-writing 区分当前实现、官方事实和待 review 建议，按固定提交核对字段、实际调用链和示例。随后用户确认基础字段，开始上述 AIBackend 首步，按 GoCanon APIServer/validation/Go 命名函数及目标 AGENTS 审查手写代码，生成产物另核对重复生成。HTTP 子集实现与此前验证见 [0011](../decisions/0011-http-resource-contract.md)。当前切片的具体验证同步在[完成度记录](../api-gateway-readiness.md)；尚未重新验证 MCP 最新协议、真实 Envoy、提供商、凭据或实库。
+
+## MCP 首版运行边界（2026-10-16）
+
+MCPRoute 现已接入资源编译、ConfigMap/Loader、单次配置消费、受保护 UDS 与 Envoy 静态出口。
+资源保持单 Backend，path 与 backendPath 保留显式尾斜杠，不新增会话或工具配置字段。
+采用 2026-07-28 Streamable HTTP，只转发 POST；精确 MCP 路径的其他方法返回 405/Allow: POST，
+优先普通 HTTP。同一 Listener/Host 已启用模型路由且入口路径与模型固定操作完全重叠时显式编译失败，
+保留有效配置；没有模型路由的入口允许这些路径。同路径 MCP 候选沿原有排序，失效首选不回退。
+协议校验、Origin、通知/SSE、源码依据及实际验证边界见
+[模型与 MCP 部署设计](ai-model-operations-and-deployment.md#首版-mcpstreamable-http2026-07-28)。
+旧稿未实现状态属于相应历史切片，当前不包含 legacy 会话、stdio、聚合、工具执行、TLS 或凭据。

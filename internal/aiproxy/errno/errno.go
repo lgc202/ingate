@@ -9,10 +9,14 @@ import (
 )
 
 var (
-	// ErrInvalidModelEntry 表示可信入口 Header 缺失或无效。
+	// ErrInvalidModelEntry 表示模型可信入口 Header 缺失或无效。
 	ErrInvalidModelEntry = kratoserrors.BadRequest("INVALID_MODEL_ENTRY", "invalid model entry")
 	// ErrModelEntryUnavailable 表示请求 Context 中没有已验证的模型入口。
 	ErrModelEntryUnavailable = kratoserrors.ServiceUnavailable("MODEL_ENTRY_UNAVAILABLE", "model entry is unavailable")
+	// ErrInvalidMCPEntry 表示 MCP 可信入口 Header 缺失或无效。
+	ErrInvalidMCPEntry = kratoserrors.BadRequest("INVALID_MCP_ENTRY", "invalid MCP entry")
+	// ErrMCPEntryUnavailable 表示请求 Context 中没有已验证的 MCP 入口。
+	ErrMCPEntryUnavailable = kratoserrors.ServiceUnavailable("MCP_ENTRY_UNAVAILABLE", "MCP entry is unavailable")
 	// ErrModelEncodingUnsupported 表示请求正文使用了不支持的压缩编码。
 	ErrModelEncodingUnsupported = kratoserrors.New(
 		http.StatusUnsupportedMediaType,
@@ -27,18 +31,32 @@ var (
 	)
 	// ErrModelRequestReadFailed 表示模型请求正文读取失败。
 	ErrModelRequestReadFailed = kratoserrors.BadRequest("MODEL_REQUEST_READ_FAILED", "cannot read model request body")
+	// ErrMCPRequestTooLarge 表示 MCP 请求正文超过配置的字节上限。
+	ErrMCPRequestTooLarge = kratoserrors.New(
+		http.StatusRequestEntityTooLarge,
+		"MCP_REQUEST_TOO_LARGE",
+		"MCP request body is too large",
+	)
+	// ErrMCPRequestReadFailed 表示 MCP 请求正文读取失败。
+	ErrMCPRequestReadFailed = kratoserrors.BadRequest("MCP_REQUEST_READ_FAILED", "cannot read MCP request body")
 	// ErrModelInvalidArgument 表示请求不符合模型入口契约。
 	ErrModelInvalidArgument = kratoserrors.BadRequest("MODEL_INVALID_ARGUMENT", "invalid model request")
 	// ErrModelNotFound 表示当前入口没有匹配请求模型的路由。
 	ErrModelNotFound = kratoserrors.NotFound("MODEL_NOT_FOUND", "model is not available at this entry")
 	// ErrModelUnavailable 表示模型配置或选中的后端不可用。
 	ErrModelUnavailable = kratoserrors.ServiceUnavailable("MODEL_UNAVAILABLE", "model service is unavailable")
+	// ErrMCPRouteNotFound 表示当前入口没有路径完全相等的 MCP 路由。
+	ErrMCPRouteNotFound = kratoserrors.NotFound("MCP_ROUTE_NOT_FOUND", "MCP route is not available at this entry")
+	// ErrMCPUnavailable 表示 MCP 配置或选中的后端不可用。
+	ErrMCPUnavailable = kratoserrors.ServiceUnavailable("MCP_UNAVAILABLE", "MCP service is unavailable")
 	// ErrRequestCanceled 表示请求已被取消。
 	ErrRequestCanceled = kratoserrors.ClientClosed("REQUEST_CANCELED", "request was canceled")
 	// ErrDeadlineExceeded 表示请求处理超过截止时间。
 	ErrDeadlineExceeded = kratoserrors.GatewayTimeout("DEADLINE_EXCEEDED", "request deadline exceeded")
 	// ErrModelForwardFailed 表示调用 Envoy 模型出口失败。
 	ErrModelForwardFailed = kratoserrors.New(http.StatusBadGateway, "MODEL_FORWARD_FAILED", "model forwarding failed")
+	// ErrMCPForwardFailed 表示调用 Envoy MCP 出口失败。
+	ErrMCPForwardFailed = kratoserrors.New(http.StatusBadGateway, "MCP_FORWARD_FAILED", "MCP forwarding failed")
 	// ErrInternal 隐藏未知内部错误的实现细节。
 	ErrInternal = kratoserrors.InternalServer("INTERNAL_SERVER_ERROR", "internal server error")
 )

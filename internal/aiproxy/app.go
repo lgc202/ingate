@@ -20,6 +20,7 @@ import (
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/aiconfig"
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/envoyclient"
 	"github.com/lgc202/ingate/internal/aiproxy/server"
+	"github.com/lgc202/ingate/internal/aiproxy/service/mcpproxy"
 	"github.com/lgc202/ingate/internal/aiproxy/service/modelproxy"
 	logconfig "github.com/lgc202/ingate/internal/pkg/log"
 	"github.com/lgc202/ingate/internal/pkg/version"
@@ -102,7 +103,14 @@ func NewHTTPServer(
 		return nil, nil, fmt.Errorf("create model handler: %w", err)
 	}
 
-	httpServer := server.New(listener, server.Handlers{ModelProxy: modelProxyHandler})
+	mcpService := mcpproxy.New(loader, client)
+	mcpProxyHandler, err := handler.NewMCPProxy(mcpService, maxRequestBodyBytes, logger)
+	if err != nil {
+		client.CloseIdleConnections()
+		return nil, nil, fmt.Errorf("create MCP handler: %w", err)
+	}
+
+	httpServer := server.New(listener, server.Handlers{ModelProxy: modelProxyHandler, MCPProxy: mcpProxyHandler})
 
 	return httpServer, client.CloseIdleConnections, nil
 }

@@ -55,11 +55,11 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&o.XDSBindAddress, "xds-bind-address", o.XDSBindAddress, "Address for the xDS ADS server.")
 	fs.StringVar(
 		&o.AIIngressSocket, "ai-ingress-socket", o.AIIngressSocket,
-		"Absolute Envoy-local socket path of the Go AI Proxy; required when model routes exist.",
+		"Absolute Envoy-local socket path of the Go AI Proxy; required when model or MCP routes exist.",
 	)
 	fs.StringVar(
 		&o.AIEgressSocket, "ai-egress-socket", o.AIEgressSocket,
-		"Absolute Envoy-local socket path for model egress; required when usable model targets exist.",
+		"Absolute Envoy-local socket path for model and MCP egress; required when usable AI targets exist.",
 	)
 	fs.StringVar(
 		&o.AIConfigNamespace,

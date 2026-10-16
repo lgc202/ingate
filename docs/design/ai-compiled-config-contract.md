@@ -1,6 +1,6 @@
 # AI 编译配置：沿用官方编译分层，使用标准 ConfigMap 保存非敏感结果
 
-- 状态：契约已于 2026-10-13 经用户确认；原生 ConfigMap API、内部编解码、纯编译及写入边界已提交，完整读取、受限 Watch 与协调发布接线已提交为 `fcc9650b`，AI 数据面尚未实现
+- 状态：契约已于 2026-10-13 经用户确认；原生 ConfigMap API、内部编解码、纯编译及写入边界已提交，完整读取、受限 Watch 与协调发布接线已提交为 `fcc9650b`，模型数据面已提交；MCP 现代透明代理在本轮接通，当前边界见文末
 - 作者：Ingate 开发协作
 - 日期：2026-10-13
 - Ingate 基线：`cda0478e`，分支 `codex/rebuild-from-zero`
@@ -429,3 +429,21 @@ resourceVersion 只由原生 SDK 用于 List/Watch 连续性和事件处理，�
 设计阶段已解析示例的七个 YAML 文档与内层 JSON、复算 revision、核对内部引用和本地链接，并渲染检查 SVG。实现阶段逐个检查新增/修改的手写文件，先核对声明顺序，再核对职责、签名、错误与语义分段；转换和 DeepCopy 只核对生成结果及可重复性。隔离集成用例通过标准客户端、真实 HTTPS 和独立 etcd 验证 CRUD/Patch/DeleteCollection、名称/空间/标签筛选、Watch 不匹配反例、版本冲突和无条件更新、immutable、大小校验、Discovery/OpenAPI 与本地 NamespaceLifecycle 正反例。装配失败用例核对没有部分存储映射，并销毁已创建的 Namespace 存储。
 
 `gofmt -l cmd internal pkg`、包含未跟踪文件的空白检查、`golangci-lint run ./...`、`go vet ./...`、`go test ./... -count=1`、`go build ./...`、`go test -tags=integration ./internal/apiserver -count=1` 均通过。额外的 `golangci-lint run --build-tags integration ./internal/apiserver` 发现原测试启动辅助函数遗漏响应 Body.Close 错误检查，补齐后重跑为 0 issues；常规检查及完整 integration 也已复跑通过。生成命令在受限缓存下失败，按原命令获准使用共享构建缓存后成功，重复生成的 31 个产物哈希一致。没有执行真实 Manager/Envoy/Proxy 联调、部署身份授权或自动 Namespace 删除联动；没有凭据或真实提供商验证。上述结果只覆盖本 API 切片，不证明 AI 编译、加载或转发已经可用，用户已完成 review 并授权本地提交。
+
+## MCP 配置消费与入口激活（2026-10-16）
+
+此前配置契约中的 MCPRoute、ResolveMCP、MCPTargetName 现已接入真实 Handler/Service、
+组件装配和 Envoy 入口/出口。配置字段与格式不变：一次请求捕获一份配置，按端口、Host 完整标识、
+精确路径取编译顺序首个候选；空 backendName 拒绝，不回退。热更新影响后续请求，已捕获请求
+继续使用原路径及网络目标；确认删除仍由 Loader 撤回，坏更新沿既有规则保留有效配置。
+
+首版为 2026-07-28 Streamable HTTP 的单 Backend 远程透明代理，具体协议、Origin 和验证范围见
+[首版 MCP](ai-model-operations-and-deployment.md#首版-mcpstreamable-http2026-07-28)。
+MCP 路径保留尾斜杠，精确入口优先普通 HTTP；所有非 POST 在该入口返回 405，不回退。
+同 Host 同路径入口去重，但配置仍保留有序候选以表达失效首选拒绝。
+同一 Listener/Host 实际启用模型路由时，MCP 与任一模型固定操作路径完全重叠会编译失败，
+不会写入 ConfigMap 或发布该 AI 结果；已有有效结果保留。不含模型路由的入口不全局保留这些路径。
+
+Envoy 对两类入口覆盖内部协议标记、端口和 Host，解决 Go 静态模型路径与动态 MCP 路径的分派；
+这些字段只在受保护 UDS 上采信，转发时移除，不添加到公开产品协议或持久化 payload。
+网络目标仍绑定内容，而非要求每请求整份 revision 相等；传播窗口中的旧目标只能失败，不能改投其他后端。

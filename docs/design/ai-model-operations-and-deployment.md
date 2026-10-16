@@ -1,6 +1,6 @@
 # AI 模型操作与数据面部署设计
 
-- 状态：Chat Completions 链路及启动日志已提交；2026-10-16 Responses 创建扩展已提交为 `42a6cba9`，尚未进行真实 Envoy 联调
+- 状态：模型创建链已提交；2026-10-16 补齐 MCP 2026-07-28 单 Backend 透明代理，本地验证范围见文末，尚未进行真实 Envoy 联调
 - 日期：2026-10-11
 - 资源字段对齐：2026-10-12；首步操作与本地通信确认：2026-10-15
 - Ingate 源码基线：`b247a4c6`，分支 `codex/rebuild-from-zero`
@@ -17,7 +17,7 @@
 ## 当前实现的数据流（2026-10-16）
 
 以下两图按 `42a6cba9` 的已提交代码描述配置与模型请求的正常路径。普通 HTTP 和
-两个模型创建接口的主链已实现；MCP 只有资源管理及配置编译，尚无请求代理。
+两个模型创建接口的主链已实现；本轮新增 MCP 请求代理，详见[首版 MCP](#首版-mcpstreamable-http2026-07-28)。这两图仍只描述模型链。
 上游 TLS、提供商凭据和跨提供商协议转换未实现，真实 Envoy、API Server 与模型
 提供商的整链路尚未验收，不能把图中的连接当作已经完成部署验证。
 
@@ -141,7 +141,7 @@ Go 出站只接受编译结果中已授权的目标，通过专用 Envoy 出站�
 
 已实现的完整请求时序见[请求流转：模型别名到真实上游](#请求流转模型别名到真实上游)。
 Go 在一次请求内使用同一份配置；两路配置最终一致，客户端断开的取消由出站请求
-Context 传播。上文部署图中的 TLS 与 MCP 属于目标范围，不表示当前已实现或验收。
+Context 传播。上文部署图中的 TLS 仍属于目标范围；MCP 的当前实现与验证边界见文末，不能由示意图推断部署已经验收。
 
 ### 配置更新：最终一致，按请求目标关联
 
@@ -377,3 +377,73 @@ Watch 使用明确拥有的子 Context；解除父取消是为了让正常停止
 日常代码审查、单元与静态检查继续执行；真实 Envoy、模型/MCP、实库、ACK/NACK 和故障恢复留到用户指定的统一测试阶段。相关能力在得到证据前标为未验证，不能因延期就宣称完成组件验收。
 
 本轮使用 to-design 组织选择和备选方案，technical-writing 区分官方事实、项目建议与实现证据；OpenAI Docs 用于核对两种响应协议。GoCanon 规则快照为 `6f86c253fa7f983d402f5db24edd761b4bcc22bb`，来源工作树有未提交改动，沿用本连续任务已完整读取的开发入口与相关规范。仅修改文档，审查全部新增及修改文档的结构、链接、示例一致性与空白；不把此前 Go 检查结果算作本稿协议验证。两幅 Mermaid 图只做源码审查，未执行图形渲染验证。
+
+## 首版 MCP：Streamable HTTP（2026-07-28）
+
+本轮采用 [MCP 2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http)，
+只接入远程单 Backend 透明代理。网关不终止协议、不转换版本、不执行工具，也不实现旧版
+初始化会话、GET 事件流、DELETE 终止、会话亲和或共享状态。请求和响应正文保持原始字节，
+通知由上游处理，接受时透传 202 空正文；普通 JSON、SSE、上游错误状态和端到端响应头均直接交付。
+此处的透明代理不表示任意报文均放行：非法入口、Origin 和协议信封在转发前拒绝。
+
+请求链为 Envoy 精确路径入口 → 受保护入站 UDS → MCPProxyHandler → mcpproxy.Service
+→ 固定 Envoy 出站 UDS → Backend。Handler 在既有正文上限内读取一次；Service 捕获一次 Loader
+配置，使用 ResolveMCP 按端口、Host 完整编译标识和精确路径选首个候选。失效首选直接拒绝，
+不尝试后面的同路径候选，不回退模型或普通 HTTP。MCPTargetName 将网络快照绑定到静态出口；
+Go 不读取领域 API、不自建 DNS、负载均衡或任意 URL 出口。
+
+路径保留尾斜杠。Envoy 为每个 Host 的 MCP 精确路径接管全部方法并排在普通 HTTP 前；
+同 Host 同路径按既有编译顺序只生成一个入口。仅 POST 转发，其余方法返回 405 与 Allow: POST，
+不会访问上游。只有实际启用模型路由的同一入口才禁止 MCP 与两个模型固定操作路径完全重叠；
+编译报出诊断，沿既有失败路径保留有效配置。不含模型路由的入口可以使用这两个路径。
+Envoy 覆盖内部协议、端口和 Host 标记，Go 在受保护 UDS 上采信，协议标记解决静态模型路径分派，
+不增加第二次配置捕获。标记不是认证，不能把该 UDS 暴露给不可信调用方。
+
+标准镜像字段按官方规范校验：版本头唯一且为 2026-07-28；请求正文 params._meta 中的版本与之
+一致，Mcp-Method 与 method 一致，tools/call、prompts/get 的 name 及 resources/read 的 uri
+与解码后的 Mcp-Name 一致。缺失、重复、畸形或不一致返回 400；不支持的版本返回 -32022
+并列出 supported/requested，Header 不一致返回 -32020。拒绝批量、响应信封、重复已解释字段、
+非法 JSON-RPC id 和非 UTF-8 JSON；不维护工具 schema，未知 Mcp-Param-* 原样透传。
+通知的镜像规则在该修订中未定义，本网关只要求所支持的版本头，不新增方法或名称镜像要求。
+
+解析复用已锁定的 sigs.k8s.io/json 严格解码，保留 id 原始字节，未新增依赖或重复调用 json.Valid。
+本轮只读核对本机模块缓存中的官方 [go-sdk v1.8.0](https://github.com/modelcontextprotocol/go-sdk/tree/v1.8.0)：
+jsonrpc.DecodeMessage 仍需补充本切片的重复字段与原始 id 约束，validateMcpHeaders 未导出，
+StreamableHTTPHandler 会创建协议连接/会话并终止协议，因此没有直接套用或复制内部实现。
+Base64 sentinel 的范围和解码后比较来自规范的 Value Encoding，不将其当作工具参数解释器。
+
+Origin 存在且非法时返回 403。当前编译 Listener 只有 HTTP，因此按真实外部 HTTP scheme 和
+Envoy 已匹配后保留的 authority 判断同源；标准库 URL/IP/端口解析处理大小写、默认端口及 IPv6，
+拒绝 null、多值、用户信息、路径、查询、fragment 和畸形端口。不相信 Forwarded、X-Forwarded-*
+或 Sec-Fetch-Site 自报结果。核对 Go 1.27 net/http/csrf.go 后未直接采用 CrossOriginProtection：
+它会跳过 safe 方法、按 Fetch-Site 提前放行，并在 Host 比较时忽略 scheme，不能单独满足此处规则。
+将来启用公网 TLS 必须一并确定可信 scheme 的来源，当前不预建 TLS 抽象。
+
+请求移除逐跳字段、客户端凭据、内部入口标记以及 Envoy/Forwarded 控制字段，避免影响固定出口；
+保留合法 MCP 标准字段、未知参数头和 Origin。上游 Host 仍由 Envoy 按选中端点重写。
+复用模型响应写回，SSE 首帧即时 Flush，客户端取消沿入站 Context、原生 Client 到达出站请求。
+不增加重试或完整 SSE 缓存；流开始后写出失败沿 net/http 的中断约定结束，不能追加错误 JSON。
+
+本轮普通测试覆盖真实双 UDS 的 JSON、SSE 首帧与取消、通知 202、上游 429 与 Retry-After、
+尾斜杠、MCP-only 模型固定路径、非 POST、端口和 Namespace 隔离，以及元数据和 Origin 反例。
+Loader 测试使用 fake API，验证热更新、删除和坏更新；Service 验证在途请求保持原配置、后续请求
+使用新路径与新目标，失效首选不回退。Controller/Envoy 测试验证冲突诊断、有效配置保留、
+同路径去重、入口优先级及模型/普通 HTTP 输出保持；后者检查官方资源与 Cache，不冒充 Envoy 联调。
+
+未启动外部 Envoy、API Server、数据库或模型服务；未验证 xDS ACK/NACK、实际部署权限、
+多进程故障或容量。xDS 与 ConfigMap 仍最终一致，传播期间可能失败；删除路由后，后续公开请求
+可重新命中原有普通 HTTP 路由，这不是永久路径封禁。未新增 stdio、工具聚合/执行、会话存储、
+计费、TLS、凭据或客户端认证。
+
+
+本轮重新通过 GoCanon MCP 核对规则源 `/Users/lgc202/workspace/source/lgc202/gocanon`，
+快照 `6f63ad2a7eb341a15ab99453619a907422bcdc7a`、clean；目标代码使用 Go 1.27。
+逐文件审查本轮手写实现、测试及受影响调用后，独立复查声明顺序、命名、注释、错误与语义空行。
+以下检查均在本轮指定工作区执行通过，不沿用其他 worker 的结果：
+
+- `gofmt -l cmd internal pkg api` 和包含新增文件的 `git diff --check` 无诊断。
+- `make go-lint`、`make go-lint-integration`：固定 golangci-lint v2.13.2，均为 0 issues；后者只做静态检查。
+- `go vet -mod=readonly ./...`、`go test -mod=readonly ./... -count=1`、`go build -mod=readonly ./...` 通过。
+- `go test -race -mod=readonly ./internal/aiproxy/... ./internal/controllermanager/controller/gateway ./internal/controllermanager/dataplane/envoy ./internal/pkg/aidataplane -count=1` 通过；最后调整 JSON/SSE 测试报文后另跑 `go test -race -mod=readonly ./internal/aiproxy -count=1` 通过。
+
+没有运行本地 `make verify`。本轮未修改生成源、API 或存储契约，不重新生成代码，也未执行带标签的 API integration；外部组件与部署未覆盖范围仍如上文所列。

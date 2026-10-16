@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/lgc202/ingate/internal/aiproxy/errno"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
@@ -48,7 +49,7 @@ func TestModelEntryRejectsInvalidHeadersBeforeBodyRead(t *testing.T) {
 			next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true })
 			response := httptest.NewRecorder()
 
-			modelEntry(next).ServeHTTP(response, request)
+			trustedEntry(errno.ErrInvalidModelEntry, encodeModelError)(next).ServeHTTP(response, request)
 
 			if response.Code != http.StatusBadRequest || called || body.read {
 				t.Errorf("modelEntry(%s) status/next/body = %d/%t/%t, want 400/false/false", tt.name, response.Code, called, body.read)

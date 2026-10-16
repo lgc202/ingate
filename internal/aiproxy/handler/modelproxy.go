@@ -74,7 +74,7 @@ func (h *ModelProxyHandler) proxyRequest(
 		return toModelTransportError(ctx, err, h.logger)
 	}
 
-	entry, ok := ctx.Value(modelEntryKey{}).(modelEntry)
+	entry, ok := entryFromContext(ctx)
 	if !ok {
 		return errno.ErrModelEntryUnavailable
 	}
@@ -108,7 +108,7 @@ func (h *ModelProxyHandler) proxyRequest(
 		return toModelTransportError(ctx, err, h.logger)
 	}
 
-	writeModelResponse(ctx, response, upstream, h.logger)
+	writeUpstreamResponse(ctx, response, upstream, h.logger)
 
 	return nil
 }
