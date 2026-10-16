@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/aiconfig"
+	"github.com/lgc202/ingate/internal/aiproxy/pkg/apischema/openai"
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/envoyclient"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
@@ -107,11 +108,13 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 			trusted    bool
 			hostName   string
 			wantStatus int
+			wantCode   string
 		}{
-			{name: "missing entry", path: "/v1/chat/completions", body: `{"model":"coding"}`, wantStatus: http.StatusBadRequest},
-			{name: "unknown model", path: "/v1/chat/completions", body: `{"model":"other"}`, trusted: true, wantStatus: http.StatusNotFound},
-			{name: "other namespace", path: "/v1/chat/completions", body: `{"model":"coding"}`, trusted: true, hostName: "gateway/team-b/public/listener/api", wantStatus: http.StatusNotFound},
-			{name: "oversized body", path: "/v1/chat/completions", body: strings.Repeat("x", 1025), trusted: true, wantStatus: http.StatusRequestEntityTooLarge},
+			{name: "missing entry", path: "/v1/chat/completions", body: `{"model":"coding"}`, wantStatus: http.StatusBadRequest, wantCode: "INVALID_MODEL_ENTRY"},
+			{name: "unknown model", path: "/v1/chat/completions", body: `{"model":"other"}`, trusted: true, wantStatus: http.StatusNotFound, wantCode: "MODEL_NOT_FOUND"},
+			{name: "other namespace", path: "/v1/chat/completions", body: `{"model":"coding"}`, trusted: true, hostName: "gateway/team-b/public/listener/api", wantStatus: http.StatusNotFound, wantCode: "MODEL_NOT_FOUND"},
+			{name: "oversized body", path: "/v1/chat/completions", body: strings.Repeat("x", 1025), trusted: true, wantStatus: http.StatusRequestEntityTooLarge, wantCode: "MODEL_REQUEST_TOO_LARGE"},
+			{name: "invalid JSON", path: "/v1/chat/completions", body: `{"model":`, trusted: true, wantStatus: http.StatusBadRequest, wantCode: "MODEL_INVALID_ARGUMENT"},
 			{name: "unimplemented operation", path: "/v1/responses", body: `{}`, trusted: true, wantStatus: http.StatusNotFound},
 			{name: "global diagnostic mux", path: "/unintended-debug/", body: `{}`, wantStatus: http.StatusNotFound},
 		} {
@@ -134,8 +137,69 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 			if response.Code != tt.wantStatus || calls.Load() != 1 {
 				t.Errorf("assembled model pipeline(%s) status/calls = %d/%d, want %d/1 without another peer call", tt.name, response.Code, calls.Load(), tt.wantStatus)
 			}
+
+			if tt.wantCode != "" {
+				var result openai.ErrorResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+					t.Fatalf("decode local model error(%s): %v", tt.name, err)
+				}
+
+				if result.Error.Code == nil || *result.Error.Code != tt.wantCode || result.Error.Type != "invalid_request_error" || result.Error.Message == "" {
+					t.Errorf("local model error(%s) = %+v, want invalid_request_error/%s", tt.name, result.Error, tt.wantCode)
+				}
+			}
 		}
 	})
+}
+
+func TestNewHTTPServerLocalUnavailableErrors(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		loaded bool
+		status int
+		code   string
+	}{
+		{name: "configuration not loaded", status: 503, code: "MODEL_UNAVAILABLE"},
+		{name: "egress socket unavailable", loaded: true, status: 502, code: "MODEL_FORWARD_FAILED"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+				loader := aiconfig.NewLoader(fake.NewClientset(), "control-plane", logger)
+				if tt.loaded {
+					loader = loadedConfig(t)
+				}
+
+				listener := unixListener(t, "ingress.sock")
+				egress := filepath.Join(unixSocketDirectory(t), "private-egress.sock")
+				httpServer, closeIdle, err := NewHTTPServer(listener, loader, egress, 1024, logger)
+				if err != nil {
+					t.Fatalf("create model server: %v", err)
+				}
+
+				t.Cleanup(closeIdle)
+				request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"coding"}`))
+				request.Header.Set(aidataplane.ListenerPortHeader, "8080")
+				request.Header.Set(aidataplane.HostNameHeader, "gateway/team-a/public/listener/api")
+				response := httptest.NewRecorder()
+
+				httpServer.ServeHTTP(response, request)
+
+				var result openai.ErrorResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+					t.Fatalf("decode unavailable error: %v", err)
+				}
+
+				if response.Code != tt.status || result.Error.Code == nil || *result.Error.Code != tt.code || result.Error.Type != "server_error" {
+					t.Errorf("unavailable error = %d/%+v, want %d/server_error/%s", response.Code, result.Error, tt.status, tt.code)
+				}
+
+				if strings.Contains(response.Body.String(), "private-egress") || strings.Contains(response.Body.String(), "dial unix") {
+					t.Errorf("unavailable error exposed socket details: %s", response.Body)
+				}
+			})
+		})
+	}
 }
 
 func TestNewHTTPServerRejectsInvalidConfiguration(t *testing.T) {

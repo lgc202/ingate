@@ -1,5 +1,5 @@
 // Package openai 定义 AI Proxy 当前使用的 OpenAI 协议字段。
-// 这些类型只用于提取所需字段，不代表完整协议，也不能用于重新生成上游请求体。
+// 请求类型只提取所需字段，错误类型只编码本地响应，不用于重建上游消息。
 package openai
 
 // ChatCompletionRequest 表达 Chat Completions 当前需要读取的请求字段。

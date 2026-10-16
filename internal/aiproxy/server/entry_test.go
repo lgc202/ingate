@@ -1,11 +1,12 @@
 package server
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
@@ -53,17 +54,15 @@ func TestModelEntryRejectsInvalidHeadersBeforeBodyRead(t *testing.T) {
 				t.Errorf("modelEntry(%s) status/next/body = %d/%t/%t, want 400/false/false", tt.name, response.Code, called, body.read)
 			}
 
-			var result struct {
-				Code    int    `json:"code"`
-				Reason  string `json:"reason"`
-				Message string `json:"message"`
-			}
-			if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
-				t.Fatalf("decode modelEntry(%s) response: %v", tt.name, err)
+			if response.Header().Get("Content-Type") != "application/json" {
+				t.Errorf("modelEntry(%s) Content-Type = %q, want application/json", tt.name, response.Header().Get("Content-Type"))
 			}
 
-			if result.Code != http.StatusBadRequest || result.Reason != "INVALID_MODEL_ENTRY" || result.Message != "invalid model entry" {
-				t.Errorf("modelEntry(%s) response = %+v, want 400/INVALID_MODEL_ENTRY/invalid model entry", tt.name, result)
+			want := map[string]any{"error": map[string]any{
+				"message": "invalid model entry", "type": "invalid_request_error", "param": nil, "code": "INVALID_MODEL_ENTRY",
+			}}
+			if diff := cmp.Diff(want, decodeModelError(t, response)); diff != "" {
+				t.Errorf("modelEntry(%s) response mismatch (-want +got):\n%s", tt.name, diff)
 			}
 		})
 	}

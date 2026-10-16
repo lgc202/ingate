@@ -16,8 +16,7 @@ func newHTTP(listener *net.UnixListener) *kratoshttp.Server {
 		kratoshttp.Endpoint(&url.URL{Scheme: "unix", Path: listener.Addr().String()}),
 		// 普通 Web 的默认请求期限不适用于 SSE；暂不设置整次请求期限。
 		kratoshttp.Timeout(0),
-		// 当前保留已映射的 Kratos 错误编码，不把它确定为最终模型错误协议。
-		kratoshttp.ErrorEncoder(kratoshttp.DefaultErrorEncoder),
+		kratoshttp.ErrorEncoder(encodeModelError),
 		// 业务入口只提供显式注册的模型路由，不回退到全局诊断路由。
 		kratoshttp.NotFoundHandler(http.NotFoundHandler()),
 		kratoshttp.MethodNotAllowedHandler(http.NotFoundHandler()),

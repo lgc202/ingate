@@ -66,6 +66,37 @@ namespace 校验、真实 List/Watch 失败以及配置替换与撤回语义保�
 `go test -race -mod=readonly ./internal/aiproxy/... -count=1` 通过。未执行真实
 Envoy/模型上游联调；已纳入 0016 的独立复查与本地提交范围。
 
+2026-10-16 GoCanon 重构独立复查后，另行完善本地模型错误响应。用户已确认本地提交。
+`apischema/openai` 定义 HTTP `ErrorResponse`，Server 用 Kratos 原生 ErrorEncoder
+将入口和 Handler 已映射的安全错误编码为 `{"error":{"message":...,"type":...,
+"param":null,"code":...}}`。不在 Handler 加写错误响应的辅助函数，不新增错误框架。
+HTTP 状态和英文公开消息不变，原 reason 移入 `error.code`；这些大写原因码属于
+Ingate，不冒充 OpenAI 服务的原因码。当前本地 4xx（含既有取消状态 499）归入
+`invalid_request_error`，5xx 归入 `server_error`，这是本项目的分类约定。
+没有准确字段定位时 `param` 为 null，不解析内部错误文本来猜测字段。
+
+参考 [OpenAI 错误说明](https://developers.openai.com/api/docs/guides/error-codes)
+区分 HTTP 状态、公开消息和机器可读错误码，并核对固定版本 Agent Router 的
+[本地错误处理](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/extproc/processor_impl.go#L192-L230)
+及 [协议错误字段](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/apischema/openai/openai.go#L1703-L1725)。
+官方 ExtProc 的本地响应带顶层 `type: error`，code 使用 HTTP 状态字符串；其协议类型
+同时包含 Realtime 事件字段。本项目只实现当前 Chat Completions HTTP 错误，不照搬
+这些事件字段或 ExtProc 返回方式，使用 JSON 编码器而非字符串拼接。
+
+Server 只负责格式，不重新决定业务错误或打印第二份业务日志。内部 cause、metadata
+不编码；未知业务错误仍先由 Handler 脱敏。上游状态、正文、端到端 Header 和
+SSE 原样返回，不经过本地错误编码器；开始写出后的故障沿用连接中断，不能追加 JSON。
+未实现路径和方法仍走原有 404，不扩大本步的协议范围。
+
+新协议测试在旧编码器上失败，接入后通过。实际组装的 Server 回归覆盖入口无效、
+非法 JSON、未知模型、其他 Namespace、正文超限、配置未加载与 UDS 出口连接失败；
+核对固定 JSON 类型、完整错误字段、cause/metadata 不输出和拒绝后不再调用出口。
+原有上游 429 原样透传、SSE 首帧、部分流中断与取消断言保持通过。
+本步全仓库 gofmt、跟踪及未跟踪文件空白检查、golangci-lint、vet、test、build，
+以及 AI Proxy 非缓存竞态测试通过。已逐文件审查手写变更，另行复查函数分组和空行。
+没有改动 API 类型或存储契约，未重复执行 API Server integration 测试，也未执行
+真实 Envoy/模型服务联调。不新增依赖、TLS、凭据管理或其它模型接口。
+
 用户确认应用用例命名为 modelproxy。原 service/model 和 ModelHandler 容易被误读为模型资源管理，实际职责是模型请求代理；本次仅使用重命名迁移包、Handler、装配引用与文档，减少概念歧义，不增加分层或改变协议。行为基线为重命名前的模型匹配、Header 隔离、普通响应、SSE 与取消测试；成功条件是引用统一到 service/modelproxy、无旧名称兼容别名、公开路径/错误/数据契约不变且回归通过。旧 pkg/modelproxy 转发器仍保持删除，不因同名恢复旧方案。
 
 2026-10-15 用户进一步确认调整请求主线。当前根因是模型准备与 HTTP 出站编排分散在 Service、Handler 和 ReverseProxy 之间，Handler 同时持有两类执行依赖，并通过 Context 隐式交接目标。本次按职责迁移：Service 解析、捕获配置、选路、适配并调用原生 HTTP Client；Handler 只处理入站读取、公开错误和响应写回；出口包只构造固定 Envoy UDS 的原生 Client，不新增 Client 接口或流框架。该 Service 明确属于模型 HTTP 代理用例，返回原生 HTTP Response，不承诺与 HTTP 协议无关，但不依赖 Kratos、入站 Request 或 ResponseWriter。验证基线为现有模型匹配、覆盖、请求隔离和 UDS/SSE 用例；成功条件是主流程完整进入 Service、删除目标 Context 与 ReverseProxy，同时保留目标绑定、无重定向、Header 隔离、响应状态/正文、流刷新和取消行为。不新增业务能力；按仓库要求保留未提交改动，待 review 后再提交。
