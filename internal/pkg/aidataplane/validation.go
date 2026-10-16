@@ -32,6 +32,16 @@ func Validate(c Config) error {
 			return fmt.Errorf("networkBackends[%d]: %w", i, err)
 		}
 
+		if tls := backend.TLS; tls != nil {
+			if _, err := netip.ParseAddr(tls.SNI); err == nil || len(validation.IsDNS1123Subdomain(tls.SNI)) != 0 {
+				return fmt.Errorf("networkBackends[%d].tls.sni must be a DNS hostname without wildcard, port or IP address", i)
+			}
+
+			if tls.WellKnownCACertificates != "System" {
+				return fmt.Errorf("networkBackends[%d].tls.wellKnownCACertificates must be System", i)
+			}
+		}
+
 		networkNames[backend.Name] = true
 	}
 

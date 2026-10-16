@@ -32,7 +32,9 @@ type CreateBackendRequest struct {
 	// endpoints 是后端地址及其相对权重；输入顺序没有业务含义。
 	Endpoints []*Endpoint `protobuf:"bytes,2,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
 	// namespace 是本次操作的目标命名空间，必须显式指定。
-	Namespace     string `protobuf:"bytes,3,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Namespace string `protobuf:"bytes,3,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	// tls 是可选的上游 TLS；省略时使用明文 HTTP。
+	Tls           *BackendTLSSettings `protobuf:"bytes,4,opt,name=tls,proto3" json:"tls,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -86,6 +88,13 @@ func (x *CreateBackendRequest) GetNamespace() string {
 		return x.Namespace
 	}
 	return ""
+}
+
+func (x *CreateBackendRequest) GetTls() *BackendTLSSettings {
+	if x != nil {
+		return x.Tls
+	}
+	return nil
 }
 
 // CreateBackendReply 表示创建后的后端资源。
@@ -375,7 +384,9 @@ type UpdateBackendRequest struct {
 	// display_name 是可修改且允许重复的展示名称，不改变资源引用。
 	DisplayName string `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// namespace 是本次操作的目标命名空间，必须显式指定。
-	Namespace     string `protobuf:"bytes,5,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Namespace string `protobuf:"bytes,5,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	// tls 完整替换上游 TLS；省略或 null 主动恢复明文 HTTP。
+	Tls           *BackendTLSSettings `protobuf:"bytes,6,opt,name=tls,proto3" json:"tls,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -443,6 +454,13 @@ func (x *UpdateBackendRequest) GetNamespace() string {
 		return x.Namespace
 	}
 	return ""
+}
+
+func (x *UpdateBackendRequest) GetTls() *BackendTLSSettings {
+	if x != nil {
+		return x.Tls
+	}
+	return nil
 }
 
 // UpdateBackendReply 表示更新后的后端资源。
@@ -597,7 +615,9 @@ type Backend struct {
 	// display_name 是供人阅读的名称，不用于资源引用。
 	DisplayName string `protobuf:"bytes,5,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// namespace 是资源所属的命名空间。
-	Namespace     string `protobuf:"bytes,6,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Namespace string `protobuf:"bytes,6,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	// tls 是当前配置的上游 TLS；未配置时无 TLS 对象。
+	Tls           *BackendTLSSettings `protobuf:"bytes,7,opt,name=tls,proto3" json:"tls,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -674,6 +694,68 @@ func (x *Backend) GetNamespace() string {
 	return ""
 }
 
+func (x *Backend) GetTls() *BackendTLSSettings {
+	if x != nil {
+		return x.Tls
+	}
+	return nil
+}
+
+// BackendTLSSettings 表示全部后端端点共享的服务器身份及系统信任根。
+type BackendTLSSettings struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// sni 是固定 DNS 身份，也用于证书 DNS SAN 验证，不改变 HTTP Host。
+	Sni string `protobuf:"bytes,1,opt,name=sni,proto3" json:"sni,omitempty"`
+	// well_known_ca_certificates 首版必须显式指定 System。
+	WellKnownCaCertificates string `protobuf:"bytes,2,opt,name=well_known_ca_certificates,json=wellKnownCaCertificates,proto3" json:"well_known_ca_certificates,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *BackendTLSSettings) Reset() {
+	*x = BackendTLSSettings{}
+	mi := &file_admin_v1_backend_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BackendTLSSettings) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BackendTLSSettings) ProtoMessage() {}
+
+func (x *BackendTLSSettings) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_backend_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BackendTLSSettings.ProtoReflect.Descriptor instead.
+func (*BackendTLSSettings) Descriptor() ([]byte, []int) {
+	return file_admin_v1_backend_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *BackendTLSSettings) GetSni() string {
+	if x != nil {
+		return x.Sni
+	}
+	return ""
+}
+
+func (x *BackendTLSSettings) GetWellKnownCaCertificates() string {
+	if x != nil {
+		return x.WellKnownCaCertificates
+	}
+	return ""
+}
+
 // BackendReference 引用同一命名空间的网络后端。
 type BackendReference struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -685,7 +767,7 @@ type BackendReference struct {
 
 func (x *BackendReference) Reset() {
 	*x = BackendReference{}
-	mi := &file_admin_v1_backend_proto_msgTypes[11]
+	mi := &file_admin_v1_backend_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -697,7 +779,7 @@ func (x *BackendReference) String() string {
 func (*BackendReference) ProtoMessage() {}
 
 func (x *BackendReference) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_backend_proto_msgTypes[11]
+	mi := &file_admin_v1_backend_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -710,7 +792,7 @@ func (x *BackendReference) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BackendReference.ProtoReflect.Descriptor instead.
 func (*BackendReference) Descriptor() ([]byte, []int) {
-	return file_admin_v1_backend_proto_rawDescGZIP(), []int{11}
+	return file_admin_v1_backend_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *BackendReference) GetName() string {
@@ -735,7 +817,7 @@ type Endpoint struct {
 
 func (x *Endpoint) Reset() {
 	*x = Endpoint{}
-	mi := &file_admin_v1_backend_proto_msgTypes[12]
+	mi := &file_admin_v1_backend_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -747,7 +829,7 @@ func (x *Endpoint) String() string {
 func (*Endpoint) ProtoMessage() {}
 
 func (x *Endpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_backend_proto_msgTypes[12]
+	mi := &file_admin_v1_backend_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -760,7 +842,7 @@ func (x *Endpoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Endpoint.ProtoReflect.Descriptor instead.
 func (*Endpoint) Descriptor() ([]byte, []int) {
-	return file_admin_v1_backend_proto_rawDescGZIP(), []int{12}
+	return file_admin_v1_backend_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Endpoint) GetAddress() string {
@@ -788,11 +870,12 @@ var File_admin_v1_backend_proto protoreflect.FileDescriptor
 
 const file_admin_v1_backend_proto_rawDesc = "" +
 	"\n" +
-	"\x16admin/v1/backend.proto\x12\badmin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbf\x01\n" +
+	"\x16admin/v1/backend.proto\x12\badmin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xef\x01\n" +
 	"\x14CreateBackendRequest\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12:\n" +
 	"\tendpoints\x18\x02 \x03(\v2\x12.admin.v1.EndpointB\b\xbaH\x05\x92\x01\x02\b\x01R\tendpoints\x12H\n" +
-	"\tnamespace\x18\x03 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"A\n" +
+	"\tnamespace\x18\x03 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\x12.\n" +
+	"\x03tls\x18\x04 \x01(\v2\x1c.admin.v1.BackendTLSSettingsR\x03tls\"A\n" +
 	"\x12CreateBackendReply\x12+\n" +
 	"\abackend\x18\x01 \x01(\v2\x11.admin.v1.BackendR\abackend\"z\n" +
 	"\x11GetBackendRequest\x12\x1b\n" +
@@ -809,19 +892,20 @@ const file_admin_v1_backend_proto_rawDesc = "" +
 	"\x11ListBackendsReply\x12-\n" +
 	"\bbackends\x18\x01 \x03(\v2\x11.admin.v1.BackendR\bbackends\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x03R\n" +
-	"totalCount\"\xff\x01\n" +
+	"totalCount\"\xaf\x02\n" +
 	"\x14UpdateBackendRequest\x12\x1b\n" +
 	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12!\n" +
 	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12:\n" +
 	"\tendpoints\x18\x03 \x03(\v2\x12.admin.v1.EndpointB\b\xbaH\x05\x92\x01\x02\b\x01R\tendpoints\x12!\n" +
 	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\x12H\n" +
-	"\tnamespace\x18\x05 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"A\n" +
+	"\tnamespace\x18\x05 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\x12.\n" +
+	"\x03tls\x18\x06 \x01(\v2\x1c.admin.v1.BackendTLSSettingsR\x03tls\"A\n" +
 	"\x12UpdateBackendReply\x12+\n" +
 	"\abackend\x18\x01 \x01(\v2\x11.admin.v1.BackendR\abackend\"}\n" +
 	"\x14DeleteBackendRequest\x12\x1b\n" +
 	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12H\n" +
 	"\tnamespace\x18\x02 \x01(\tB*\xbaH'r%\x10\x01\x18?2\x1f^[a-z0-9]([-a-z0-9]*[a-z0-9])?$R\tnamespace\"\x14\n" +
-	"\x12DeleteBackendReply\"\xe7\x01\n" +
+	"\x12DeleteBackendReply\"\x97\x02\n" +
 	"\aBackend\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x120\n" +
 	"\tendpoints\x18\x02 \x03(\v2\x12.admin.v1.EndpointR\tendpoints\x12;\n" +
@@ -829,7 +913,14 @@ const file_admin_v1_backend_proto_rawDesc = "" +
 	"createTime\x12\x18\n" +
 	"\aversion\x18\x04 \x01(\tR\aversion\x12!\n" +
 	"\fdisplay_name\x18\x05 \x01(\tR\vdisplayName\x12\x1c\n" +
-	"\tnamespace\x18\x06 \x01(\tR\tnamespace\"/\n" +
+	"\tnamespace\x18\x06 \x01(\tR\tnamespace\x12.\n" +
+	"\x03tls\x18\a \x01(\v2\x1c.admin.v1.BackendTLSSettingsR\x03tls\"\x95\x02\n" +
+	"\x12BackendTLSSettings\x12\xb2\x01\n" +
+	"\x03sni\x18\x01 \x01(\tB\x9f\x01\xbaH\x9b\x01\xba\x01N\n" +
+	"\x13backend.tls.sni.dns\x12)must be a DNS hostname, not an IP address\x1a\f!this.isIp()rH\x10\x01\x18\xfd\x012A^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$R\x03sni\x12J\n" +
+	"\x1awell_known_ca_certificates\x18\x02 \x01(\tB\r\xbaH\n" +
+	"r\b\n" +
+	"\x06SystemR\x17wellKnownCaCertificates\"/\n" +
 	"\x10BackendReference\x12\x1b\n" +
 	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\"o\n" +
 	"\bEndpoint\x12!\n" +
@@ -856,7 +947,7 @@ func file_admin_v1_backend_proto_rawDescGZIP() []byte {
 	return file_admin_v1_backend_proto_rawDescData
 }
 
-var file_admin_v1_backend_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_admin_v1_backend_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_admin_v1_backend_proto_goTypes = []any{
 	(*CreateBackendRequest)(nil),  // 0: admin.v1.CreateBackendRequest
 	(*CreateBackendReply)(nil),    // 1: admin.v1.CreateBackendReply
@@ -869,34 +960,38 @@ var file_admin_v1_backend_proto_goTypes = []any{
 	(*DeleteBackendRequest)(nil),  // 8: admin.v1.DeleteBackendRequest
 	(*DeleteBackendReply)(nil),    // 9: admin.v1.DeleteBackendReply
 	(*Backend)(nil),               // 10: admin.v1.Backend
-	(*BackendReference)(nil),      // 11: admin.v1.BackendReference
-	(*Endpoint)(nil),              // 12: admin.v1.Endpoint
-	(*timestamppb.Timestamp)(nil), // 13: google.protobuf.Timestamp
+	(*BackendTLSSettings)(nil),    // 11: admin.v1.BackendTLSSettings
+	(*BackendReference)(nil),      // 12: admin.v1.BackendReference
+	(*Endpoint)(nil),              // 13: admin.v1.Endpoint
+	(*timestamppb.Timestamp)(nil), // 14: google.protobuf.Timestamp
 }
 var file_admin_v1_backend_proto_depIdxs = []int32{
-	12, // 0: admin.v1.CreateBackendRequest.endpoints:type_name -> admin.v1.Endpoint
-	10, // 1: admin.v1.CreateBackendReply.backend:type_name -> admin.v1.Backend
-	10, // 2: admin.v1.GetBackendReply.backend:type_name -> admin.v1.Backend
-	10, // 3: admin.v1.ListBackendsReply.backends:type_name -> admin.v1.Backend
-	12, // 4: admin.v1.UpdateBackendRequest.endpoints:type_name -> admin.v1.Endpoint
-	10, // 5: admin.v1.UpdateBackendReply.backend:type_name -> admin.v1.Backend
-	12, // 6: admin.v1.Backend.endpoints:type_name -> admin.v1.Endpoint
-	13, // 7: admin.v1.Backend.create_time:type_name -> google.protobuf.Timestamp
-	0,  // 8: admin.v1.BackendService.CreateBackend:input_type -> admin.v1.CreateBackendRequest
-	2,  // 9: admin.v1.BackendService.GetBackend:input_type -> admin.v1.GetBackendRequest
-	4,  // 10: admin.v1.BackendService.ListBackends:input_type -> admin.v1.ListBackendsRequest
-	6,  // 11: admin.v1.BackendService.UpdateBackend:input_type -> admin.v1.UpdateBackendRequest
-	8,  // 12: admin.v1.BackendService.DeleteBackend:input_type -> admin.v1.DeleteBackendRequest
-	1,  // 13: admin.v1.BackendService.CreateBackend:output_type -> admin.v1.CreateBackendReply
-	3,  // 14: admin.v1.BackendService.GetBackend:output_type -> admin.v1.GetBackendReply
-	5,  // 15: admin.v1.BackendService.ListBackends:output_type -> admin.v1.ListBackendsReply
-	7,  // 16: admin.v1.BackendService.UpdateBackend:output_type -> admin.v1.UpdateBackendReply
-	9,  // 17: admin.v1.BackendService.DeleteBackend:output_type -> admin.v1.DeleteBackendReply
-	13, // [13:18] is the sub-list for method output_type
-	8,  // [8:13] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	13, // 0: admin.v1.CreateBackendRequest.endpoints:type_name -> admin.v1.Endpoint
+	11, // 1: admin.v1.CreateBackendRequest.tls:type_name -> admin.v1.BackendTLSSettings
+	10, // 2: admin.v1.CreateBackendReply.backend:type_name -> admin.v1.Backend
+	10, // 3: admin.v1.GetBackendReply.backend:type_name -> admin.v1.Backend
+	10, // 4: admin.v1.ListBackendsReply.backends:type_name -> admin.v1.Backend
+	13, // 5: admin.v1.UpdateBackendRequest.endpoints:type_name -> admin.v1.Endpoint
+	11, // 6: admin.v1.UpdateBackendRequest.tls:type_name -> admin.v1.BackendTLSSettings
+	10, // 7: admin.v1.UpdateBackendReply.backend:type_name -> admin.v1.Backend
+	13, // 8: admin.v1.Backend.endpoints:type_name -> admin.v1.Endpoint
+	14, // 9: admin.v1.Backend.create_time:type_name -> google.protobuf.Timestamp
+	11, // 10: admin.v1.Backend.tls:type_name -> admin.v1.BackendTLSSettings
+	0,  // 11: admin.v1.BackendService.CreateBackend:input_type -> admin.v1.CreateBackendRequest
+	2,  // 12: admin.v1.BackendService.GetBackend:input_type -> admin.v1.GetBackendRequest
+	4,  // 13: admin.v1.BackendService.ListBackends:input_type -> admin.v1.ListBackendsRequest
+	6,  // 14: admin.v1.BackendService.UpdateBackend:input_type -> admin.v1.UpdateBackendRequest
+	8,  // 15: admin.v1.BackendService.DeleteBackend:input_type -> admin.v1.DeleteBackendRequest
+	1,  // 16: admin.v1.BackendService.CreateBackend:output_type -> admin.v1.CreateBackendReply
+	3,  // 17: admin.v1.BackendService.GetBackend:output_type -> admin.v1.GetBackendReply
+	5,  // 18: admin.v1.BackendService.ListBackends:output_type -> admin.v1.ListBackendsReply
+	7,  // 19: admin.v1.BackendService.UpdateBackend:output_type -> admin.v1.UpdateBackendReply
+	9,  // 20: admin.v1.BackendService.DeleteBackend:output_type -> admin.v1.DeleteBackendReply
+	16, // [16:21] is the sub-list for method output_type
+	11, // [11:16] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_backend_proto_init() }
@@ -910,7 +1005,7 @@ func file_admin_v1_backend_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_backend_proto_rawDesc), len(file_admin_v1_backend_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

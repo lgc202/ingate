@@ -88,5 +88,20 @@ func validateBackendSpec(spec *gateway.BackendSpec, path *field.Path) field.Erro
 		}
 	}
 
+	if tls := spec.TLS; tls != nil {
+		tlsPath := path.Child("tls")
+		if _, err := netip.ParseAddr(tls.SNI); err == nil || len(validation.IsDNS1123Subdomain(tls.SNI)) != 0 {
+			errs = append(errs, field.Invalid(
+				tlsPath.Child("sni"), tls.SNI, "must be a DNS hostname without wildcard, port or IP address",
+			))
+		}
+
+		if tls.WellKnownCACertificates != "System" {
+			errs = append(errs, field.NotSupported(
+				tlsPath.Child("wellKnownCACertificates"), tls.WellKnownCACertificates, []string{"System"},
+			))
+		}
+	}
+
 	return errs
 }

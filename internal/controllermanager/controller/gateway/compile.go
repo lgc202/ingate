@@ -65,9 +65,17 @@ func compile(result resolution) dataplane.Config {
 			}
 		}
 
+		var tls *dataplane.BackendTLSSettings
+		if backend.Spec.TLS != nil {
+			tls = &dataplane.BackendTLSSettings{
+				SNI: backend.Spec.TLS.SNI,
+			}
+		}
+
 		config.Backends = append(config.Backends, dataplane.Backend{
 			Name:      path.Join(backend.Namespace, backend.Name),
 			Endpoints: endpoints,
+			TLS:       tls,
 		})
 	}
 

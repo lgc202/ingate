@@ -41,6 +41,7 @@ CREATE TABLE backends (
     namespace VARCHAR(63) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '所属命名空间',
     name VARCHAR(253) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '命名空间内的后端标识',
     display_name LONGTEXT NOT NULL COMMENT '后端名称',
+    tls JSON NULL COMMENT '上游 TLS 配置，NULL 表示明文 HTTP',
     version VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '对象版本，用于并发更新校验',
     created_at DATETIME(6) NOT NULL COMMENT '后端创建时间',
     updated_at DATETIME(6) NOT NULL COMMENT '记录更新时间',

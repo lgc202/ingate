@@ -197,7 +197,15 @@ func (c *aiCompilation) bindNetworkBackend(key client.ObjectKey) string {
 		return cmp.Compare(a.Weight, b.Weight)
 	})
 
-	c.networkBackends[name] = aidataplane.NetworkBackend{Name: name, Endpoints: endpoints}
+	var tls *aidataplane.BackendTLSSettings
+	if backend.Spec.TLS != nil {
+		tls = &aidataplane.BackendTLSSettings{
+			SNI:                     backend.Spec.TLS.SNI,
+			WellKnownCACertificates: backend.Spec.TLS.WellKnownCACertificates,
+		}
+	}
+
+	c.networkBackends[name] = aidataplane.NetworkBackend{Name: name, Endpoints: endpoints, TLS: tls}
 
 	return name
 }

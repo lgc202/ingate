@@ -12,14 +12,21 @@ import (
 
 // Backend 对应 MySQL backends 表及其 Endpoint 集合。
 type Backend struct {
-	ID          uint64            `gorm:"column:id;primaryKey;autoIncrement"`
-	Namespace   string            `gorm:"column:namespace"`
-	Name        string            `gorm:"column:name"`
-	DisplayName string            `gorm:"column:display_name"`
-	Version     string            `gorm:"column:version"`
-	CreatedAt   time.Time         `gorm:"column:created_at;autoCreateTime:false"`
-	UpdatedAt   time.Time         `gorm:"column:updated_at;autoCreateTime;autoUpdateTime"`
-	Endpoints   []BackendEndpoint `gorm:"-"`
+	ID          uint64              `gorm:"column:id;primaryKey;autoIncrement"`
+	Namespace   string              `gorm:"column:namespace"`
+	Name        string              `gorm:"column:name"`
+	DisplayName string              `gorm:"column:display_name"`
+	TLS         *BackendTLSSettings `gorm:"column:tls;serializer:json"`
+	Version     string              `gorm:"column:version"`
+	CreatedAt   time.Time           `gorm:"column:created_at;autoCreateTime:false"`
+	UpdatedAt   time.Time           `gorm:"column:updated_at;autoCreateTime;autoUpdateTime"`
+	Endpoints   []BackendEndpoint   `gorm:"-"`
+}
+
+// BackendTLSSettings 保存查询投影的 TLS 配置；空指针表示明文 HTTP。
+type BackendTLSSettings struct {
+	SNI                     string `json:"sni"`
+	WellKnownCACertificates string `json:"wellKnownCACertificates"`
 }
 
 // BackendEndpoint 对应 MySQL backend_endpoints 表中的一个后端端点。
@@ -199,6 +206,7 @@ func upsertBackendRow(tx *gorm.DB, backend Backend) (uint64, error) {
 			Namespace:   backend.Namespace,
 			Name:        backend.Name,
 			DisplayName: backend.DisplayName,
+			TLS:         backend.TLS,
 			Version:     backend.Version,
 			CreatedAt:   backend.CreatedAt,
 		}
@@ -213,12 +221,8 @@ func upsertBackendRow(tx *gorm.DB, backend Backend) (uint64, error) {
 		return 0, fmt.Errorf("get backend: %w", err)
 	}
 
-	updates := map[string]any{
-		"display_name": backend.DisplayName,
-		"version":      backend.Version,
-		"created_at":   backend.CreatedAt,
-	}
-	if err := tx.Model(&row).Updates(updates).Error; err != nil {
+	// 显式选择 TLS，保证主动删除时将旧投影清空，而不是跳过零值。
+	if err := tx.Model(&row).Select("display_name", "tls", "version", "created_at").Updates(&backend).Error; err != nil {
 		return 0, fmt.Errorf("update backend: %w", err)
 	}
 

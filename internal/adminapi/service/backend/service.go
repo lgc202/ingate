@@ -31,6 +31,7 @@ type CreateParams struct {
 	Namespace   string
 	DisplayName string
 	Endpoints   []gatewayv1alpha1.Endpoint
+	TLS         *gatewayv1alpha1.BackendTLSSettings
 }
 
 // UpdateParams 保存完整替换 Backend 可编辑配置所需的参数。
@@ -40,6 +41,7 @@ type UpdateParams struct {
 	Version     string
 	DisplayName string
 	Endpoints   []gatewayv1alpha1.Endpoint
+	TLS         *gatewayv1alpha1.BackendTLSSettings
 }
 
 // ListParams 保存分页与展示名称包含匹配条件。
@@ -73,6 +75,7 @@ func (s *Service) Create(
 		Spec: gatewayv1alpha1.BackendSpec{
 			DisplayName: params.DisplayName,
 			Endpoints:   params.Endpoints,
+			TLS:         params.TLS,
 		},
 	}
 
@@ -137,6 +140,7 @@ func (s *Service) Update(
 		Spec: gatewayv1alpha1.BackendSpec{
 			DisplayName: params.DisplayName,
 			Endpoints:   params.Endpoints,
+			TLS:         params.TLS,
 		},
 	}
 

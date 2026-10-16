@@ -230,6 +230,15 @@ func newCluster(backend dataplane.Backend) (*clusterv3.Cluster, *endpointv3.Clus
 		}
 	}
 
+	if backend.TLS != nil {
+		socket, err := newUpstreamTLSSocket(*backend.TLS)
+		if err != nil {
+			return nil, nil, fmt.Errorf("build TLS for cluster %q: %w", name, err)
+		}
+
+		cluster.TransportSocket = socket
+	}
+
 	if err := cluster.ValidateAll(); err != nil {
 		return nil, nil, fmt.Errorf("validate cluster %q: %w", name, err)
 	}

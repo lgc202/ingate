@@ -117,7 +117,7 @@ func buildAIResources(config aidataplane.Config, ingressSocket, egressSocket str
 			return resourceSet{}, err
 		}
 
-		cluster, assignment, err := newAICluster(target, network.Endpoints)
+		cluster, assignment, err := newAICluster(target, network)
 		if err != nil {
 			return resourceSet{}, err
 		}
@@ -138,7 +138,7 @@ func buildAIResources(config aidataplane.Config, ingressSocket, egressSocket str
 			return resourceSet{}, err
 		}
 
-		cluster, assignment, err := newAICluster(target, network.Endpoints)
+		cluster, assignment, err := newAICluster(target, network)
 		if err != nil {
 			return resourceSet{}, err
 		}
@@ -175,14 +175,21 @@ func buildAIResources(config aidataplane.Config, ingressSocket, egressSocket str
 
 func newAICluster(
 	target string,
-	endpoints []aidataplane.Endpoint,
+	network aidataplane.NetworkBackend,
 ) (*clusterv3.Cluster, *endpointv3.ClusterLoadAssignment, error) {
-	addresses := make([]dataplane.Endpoint, len(endpoints))
-	for i, endpoint := range endpoints {
+	addresses := make([]dataplane.Endpoint, len(network.Endpoints))
+	for i, endpoint := range network.Endpoints {
 		addresses[i] = dataplane.Endpoint{Address: endpoint.Address, Port: endpoint.Port, Weight: endpoint.Weight}
 	}
 
-	cluster, assignment, err := newCluster(dataplane.Backend{Name: target, Endpoints: addresses})
+	var tls *dataplane.BackendTLSSettings
+	if network.TLS != nil {
+		tls = &dataplane.BackendTLSSettings{
+			SNI: network.TLS.SNI,
+		}
+	}
+
+	cluster, assignment, err := newCluster(dataplane.Backend{Name: target, Endpoints: addresses, TLS: tls})
 	if err != nil {
 		return nil, nil, err
 	}

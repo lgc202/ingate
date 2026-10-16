@@ -90,3 +90,69 @@ func TestValidateBackend(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateBackendTLS(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		tls     *gateway.BackendTLSSettings
+		wantErr bool
+	}{
+		{name: "omitted"},
+		{
+			name: "fixed DNS",
+			tls:  &gateway.BackendTLSSettings{SNI: "service.example.com", WellKnownCACertificates: "System"},
+		},
+		{name: "empty object", tls: &gateway.BackendTLSSettings{}, wantErr: true},
+		{
+			name:    "missing CA",
+			tls:     &gateway.BackendTLSSettings{SNI: "service.example.com"},
+			wantErr: true,
+		},
+		{
+			name:    "private CA",
+			tls:     &gateway.BackendTLSSettings{SNI: "service.example.com", WellKnownCACertificates: "Private"},
+			wantErr: true,
+		},
+		{
+			name:    "IP identity",
+			tls:     &gateway.BackendTLSSettings{SNI: "192.0.2.1", WellKnownCACertificates: "System"},
+			wantErr: true,
+		},
+		{
+			name:    "IPv6 identity",
+			tls:     &gateway.BackendTLSSettings{SNI: "2001:db8::1", WellKnownCACertificates: "System"},
+			wantErr: true,
+		},
+		{
+			name:    "wildcard",
+			tls:     &gateway.BackendTLSSettings{SNI: "*.example.com", WellKnownCACertificates: "System"},
+			wantErr: true,
+		},
+		{
+			name:    "authority",
+			tls:     &gateway.BackendTLSSettings{SNI: "service.example.com:443", WellKnownCACertificates: "System"},
+			wantErr: true,
+		},
+		{
+			name:    "URL",
+			tls:     &gateway.BackendTLSSettings{SNI: "https://service.example.com", WellKnownCACertificates: "System"},
+			wantErr: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			backend := &gateway.Backend{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "backend"},
+				Spec: gateway.BackendSpec{
+					Endpoints: []gateway.Endpoint{{Address: "2001:db8::1", Port: 8443, Weight: 1}},
+					TLS:       tt.tls,
+				},
+			}
+
+			errs := ValidateBackend(backend)
+
+			if (len(errs) != 0) != tt.wantErr {
+				t.Errorf("ValidateBackend(TLS=%+v) errors = %v, want error presence %t", tt.tls, errs, tt.wantErr)
+			}
+		})
+	}
+}

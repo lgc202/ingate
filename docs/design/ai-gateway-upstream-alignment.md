@@ -1,7 +1,7 @@
 # AI 网关上游设计对照：采用、裁剪与必要差异
 
 - 状态：六种资源关系、HTTP 子集及模型/MCP 基础字段已确认；资源声明、管理与投影、共享协调器及 Namespace 基础设施均已提交，本轮业务资源 Namespace 全链路切换待用户 review；不授权新服务、安装组件或新增依赖
-- 最近核对日期：2026-10-12；通用 HTTP/TLS 与 MCP 运行行为的此前核对日期为 2026-10-10
+- 最近核对日期：2026-10-16（TLS 固定源码补核）；早期资源对照为 2026-10-12，历史范围保留于下文
 - 当前 Ingate 基线：`17cfe8d5`（Backend 默认存储筛选）；Namespace 全链路切换未提交；HTTP 替换前基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
 - 对应设计：[资源契约与替换计划](ai-gateway-resource-contract.md)
 
@@ -81,7 +81,7 @@ Agent Router [AIServiceBackendSpec](https://github.com/theagentrouter/agent-rout
 
 Envoy Gateway v1.9.2 的 [BackendSpec](https://github.com/envoyproxy/gateway/blob/f9f92a112a4033abed5c8d43a5f7e37da257403c/api/v1alpha1/backend_types.go#L137)已提供 `tls`；[BackendTLSSettings](https://github.com/envoyproxy/gateway/blob/f9f92a112a4033abed5c8d43a5f7e37da257403c/api/v1alpha1/backend_types.go#L175)提供信任根、SNI 与自动派生等配置。稳定 BackendTLSPolicy 是另一个已有附着方案；不能因为官方 basic 示例使用策略，就断言内联 TLS 是自造。
 
-本稿拟使用内联 `tls.sni` 与 `tls.wellKnownCACertificates: System` 子集，不增加 `transport.protocol/authority/tls.trust` 包装。暂不同时开放独立 TLS 策略与合并覆盖，不开放 skip-verify、私有 CA 或 mTLS。显式 SNI 与相同 DNS 身份证书校验属于本项目限制，较上游更窄；它避免从任意客户端 Host 选择上游身份，应在 TLS review 中验证必要性。
+本轮使用内联 `tls.sni` 与 `tls.wellKnownCACertificates: System` 子集，不增加 `transport.protocol/authority/tls.trust` 包装。暂不同时开放独立 TLS 策略与合并覆盖，不开放 skip-verify、私有 CA 或 mTLS。显式 SNI 与相同 DNS 身份证书校验属于本项目限制，较上游更窄；它避免从任意客户端 Host 选择上游身份，应在 TLS review 中验证必要性。
 
 HTTP Host 重写独立于 TLS。Agent Router [newHTTPRoute](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/controller/ai_gateway_route.go#L255)引用自动 hostname rewrite filter，说明需要由实际出口配置处理；不强制用户填一个同义网络 authority 字段。多端点是否共用证书身份、Host 如何生成，必须在首个实际服务中检验。
 
@@ -120,3 +120,29 @@ Agent Router [MCPRouteSpec](https://github.com/theagentrouter/agent-router/blob/
 此前上游对照阶段仅修改文档。已核对固定版本资源契约、关键协调/翻译路径和指定反例测试定义，不代表审查了上游全部代码，也未运行上游测试、SDK 互操作、真实 Envoy/提供商/MCP/凭据/实库验证。纯文档检查不替代这些证据。自有 Group 和 HTTP 管理/投影替换已随阶段 B 确认；作用域以 0013 为准。模型/MCP 运行、安全和跨协议裁决仍保留各自待确认边界。
 
 [契约稿](ai-gateway-resource-contract.md)的六种资源关系、HTTP 子集及本次模型/MCP 基础字段已通过 review，HTTP 实现及验证见 [0011](../decisions/0011-http-resource-contract.md)。AIBackend、ModelRoute 声明已提交为 `3519b189`；MCPRoute 声明与存储、AIBackend Admin/查询投影已提交为 `75ac86b8`；ModelRoute 管理与投影已提交为 `53573124`，均未推送。MCPRoute 管理与投影已提交为 `f054c54b`，共享协调器职责整理已提交为 `90045e8d`，均未推送。当前先准备 Namespace 编译身份，之后切换存储与管理链路，再实施已有 Manager 内的 AI 编译与存储，不在此开发新服务。MCPRoute 采用已确认的单 Backend、可选路径及默认值子集；这不表示已实现官方聚合器或协议转发。每阶段审查全部手写改动；提交前仍等用户 review。
+
+## TLS 首版源码核对（2026-10-16）
+
+本轮以 `5ff9c0be` 为本地开发基线，实现 Backend 可选内联 TLS，不改变此前 MCP 代理边界。
+以下固定源码已重新读取；这是实现依据，不代表已运行这些项目的完整控制面或真实 Envoy。
+
+| 决定 | 固定上游与实际源码 | 本项目采用与适配 |
+| --- | --- | --- |
+| 内联 tls 字段 | Envoy Gateway v1.9.2 `f9f92a112a4033abed5c8d43a5f7e37da257403c`，[BackendSpec/BackendTLSSettings](https://github.com/envoyproxy/gateway/blob/f9f92a112a4033abed5c8d43a5f7e37da257403c/api/v1alpha1/backend_types.go#L137) | 沿用 tls/sni/wellKnownCACertificates 形状；仅显式 DNS SNI+System，不开放其余字段或独立策略优先级 |
+| SNI 与同身份 SAN | 同提交 [translator.go:buildValidationContext、buildXdsUpstreamTLSSocketWthCert](https://github.com/envoyproxy/gateway/blob/f9f92a112a4033abed5c8d43a5f7e37da257403c/internal/xds/translator/translator.go#L1414) | 显式 SNI 分支生成 DNS typed SAN exact=SNI，并设置 UpstreamTlsContext.Sni；本项目采用相同公开 xDS 字段，由 Envoy 校验证书，不自写证书/通配名解析 |
+| System CA 的真实载体 | 同提交 [globalresources.go:emitSystemTrustStoreSecret、systemTrustStoreValidationContext](https://github.com/envoyproxy/gateway/blob/f9f92a112a4033abed5c8d43a5f7e37da257403c/internal/xds/translator/globalresources.go#L73)、[cert.go:SystemCertPath/CanonicalCertPath](https://github.com/envoyproxy/gateway/blob/f9f92a112a4033abed5c8d43a5f7e37da257403c/internal/utils/cert/cert.go#L14) | EG 使用 SDS ValidationContext 引用系统 bundle；Ingate 将 TrustedCa.Filename 直接内联到 Cluster 的验证上下文，不增加独立 SDS/CA 生命周期。固定官方标准 Ubuntu Envoy 运行环境，不随 Controller 的 GOOS 选择 CA 路径 |
+| Agent Router 的网络委托 | v1.2.0 `daa9f891a8afcb18576d4593ad18870d1d18abac`，[AIServiceBackendSpec.BackendRef](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/api/v1beta1/ai_service_backend.go#L57)、[newHTTPRoute](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/controller/ai_gateway_route.go#L249) | 官方引用 EG Backend，并将引用复制到派生 Gateway API HTTPRoute，网络 TLS 交给 EG；Ingate 已有自有控制面与 Envoy 适配器，保持模型/MCP Go 不建网络端点池，直接发布相应 Cluster，不安装或声称复用完整 EG/Agent Router |
+| HTTP Host 独立于 SNI | 同 Agent Router 提交 [generateHTTPRouteFilters](https://github.com/theagentrouter/agent-router/blob/daa9f891a8afcb18576d4593ad18870d1d18abac/internal/controller/ai_gateway_route.go#L118) 使用 EG BackendHTTPHostnameModifier | 继续保留普通 HTTP Host 透传及模型/MCP 按实际端点 Host 重写；新增 TLS 不改变 Host 或显式端口 |
+
+Ingate 直接复用锁定 `go-control-plane/envoy v1.39.0` 的 UpstreamTlsContext、CertificateValidationContext、
+DNS SubjectAltNameMatcher、TransportSocket 类型与 ValidateAll，以及 protobuf Any 编码。
+证书链、DNS SAN 与握手由官方 Envoy 实现；Kubernetes 既有 DNS 校验只校验配置身份，
+不重做证书验证。EG 与 Agent Router 的上述翻译器位于 internal 包且依赖各自 IR/控制面，
+不能在 Ingate 中直接导入；本轮没有丢弃已获得的官方解析结果再重新解析，也没有复制其控制器。
+必要适配限于现有自有资源、Admin 输入输出、异步投影、两路编译和内容目标绑定。
+
+Envoy `v1.39.0` 固定 `8eea3285d6bdb89f8ea34632cfe7ce1608a8f374` 的
+[官方镜像 Dockerfile](https://github.com/envoyproxy/envoy/blob/8eea3285d6bdb89f8ea34632cfe7ce1608a8f374/distribution/docker/Dockerfile-envoy)
+标准 Ubuntu 镜像安装 ca-certificates；此运行前提及 SystemRootCerts 未实现的源码依据见
+[资源契约](ai-gateway-resource-contract.md#上游-tls-首版2026-10-16本地实现待-review)。
+本仓库尚无 Envoy 部署镜像清单，未启动镜像或验证真实握手，不能将 Go API 版本等同于已部署二进制版本。

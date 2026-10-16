@@ -49,6 +49,12 @@ type Backend struct {
 	// Name 是来源 Backend 的作用域标识，必须与 Route.BackendName 一致。
 	Name      string
 	Endpoints []Endpoint
+	TLS       *BackendTLSSettings
+}
+
+// BackendTLSSettings 是全部端点共享的已校验 DNS 身份，信任根固定为 System。
+type BackendTLSSettings struct {
+	SNI string
 }
 
 // Endpoint 是一个后端地址及其相对权重。

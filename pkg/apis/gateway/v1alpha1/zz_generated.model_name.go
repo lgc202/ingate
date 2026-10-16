@@ -61,6 +61,11 @@ func (in BackendStatus) OpenAPIModelName() string {
 }
 
 // OpenAPIModelName returns the OpenAPI model name for this type.
+func (in BackendTLSSettings) OpenAPIModelName() string {
+	return "io.ingate.pkg.apis.gateway.v1alpha1.BackendTLSSettings"
+}
+
+// OpenAPIModelName returns the OpenAPI model name for this type.
 func (in Endpoint) OpenAPIModelName() string {
 	return "io.ingate.pkg.apis.gateway.v1alpha1.Endpoint"
 }

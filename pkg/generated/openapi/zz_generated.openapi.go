@@ -30,6 +30,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		v1alpha1.BackendReference{}.OpenAPIModelName():             schema_pkg_apis_gateway_v1alpha1_BackendReference(ref),
 		v1alpha1.BackendSpec{}.OpenAPIModelName():                  schema_pkg_apis_gateway_v1alpha1_BackendSpec(ref),
 		v1alpha1.BackendStatus{}.OpenAPIModelName():                schema_pkg_apis_gateway_v1alpha1_BackendStatus(ref),
+		v1alpha1.BackendTLSSettings{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_BackendTLSSettings(ref),
 		v1alpha1.Endpoint{}.OpenAPIModelName():                     schema_pkg_apis_gateway_v1alpha1_Endpoint(ref),
 		v1alpha1.Gateway{}.OpenAPIModelName():                      schema_pkg_apis_gateway_v1alpha1_Gateway(ref),
 		v1alpha1.GatewayList{}.OpenAPIModelName():                  schema_pkg_apis_gateway_v1alpha1_GatewayList(ref),
@@ -736,12 +737,18 @@ func schema_pkg_apis_gateway_v1alpha1_BackendSpec(ref common.ReferenceCallback) 
 							},
 						},
 					},
+					"tls": {
+						SchemaProps: spec.SchemaProps{
+							Description: "TLS 要求加密连接；省略表示明文 HTTP，不从请求推导 TLS 身份。",
+							Ref:         ref(v1alpha1.BackendTLSSettings{}.OpenAPIModelName()),
+						},
+					},
 				},
 				Required: []string{"endpoints"},
 			},
 		},
 		Dependencies: []string{
-			v1alpha1.Endpoint{}.OpenAPIModelName()},
+			v1alpha1.BackendTLSSettings{}.OpenAPIModelName(), v1alpha1.Endpoint{}.OpenAPIModelName()},
 	}
 }
 
@@ -777,6 +784,36 @@ func schema_pkg_apis_gateway_v1alpha1_BackendStatus(ref common.ReferenceCallback
 		},
 		Dependencies: []string{
 			metav1.Condition{}.OpenAPIModelName()},
+	}
+}
+
+func schema_pkg_apis_gateway_v1alpha1_BackendTLSSettings(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "BackendTLSSettings 定义一个 Backend 全部端点共享的服务器身份与信任根。",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"sni": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SNI 是固定 DNS 身份，同时用于 TLS SNI 和证书 DNS SAN 验证。",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"wellKnownCACertificates": {
+						SchemaProps: spec.SchemaProps{
+							Description: "WellKnownCACertificates 首版仅接受 System，使用 Envoy 运行环境的系统根证书。",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"sni", "wellKnownCACertificates"},
+			},
+		},
 	}
 }
 

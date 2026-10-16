@@ -18,7 +18,7 @@
 
 以下两图按 `42a6cba9` 的已提交代码描述配置与模型请求的正常路径。普通 HTTP 和
 两个模型创建接口的主链已实现；本轮新增 MCP 请求代理，详见[首版 MCP](#首版-mcpstreamable-http2026-07-28)。这两图仍只描述模型链。
-上游 TLS、提供商凭据和跨提供商协议转换未实现，真实 Envoy、API Server 与模型
+上游 TLS 首版已接通本地源码（见文末），提供商凭据和跨提供商协议转换仍未实现；真实 Envoy、API Server 与模型
 提供商的整链路尚未验收，不能把图中的连接当作已经完成部署验证。
 
 ### 配置流转：从资源写入到两路配置消费
@@ -141,7 +141,7 @@ Go 出站只接受编译结果中已授权的目标，通过专用 Envoy 出站�
 
 已实现的完整请求时序见[请求流转：模型别名到真实上游](#请求流转模型别名到真实上游)。
 Go 在一次请求内使用同一份配置；两路配置最终一致，客户端断开的取消由出站请求
-Context 传播。上文部署图中的 TLS 仍属于目标范围；MCP 的当前实现与验证边界见文末，不能由示意图推断部署已经验收。
+Context 传播。上文部署图中的上游 TLS 已有本地实现，但尚未验证真实握手；MCP 的当前实现与验证边界见文末，不能由示意图推断部署已经验收。
 
 ### 配置更新：最终一致，按请求目标关联
 
@@ -447,3 +447,16 @@ Loader 测试使用 fake API，验证热更新、删除和坏更新；Service �
 - `go test -race -mod=readonly ./internal/aiproxy/... ./internal/controllermanager/controller/gateway ./internal/controllermanager/dataplane/envoy ./internal/pkg/aidataplane -count=1` 通过；最后调整 JSON/SSE 测试报文后另跑 `go test -race -mod=readonly ./internal/aiproxy -count=1` 通过。
 
 没有运行本地 `make verify`。本轮未修改生成源、API 或存储契约，不重新生成代码，也未执行带标签的 API integration；外部组件与部署未覆盖范围仍如上文所列。
+
+## 上游 TLS 的运行前提（2026-10-16）
+
+本地实现沿[Backend TLS 契约](ai-gateway-resource-contract.md#上游-tls-首版2026-10-16本地实现待-review)
+接通普通 HTTP、模型与 MCP 的共用 Envoy Cluster：固定 DNS SNI 与同身份 DNS SAN 验证，仅系统 CA。
+部署须使用已核对的官方标准 Ubuntu Envoy 镜像，使 Envoy 能读取系统 bundle
+`/etc/ssl/certs/ca-certificates.crt`；本仓库尚无 Envoy 镜像部署清单，本轮没有引入或运行容器。
+模型/MCP 的 Go 到 Envoy 链路仍是 UDS HTTP，TLS 建立在 Envoy 到后端之间；Go 不加载 CA 或 TLS 凭据。
+端口不按 HTTPS 自动改为 443，HTTP Host 不因 SNI 改写，入站仍是现有 HTTP Listener。
+
+完整更新省略或清空 TLS 是用户主动修改期望，允许恢复明文；证书、连接或编译错误不会触发明文重试。
+CA 文件读取失败、证书错名/不受信任以及配置传播与旧连接仍须后续真实 Envoy 验证。
+本轮没有执行该联调，也没有增加凭据、私有 CA、mTLS、客户端认证或入口 HTTPS。

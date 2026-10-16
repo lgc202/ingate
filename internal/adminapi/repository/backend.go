@@ -13,18 +13,13 @@ import (
 	gatewayclient "github.com/lgc202/ingate/pkg/generated/clientset/versioned/typed/gateway/v1alpha1"
 )
 
-// Backend 将写入交给 API Server，将查询交给 MySQL 投影。
-type Backend struct {
-	client gatewayclient.BackendsGetter
-	store  *mysql.Store
-}
-
 // BackendInfo 保存管理查询及创建、更新响应所需的后端信息，不表示完整的 Kubernetes 资源。
 type BackendInfo struct {
 	Namespace   string
 	Name        string
 	DisplayName string
 	Endpoints   []gatewayv1alpha1.Endpoint
+	TLS         *gatewayv1alpha1.BackendTLSSettings
 	CreateTime  time.Time
 	Version     string
 }
@@ -33,6 +28,12 @@ type BackendInfo struct {
 type BackendPage struct {
 	Items      []BackendInfo
 	TotalCount int64
+}
+
+// Backend 将写入交给 API Server，将查询交给 MySQL 投影。
+type Backend struct {
+	client gatewayclient.BackendsGetter
+	store  *mysql.Store
 }
 
 // NewBackend 创建 Backend Repository。
@@ -129,12 +130,21 @@ func backendFromAPI(backend *gatewayv1alpha1.Backend) BackendInfo {
 		Name:        backend.Name,
 		DisplayName: spec.DisplayName,
 		Endpoints:   spec.Endpoints,
+		TLS:         spec.TLS,
 		CreateTime:  backend.CreationTimestamp.Time,
 		Version:     backend.ResourceVersion,
 	}
 }
 
 func backendFromMySQL(backend mysql.Backend) BackendInfo {
+	var tls *gatewayv1alpha1.BackendTLSSettings
+	if backend.TLS != nil {
+		tls = &gatewayv1alpha1.BackendTLSSettings{
+			SNI:                     backend.TLS.SNI,
+			WellKnownCACertificates: backend.TLS.WellKnownCACertificates,
+		}
+	}
+
 	endpoints := make([]gatewayv1alpha1.Endpoint, len(backend.Endpoints))
 	for i, endpoint := range backend.Endpoints {
 		endpoints[i] = gatewayv1alpha1.Endpoint{
@@ -149,6 +159,7 @@ func backendFromMySQL(backend mysql.Backend) BackendInfo {
 		Name:        backend.Name,
 		DisplayName: backend.DisplayName,
 		Endpoints:   endpoints,
+		TLS:         tls,
 		CreateTime:  backend.CreatedAt,
 		Version:     backend.Version,
 	}

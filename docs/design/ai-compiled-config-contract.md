@@ -74,6 +74,7 @@ ConfigMap 标准只校验其自身字段，不会理解字符串里的路由表�
 | mcpRoutes[].name / path | 资源作用域标识 / 有效精确路径 | name 为 `{namespace}/{route}`；path 省略值已编译成 `/mcp`，保留尾斜杠 |
 | mcpRoutes[].backendName / backendPath | 网络 Backend 编译标识 / 有效上游路径 | backendName 直接引用 networkBackends，空值拒绝；backendPath 已默认化为 `/mcp` 或保留显式路径，不从请求拼任意 URL |
 | networkBackends | 必填数组，可空 | 只保存被有效模型绑定或 MCP 路由引用的网络快照；不是另一个领域资源，也不包含所有闲置 Backend |
+| networkBackends[].tls | 可选对象；省略或 null 表示 HTTP | 存在时 sni 为固定 DNS 身份，wellKnownCACertificates 为 System；原样参与 revision 和模型/MCP 内容目标哈希，只由 Envoy 执行 TLS，不交给 Go 建连接 |
 | networkBackends[].name / endpoints | `{namespace}/{backend}` / 非空端点数组 | address、port、weight 沿用现有 Backend 契约及排序；用于后续重建同 revision 的 Envoy 出口，不由 Go 负载均衡 |
 
 所有数组输出 `[]`，不输出 null。除表中允许的空字符串外，标识、路径与引用不能为空；非空引用必须在本份配置内存在，标识在对应集合内唯一，端口与端点满足现有校验。加载层应拒绝未知字段、重复 JSON 成员、缺少必填字段和非法枚举；不能仅依赖 `DisallowUnknownFields` 就称为已检查重复成员和必填项。原生 ConfigMap API 不因此新增一套通用 JSON 校验。
@@ -256,7 +257,7 @@ Namespace 生命周期应包含标准 ConfigMap，不增加一个「AI ConfigMap
 - 普通 HTTP、模型与 MCP 完全相同的网络匹配如何裁决；不能在本次偷偷按 Kind 字典序决定，也不能抢占现有 HTTP 路径。
 - Envoy → Go 的可信入口标识、Go → Envoy 的受限目标关联；公网标识必须清除后重写，不能允许客户端选择任意后端。2026-10-15 已确认[最终一致性取舍](ai-model-operations-and-deployment.md#配置更新最终一致按请求目标关联)，不把每请求整份 revision 一致作为准入条件，具体目标绑定仍待确定。
 - 跨组件热更新、目标变更与删除、在途请求及重启恢复。本稿只存当前期望配置，未采用此前双版本发布建议；保存 networkBackends 不表示已冻结或保留旧 Envoy 出口，也不保证旧请求始终连接旧网络目标。
-- 服务身份/授权、Secret 与政策的正式契约、TLS、新鲜度及撤销/排空期限。超限或控制面断联时可能保留旧对象，尤其不能承诺即时撤销；首步不接真实凭据或匿名调用真实提供商。
+- 服务身份/授权、Secret 与政策的正式契约、新鲜度及撤销/排空期限。TLS 首版已按[资源契约](ai-gateway-resource-contract.md#上游-tls-首版2026-10-16本地实现待-review)接入本地源码，真实握手与部署仍未验收。超限或控制面断联时可能保留旧对象，尤其不能承诺即时撤销；首步不接真实凭据或匿名调用真实提供商。
 
 ## 原生 ConfigMap 实现记录
 
@@ -447,3 +448,12 @@ MCP 路径保留尾斜杠，精确入口优先普通 HTTP；所有非 POST 在�
 Envoy 对两类入口覆盖内部协议标记、端口和 Host，解决 Go 静态模型路径与动态 MCP 路径的分派；
 这些字段只在受保护 UDS 上采信，转发时移除，不添加到公开产品协议或持久化 payload。
 网络目标仍绑定内容，而非要求每请求整份 revision 相等；传播窗口中的旧目标只能失败，不能改投其他后端。
+
+### TLS 可选字段与目标关联（2026-10-16）
+
+格式仍为 v1，networkBackends 的可选 `tls` 对象包含必填 `sni` 和 `wellKnownCACertificates`。
+没有 TLS 时编码器省略该字段，既有 golden 内容及明文目标名不变；显式 null 与省略同义。
+空对象、缺身份、IP/通配符身份或非 System 信任根拒绝加载，不转成默认明文配置。
+TLS 身份进入完整 revision 以及 ModelTargetName/MCPTargetName；切换 SNI 或主动删除 TLS
+会改变出口目标名，因此旧 Go 配置不能借同一个目标名访问改变后的 TLS 目标。
+这不冻结 DNS，也不增加版本协调或连接排空保证；无效配置仍沿现有 Loader 行为保留有效视图。

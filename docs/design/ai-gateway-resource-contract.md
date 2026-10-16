@@ -1,17 +1,17 @@
 # 三类路由复用 Backend，以 AIBackend 定义模型服务访问契约
 
-- 状态：六种资源、Namespace 管理与投影及共享协调器均已提交；模型链已接入，MCP 现代透明代理在本轮接通，详见文末
+- 状态：六种资源、Namespace 管理与投影及共享协调器均已提交；模型链已接入，MCP 现代透明代理已提交；上游 TLS 首版已接通本地源码待 review，详见文末
 - 作者：Ingate 开发协作
-- 更新日期：2026-10-13
+- 更新日期：2026-10-16
 - 讨论入口：本仓库文档 review，依据 [0010 决策](../decisions/0010-unified-ai-proxy-config-delivery.md)及用户确认的资源关系
-- 当前源码基线：`17cfe8d5`（Backend 默认存储筛选）；本轮 Namespace 全链路切换未提交，分支 `codex/rebuild-from-zero`；HTTP 替换前基线为 `56205b84321c`
+- 当前源码基线：`5ff9c0be`，分支 `codex/gocanon-template-refactor`；上游 TLS 为本轮未提交改动，下文分步实施记录保留相应历史基线
 - 范围：资源契约、裁决边界、管理接口影响、实施顺序及 D1/D2 进度；不新增数据面业务
 
 ## 摘要
 
 我们按已确认关系设计 Gateway、HTTPRoute、ModelRoute、AIBackend、MCPRoute、Backend。三种路由通过 `parentRefs` 绑定 Gateway；HTTPRoute 和 MCPRoute 直接引用 Backend，ModelRoute 引用 AIBackend，AIBackend 再引用 Backend。Backend 管理网络目标，AIBackend 管理模型服务契约，ModelRoute 管理模型入口与目标映射。
 
-项目没有旧方案兼容压力，Route、Upstream 已替换为 HTTPRoute、Backend，不保留同义的兼容 API。普通 HTTP 路径匹配、端点权重、资源版本并发控制、异步管理查询继续保留。本次修订模型/MCP 契约，并按已确认字段分步接入声明与存储，不恢复已撤回的新服务代码。
+项目没有旧方案兼容压力，Route、Upstream 已替换为 HTTPRoute、Backend，不保留同义的兼容 API。普通 HTTP 路径匹配、端点权重、资源版本并发控制、异步管理查询继续保留。模型/MCP 的资源、管理、编译与代理已逐步接通；本轮新增共用网络层的上游 TLS，不扩展协议操作。
 
 本次重新读取 Agent Router v1.2.0 固定提交的资源类型、Controller、请求入口注册和实际 YAML，按[上游对照](ai-gateway-upstream-alignment.md)收敛字段。用户已确认撤掉旧稿的 `ModelRoute.path`、`ModelRoute.schema`、`matches.model`，采用下文基础资源字段。统一 Go Proxy 不要求改变官方资源形状；安全策略及协议运行建议仍待评审。
 
@@ -19,11 +19,11 @@
 
 ## 背景：现有契约能表达网络转发，不能表达模型服务
 
-基线版本的 RouteSpec 只有 `gatewayName`、`listenerName`、`path`、`upstreamName`，UpstreamSpec 只有端点集合。它们没有客户端模型名、上游模型映射、协议 schema 或后端账号语义。阶段 B 已替换为 [HTTPRouteSpec](../../pkg/apis/gateway/v1alpha1/httproute.go)与 [BackendSpec](../../pkg/apis/gateway/v1alpha1/backend.go)；新增协议层尚未实现。
+基线版本的 RouteSpec 只有 `gatewayName`、`listenerName`、`path`、`upstreamName`，UpstreamSpec 只有端点集合。它们没有客户端模型名、上游模型映射、协议 schema 或后端账号语义。阶段 B 已替换为 [HTTPRouteSpec](../../pkg/apis/gateway/v1alpha1/httproute.go)与 [BackendSpec](../../pkg/apis/gateway/v1alpha1/backend.go)；模型/MCP 协议层的当前范围见文末。
 
-基线裁决按 Gateway/Listener 和规范化路径判断冲突；阶段 B 的 [HTTPRoute 裁决](../../internal/controllermanager/controller/gateway/httproute.go)已保留同路径候选，按父引用独立附着。[Envoy 适配层](../../internal/controllermanager/dataplane/envoy/resources.go)按 Exact 优先、长 PathPrefix 优先稳定排序，IP/DNS 后端采用 EDS/STRICT_DNS。后端连接超时仍为 5 秒，没有上游 TLS 配置。改名不能填补这些协议和安全缺口。
+基线裁决按 Gateway/Listener 和规范化路径判断冲突；阶段 B 的 [HTTPRoute 裁决](../../internal/controllermanager/controller/gateway/httproute.go)已保留同路径候选，按父引用独立附着。[Envoy 适配层](../../internal/controllermanager/dataplane/envoy/resources.go)按 Exact 优先、长 PathPrefix 优先稳定排序，IP/DNS 后端采用 EDS/STRICT_DNS。后端连接超时仍为 5 秒；上游 TLS 的当前实现边界见文末，不能由资源改名推断其部署已验收。
 
-当前 Admin 接口保留 [0005](../decisions/0005-admin-resource-management.md)的 API Server 写入、MySQL 异步查询分工；[资源存储映射](../../internal/apiserver/registry/gateway/storage.go)已有六种资源及其 status。D2 已接入 AIBackend、ModelRoute、MCPRoute 管理与查询投影，均已按用户指示提交，未推送。Namespace 原生 API 与生命周期已接入；六种业务资源的 Namespace 全链路切换已实现待 review。没有 Secret、运行时快照或租约资源。本文不假设完整 Kubernetes 已存在。
+当前 Admin 接口保留 [0005](../decisions/0005-admin-resource-management.md)的 API Server 写入、MySQL 异步查询分工；[资源存储映射](../../internal/apiserver/registry/gateway/storage.go)已有六种资源及其 status。D2 已接入 AIBackend、ModelRoute、MCPRoute 管理与查询投影，均已按用户指示提交，未推送。Namespace 原生 API 与生命周期已接入；六种业务资源的 Namespace 全链路切换已提交。派生 AI 配置使用 ConfigMap，没有 Secret 或租约资源。本文不假设完整 Kubernetes 已存在。
 
 本稿输入是已确认讨论和现有代码，没有另建 PRD，也没有新增计费、配额、Agent、工具聚合、插件市场或多租户业务需求。
 
@@ -88,7 +88,7 @@ Gateway、HTTPRoute、Backend 的 Admin 创建请求不接收技术名称；后�
 | spec.endpoints[].port | 明确端口，1..65535，不根据协议悄悄覆盖 |
 | spec.endpoints[].weight | 正 int32，保留当前端点相对权重；不是模型路由分流权重 |
 | spec.tls | 可选；设置即要求加密上游连接，省略保留当前明文 HTTP 行为。沿用 Envoy Gateway Backend 的内联 TLS 形状，不另造 transport 包装 |
-| spec.tls.sni | 首个 TLS 切片拟要求固定 DNS 身份，用于 SNI，并以同一 DNS 身份验证证书；不从不可信客户端 Host 推导身份。这是明确标注的安全子集，上游允许省略或自动派生 |
+| spec.tls.sni | 首个 TLS 切片要求显式固定 DNS 身份，用于 SNI，并以同一 DNS 身份验证证书；不从不可信客户端 Host 推导身份。这是明确标注的安全子集，上游允许省略或自动派生 |
 | spec.tls.wellKnownCACertificates | 首个 TLS 切片仅支持 System，使用运行环境系统信任根；名称沿用上游，不另造 trust 枚举 |
 
 端点集合必须非空，沿用当前地址/端口重复校验及确定排序。原稿额外提出的 IP 文本归一化、DNS 小写与根点改写不作为本次资源替换条件；它们不是新增协议能力所必需。若后续发现真实重复目标问题，再结合网络解析语义与 Admin/API Server 一致性测试评审，不借重构扩大校验范围。
@@ -99,7 +99,7 @@ Gateway、HTTPRoute、Backend 的 Admin 创建请求不接收技术名称；后�
 
 HTTP Host/authority 与 TLS SNI 是不同语义，不能因为使用 TLS 就强制新增 authority 字段。普通 HTTP 保留当前 Host 转发；模型出口的 Host 重写参考 Agent Router 的自动 hostname rewrite，待出口拓扑确定后在编译/网络适配层验收，不凭客户端路径或 Host 决定上游身份。
 
-访问 HTTPS 模型提供商必须先实现并验收 TLS。TLS 构建或验证失败不能降级为明文。主动删除 tls 是改变期望配置，不等于证书失效；是否禁止已加密服务改为明文、谁可修改以及旧流撤销时限，仍须安全 review。首个切片不同时支持内联 TLS 与独立 BackendTLSPolicy，避免先引入尚无需求的合并优先级；私有 CA、mTLS、跳过证书校验和其他网络治理能力不随上游字段一并开放。
+访问 HTTPS 模型提供商必须先实现并验收 TLS。TLS 构建或验证失败不能降级为明文。用户已确认：完整更新主动省略或清空 tls 会恢复明文期望，这是显式配置修改，首版不禁止主动删除、不增加授权开关。连接或证书失败不改变期望，不重试明文；旧流撤销时限不由本切片承诺。首个切片不同时支持内联 TLS 与独立 BackendTLSPolicy，避免先引入尚无需求的合并优先级；私有 CA、mTLS、跳过证书校验和其他网络治理能力不随上游字段一并开放。
 
 ### HTTPRoute 保留现有普通转发功能
 
@@ -133,7 +133,7 @@ rules:
 
 官方 version 对 OpenAI 被忽略。首版不开放 `schema.version`，避免保存一个不生效的配置；实际增加 AzureOpenAI 等提供商时再采用它的原义，不用 `/v1` 充当提供商版本。也不加入 header/body mutation、providerOptions 或模型列表字段。
 
-schema 定义上游 API 格式，客户端操作由运行实现的标准路径决定。资源能被保存不表示请求已经能转发；当前没有 AI 数据面。首版 OpenAI 声明范围已确认，不能因存在 schema 枚举便声称已经实现 codec。真实服务的操作能力、认证和 TLS 仍须单独核对。
+schema 定义上游 API 格式，客户端操作由运行实现的标准路径决定。资源能被保存不表示请求已经能转发；模型创建与 MCP 单后端代理已接入数据面，具体操作范围见运行设计；真实服务的操作能力、认证与 TLS 部署仍须单独核对。
 
 拟参考官方 BackendSecurityPolicy，通过 targetRefs 附着 AIBackend，分别管理 API 契约和访问身份。它不是第四类路由，也不改变已确认引用关系。凭据权限、轮转和撤销本就具有独立生命周期，因此不再以「暂时减少资源」为理由把认证写死进 AIBackend。
 
@@ -210,7 +210,7 @@ ModelRoute/MCPRoute 的 status 复用现有 `RouteParentStatus`；AIBackend 使�
 
 ## 示例：同一个模型服务提供两个对外模型
 
-以下是目标字段的构造示例，仅解释资源归属；其中 Backend.tls 仍是待确认、未实现的建议，不能把整段 YAML 当作当前可执行配置。四个对象显式属于 `team-a`，引用在该空间内解析；应用这些资源前需通过原生 Namespace API 创建这个空间，后端不会自动创建。当前 API Server 已接入 AIBackend、ModelRoute、MCPRoute 的声明与存储；模型和 MCP 请求运行链路仍未实现。域名和模型均为示意，没有访问真实提供商，没有创建凭据。
+以下是目标字段的构造示例，仅解释资源归属；其中 Backend.tls 已按文末首版边界接入本地源码，尚未进行真实 Envoy 验证，不能把整段 YAML 当作已验收的部署配置。四个对象显式属于 `team-a`，引用在该空间内解析；应用这些资源前需通过原生 Namespace API 创建这个空间，后端不会自动创建。当前 API Server 已接入 AIBackend、ModelRoute、MCPRoute 的声明与存储；模型和 MCP 请求链路已接入，运行边界见文末。域名和模型均为示意，没有访问真实提供商，没有创建凭据。
 
 ```yaml
 apiVersion: gateway.ingate.io/v1alpha1
@@ -281,7 +281,7 @@ spec:
           modelNameOverride: text-v3
 ```
 
-在后续运行实现中，调用方在已开放的标准模型接口发送 `model=coding`，匹配第一条规则并将上游模型覆盖为 `code-v2`；`model=summary` 使用同一 AIBackend 和 Backend，只覆盖为 `text-v3`。这份 ModelRoute 不绑定 Chat 或 Responses，也不声明客户端 schema；操作由标准路径决定。示例没有凭据，所写 TLS 字段也未实现；当前只有声明存储、没有运行消费者，不能用于真实提供商或公网部署。
+在后续运行实现中，调用方在已开放的标准模型接口发送 `model=coding`，匹配第一条规则并将上游模型覆盖为 `code-v2`；`model=summary` 使用同一 AIBackend 和 Backend，只覆盖为 `text-v3`。这份 ModelRoute 不绑定 Chat 或 Responses，也不声明客户端 schema；操作由标准路径决定。示例没有凭据；TLS 字段的本地实现见文末，真实握手、提供商认证和公网部署尚未验收。
 
 HTTPRoute 和 MCPRoute 的引用分别如下；被引用 Backend 需另行定义，它们不使用上面的模型账号：
 
@@ -499,7 +499,7 @@ ParentReference 出现第二个实际管理协议消费者，从 httproute.proto
 
 1. 自有 Group 和 HTTP 子集已确认并实现；原集群级作用域决定已由 [0013](../decisions/0013-namespaced-resources.md)替代为显式 Namespace、同空间引用。编译身份和 Namespace 基础设施已提交，本轮存储、管理和投影全链路切换待 review；具体验证与未覆盖范围见 0013。
 2. 官方 Header 匹配形状及 catch-all、AIBackend 首版 OpenAI/prefix、MCP 基础路径/单后端字段已确认，按 D1 实施，不先启动新服务。操作和真实提供商仍在 [模型操作与部署建议](ai-model-operations-and-deployment.md)中独立 review。
-3. BackendSecurityPolicy 的独立附着建议、凭据存储与权限、AI 客户端入站认证，以及内联 TLS 子集与出口部署边界；用户要求凭据参考官方，新增 [集中凭据与运行配置稿](ai-credentials-and-runtime-config.md)仍待 review，未完成前不接真实密钥或公网入口。
+3. BackendSecurityPolicy 的独立附着建议、凭据存储与权限、AI 客户端入站认证仍待 review；内联 TLS 首版按文末已确认范围实现，真实出口部署仍待验证。用户要求凭据参考官方，新增 [集中凭据与运行配置稿](ai-credentials-and-runtime-config.md)仍待 review，未完成前不接真实密钥或公网入口。
 4. MCP 的目标客户端与协议版本、Go SDK 的真实支持范围；先确定单后端代理，不把聚合当作已有需求。
 5. 运行时资源、发布标识、实例确认、撤销、故障恢复和保留界限；沿 0010 候选流程另行定稿。
 
@@ -522,4 +522,42 @@ MCPRoute 现已接入资源编译、ConfigMap/Loader、单次配置消费、受�
 保留有效配置；没有模型路由的入口允许这些路径。同路径 MCP 候选沿原有排序，失效首选不回退。
 协议校验、Origin、通知/SSE、源码依据及实际验证边界见
 [模型与 MCP 部署设计](ai-model-operations-and-deployment.md#首版-mcpstreamable-http2026-07-28)。
-旧稿未实现状态属于相应历史切片，当前不包含 legacy 会话、stdio、聚合、工具执行、TLS 或凭据。
+旧稿未实现状态属于相应历史切片，当前不包含 legacy 会话、stdio、聚合、工具执行或凭据；上游 TLS 的本地实现见下一节。
+
+## 上游 TLS 首版（2026-10-16，本地实现待 review）
+
+用户确认 Backend 可选内联 TLS，HTTPRoute、模型与 MCP 共享同一网络能力，不新增策略资源。
+`tls` 省略或 null 表示明文 HTTP；对象存在时 `sni` 必须为不带通配符、端口、协议头或 IP 的
+DNS 主机名，`wellKnownCACertificates` 必须显式为 `System`，不推导默认值。
+所有端点使用同一 SNI，并以同一 DNS 身份校验证书 DNS SAN；端点可为 DNS、IPv4 或 IPv6，
+显式端口保持原值。TLS 身份不改变普通 HTTP 的 Host 透传或模型/MCP 按所选端点生成 Host 的规则。
+
+[Envoy Gateway v1.9.2 Backend 源码](https://github.com/envoyproxy/gateway/blob/f9f92a112a4033abed5c8d43a5f7e37da257403c/api/v1alpha1/backend_types.go)
+提供内联 tls、sni 和 wellKnownCACertificates 字段；固定必填 SNI、仅 System 是本项目确认的子集。
+项目当前锁定 `go-control-plane/envoy v1.39.0`。对应
+[Envoy v1.39.0 官方 Dockerfile](https://github.com/envoyproxy/envoy/blob/8eea3285d6bdb89f8ea34632cfe7ce1608a8f374/distribution/docker/Dockerfile-envoy)
+的标准 Ubuntu 22.04 镜像安装 ca-certificates；
+[Ubuntu 系统证书说明](https://manpages.ubuntu.com/manpages/jammy/man8/update-ca-certificates.8.html)
+明确 bundle 为 `/etc/ssl/certs/ca-certificates.crt`。首版使用官方标准 Ubuntu Envoy 镜像，
+由 Envoy 的 trusted_ca 显式加载该文件，不读取 Controller 主机的信任根，不假定 distroless 等变体具备相同文件。
+
+锁定 API 的 system_root_certs 标为未实现，
+[该版本验证上下文源码](https://github.com/envoyproxy/envoy/blob/8eea3285d6bdb89f8ea34632cfe7ce1608a8f374/source/common/ssl/certificate_validation_context_config_impl.cc)
+读取 trusted_ca，不能只设置 SystemRootCerts 就宣称已加载系统根。
+[DNS SAN matcher 源码](https://github.com/envoyproxy/envoy/blob/8eea3285d6bdb89f8ea34632cfe7ce1608a8f374/source/common/tls/cert_validator/san_matcher.cc)
+对 DNS exact matcher 使用证书域名匹配规则，包括合法证书通配名；配置身份本身不接受通配符。
+CA 文件属于 Envoy 运行环境，缺失或无效时由 Envoy 加载失败；控制面不能用检查自身文件系统代替部署验证。
+系统信任根由部署维护，不开放资源级 CA、mTLS 或跳过验证。
+
+本地源码已接通内部/版本化资源、校验、标准生成、Admin 创建/完整 PUT/查询、异步 MySQL JSON 投影，
+以及 HTTP 和 AI 编译、ConfigMap 严格加载与共用 Envoy Cluster。MySQL `tls` 为可空 JSON，
+显式选择更新该列以保证主动清空；本次仅修正未发布迁移基线，没有运行实库迁移。
+TLS 内容参与 AI 配置 revision 及模型/MCP 内容目标名，身份改变生成新目标，不将旧目标复用到不同 TLS 配置。
+省略 TLS 的旧 JSON 和目标编码保持不变；旧二进制严格拒绝未知 TLS 字段，升级需先具备消费能力。
+
+TLS 构建失败沿既有失败路径保留有效配置，握手或证书失败不会另建明文连接。
+完整 PUT 主动删除 TLS 则会发布明文期望；二者必须区分。
+两路配置仍最终一致，xDS Cache 安装不代表 Envoy ACK，失败时可能继续使用先前有效配置，
+不能将本切片理解为即时撤销旧明文配置或中断在途连接。
+本轮按用户要求只做生成、格式及必要编译；测试源码与实际执行范围以交付记录为准，
+未运行真实 Envoy/提供商握手、ACK/NACK、全仓测试或 race，不宣称部署验收。

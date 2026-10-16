@@ -54,6 +54,8 @@ message CreateBackendRequest {
     max_len: 63
     pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
   }];
+  // tls 是可选的上游 TLS；省略时使用明文 HTTP。
+  BackendTLSSettings tls = 4;
 }
 
 // CreateBackendReply 表示创建后的后端资源。
@@ -83,7 +85,10 @@ message GetBackendReply {
 // ListBackendsRequest 表示分页列出后端资源的请求。
 message ListBackendsRequest {
   // page_size 是单页最大数量；为零时使用服务端默认值。
-  int32 page_size = 1 [(buf.validate.field).int32 = {gte: 0, lte: 200}];
+  int32 page_size = 1 [(buf.validate.field).int32 = {
+    gte: 0
+    lte: 200
+  }];
   // page_num 是从 1 开始的页码；为零时使用第一页。
   int32 page_num = 2 [(buf.validate.field).int32.gte = 0];
   // display_name 按展示名称文字包含匹配筛选。
@@ -120,6 +125,8 @@ message UpdateBackendRequest {
     max_len: 63
     pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
   }];
+  // tls 完整替换上游 TLS；省略或 null 主动恢复明文 HTTP。
+  BackendTLSSettings tls = 6;
 }
 
 // UpdateBackendReply 表示更新后的后端资源。
@@ -157,6 +164,27 @@ message Backend {
   string display_name = 5;
   // namespace 是资源所属的命名空间。
   string namespace = 6;
+  // tls 是当前配置的上游 TLS；未配置时无 TLS 对象。
+  BackendTLSSettings tls = 7;
+}
+
+// BackendTLSSettings 表示全部后端端点共享的服务器身份及系统信任根。
+message BackendTLSSettings {
+  // sni 是固定 DNS 身份，也用于证书 DNS SAN 验证，不改变 HTTP Host。
+  string sni = 1 [
+    (buf.validate.field).string = {
+      min_len: 1
+      max_len: 253
+      pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+    },
+    (buf.validate.field).cel = {
+      id: "backend.tls.sni.dns"
+      message: "must be a DNS hostname, not an IP address"
+      expression: "!this.isIp()"
+    }
+  ];
+  // well_known_ca_certificates 首版必须显式指定 System。
+  string well_known_ca_certificates = 2 [(buf.validate.field).string.const = "System"];
 }
 
 // BackendReference 引用同一命名空间的网络后端。
@@ -170,7 +198,10 @@ message Endpoint {
   // address 是不含端口的主机名或 IP 地址。
   string address = 1 [(buf.validate.field).string.min_len = 1];
   // port 是后端服务的监听端口。
-  int32 port = 2 [(buf.validate.field).int32 = {gte: 1, lte: 65535}];
+  int32 port = 2 [(buf.validate.field).int32 = {
+    gte: 1
+    lte: 65535
+  }];
   // weight 是该地址的相对流量权重。
   int32 weight = 3 [(buf.validate.field).int32 = {gte: 1}];
 }

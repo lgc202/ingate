@@ -30,6 +30,16 @@ type BackendSpec struct {
 	// Endpoints 中的顺序不影响转发；同一地址和端口只能出现一次。
 	// +listType=atomic
 	Endpoints []Endpoint `json:"endpoints"`
+	// TLS 要求加密连接；省略表示明文 HTTP，不从请求推导 TLS 身份。
+	TLS *BackendTLSSettings `json:"tls,omitempty"`
+}
+
+// BackendTLSSettings 定义一个 Backend 全部端点共享的服务器身份与信任根。
+type BackendTLSSettings struct {
+	// SNI 是固定 DNS 身份，同时用于 TLS SNI 和证书 DNS SAN 验证。
+	SNI string `json:"sni"`
+	// WellKnownCACertificates 首版仅接受 System，使用 Envoy 运行环境的系统根证书。
+	WellKnownCACertificates string `json:"wellKnownCACertificates"`
 }
 
 // Endpoint 定义一个后端地址及其相对流量权重。

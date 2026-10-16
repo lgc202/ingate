@@ -89,6 +89,14 @@ type MCPRoute struct {
 type NetworkBackend struct {
 	Name      string     `json:"name"`
 	Endpoints []Endpoint `json:"endpoints"`
+	// TLS 省略或 null 表示明文 HTTP；存在时必须包含固定身份和 System 信任根。
+	TLS *BackendTLSSettings `json:"tls,omitempty"`
+}
+
+// BackendTLSSettings 保存 Envoy 出口的 TLS 身份，不包含证书或凭据。
+type BackendTLSSettings struct {
+	SNI                     string `json:"sni"`
+	WellKnownCACertificates string `json:"wellKnownCACertificates"`
 }
 
 // Endpoint 是 Envoy 出口使用的地址、端口和相对权重。

@@ -105,6 +105,14 @@ func (r *BackendReconciler) syncAll(ctx context.Context) error {
 }
 
 func backendToMySQL(backend *gatewayv1alpha1.Backend) mysql.Backend {
+	var tls *mysql.BackendTLSSettings
+	if backend.Spec.TLS != nil {
+		tls = &mysql.BackendTLSSettings{
+			SNI:                     backend.Spec.TLS.SNI,
+			WellKnownCACertificates: backend.Spec.TLS.WellKnownCACertificates,
+		}
+	}
+
 	endpoints := make([]mysql.BackendEndpoint, len(backend.Spec.Endpoints))
 	for i, endpoint := range backend.Spec.Endpoints {
 		endpoints[i] = mysql.BackendEndpoint{
@@ -121,6 +129,7 @@ func backendToMySQL(backend *gatewayv1alpha1.Backend) mysql.Backend {
 		Version:     backend.ResourceVersion,
 		CreatedAt:   backend.CreationTimestamp.UTC(),
 		Endpoints:   endpoints,
+		TLS:         tls,
 	}
 }
 

@@ -15,17 +15,17 @@ import (
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
-var (
-	_ adminv1.BackendServiceServer     = (*BackendHandler)(nil)
-	_ adminv1.BackendServiceHTTPServer = (*BackendHandler)(nil)
-)
-
 // BackendHandler 实现 Backend 的 gRPC 和 HTTP 协议入口。
 type BackendHandler struct {
 	adminv1.UnimplementedBackendServiceServer
 
 	service *backendservice.Service
 }
+
+var (
+	_ adminv1.BackendServiceServer     = (*BackendHandler)(nil)
+	_ adminv1.BackendServiceHTTPServer = (*BackendHandler)(nil)
+)
 
 // NewBackend 创建后端资源协议入口，复用注入的业务服务。
 func NewBackend(service *backendservice.Service) *BackendHandler {
@@ -41,6 +41,7 @@ func (h *BackendHandler) CreateBackend(
 		Namespace:   req.GetNamespace(),
 		DisplayName: req.GetDisplayName(),
 		Endpoints:   backendEndpointsFromProto(req.GetEndpoints()),
+		TLS:         backendTLSFromProto(req.GetTls()),
 	})
 	if err != nil {
 		return nil, toBackendError(err)
@@ -96,6 +97,7 @@ func (h *BackendHandler) UpdateBackend(
 		Name:        req.GetName(),
 		Version:     req.GetVersion(),
 		Endpoints:   backendEndpointsFromProto(req.GetEndpoints()),
+		TLS:         backendTLSFromProto(req.GetTls()),
 	})
 	if err != nil {
 		return nil, toBackendError(err)
@@ -148,13 +150,33 @@ func backendToProto(backend repository.BackendInfo) *adminv1.Backend {
 		return cmp.Compare(a.Port, b.Port)
 	})
 
+	var tls *adminv1.BackendTLSSettings
+	if backend.TLS != nil {
+		tls = &adminv1.BackendTLSSettings{
+			Sni:                     backend.TLS.SNI,
+			WellKnownCaCertificates: backend.TLS.WellKnownCACertificates,
+		}
+	}
+
 	return &adminv1.Backend{
 		Namespace:   backend.Namespace,
 		Name:        backend.Name,
 		DisplayName: backend.DisplayName,
 		Endpoints:   endpoints,
+		Tls:         tls,
 		CreateTime:  timestamppb.New(backend.CreateTime),
 		Version:     backend.Version,
+	}
+}
+
+func backendTLSFromProto(tls *adminv1.BackendTLSSettings) *gatewayv1alpha1.BackendTLSSettings {
+	if tls == nil {
+		return nil
+	}
+
+	return &gatewayv1alpha1.BackendTLSSettings{
+		SNI:                     tls.Sni,
+		WellKnownCACertificates: tls.WellKnownCaCertificates,
 	}
 }
 

@@ -10,6 +10,11 @@
 
 2026-10-15 取舍更新：用户已确认[最终一致性与按请求目标关联](ai-model-operations-and-deployment.md#配置更新最终一致按请求目标关联)，不采用每请求整份配置 revision 相等的强制门槛，也不增加全局实例确认或发布协调系统。下文的整份版本准入、按版本健康检查及双版本发布保留为历史候选，不作为开发前置条件。凭据与实际目标绑定、权限和撤销仍待独立评审；这项更新不批准 Secret、凭据接入或任何候选期限。
 
+2026-10-16 网络能力更新：用户已确认并实现本地 [Backend 内联 TLS 首版](ai-gateway-resource-contract.md#上游-tls-首版2026-10-16本地实现待-review)，
+固定 DNS SNI 与同身份 SAN 验证，仅 System CA，普通 HTTP/模型/MCP 共用 Envoy 网络出口。
+完整更新主动删除 TLS 恢复明文期望；连接或证书失败绝不隐式降级。TLS 不等于上游认证，
+本轮不实现本稿的 Secret、BackendSecurityPolicy、凭据注入或安全授权系统，也未连接真实提供商。
+
 ## 摘要
 
 我们建议沿用官方的 Secret 与 secretRef：密钥集中保存，BackendSecurityPolicy 附着 AIBackend 并引用凭据。首批只设计 OpenAI API key，不增加云身份交换、任意 Header 模板或多种凭据插件。Secret 原文不进入普通派生配置、MySQL 查询投影、状态或日志。
