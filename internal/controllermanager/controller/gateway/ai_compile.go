@@ -28,15 +28,8 @@ type aiCompilation struct {
 // 调用方必须完成全部输入读取；空输入表示撤销，不能用它代替读取失败。
 // 此处不裁决跨 Kind 的网络入口、不发布 xDS，也不写入 ConfigMap。
 func compileAI(snapshot resources) (aidataplane.Config, error) {
-	gateways := make([]gatewayv1alpha1.Gateway, 0, len(snapshot.gateways.Items))
-	for _, gateway := range snapshot.gateways.Items {
-		if gateway.DeletionTimestamp.IsZero() {
-			gateways = append(gateways, gateway)
-		}
-	}
-
 	var accepted resolution
-	accepted.selectGateways(gateways)
+	accepted.selectGateways(snapshot.gateways.Items)
 
 	c := aiCompilation{
 		gateways:         accepted.gateways,

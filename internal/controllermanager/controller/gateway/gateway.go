@@ -27,6 +27,10 @@ type listenerBinding struct {
 func (r *resolution) selectGateways(gateways []gatewayv1alpha1.Gateway) {
 	ordered := make([]*gatewayv1alpha1.Gateway, 0, len(gateways))
 	for i := range gateways {
+		if !gateways[i].DeletionTimestamp.IsZero() {
+			continue
+		}
+
 		ordered = append(ordered, &gateways[i])
 	}
 

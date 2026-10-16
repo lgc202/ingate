@@ -53,7 +53,7 @@ type HTTPRouteMatch struct {
 	Path *PathMatch `json:"path,omitempty"`
 }
 
-// BackendReference 引用当前集群作用域内的 Backend。
+// BackendReference 引用同一 Namespace 内的 Backend。
 type BackendReference struct {
 	Name string `json:"name"`
 }

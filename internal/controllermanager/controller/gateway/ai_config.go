@@ -9,7 +9,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
@@ -38,10 +37,6 @@ func (w *aiConfigWriter) write(ctx context.Context, data []byte) error {
 
 	if len(data) > corev1.MaxSecretSize {
 		return fmt.Errorf("compiled AI configuration data size %d exceeds %d bytes", len(data), corev1.MaxSecretSize)
-	}
-
-	if messages := validation.IsDNS1123Label(w.namespace); len(messages) != 0 {
-		return fmt.Errorf("AI configuration namespace %q must be a valid DNS label", w.namespace)
 	}
 
 	var namespace corev1.Namespace

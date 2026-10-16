@@ -266,18 +266,14 @@ func TestAIConfigWriterAcceptsSizeLimit(t *testing.T) {
 	}
 }
 
-func TestAIConfigWriterRejectsInvalidArguments(t *testing.T) {
+func TestAIConfigWriterRejectsInvalidPayload(t *testing.T) {
 	apiClient := aiConfigClient(t)
-	data := aiConfigPayload(t, resources{})
 	tests := []struct {
-		name      string
-		namespace string
-		data      []byte
+		name string
+		data []byte
 	}{
-		{name: "empty bytes", namespace: "control-plane"},
-		{name: "missing Namespace", data: data},
-		{name: "invalid Namespace", namespace: "Control-Plane", data: data},
-		{name: "oversized payload", namespace: "control-plane", data: []byte(strings.Repeat("x", corev1.MaxSecretSize+1))},
+		{name: "empty bytes"},
+		{name: "oversized payload", data: []byte(strings.Repeat("x", corev1.MaxSecretSize+1))},
 	}
 
 	for _, tt := range tests {
@@ -288,7 +284,7 @@ func TestAIConfigWriterRejectsInvalidArguments(t *testing.T) {
 					return nil
 				},
 			})
-			writer := aiConfigWriter{client: forbiddenAIConfigWrites(t, apiClient), reader: reader, namespace: tt.namespace}
+			writer := aiConfigWriter{client: forbiddenAIConfigWrites(t, apiClient), reader: reader, namespace: "control-plane"}
 
 			if err := writer.write(t.Context(), tt.data); err == nil {
 				t.Errorf("write(%s) error = nil, want rejection before API access", tt.name)

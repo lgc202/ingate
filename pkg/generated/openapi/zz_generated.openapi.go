@@ -688,7 +688,7 @@ func schema_pkg_apis_gateway_v1alpha1_BackendReference(ref common.ReferenceCallb
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "BackendReference 引用当前集群作用域内的 Backend。",
+				Description: "BackendReference 引用同一 Namespace 内的 Backend。",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
