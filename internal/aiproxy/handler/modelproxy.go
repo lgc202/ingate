@@ -15,6 +15,9 @@ import (
 	"github.com/lgc202/ingate/internal/aiproxy/service/modelproxy"
 )
 
+// modelOperation 是两个已注册模型操作的 Service 方法，不是可动态注册的处理链。
+type modelOperation func(context.Context, modelproxy.RequestParams) (*http.Response, error)
+
 // ModelProxyHandler 读取模型请求并调用完整 Service 用例，将上游响应流式写回客户端。
 // 本 Handler 不创建 Transport、不注册路由，也不实现 Envoy 入口/出口身份协议。
 type ModelProxyHandler struct {
@@ -24,7 +27,7 @@ type ModelProxyHandler struct {
 }
 
 // NewModelProxy 保存已构造的模型用例和明确的请求体字节上限，不设置猜测性的默认值。
-// Server 后续以 POST /v1/chat/completions 注册 ChatCompletion，并负责 ErrorEncoder。
+// Server 注册 Chat Completions 和 Responses 创建路径，并负责 ErrorEncoder。
 // 请求错误与流写回使用注入的组件 Logger，不修改或依赖全局 Logger。
 func NewModelProxy(
 	service *modelproxy.Service,
@@ -42,20 +45,30 @@ func NewModelProxy(
 // 入站适配层须先设置可信入口；失败返回安全的协议错误，由 Server 编码，不在此写错误响应。
 // 请求体只做有界读取，具体 JSON 校验和配置捕获由 Service 完成。
 func (h *ModelProxyHandler) ChatCompletion(ctx kratoshttp.Context) error {
+	return h.proxy(ctx, h.service.ChatCompletion)
+}
+
+// CreateResponse 使用相同的可信入口、中间件与有界读取，响应保持 Responses 的原始格式。
+func (h *ModelProxyHandler) CreateResponse(ctx kratoshttp.Context) error {
+	return h.proxy(ctx, h.service.CreateResponse)
+}
+
+func (h *ModelProxyHandler) proxy(ctx kratoshttp.Context, operation modelOperation) error {
 	// 原生 HTTP 消息不绑定 protobuf；整个读取与转发阶段仍须经过中间件，
 	// 保证鉴权先于正文读取，并将中间件派生的上下文传到 Service 和后续阶段。
 	process := ctx.Middleware(func(requestContext context.Context, _ any) (any, error) {
-		return nil, h.chatCompletion(requestContext, ctx.Response(), ctx.Request())
+		return nil, h.proxyRequest(requestContext, ctx.Response(), ctx.Request(), operation)
 	})
 	_, err := process(ctx, nil)
 
 	return err
 }
 
-func (h *ModelProxyHandler) chatCompletion(
+func (h *ModelProxyHandler) proxyRequest(
 	ctx context.Context,
 	response http.ResponseWriter,
 	request *http.Request,
+	operation modelOperation,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return toModelTransportError(ctx, err, h.logger)
@@ -85,7 +98,7 @@ func (h *ModelProxyHandler) chatCompletion(
 		return errno.ErrModelRequestReadFailed.WithCause(err)
 	}
 
-	upstream, err := h.service.ChatCompletion(ctx, modelproxy.ChatCompletionParams{
+	upstream, err := operation(ctx, modelproxy.RequestParams{
 		ListenerPort: entry.port,
 		HostName:     entry.hostName,
 		Body:         body,

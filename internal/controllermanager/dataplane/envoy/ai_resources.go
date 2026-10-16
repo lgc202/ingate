@@ -33,13 +33,16 @@ func buildAIResources(config aidataplane.Config, ingressSocket, egressSocket str
 		return resourceSet{}, fmt.Errorf("validate AI configuration: %w", err)
 	}
 
-	resources := resourceSet{modelRoutes: make(map[modelEntryKey]*routev3.Route)}
+	resources := resourceSet{modelRoutes: make(map[modelEntryKey][]*routev3.Route)}
 	used := make(map[string]bool)
 	for _, listener := range config.Listeners {
 		for _, host := range listener.Hosts {
 			if len(host.ModelRoutes) != 0 {
 				key := modelEntryKey{routeName: routeName(listener.Port), hostName: host.Name}
-				resources.modelRoutes[key] = newAIIngressRoute(listener.Port, host.Name)
+				resources.modelRoutes[key] = []*routev3.Route{
+					newAIIngressRoute(listener.Port, host.Name, "/v1/chat/completions"),
+					newAIIngressRoute(listener.Port, host.Name, "/v1/responses"),
+				}
 			}
 
 			for _, route := range host.ModelRoutes {

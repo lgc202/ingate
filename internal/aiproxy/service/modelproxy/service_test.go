@@ -33,7 +33,7 @@ func TestChatCompletionSendsPreparedRequest(t *testing.T) {
 		service, _ := runTestService(t, fixtureConfigMap(t))
 		body := []byte(`{"model":"coding","messages":[],"stream":true,"vendor":{"enabled":true}}`)
 		original := bytes.Clone(body)
-		params := ChatCompletionParams{
+		params := RequestParams{
 			ListenerPort: 8080, HostName: "gateway/team-a/public/listener/api",
 			Body: body, Accept: []string{"text/event-stream", "application/json"},
 		}
@@ -150,7 +150,7 @@ func TestChatCompletionDoesNotCrossEntries(t *testing.T) {
 			{name: "other port", port: 8081, host: "gateway/team-a/public/listener/api", body: `{"model":"coding"}`},
 			{name: "public hostname", port: 8080, host: "gateway.example.com", body: `{"model":"coding"}`},
 		} {
-			params := ChatCompletionParams{ListenerPort: tt.port, HostName: tt.host, Body: []byte(tt.body)}
+			params := RequestParams{ListenerPort: tt.port, HostName: tt.host, Body: []byte(tt.body)}
 
 			response, err := service.ChatCompletion(t.Context(), params)
 
@@ -235,25 +235,54 @@ func TestChatCompletionConfigurationChanges(t *testing.T) {
 	})
 }
 
-func TestChatCompletionBeforeConfigurationAndCancelled(t *testing.T) {
+func TestModelOperationsBeforeConfigurationAndCancelled(t *testing.T) {
 	loader := aiconfig.NewLoader(fake.NewClientset(), "control-plane", slog.Default())
 
 	service := New(loader, &http.Client{Transport: rejectUnexpectedRequest(t)})
 
-	response, err := service.ChatCompletion(t.Context(), ChatCompletionParams{})
-
-	if response != nil || !errors.Is(err, ErrUnavailable) {
-		t.Errorf("ChatCompletion(before load) = (%v, %v), want unavailable", response, err)
-	}
-
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	response, err = service.ChatCompletion(ctx, ChatCompletionParams{})
+	for _, tt := range []struct {
+		name string
+		call func(context.Context, RequestParams) (*http.Response, error)
+	}{
+		{name: "ChatCompletion", call: service.ChatCompletion},
+		{name: "CreateResponse", call: service.CreateResponse},
+	} {
+		response, err := tt.call(t.Context(), RequestParams{})
 
-	if response != nil || !errors.Is(err, context.Canceled) {
-		t.Errorf("ChatCompletion(canceled) = (%v, %v), want canceled before parsing or networking", response, err)
+		if response != nil || !errors.Is(err, ErrUnavailable) {
+			t.Errorf("%s(before load) = (%v, %v), want unavailable", tt.name, response, err)
+		}
+
+		response, err = tt.call(ctx, RequestParams{})
+
+		if response != nil || !errors.Is(err, context.Canceled) {
+			t.Errorf("%s(canceled) = (%v, %v), want canceled before parsing or networking", tt.name, response, err)
+		}
 	}
+}
+
+func TestCreateResponseUsesConfiguredEscapedPrefix(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		configMap := fixtureConfigMap(t)
+		compiled := decodeTestConfig(t, configMap)
+		compiled.Backends[0].Schema.Prefix = "/custom%20base/"
+		setTestConfig(t, configMap, *compiled)
+		service, _ := runTestService(t, configMap)
+
+		response, err := service.CreateResponse(t.Context(), modelParams([]byte(`{"model":"coding","input":"hello"}`)))
+		if err != nil {
+			t.Fatalf("CreateResponse(escaped prefix) error = %v", err)
+		}
+
+		readResponse(t, response)
+
+		if path := response.Header.Get("X-Test-Path"); path != "/custom%20base/responses" {
+			t.Errorf("CreateResponse(escaped prefix) path = %q, want configured prefix and Responses suffix", path)
+		}
+	})
 }
 
 func TestChatCompletionPreservesClientFailure(t *testing.T) {
@@ -373,8 +402,8 @@ func rejectUnexpectedRequest(t *testing.T) http.RoundTripper {
 	})
 }
 
-func modelParams(body []byte) ChatCompletionParams {
-	return ChatCompletionParams{ListenerPort: 8080, HostName: "gateway/team-a/public/listener/api", Body: body}
+func modelParams(body []byte) RequestParams {
+	return RequestParams{ListenerPort: 8080, HostName: "gateway/team-a/public/listener/api", Body: body}
 }
 
 func readResponse(t *testing.T, response *http.Response) []byte {

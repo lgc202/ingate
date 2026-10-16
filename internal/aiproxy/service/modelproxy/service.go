@@ -28,9 +28,9 @@ var (
 	ErrForwardFailed = errors.New("model forwarding failed")
 )
 
-// ChatCompletionParams 保存可信入口和已经读取完毕的原始请求体。
+// RequestParams 保存两个模型创建操作共用的可信入口和原始请求体。
 // Body 在调用期间由调用方保持不变，读取大小限制由入站适配层负责。
-type ChatCompletionParams struct {
+type RequestParams struct {
 	ListenerPort int32
 	// HostName 是 Listener 下的完整编译标识，不是客户端的 Host Header。
 	HostName string
@@ -59,8 +59,39 @@ func New(loader *aiconfig.Loader, client *http.Client) *Service {
 // 取消传播到出站请求及响应读取；同步 JSON 解码仍由调用方的正文大小限制约束。
 func (s *Service) ChatCompletion(
 	ctx context.Context,
-	params ChatCompletionParams,
+	params RequestParams,
 ) (*http.Response, error) {
+	config, err := s.captureConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := endpointspec.ParseChatCompletions(params.Body)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidArgument, err)
+	}
+
+	return s.forward(ctx, config, params, request.Model, "chat/completions")
+}
+
+// CreateResponse 代理 OpenAI Responses 创建操作，响应 Body 的交付约定与 ChatCompletion 相同。
+// 模型路由共用原始 model；不会把 Responses 请求或具名 SSE 事件转换为 Chat Completions。
+// background 为 true 时拒绝；提供商状态引用原样传递，不保证跨目标的会话亲和性。
+func (s *Service) CreateResponse(ctx context.Context, params RequestParams) (*http.Response, error) {
+	config, err := s.captureConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := endpointspec.ParseResponses(params.Body)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidArgument, err)
+	}
+
+	return s.forward(ctx, config, params, request.Model, "responses")
+}
+
+func (s *Service) captureConfig(ctx context.Context) (*aiconfig.Config, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -70,12 +101,17 @@ func (s *Service) ChatCompletion(
 		return nil, ErrUnavailable
 	}
 
-	request, err := endpointspec.ParseChatCompletions(params.Body)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrInvalidArgument, err)
-	}
+	return config, nil
+}
 
-	backend, err := config.ResolveModel(params.ListenerPort, params.HostName, request.Model)
+// forward 只接受两个已解析入口提供的模型名与固定操作后缀，不采用客户端路径。
+func (s *Service) forward(
+	ctx context.Context,
+	config *aiconfig.Config,
+	params RequestParams,
+	modelName, operationPath string,
+) (*http.Response, error) {
+	backend, err := config.ResolveModel(params.ListenerPort, params.HostName, modelName)
 	if err != nil {
 		switch {
 		case errors.Is(err, aiconfig.ErrModelRouteNotFound):
@@ -87,12 +123,12 @@ func (s *Service) ChatCompletion(
 		}
 	}
 
-	body, err := translator.TranslateChatCompletionOpenAIToOpenAI(params.Body, backend.ModelNameOverride)
+	body, err := translator.TranslateOpenAIToOpenAI(params.Body, backend.ModelNameOverride)
 	if err != nil {
 		return nil, err
 	}
 
-	upstream, err := newChatCompletionRequest(ctx, backend, body, params.Accept)
+	upstream, err := newModelRequest(ctx, backend, body, params.Accept, operationPath)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
@@ -111,13 +147,14 @@ func (s *Service) ChatCompletion(
 	return response, nil
 }
 
-func newChatCompletionRequest(
+func newModelRequest(
 	ctx context.Context,
 	backend aiconfig.ModelBackend,
 	body []byte,
 	accept []string,
+	operationPath string,
 ) (*http.Request, error) {
-	path, err := url.JoinPath("/", backend.Schema.Prefix, "chat/completions")
+	path, err := url.JoinPath("/", backend.Schema.Prefix, operationPath)
 	if err != nil {
 		return nil, fmt.Errorf("build model operation path: %w", err)
 	}

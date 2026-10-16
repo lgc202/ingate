@@ -11,7 +11,7 @@ import (
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/translator"
 )
 
-func TestTranslateChatCompletionOpenAIToOpenAIPreservesFields(t *testing.T) {
+func TestTranslateOpenAIToOpenAIPreservesFields(t *testing.T) {
 	body := []byte(`{
 		"model": "coding",
 		"Model": "provider-specific",
@@ -28,13 +28,13 @@ func TestTranslateChatCompletionOpenAIToOpenAIPreservesFields(t *testing.T) {
 	want := decodeRequest(t, body)
 	want["model"] = "code-v2"
 
-	encoded, err := translator.TranslateChatCompletionOpenAIToOpenAI(body, "code-v2")
+	encoded, err := translator.TranslateOpenAIToOpenAI(body, "code-v2")
 	if err != nil {
-		t.Fatalf("TranslateChatCompletionOpenAIToOpenAI(code-v2) error = %v", err)
+		t.Fatalf("TranslateOpenAIToOpenAI(code-v2) error = %v", err)
 	}
 
 	if diff := cmp.Diff(want, decodeRequest(t, encoded)); diff != "" {
-		t.Errorf("TranslateChatCompletionOpenAIToOpenAI(code-v2) changed unrelated JSON values (-want +got):\n%s", diff)
+		t.Errorf("TranslateOpenAIToOpenAI(code-v2) changed unrelated JSON values (-want +got):\n%s", diff)
 	}
 
 	if got := request.Model; got != "coding" {
@@ -43,17 +43,17 @@ func TestTranslateChatCompletionOpenAIToOpenAIPreservesFields(t *testing.T) {
 
 	want["model"] = "other\"\\模型"
 
-	other, err := translator.TranslateChatCompletionOpenAIToOpenAI(body, "other\"\\模型")
+	other, err := translator.TranslateOpenAIToOpenAI(body, "other\"\\模型")
 	if err != nil {
-		t.Fatalf("TranslateChatCompletionOpenAIToOpenAI(escaped model) error = %v", err)
+		t.Fatalf("TranslateOpenAIToOpenAI(escaped model) error = %v", err)
 	}
 
 	if diff := cmp.Diff(want, decodeRequest(t, other)); diff != "" {
-		t.Errorf("TranslateChatCompletionOpenAIToOpenAI(escaped model) mismatch (-want +got):\n%s", diff)
+		t.Errorf("TranslateOpenAIToOpenAI(escaped model) mismatch (-want +got):\n%s", diff)
 	}
 }
 
-func TestTranslateChatCompletionOpenAIToOpenAIOwnsResult(t *testing.T) {
+func TestTranslateOpenAIToOpenAIOwnsResult(t *testing.T) {
 	body := []byte(" { \"model\" : \"coding\", \"messages\" : [] }\n")
 	original := bytes.Clone(body)
 	if _, err := endpointspec.ParseChatCompletions(body); err != nil {
@@ -66,21 +66,21 @@ func TestTranslateChatCompletionOpenAIToOpenAIOwnsResult(t *testing.T) {
 			want["model"] = override
 		}
 
-		encoded, err := translator.TranslateChatCompletionOpenAIToOpenAI(body, override)
+		encoded, err := translator.TranslateOpenAIToOpenAI(body, override)
 		if err != nil {
-			t.Fatalf("TranslateChatCompletionOpenAIToOpenAI(%q) error = %v", override, err)
+			t.Fatalf("TranslateOpenAIToOpenAI(%q) error = %v", override, err)
 		}
 
 		if diff := cmp.Diff(want, decodeRequest(t, encoded)); diff != "" {
-			t.Errorf("TranslateChatCompletionOpenAIToOpenAI(%q) mismatch (-want +got):\n%s", override, diff)
+			t.Errorf("TranslateOpenAIToOpenAI(%q) mismatch (-want +got):\n%s", override, diff)
 		}
 
 		if (override == "" || override == "coding") && !bytes.Equal(encoded, original) {
-			t.Errorf("TranslateChatCompletionOpenAIToOpenAI(%q) = %q, want original bytes %q", override, encoded, original)
+			t.Errorf("TranslateOpenAIToOpenAI(%q) = %q, want original bytes %q", override, encoded, original)
 		}
 
 		if !bytes.Equal(body, original) {
-			t.Errorf("TranslateChatCompletionOpenAIToOpenAI(%q) mutated source = %q, want %q", override, body, original)
+			t.Errorf("TranslateOpenAIToOpenAI(%q) mutated source = %q, want %q", override, body, original)
 		}
 
 		for i := range encoded {
@@ -88,15 +88,15 @@ func TestTranslateChatCompletionOpenAIToOpenAIOwnsResult(t *testing.T) {
 		}
 
 		if !bytes.Equal(body, original) {
-			t.Errorf("TranslateChatCompletionOpenAIToOpenAI(%q) result aliases source = %q, want %q", override, body, original)
+			t.Errorf("TranslateOpenAIToOpenAI(%q) result aliases source = %q, want %q", override, body, original)
 		}
 	}
 
 	want := decodeRequest(t, original)
 	want["model"] = "code-v2"
-	encoded, err := translator.TranslateChatCompletionOpenAIToOpenAI(body, "code-v2")
+	encoded, err := translator.TranslateOpenAIToOpenAI(body, "code-v2")
 	if err != nil {
-		t.Fatalf("TranslateChatCompletionOpenAIToOpenAI(code-v2) error = %v", err)
+		t.Fatalf("TranslateOpenAIToOpenAI(code-v2) error = %v", err)
 	}
 
 	for i := range body {
@@ -104,28 +104,47 @@ func TestTranslateChatCompletionOpenAIToOpenAIOwnsResult(t *testing.T) {
 	}
 
 	if diff := cmp.Diff(want, decodeRequest(t, encoded)); diff != "" {
-		t.Errorf("TranslateChatCompletionOpenAIToOpenAI() retained mutable source (-want +got):\n%s", diff)
+		t.Errorf("TranslateOpenAIToOpenAI() retained mutable source (-want +got):\n%s", diff)
 	}
 }
 
-func TestTranslateChatCompletionOpenAIToOpenAIRejectsInvalidOverride(t *testing.T) {
+func TestTranslateOpenAIToOpenAIRejectsInvalidOverride(t *testing.T) {
 	body := []byte(`{"model":"coding"}`)
 	_, err := endpointspec.ParseChatCompletions(body)
 	if err != nil {
 		t.Fatalf("ParseChatCompletions(valid body) error = %v", err)
 	}
 
-	encoded, err := translator.TranslateChatCompletionOpenAIToOpenAI(body, "\xff")
+	encoded, err := translator.TranslateOpenAIToOpenAI(body, "\xff")
 
 	if err == nil || encoded != nil {
-		t.Errorf("TranslateChatCompletionOpenAIToOpenAI(invalid UTF-8) = (%q, %v), want nil body and error", encoded, err)
+		t.Errorf("TranslateOpenAIToOpenAI(invalid UTF-8) = (%q, %v), want nil body and error", encoded, err)
+	}
+}
+
+func TestTranslateOpenAIToOpenAIPreservesResponsesFields(t *testing.T) {
+	body := []byte(`{"model":"coding","input":[{"role":"user","content":"hello"}],"background":false,"previous_response_id":"resp_1","tools":[{"type":"function","name":"lookup"}],"vendor":{"large":9007199254740993}}`)
+	if _, err := endpointspec.ParseResponses(body); err != nil {
+		t.Fatalf("ParseResponses(provider extensions) error = %v", err)
+	}
+
+	want := decodeRequest(t, body)
+	want["model"] = "code-v2"
+
+	encoded, err := translator.TranslateOpenAIToOpenAI(body, "code-v2")
+	if err != nil {
+		t.Fatalf("TranslateOpenAIToOpenAI(Responses) error = %v", err)
+	}
+
+	if diff := cmp.Diff(want, decodeRequest(t, encoded)); diff != "" {
+		t.Errorf("TranslateOpenAIToOpenAI(Responses) changed unrelated fields (-want +got):\n%s", diff)
 	}
 }
 
 func decodeRequest(t *testing.T, body []byte) map[string]any {
 	t.Helper()
 	if !json.Valid(body) {
-		t.Fatalf("TranslateChatCompletionOpenAIToOpenAI() body = %q, want a single valid JSON document", body)
+		t.Fatalf("TranslateOpenAIToOpenAI() body = %q, want a single valid JSON document", body)
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(body))

@@ -36,7 +36,7 @@ type resourceSet struct {
 	clusters  []*clusterv3.Cluster
 	endpoints []*endpointv3.ClusterLoadAssignment
 	// 模型入口在发布时合入 HTTP 拥有的公共 VirtualHost，不另建重复 Listener。
-	modelRoutes map[modelEntryKey]*routev3.Route
+	modelRoutes map[modelEntryKey][]*routev3.Route
 }
 
 func buildResources(config dataplane.Config) (resourceSet, error) {

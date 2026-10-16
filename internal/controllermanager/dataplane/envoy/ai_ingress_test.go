@@ -23,6 +23,7 @@ func TestAIIngressSharesHTTPListener(t *testing.T) {
 			httpConfig := dataplane.Config{Listeners: []dataplane.Listener{{Port: 8080, Hosts: []dataplane.Host{
 				{Name: hostName, Hostname: "gateway.example.com", Routes: []dataplane.Route{
 					{Name: "ordinary exact", PathType: dataplane.PathMatchExact, Path: "/v1/chat/completions"},
+					{Name: "ordinary Responses", PathType: dataplane.PathMatchExact, Path: "/v1/responses"},
 					{Name: "ordinary prefix", PathType: dataplane.PathMatchPrefix, Path: "/"},
 				}},
 				{Name: "gateway/team-b/other/listener/api", Hostname: "other.example.com"},
@@ -63,37 +64,39 @@ func TestAIIngressSharesHTTPListener(t *testing.T) {
 			}
 
 			host := routes.VirtualHosts[0]
-			if len(host.Routes) != 3 || len(routes.VirtualHosts[1].Routes) != 0 {
-				t.Fatalf("Publish(%s) host route counts = %d/%d, want 3/0 without cross-host entry", order, len(host.Routes), len(routes.VirtualHosts[1].Routes))
+			if len(host.Routes) != 5 || len(routes.VirtualHosts[1].Routes) != 0 {
+				t.Fatalf("Publish(%s) host route counts = %d/%d, want 5/0 without cross-host entry", order, len(host.Routes), len(routes.VirtualHosts[1].Routes))
 			}
 
-			entry := host.Routes[0]
-			if entry.Match.GetPath() != "/v1/chat/completions" || len(entry.Match.Headers) != 1 || entry.Match.Headers[0].Name != ":method" || entry.Match.Headers[0].GetStringMatch().GetExact() != "POST" {
-				t.Errorf("model entry match = %v, want only exact Chat Completions POST", entry.Match)
-			}
+			for i, operationPath := range []string{"/v1/chat/completions", "/v1/responses"} {
+				entry := host.Routes[i]
+				if entry.Match.GetPath() != operationPath || len(entry.Match.Headers) != 1 || entry.Match.Headers[0].Name != ":method" || entry.Match.Headers[0].GetStringMatch().GetExact() != "POST" {
+					t.Errorf("model entry match = %v, want only exact %s POST", entry.Match, operationPath)
+				}
 
-			if host.Routes[1].Name != "ordinary exact" || host.Routes[2].Name != "ordinary prefix" {
-				t.Errorf("model entry changed ordinary route order: %v", host.Routes)
-			}
+				if entry.GetRoute().GetCluster() != aiIngressName || entry.GetRoute().Timeout == nil || entry.GetRoute().Timeout.AsDuration() != 0 || entry.GetRoute().RetryPolicy != nil {
+					t.Errorf("model entry(%s) action = %v, want fixed Go cluster without total timeout or retries", operationPath, entry.GetRoute())
+				}
 
-			if entry.GetRoute().GetCluster() != aiIngressName || entry.GetRoute().Timeout == nil || entry.GetRoute().Timeout.AsDuration() != 0 || entry.GetRoute().RetryPolicy != nil {
-				t.Errorf("model entry action = %v, want fixed Go cluster without total timeout or retries", entry.GetRoute())
-			}
+				wantHeaders := map[string]string{aidataplane.ListenerPortHeader: "8080", aidataplane.HostNameHeader: hostName}
+				if len(entry.RequestHeadersToAdd) != len(wantHeaders) {
+					t.Fatalf("model entry(%s) headers = %v, want exactly port and host", operationPath, entry.RequestHeadersToAdd)
+				}
 
-			wantHeaders := map[string]string{aidataplane.ListenerPortHeader: "8080", aidataplane.HostNameHeader: hostName}
-			if len(entry.RequestHeadersToAdd) != len(wantHeaders) {
-				t.Fatalf("model entry headers = %v, want exactly port and host", entry.RequestHeadersToAdd)
-			}
+				for _, header := range entry.RequestHeadersToAdd {
+					want, exists := wantHeaders[header.Header.Key]
+					if !exists || header.Header.Value != want || header.AppendAction != corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD {
+						t.Errorf("model entry(%s) header = %v, want literal overwrite from %v", operationPath, header, wantHeaders)
+					}
+				}
 
-			for _, header := range entry.RequestHeadersToAdd {
-				want, exists := wantHeaders[header.Header.Key]
-				if !exists || header.Header.Value != want || header.AppendAction != corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD {
-					t.Errorf("model entry header = %v, want literal overwrite from %v", header, wantHeaders)
+				if !slices.Equal(entry.RequestHeadersToRemove, []string{aidataplane.TargetHeader}) {
+					t.Errorf("model entry(%s) removed headers = %v, want client target removed", operationPath, entry.RequestHeadersToRemove)
 				}
 			}
 
-			if !slices.Equal(entry.RequestHeadersToRemove, []string{aidataplane.TargetHeader}) {
-				t.Errorf("model entry removed headers = %v, want client target removed", entry.RequestHeadersToRemove)
+			if host.Routes[2].Name != "ordinary exact" || host.Routes[3].Name != "ordinary Responses" || host.Routes[4].Name != "ordinary prefix" {
+				t.Errorf("model entry changed ordinary route order: %v", host.Routes)
 			}
 
 			cluster := snapshot.GetResources(resourcev3.ClusterType)[aiIngressName].(*clusterv3.Cluster)
@@ -129,7 +132,7 @@ func TestAIIngressSharesHTTPListener(t *testing.T) {
 			}
 
 			ordinary := revoked.GetResources(resourcev3.RouteType)[routeName(8080)].(*routev3.RouteConfiguration)
-			if len(ordinary.VirtualHosts[0].Routes) != 2 || ordinary.VirtualHosts[0].Routes[0].Name != "ordinary exact" || len(revoked.GetResources(resourcev3.ClusterType)) != 0 {
+			if len(ordinary.VirtualHosts[0].Routes) != 3 || ordinary.VirtualHosts[0].Routes[0].Name != "ordinary exact" || len(revoked.GetResources(resourcev3.ClusterType)) != 0 {
 				t.Errorf("PublishAI(MCP only) retained model ingress or lost HTTP routes: %v", ordinary)
 			}
 

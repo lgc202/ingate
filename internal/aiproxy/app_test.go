@@ -1,7 +1,6 @@
 package aiproxy
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -115,7 +114,7 @@ func TestNewHTTPServerConnectsModelPipeline(t *testing.T) {
 			{name: "other namespace", path: "/v1/chat/completions", body: `{"model":"coding"}`, trusted: true, hostName: "gateway/team-b/public/listener/api", wantStatus: http.StatusNotFound, wantCode: "MODEL_NOT_FOUND"},
 			{name: "oversized body", path: "/v1/chat/completions", body: strings.Repeat("x", 1025), trusted: true, wantStatus: http.StatusRequestEntityTooLarge, wantCode: "MODEL_REQUEST_TOO_LARGE"},
 			{name: "invalid JSON", path: "/v1/chat/completions", body: `{"model":`, trusted: true, wantStatus: http.StatusBadRequest, wantCode: "MODEL_INVALID_ARGUMENT"},
-			{name: "unimplemented operation", path: "/v1/responses", body: `{}`, trusted: true, wantStatus: http.StatusNotFound},
+			{name: "unimplemented operation", path: "/v1/responses/resp_1", body: `{}`, trusted: true, wantStatus: http.StatusNotFound},
 			{name: "global diagnostic mux", path: "/unintended-debug/", body: `{}`, wantStatus: http.StatusNotFound},
 		} {
 			request := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
@@ -235,6 +234,23 @@ func TestNewHTTPServerRejectsInvalidConfiguration(t *testing.T) {
 }
 
 func TestModelPipelineStreamsBeforeCompletionAndCancelsUpstream(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		path  string
+		event string
+	}{
+		{name: "Chat Completions", path: "/v1/chat/completions", event: "data: first\n\n"},
+		{name: "Responses", path: "/v1/responses", event: "event: response.created\ndata: {\"type\":\"response.created\"}\n\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			testModelPipelineStream(t, tt.path, tt.event)
+		})
+	}
+}
+
+// testModelPipelineStream 在对端保持连接时读取完整首帧，再检查取消能到达出口。
+func testModelPipelineStream(t *testing.T, operationPath, event string) {
+	t.Helper()
 	deadline, stop := context.WithTimeout(t.Context(), 5*time.Second)
 	defer stop()
 	ctx, cancel := context.WithCancel(deadline)
@@ -243,8 +259,12 @@ func TestModelPipelineStreamsBeforeCompletionAndCancelsUpstream(t *testing.T) {
 	egress := unixListener(t, "egress.sock")
 	peerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer close(ended)
+		if r.URL.Path != operationPath {
+			t.Errorf("model stream path = %q, want %q", r.URL.Path, operationPath)
+		}
+
 		w.Header().Set("Content-Type", "text/event-stream")
-		if _, err := io.WriteString(w, "data: first\n\n"); err != nil {
+		if _, err := io.WriteString(w, event); err != nil {
 			t.Errorf("WriteString(first event) error = %v", err)
 			return
 		}
@@ -277,7 +297,7 @@ func TestModelPipelineStreamsBeforeCompletionAndCancelsUpstream(t *testing.T) {
 		}
 
 		t.Cleanup(client.CloseIdleConnections)
-		request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://ingate-ai-ingress/v1/chat/completions", strings.NewReader(`{"model":"coding","stream":true}`))
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://ingate-ai-ingress"+operationPath, strings.NewReader(`{"model":"coding","stream":true}`))
 		if err != nil {
 			t.Fatalf("NewRequestWithContext(stream) error = %v", err)
 		}
@@ -295,10 +315,11 @@ func TestModelPipelineStreamsBeforeCompletionAndCancelsUpstream(t *testing.T) {
 				t.Errorf("Close(stream response) error = %v", err)
 			}
 		}()
-		first, err := bufio.NewReader(response.Body).ReadString('\n')
+		first := make([]byte, len(event))
+		_, err = io.ReadFull(response.Body, first)
 
-		if err != nil || first != "data: first\n" {
-			t.Fatalf("ReadString(first event) = (%q, %v), want event while upstream is still open", first, err)
+		if err != nil || string(first) != event {
+			t.Fatalf("ReadFull(%s first event) = (%q, %v), want %q while upstream is still open", operationPath, first, err, event)
 		}
 
 		cancel()

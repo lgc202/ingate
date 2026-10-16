@@ -14,12 +14,13 @@ type Handlers struct {
 	ModelProxy *handler.ModelProxyHandler
 }
 
-// New 注册 Chat Completions，但不开始接受请求，也不接管 Loader 的生命周期。
+// New 注册 Chat Completions 与 Responses 创建操作，但不开始接受请求或运行 Loader。
 // 必须传入已有的 Unix Listener，不能退回 Kratos 的默认 TCP 监听。
 // Listener 的创建、权限及失败清理由调用方负责；开始服务后由原生 Server.Stop 关闭。
 func New(listener *net.UnixListener, handlers Handlers) *kratoshttp.Server {
 	httpServer := newHTTP(listener)
 	httpServer.Route("/").POST("/v1/chat/completions", handlers.ModelProxy.ChatCompletion, modelEntry)
+	httpServer.Route("/").POST("/v1/responses", handlers.ModelProxy.CreateResponse, modelEntry)
 
 	return httpServer
 }

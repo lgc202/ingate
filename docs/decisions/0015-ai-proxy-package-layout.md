@@ -117,6 +117,14 @@ apischema/openai 只定义当前需要提取的 model 字段，不宣称覆盖�
 
 ## 验证边界
 
+2026-10-16 用户确认扩展 Responses 创建操作，已通过 review 并授权本地提交。
+两个 Handler 均保留 Kratos 原生签名，按静态注册的 Service 方法共用中间件、正文读取
+与响应写回。Service 的两个入口先捕获一次配置，再各自解析协议，共用模型选择与出站调用；
+输入改称 RequestParams。同协议模型覆盖实际服务两个操作，改称 TranslateOpenAIToOpenAI，
+不保留旧内部名称兼容别名，不新增接口、注册机制或 Provider 包。Envoy 按 Listener/Host
+保存两个精确 POST 入口，普通路由顺序和目标绑定保持不变。范围与依据见
+[Responses 扩展](../design/ai-model-operations-and-deployment.md#responses-创建操作扩展2026-10-16)。
+
 2026-10-16 用户暂缓 Listener 级接纳调整，继续组件开发。本次独立切片为 AI Proxy
 接入已有普通运行日志配置：沿用 Admin API 的 level、format、outputs、add_source
 与 file 轮转选项，省略时仍使用共享日志包的 info/JSON/stdout 默认值。配置由本组件

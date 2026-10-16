@@ -332,7 +332,7 @@ backendRefs:
 
 普通 HTTP 按 Gateway API 已实现匹配条件确定优先级：Exact 优先，PathPrefix 越长越优先；跨同类路由平局用创建时间、Namespace、name；同一路由最终用规则列表顺序，不按可选规则名排序。具有相同 match 的 HTTPRoute 不因重叠而整体删除，较低优先级规则保留为候选，优先规则删除后可重新选择。原 Ingate 将完全重复路径标为冲突；本次设计 review 已确认改变这一行为。
 
-2026-10-15 接通模型入口时，按简单路由顺序处理重叠，不增加跨种类冲突检测或发布阻断：同一 Listener/Host 配置了 ModelRoute 后，`POST /v1/chat/completions` 先进入 Go，包括普通 HTTPRoute 也精确匹配该路径的情况；其他方法或路径继续按普通 HTTPRoute 匹配。模型未命中或目标失效在 Go 内拒绝，不回退到普通 HTTP。删除该入口全部 ModelRoute 后，才恢复纯 HTTP 路由表。MCP 运行入口尚未实现，不在本步规定其优先级。此顺序是统一 Go Proxy 的本项目选择，不声称是官方模型 ExtProc 的实现方式。
+2026-10-15 接通模型入口时，按简单路由顺序处理重叠，不增加跨种类冲突检测或发布阻断：同一 Listener/Host 配置了 ModelRoute 后，`POST /v1/chat/completions` 先进入 Go，包括普通 HTTPRoute 也精确匹配该路径的情况；其他方法或路径继续按普通 HTTPRoute 匹配。模型未命中或目标失效在 Go 内拒绝，不回退到普通 HTTP。删除该入口全部 ModelRoute 后，才恢复纯 HTTP 路由表。2026-10-16 用户批准的 Responses 创建扩展对 `POST /v1/responses` 使用相同顺序，不增加操作字段或新的冲突规则；已通过 review 并获准本地提交，具体范围见[Responses 扩展](ai-model-operations-and-deployment.md#responses-创建操作扩展2026-10-16)。MCP 运行入口尚未实现，不在本步规定其优先级。此顺序是统一 Go Proxy 的本项目选择，不声称是官方模型 ExtProc 的实现方式。
 
 有模型条件的规则之间按创建时间、名称、声明顺序选择，后端引用有效性不改变匹配优先级，失效不能使同名模型自动改由其他账号。
 

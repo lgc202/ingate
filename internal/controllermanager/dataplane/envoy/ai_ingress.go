@@ -44,11 +44,11 @@ func newAIIngressCluster(socket string) (*clusterv3.Cluster, error) {
 	return cluster, nil
 }
 
-func newAIIngressRoute(port int32, hostName string) *routev3.Route {
+func newAIIngressRoute(port int32, hostName, operationPath string) *routev3.Route {
 	return &routev3.Route{
-		Name: aiIngressName + "/" + hostName,
+		Name: aiIngressName + "/" + hostName + operationPath,
 		Match: &routev3.RouteMatch{
-			PathSpecifier: &routev3.RouteMatch_Path{Path: "/v1/chat/completions"},
+			PathSpecifier: &routev3.RouteMatch_Path{Path: operationPath},
 			Headers:       []*routev3.HeaderMatcher{exactAIHeader(":method", "POST")},
 		},
 		Action: &routev3.Route_Route{Route: &routev3.RouteAction{
@@ -75,15 +75,15 @@ func newAIIngressRoute(port int32, hostName string) *routev3.Route {
 // 不修改传入 proto，防止更新污染已发布的 Snapshot 或积累重复路由。
 func mergeAIIngress(
 	routes []*routev3.RouteConfiguration,
-	models map[modelEntryKey]*routev3.Route,
+	models map[modelEntryKey][]*routev3.Route,
 ) []*routev3.RouteConfiguration {
 	merged := make([]*routev3.RouteConfiguration, 0, len(routes))
 	for _, config := range routes {
 		clone := proto.Clone(config).(*routev3.RouteConfiguration)
 		for _, host := range clone.VirtualHosts {
 			key := modelEntryKey{routeName: config.Name, hostName: host.Name}
-			if model := models[key]; model != nil {
-				host.Routes = slices.Concat([]*routev3.Route{model}, host.Routes)
+			if entries := models[key]; len(entries) != 0 {
+				host.Routes = slices.Concat(entries, host.Routes)
 			}
 		}
 

@@ -1,10 +1,10 @@
 # AI 模型操作与数据面部署设计
 
-- 状态：2026-10-15 启动配置已提交为 `0b0eea18`；AI Proxy 命令、Run 与有界退出已通过 review 并获准本地提交，尚未进行真实 Envoy 联调
+- 状态：Chat Completions 链路及启动日志已提交；2026-10-16 Responses 创建扩展已通过 review 并获准本地提交，尚未进行真实 Envoy 联调
 - 日期：2026-10-11
 - 资源字段对齐：2026-10-12；首步操作与本地通信确认：2026-10-15
 - Ingate 源码基线：`b247a4c6`，分支 `codex/rebuild-from-zero`
-- 范围：首批模型操作、Go/Envoy 部署与通信边界；不新增 API、依赖、二进制或部署文件
+- 范围：已确认模型创建操作、Go/Envoy 部署与通信边界；本轮不新增领域资源、依赖、二进制或部署文件
 
 ## 摘要
 
@@ -109,6 +109,50 @@ sequenceDiagram
 
 一次请求捕获一份 Go 配置的只读约束保持不变，它不等于冻结了 Envoy 的网络配置。跨组件更新、旧请求处理和撤销仍存在窗口；不能将 Watch 成功或 SetSnapshot 成功当作真实生效。[0010](../decisions/0010-unified-ai-proxy-config-delivery.md)及凭据草案中的全局确认、整份版本校验和双版本发布保留为历史候选，不作为本次实现要求。
 
+## Responses 创建操作扩展（2026-10-16）
+
+用户已确认开始 `POST /v1/responses`，只接入 OpenAI 同协议创建操作及普通响应、
+SSE，不实现 Chat/Responses 转换、TLS、凭据或后台任务接口。沿用现有 ModelRoute、
+AIBackend、ConfigMap 与目标绑定，不新增资源字段或依赖。
+
+实现主线为 Envoy 公共入口精确匹配两个 POST 路径 → 对应 Kratos Handler →
+ModelProxy Service 从原始 model 选路 → 仅覆盖顶层 model → 固定 Envoy UDS 出口。
+上游路径由既有 schema.prefix 与 responses 拼接，响应、事件与上游错误不改写。
+共享正文限制、入口信任、中间件、取消及错误映射；没有模型路由的入口不增加这两个
+模型入口，删除全部 ModelRoute 后恢复原普通 HTTP 路由表。
+
+Responses 要求非空字符串 model；只校验路由字段、JSON 边界和本切片限制，不在网关
+重建完整提供商请求。由于本轮不支持后台任务，background 为 true 时在转发前拒绝；
+省略、null 或 false 不改变原始字段。previous_response_id、conversation 等提供商
+状态引用原样传递，由上游解释；不承诺跨后端、跨账号或配置变化后的状态亲和性，
+使用状态引用的调用方须保持路由目标与上游状态所属服务一致。GET/DELETE、取消、
+input_tokens、WebSocket 及任意 responses 子路径不注册为模型接口。
+
+协议依据为 [OpenAI 创建接口](https://developers.openai.com/api/reference/resources/responses/methods/create)
+及 [Responses SSE](https://developers.openai.com/api/docs/guides/streaming-responses)。
+本次创建接口网页超过读取上限，SSE 文档已取得正文；Agent Router 既有固定提交
+网络读取失败，没有宣称重新核验。另只读核对本地 Envoy AI Gateway clean 提交
+`06381c5195178b349fa5b77648179775f0b1d839` 的
+[ResponsesEndpointSpec](https://github.com/envoyproxy/ai-gateway/blob/06381c5195178b349fa5b77648179775f0b1d839/internal/endpointspec/endpointspec.go#L336-L361)
+和 [Responses 同协议适配](https://github.com/envoyproxy/ai-gateway/blob/06381c5195178b349fa5b77648179775f0b1d839/internal/translator/openai_responses.go#L25-L78)。
+只借鉴 model 提取、独立操作路径和原始 JSON 的模型覆盖，不复制 ExtProc、usage、
+Trace、SSE 解析或 sjson 依赖。background 拒绝属于 Ingate 的范围限制，不冒充官方规则。
+GoCanon MCP 仍为 `6f63ad2a7eb341a15ab99453619a907422bcdc7a`、clean，沿用本连续任务
+已完整读取的开发入口与相关规范，并补读 Controller 和测试规范；草案仅用于审查。
+本切片实现后独立审查手写代码及语义空行，验证两个操作隔离、未命中拒绝、字段保留、
+本地 HTTP/UDS 的首帧与取消；真实 Envoy、提供商及 API Server 联调仍留待统一测试。
+
+实现与复查完成，用户已通过 review 并授权本地提交。新增组装测试先在旧实现上因 404 和
+零出口调用失败，接线后通过。覆盖 JSON、具名 SSE、上游 429 原样透传、模型覆盖、
+状态引用及大整数保留、未知模型、后台请求、正文超限、未注册操作、自定义转义前缀，
+以及两个操作在未加载配置和取消时的稳定错误。Envoy 发布测试核对两个精确 POST、
+入口 Header 覆盖、其他 Host/端口不受影响、普通路由顺序、重复发布和模型撤回。
+所有新增与修改的手写文件均已审查，另行核对 GO-FUNC-012/013/014 的声明顺序、
+错误检查相邻性和语义空行。gofmt、跟踪/未跟踪文件空白检查无诊断，golangci-lint
+为 0 issues，go vet、全仓库 go test/build，以及 AI Proxy 全包和 Envoy 适配层
+非缓存竞态测试通过。没有修改 API 类型、存储、protobuf 或依赖，未重新生成或运行
+API Server integration。这些结果不代表真实 Envoy/提供商协议互操作或部署已验收。
+
 ## Chat Completions 请求处理切片
 
 2026-10-15，配置加载与只读消费已提交为 `f20e4395`。用户随后确认[组件内能力包布局](../decisions/0015-ai-proxy-package-layout.md)，请求处理按职责重组到 `internal/aiproxy/pkg`，提交为 `c4c9d611`。模型准备与 Handler 提交为 `81d3e027`，受限转发与 Envoy 出口提交为 `350de244`。下文先保留各切片历史，再记录当前原生 Client 重构；历史切片的检查结果和未覆盖项不代表当前实现状态。
@@ -117,7 +161,7 @@ sequenceDiagram
 
 [endpointspec.ParseChatCompletions](../../internal/aiproxy/pkg/endpointspec/chat_completions.go) 接受已经读完且由调用方限制大小的 UTF-8 JSON 对象，要求大小写精确的顶层 model 为非空字符串，不修剪或改变模型名。复用已有 sigs.k8s.io/json 拒绝重复顶层键，避免路由解析与上游对同一字段采用不同值；这项拒绝是 Ingate 的边界约束，不宣称来自官方。返回 [apischema/openai.ChatCompletionRequest](../../internal/aiproxy/pkg/apischema/openai/chat_completions.go)，目前只声明实际需要读取的 model，不代表完整提供商请求，不校验 messages、工具或扩展参数，也不能用于重新编码整个请求体。
 
-协议字段独立于输入字节，原始请求体由调用方保留，不再用一个包装对象同时持有请求体、解析结果和编码方法。[translator.TranslateChatCompletionOpenAIToOpenAI](../../internal/aiproxy/pkg/translator/openai_openai.go) 接收经过入口校验的同一份原始 JSON；覆盖值为空或与原值相同时，返回原始字节的独立副本。非空且不同的覆盖值仅改变顶层 model 的 JSON 值，其他字段以标准库 json.RawMessage 保留，包括大整数和扩展对象；重编码可能改变对象顺序、空白和转义写法，不承诺逐字节保持。每次调用重新从原始字节构建独立结果，不原地修改请求或累积前一次覆盖，也不通过调用方可变的协议字段决定原始模型名。
+协议字段独立于输入字节，原始请求体由调用方保留，不再用一个包装对象同时持有请求体、解析结果和编码方法。[translator.TranslateOpenAIToOpenAI](../../internal/aiproxy/pkg/translator/openai_openai.go) 接收经过入口校验的同一份原始 JSON；覆盖值为空或与原值相同时，返回原始字节的独立副本。非空且不同的覆盖值仅改变顶层 model 的 JSON 值，其他字段以标准库 json.RawMessage 保留，包括大整数和扩展对象；重编码可能改变对象顺序、空白和转义写法，不承诺逐字节保持。每次调用重新从原始字节构建独立结果，不原地修改请求或累积前一次覆盖，也不通过调用方可变的协议字段决定原始模型名。
 
 此切片不接收客户端内部 Header，不建立入口信任或配置版本激活，不设置猜测性的请求体默认上限，不处理 SSE 响应，也不宣称已完成真实流量转发。未增加 SDK、JSON 修改库或其他依赖；后续 HTTP 接入仍须实现读取上限、Header 清理、错误协议与取消链。该切片及包布局已通过用户 review，提交为 `c4c9d611`。
 
