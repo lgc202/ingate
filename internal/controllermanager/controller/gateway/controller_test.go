@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	aidataplanev1 "github.com/lgc202/ingate/api/aidataplane/v1"
 	"github.com/lgc202/ingate/internal/controllermanager/dataplane"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
@@ -259,7 +260,7 @@ func (f publisherFunc) Publish(ctx context.Context, config dataplane.Config) err
 	return f(ctx, config)
 }
 
-func (f publisherFunc) PublishAI(context.Context, aidataplane.Config) error {
+func (f publisherFunc) PublishAI(context.Context, aidataplane.Config, []*aidataplanev1.Resource) error {
 	return nil
 }
 

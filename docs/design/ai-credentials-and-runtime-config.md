@@ -19,9 +19,9 @@
 
 我们建议沿用官方的 Secret 与 secretRef：密钥集中保存，BackendSecurityPolicy 附着 AIBackend 并引用凭据。首批只设计 OpenAI API key，不增加云身份交换、任意 Header 模板或多种凭据插件。Secret 原文不进入普通派生配置、MySQL 查询投影、状态或日志。
 
-Controller 负责裁决并生成完整配置，Go 负责加载配置与授权凭据，Envoy 负责入口和网络出口。建议增加一个 Controller 所有的派生 AIProxyConfig 对象，使用独立发布标识关联两种输出；请求必须命中相同版本，失配时拒绝，不用「最新配置」猜测目标。
+Controller 负责裁决并生成完整配置，AI Proxy 负责加载配置与授权凭据，Envoy 负责入口和网络出口。建议增加一个 Controller 所有的派生 AIProxyConfig 对象，使用独立发布标识关联两种输出；请求必须命中相同版本，失配时拒绝，不用「最新配置」猜测目标。
 
-共部署方案下，建议借用 Envoy 本地主动健康检查验证对应 Go 配置是否就绪，不先增加实例注册、心跳、发布任务和全局确认资源。这能减少未加载实例接流量，但不提供分布式原子切换，也不承诺配置更新期间完全没有失败。
+共部署方案下，建议借用 Envoy 本地主动健康检查验证对应 AI Proxy 配置是否就绪，不先增加实例注册、心跳、发布任务和全局确认资源。这能减少未加载实例接流量，但不提供分布式原子切换，也不承诺配置更新期间完全没有失败。
 
 ## 背景：当前缺的是存储与确认契约
 
@@ -29,7 +29,7 @@ Controller 负责裁决并生成完整配置，Go 负责加载配置与授权凭
 
 当前 [Options](../../internal/apiserver/options.go) 沿用 RecommendedOptions；其上游采用委托认证与授权，并依赖 CoreAPI/Admission 的配置。已有 HTTPS Listener 不证明身份和资源权限已配置正确。[存储测试](../../internal/apiserver/integration_test.go) 为隔离存储，将这些选项设为 nil，不能作为密钥访问隔离的证据。
 
-当前 [Publisher](../../internal/controllermanager/dataplane/envoy/publisher.go) 按 `node.cluster=ingate-shared-data-plane` 发布共享快照，使用原生逐资源内容版本。[ADS Server](../../internal/controllermanager/dataplane/envoy/server.go) 已接入 Delta ADS 和 ACK/NACK Callback；Go 仍消费完整 ConfigMap。Cache 发布成功和 Manager ready 只说明本地状态，不说明任一 Envoy 已接受配置。
+当前 [Publisher](../../internal/controllermanager/dataplane/envoy/publisher.go) 按 `node.cluster=ingate-shared-data-plane` 发布共享快照，使用原生逐资源内容版本。[ADS Server](../../internal/controllermanager/dataplane/xds/server.go) 已接入 Delta ADS 和 ACK/NACK Callback，AI Proxy 配置也已发布到独立 LinearCache；AI Proxy 客户端仍消费完整 ConfigMap。Cache 发布成功和 Manager ready 只说明本地状态，不说明任一 Envoy 已接受配置。
 
 官方 BackendSecurityPolicy 的 `apiKey.secretRef` 引用 Secret，其中 key 为 `apiKey`，组件必须有读取权限。依据：[Agent Router API](https://theagentrouter.ai/docs/api/#backendsecuritypolicyapikey)。官方将编译配置和凭据放入挂载 Secret；我们已经选择直接订阅 Ingate API，因此需要另外定义读取和版本绑定，不复制 kubelet 文件投射过程。
 
@@ -66,8 +66,8 @@ apiKey:
 | --- | --- | --- |
 | 凭据管理员，经受保护管理入口 | 创建、版本化替换和删除批准范围的 Secret | 普通查询入口读取密钥全文 |
 | Controller | 读取领域资源、策略和编译所需凭据元数据；写派生配置与所属状态 | 用普通配置输出携带明文；复制全部 Secret 到 Manager Cache |
-| Go 配置加载层 | 读取所属数据面配置及获授权的凭据 | 修改 Secret、领域资源、派生配置；读取其他数据面凭据 |
-| Go 协议模块 | 使用请求捕获的配置与必要凭据 | 持有 Kubernetes Client，在每次请求中查 Secret 或重新裁决 |
+| AI Proxy 配置加载层 | 读取所属数据面配置及获授权的凭据 | 修改 Secret、领域资源、派生配置；读取其他数据面凭据 |
+| AI Proxy 协议模块 | 使用请求捕获的配置与必要凭据 | 持有 Kubernetes Client，在每次请求中查 Secret 或重新裁决 |
 | Envoy | 通过受保护 ADS 获取网络配置 | 通过公开入口获取 Secret；以客户端内部标识选择任意目标 |
 
 权限表是授权目标，当前未实现。元数据请求不会自动变成一套独立的 Secret 权限；使用同一资源的 GET/LIST/WATCH 时，授权范围仍需按实际 Authorizer 契约核对。共享数据面需要哪些凭据，就授予对应范围；它不是多租户凭据隔离。
@@ -94,7 +94,7 @@ Secret UID 来自原生 metadata，用于防止删除后同名重建被旧配置
 
 发布标识依据稳定排序后的有效协议配置、其网络绑定和凭据引用版本确定性计算。它不是 metadata.resourceVersion，也不是某一种 xDS 的 version_info；xDS 继续按资源类型版本化。同样输入重试不产生新标识，普通 HTTP 的无关变更不要求重新加载整个 AI 配置。
 
-建议 spec 只保留目标版本与一个前版本，Controller 是唯一写入者；Go 不竞争写全局 loaded 状态。对象只表达期望的可用配置集合，不把字段名或状态写成「所有实例已激活」。正式字段及序列化大小上限仍需在实现契约中确认，不能在未约束规模时加入无限嵌套映射。
+建议 spec 只保留目标版本与一个前版本，Controller 是唯一写入者；AI Proxy 不竞争写全局 loaded 状态。对象只表达期望的可用配置集合，不把字段名或状态写成「所有实例已激活」。正式字段及序列化大小上限仍需在实现契约中确认，不能在未约束规模时加入无限嵌套映射。
 
 前版本的网络描述也必须冻结并持久化，Controller 重启后不能拿当前 Backend 重新构造一个同名旧出口，否则旧模型视图仍可能被发送到更新后的网络目标。已删除或撤销目标则按撤销语义阻止使用，不因有前版本记录继续无限服务。
 
@@ -106,10 +106,10 @@ Secret UID 来自原生 metadata，用于防止删除后同名重建被旧配置
 sequenceDiagram
     participant C as Controller
     participant A as Ingate API Server
-    participant P as 本地 Go Proxy
+    participant P as 本地 AI Proxy
     participant E as Envoy
     C->>A: 持久化目标配置 R2，保留前版本 R1
-    par Go 独立加载
+    par AI Proxy 独立加载
         A-->>P: 标准 List/Watch 配置与授权凭据
         P->>P: 校验引用版本，准备不可变 R2 视图
     and Envoy 独立接收
@@ -127,11 +127,11 @@ sequenceDiagram
 
 对应本地 Cluster 必须禁止 panic 模式绕过不健康状态；否则只有一个本地端点时仍可能向未就绪 Proxy 发送请求。依据：[Envoy panic threshold](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/load_balancing/panic_threshold)。探针 Header/路径属于受保护内部协议，不由公网路由暴露；具体参数须结合实际 Envoy 二进制核对。
 
-入站移除客户端伪造的内部标识再写入；Go 只接受已加载版本的合法入口，自行选择目标，不能信任客户端传入的 Backend。出站同样绑定发布版本和目标，不用可变的旧出口名称指向新账号/网络服务。未命中时拒绝，不走普通 HTTP 兜底，也不换到另一份凭据重试。
+入站移除客户端伪造的内部标识再写入；AI Proxy 只接受已加载版本的合法入口，自行选择目标，不能信任客户端传入的 Backend。出站同样绑定发布版本和目标，不用可变的旧出口名称指向新账号/网络服务。未命中时拒绝，不走普通 HTTP 兜底，也不换到另一份凭据重试。
 
-建议由 Go 在选定目标后按上游 schema 注入对应凭据，先移除客户端 Authorization、Cookie 及不允许转发的内部 Header。凭据只随该次请求进入受保护本地出站和对应 HTTPS 后端，不写入 xDS 资源；Envoy 不依据认证 Header 改换目标，不叠加业务重试或自动跟随重定向到其他地址。缺凭据时拒绝，不能把管理员 Session 或客户端 Token 当作后端 API key。
+建议由 AI Proxy 在选定目标后按上游 schema 注入对应凭据，先移除客户端 Authorization、Cookie 及不允许转发的内部 Header。凭据只随该次请求进入受保护本地出站和对应 HTTPS 后端，不写入 xDS 资源；Envoy 不依据认证 Header 改换目标，不叠加业务重试或自动跟随重定向到其他地址。缺凭据时拒绝，不能把管理员 Session 或客户端 Token 当作后端 API key。
 
-当前复用 go-control-plane v0.14.0 的 [Delta Server](https://github.com/envoyproxy/go-control-plane/blob/v0.14.0/pkg/server/delta/v3/server.go) 与原生 Callback，不自行实现 ADS。SotW 的 `WithOrderedADS` 不能直接套用到 Delta 服务；现有接线不保证跨类型 ACK 屏障，也不排序 Go Watch 与凭据读取。Envoy 资源按 make-before-break 准备、必要出口先于新入口及旧资源受限保留，仍属于待验证的发布建议；仅一次完整 `SetSnapshot` 不能被描述为已经证明此顺序。依据：[xDS 顺序与最终一致性](https://www.envoyproxy.io/docs/envoy/latest/api-docs/xds_protocol#eventual-consistency-considerations)。
+当前复用 go-control-plane v0.14.0 的 [Delta Server](https://github.com/envoyproxy/go-control-plane/blob/v0.14.0/pkg/server/delta/v3/server.go) 与原生 Callback，不自行实现 ADS。SotW 的 `WithOrderedADS` 不能直接套用到 Delta 服务；现有接线不保证跨类型 ACK 屏障，也不排序 AI Proxy Watch 与凭据读取。Envoy 资源按 make-before-break 准备、必要出口先于新入口及旧资源受限保留，仍属于待验证的发布建议；仅一次完整 `SetSnapshot` 不能被描述为已经证明此顺序。依据：[xDS 顺序与最终一致性](https://www.envoyproxy.io/docs/envoy/latest/api-docs/xds_protocol#eventual-consistency-considerations)。
 
 ACK/NACK 只在相同 stream、资源类型和响应 nonce 下关联；nonce 不跨重连。Delta 的 `system_version_info` 仅供诊断，不能当作逐资源已接受版本；重连依据客户端实际持有的 `initial_resource_versions`。回调记录是有界运行观测，断线或 Manager 重启后重新建立，不继承陈旧「已确认」。必要权限和实例身份需随 ADS 传输保护设计，`node.id` 或 `node.cluster` 自报值不是认证。不能从一个 Envoy 的 ACK 推导全体实例成功，也不能从全部相关 ACK 推导真实提供商请求成功。
 
@@ -144,7 +144,7 @@ ACK/NACK 只在相同 stream、资源类型和响应 nonce 下关联；nonce 不
 | 新配置或新凭据暂时读不到 | 不把新旧凭据拼成新视图；保留仍有效的已加载视图，新版本请求拒绝 | 可能短暂不可用，不匿名调用或换账号 |
 | 正常更换密钥 | 新请求使用匹配新版本的 key；旧请求只在有界重叠窗口内结束 | 需要提供商支持旧 key 短暂有效，否则旧请求可能失败 |
 | Secret 删除、权限撤销或确定失效 | 禁止依赖它的新请求，取消关联在途请求，退出该版本 readiness | 优先停止访问，不能为长流保留已撤销 key |
-| List/Watch 断线或控制面不可达 | 在明确的新鲜度期限内使用旧视图；期限到后停止 AI 接流量并取消关联请求 | 可用性让位于撤销界限，普通 HTTP 不由 Go 停止 |
+| List/Watch 断线或控制面不可达 | 在明确的新鲜度期限内使用旧视图；期限到后停止 AI 接流量并取消关联请求 | 可用性让位于撤销界限，普通 HTTP 不由 AI Proxy 停止 |
 | Proxy 重启 | 重新读取权威配置和匹配凭据，再通过就绪检查 | 首批不把密钥和旧视图落到磁盘作离线启动缓存 |
 | Controller 重启 | 由领域状态和持久派生对象对账，确定性重编译并重发；ACK 观测重新收集 | 不声称恢复了重启前的全局激活状态 |
 

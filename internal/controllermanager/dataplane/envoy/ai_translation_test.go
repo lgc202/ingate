@@ -37,7 +37,7 @@ func TestAITranslationReusesUnaffectedEntriesAndTargets(t *testing.T) {
 	matching := compileTestAI(t, &again, config)
 
 	if matching.entries[key].routes[0] != again.entries[key].routes[0] || matching.egressRoutes != again.egressRoutes {
-		t.Error("compile(Go-only matching or upstream path) rebuilt Envoy ingress or egress RDS")
+		t.Error("compile(AI Proxy-only matching or upstream path) rebuilt Envoy ingress or egress RDS")
 	}
 
 	// 拆开共享 Host 切片，后续路径变化只作用于 8080。

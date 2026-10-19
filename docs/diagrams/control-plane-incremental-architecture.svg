@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 410" role="img" aria-label="领域资源经源缓存、krt、配置发布器到 Envoy 与 Go AI Proxy 的配置流">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 410" role="img" aria-label="领域资源经源缓存、krt、配置发布器到 Envoy 与 AI Proxy 的配置流">
 <!-- 手工坐标 SVG 源文件；布局只用水平/垂直连线。 -->
 <style>
 :root{--old:#b45309;--old-bg:#fef3c7;--new:#1d4ed8;--new-bg:#dbeafe;--infra:#047857;--infra-bg:#d1fae5;--ext:#475569;--ink:#0f172a;--muted:#64748b;--border:#e2e8f0}
@@ -17,5 +17,5 @@ text{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
 <rect x="555" y="255" width="230" height="50" rx="6" fill="var(--new-bg)" stroke="var(--new)"/><text x="670" y="278" text-anchor="middle" class="svg-t">AI LinearCache</text><text x="670" y="295" text-anchor="middle" class="svg-s">Entry / ModelRule / MCPRoute</text>
 <rect x="382" y="340" width="136" height="54" rx="6" fill="var(--new-bg)" stroke="var(--new)"/><text x="450" y="372" text-anchor="middle" class="svg-t">Delta ADS 服务</text>
 <rect x="70" y="345" width="160" height="44" rx="6" fill="var(--old-bg)" stroke="var(--old)"/><text x="150" y="372" text-anchor="middle" class="svg-t">Envoy</text>
-<rect x="670" y="345" width="170" height="44" rx="6" fill="var(--old-bg)" stroke="var(--old)"/><text x="755" y="372" text-anchor="middle" class="svg-t">Go AI Proxy</text>
+<rect x="670" y="345" width="170" height="44" rx="6" fill="var(--old-bg)" stroke="var(--old)"/><text x="755" y="372" text-anchor="middle" class="svg-t">AI Proxy</text>
 </svg>

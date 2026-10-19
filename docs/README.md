@@ -6,11 +6,12 @@
   六类资源统一接入 krt；Backend 网络结果、三类 Route 匹配和 AIBackend 协议声明按对象派生，AIBackend 通过按键 Fetch 关联网络后端。
   协调器读取编译集合，不再逐次 List 六类原对象并重做端点、匹配和协议转换。Gateway 与 HTTPRoute 为状态协调保留实例身份和 Generation，写回前核对当前对象。
   Gateway 变化驱动集中入口冲突裁决；三类 Route 通过父引用建立附着关系，再按入口索引聚合，匹配变化只重算相关入口，端点变化不重算路由表。
-  发布边界核对异步集合的结果是否收敛，合并入口缓存并从唯一 Backend 集合填充网络结果。最终一致性核对、配置组装和快照发布仍遍历完整结果；Envoy 接入原生 Delta ADS，Go AI Proxy 暂时继续消费完整 ConfigMap。
+  发布边界核对异步集合的结果是否收敛，合并入口缓存并从唯一 Backend 集合填充网络结果。最终一致性核对、配置组装和快照发布仍遍历完整结果；Envoy 接入原生 Delta ADS，AI Proxy 暂时继续消费完整 ConfigMap。
   Envoy 快照使用 go-control-plane 的原生资源版本表，按类型和名称复用内容未变的消息，撤销时同时移除资源及版本；类型级聚合版本仅作 Delta 响应诊断，差异按逐资源版本计算。ADS 不保留 SotW 入口，Envoy 启动配置须使用 `DELTA_GRPC`。
   HTTP protobuf 按端口缓存 LDS/RDS，按 Backend 身份缓存 CDS/EDS；AI 入口按端口与 Host 缓存固定模型接口和 MCP 路径，合入公共 RDS 的结果按端口缓存。AI 出口按内容寻址目标复用 CDS/EDS 与路由，目标列表未变时复用出口 RDS；UDS 资源独立复用，无入口或出口时清理。
   缓存只保存当前有效键，校验失败保旧，通知失败保留新期望并重试。最终配置扫描、目标哈希、快照序列化和版本计算仍遍历全量。Delta 的订阅、变化、删除和已知版本重连已由原生 gRPC 客户端验证，尚未进行真实 Envoy 联调。
-  Go 独立资源已定义为 [protobuf 契约](../api/aidataplane/v1/resource.proto)，并提供[控制面纯转换](../internal/controllermanager/controller/gateway/ai_resources.go)：按入口、模型规则和 MCPRoute 输出，保留来源与拒绝语义，复用 Envoy 的内容寻址出口。当前尚未接入 LinearCache、ADS 分流或 Go 客户端，运行时仍使用 ConfigMap；转换阶段仍扫描完整候选。
+  AI Proxy 独立资源已定义为 [protobuf 契约](../api/aidataplane/v1/resource.proto)，由[控制面转换](../internal/controllermanager/controller/gateway/ai_resources.go)输出入口、模型规则和 MCPRoute，保留来源与拒绝语义，复用 Envoy 的内容寻址出口。
+  [共享 xDS 发布器](../internal/controllermanager/dataplane/xds/publisher.go)已接入 AI Proxy LinearCache 和原生 MuxCache；只安装变化及删除，使用原生内容版本，支持合法空配置和已知版本重连，未初始化的 AI Proxy 缓存不提供配置。ADS 服务与反馈处理从 Envoy 包移到共享 xds 包，按类型及数据面组分流；这不提供身份鉴权。Reconcile → ADS 的原生 gRPC 回归验证已通过，输入为内存资源缓存；AI Proxy 客户端尚未替换，ConfigMap 仍保留。转换和发布边界比较仍扫描完整候选，未进行真实 Envoy/AI Proxy 联调。
 
 - [GoCanon 模板对齐](decisions/0016-gocanon-template-alignment.md)：本轮规则版本、重构边界、实施顺序与验证进度；不把参考示例覆盖到产品业务。
 

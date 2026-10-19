@@ -1,4 +1,4 @@
-package envoy
+package xds
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	discoveryv3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	resourcev3 "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"github.com/go-logr/logr"
+
+	aidataplanev1 "github.com/lgc202/ingate/api/aidataplane/v1"
 )
 
 // callbacks 关联 Delta ADS 的 ACK/NACK；不参与配置发布或就绪判定。
@@ -103,7 +105,7 @@ func (c *callbacks) OnStreamDeltaResponse(
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if state := c.streams[streamID]; state != nil {
-		// 每个活动流只保留四种已支持资源各自的最新响应；不持有 protobuf 指针。
+		// 每个活动流只保留已支持类型各自的最新响应；不持有 protobuf 指针。
 		state.responses[response.GetTypeUrl()] = responseState{
 			nonce:         response.GetNonce(),
 			systemVersion: response.GetSystemVersionInfo(),
@@ -134,7 +136,7 @@ func (c *callbacks) responseForRequest(
 
 func supportedResourceType(typeURL string) bool {
 	switch typeURL {
-	case resourcev3.ListenerType, resourcev3.RouteType, resourcev3.ClusterType, resourcev3.EndpointType:
+	case resourcev3.ListenerType, resourcev3.RouteType, resourcev3.ClusterType, resourcev3.EndpointType, aidataplanev1.ResourceType:
 		return true
 	default:
 		return false

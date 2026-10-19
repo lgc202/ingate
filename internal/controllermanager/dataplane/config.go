@@ -1,6 +1,9 @@
 // Package dataplane 定义 Controller 交给数据面适配器的已接纳配置。
 package dataplane
 
+// SharedDataPlaneCluster 标识当前共享 Envoy 与 AI Proxy 代理所属的数据面组。
+const SharedDataPlaneCluster = "ingate-shared-data-plane"
+
 // Config 是一次完整发布的期望配置；空集合表示移除已发布的资源。
 type Config struct {
 	Listeners []Listener

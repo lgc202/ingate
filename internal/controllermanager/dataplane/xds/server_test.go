@@ -1,4 +1,4 @@
-package envoy
+package xds
 
 import (
 	"bytes"
@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/lgc202/ingate/internal/controllermanager/dataplane"
+	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
 // callbackLogWriter 适配异步日志与测试断言；超时或取消后不阻塞 ADS 清理。
@@ -70,6 +71,14 @@ func TestServerLifecycle(t *testing.T) {
 
 	if err := publisher.Publish(ctx, dataplane.Config{}); err != nil {
 		t.Fatalf("Publish(empty) error = %v, want nil", err)
+	}
+
+	if err := server.CheckReady(nil); err == nil {
+		t.Error("CheckReady(before AI Proxy configuration) error = nil, want missing AI Proxy configuration")
+	}
+
+	if err := publisher.PublishAI(ctx, emptyAIConfig(), nil); err != nil {
+		t.Fatalf("PublishAI(empty) error = %v, want nil", err)
 	}
 
 	if err := server.CheckReady(nil); err != nil {
@@ -274,5 +283,14 @@ func receiveCallbackLog(t *testing.T, ctx context.Context, logs <-chan string) m
 	case <-ctx.Done():
 		t.Fatalf("ADS feedback was not observed: %v", ctx.Err())
 		return nil
+	}
+}
+
+func emptyAIConfig() aidataplane.Config {
+	return aidataplane.Config{
+		FormatVersion:   aidataplane.FormatVersionV1,
+		Listeners:       []aidataplane.Listener{},
+		Backends:        []aidataplane.Backend{},
+		NetworkBackends: []aidataplane.NetworkBackend{},
 	}
 }

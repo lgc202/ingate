@@ -22,7 +22,7 @@ import (
 	namespacecontroller "github.com/lgc202/ingate/internal/controllermanager/controller/namespace"
 	"github.com/lgc202/ingate/internal/controllermanager/controller/namespace/deletion"
 	"github.com/lgc202/ingate/internal/controllermanager/controller/projection"
-	"github.com/lgc202/ingate/internal/controllermanager/dataplane/envoy"
+	"github.com/lgc202/ingate/internal/controllermanager/dataplane/xds"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
@@ -55,8 +55,8 @@ func (c *Config) New(store *mysqlstore.Store) (ctrl.Manager, error) {
 		return nil, fmt.Errorf("add health check: %w", err)
 	}
 
-	publisher := envoy.NewPublisher(c.AIIngressSocket, c.AIEgressSocket)
-	xdsServer := envoy.NewServer(c.XDSBindAddress, publisher, manager.GetLogger().WithName("xds"))
+	publisher := xds.NewPublisher(c.AIIngressSocket, c.AIEgressSocket)
+	xdsServer := xds.NewServer(c.XDSBindAddress, publisher, manager.GetLogger().WithName("xds"))
 	if err := manager.Add(xdsServer); err != nil {
 		return nil, fmt.Errorf("add xDS server: %w", err)
 	}

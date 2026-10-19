@@ -4,7 +4,7 @@
 
 ## 1. 设计目标
 
-Ingate 的控制面管理 Gateway、Route 和 Backend，为共享数据面的 Envoy 与 Go AI Proxy 生成运行配置。
+Ingate 的控制面管理 Gateway、Route 和 Backend，为共享数据面的 Envoy 与 AI Proxy 生成运行配置。
 多个 Gateway 可以共享一组代理实例，但各条路由及其后端应具有独立的计算和更新边界。
 
 本设计采用依赖驱动的增量编译和资源级 Delta xDS 分发：修改一条 Route，只重新计算它及受影响的聚合结果；
@@ -21,7 +21,7 @@ Ingate 的控制面管理 Gateway、Route 和 Backend，为共享数据面的 En
 
 Envoy Gateway 将资源处理分为 Resource Watcher、Resource Translator、IR、xDS Translator 和 xDS Server。
 外部资源先转为内部表示，再生成代理配置，避免业务 API 与 Envoy protobuf 相互渗透。
-我们采用这一分层，分别为 Envoy 和 Go AI Proxy 生成它们需要的配置。
+我们采用这一分层，分别为 Envoy 和 AI Proxy 生成它们需要的配置。
 参考：[Envoy Gateway System Design](https://gateway.envoyproxy.io/community/design/system-design/)。
 
 直接从 API 对象拼接 xDS 代码少一层结构，但会将引用解析、路由裁决、网络配置和协议序列化混在一起。
@@ -51,16 +51,16 @@ ADS 将不同资源类型的发现交互复用到同一条 gRPC 流。
 自行设计 gRPC 增量接口则需要重新定义订阅、版本、删除、确认和重连协议。
 Delta xDS 已提供这些机制，也能与 Envoy 共用分发基础设施，因此不另建配置推送协议。
 
-### 2.4 Go 使用自己的资源类型，不解释 Envoy 配置
+### 2.4 AI Proxy 使用自己的资源类型，不解释 Envoy 配置
 
 Agentgateway 复用 xDS 传输，但使用面向自身运行时的 protobuf 类型；
 其配置设计强调资源粒度接近用户 API，并让 Route 指向 Listener，避免父对象嵌入全部子路由。
-我们采用这两个原则：Go 使用自己的编译资源，规则引用入口，入口不包含路由列表。
+我们采用这两个原则：AI Proxy 使用自己的编译资源，规则引用入口，入口不包含路由列表。
 参考：[Agentgateway Configuration](https://github.com/agentgateway/agentgateway/blob/main/architecture/configuration.md)。
 
-Go 需要模型匹配、模型名覆盖、协议前缀和 MCP 路径；Envoy 需要监听、路由、集群和端点。
-强行共用 Envoy 类型，会让 Go 从网络配置中反推业务语义。
-让 Go 直接 Watch 领域资源，则要在数据面重复实现引用解析和裁决。
+AI Proxy 需要模型匹配、模型名覆盖、协议前缀和 MCP 路径；Envoy 需要监听、路由、集群和端点。
+强行共用 Envoy 类型，会让 AI Proxy 从网络配置中反推业务语义。
+让 AI Proxy 直接 Watch 领域资源，则要在数据面重复实现引用解析和裁决。
 两者都不符合控制面编译、数据面执行的职责划分。
 
 ## 3. 总体架构
@@ -71,14 +71,14 @@ API Server 和 etcd 保存用户声明的领域资源。Controller Manager 使�
 将对象送入 krt 计算图。计算图完成入口裁决、路由附着、后端解析和代理资源生成。
 
 发布器读取计算图的最新结果，校验资源引用，按名称比较内容版本，将变化安装到两类缓存：
-Envoy 的原生 xDS 资源进入 SnapshotCache；Go 的自定义资源进入 LinearCache。
+Envoy 的原生 xDS 资源进入 SnapshotCache；AI Proxy 的自定义资源进入 LinearCache。
 ADS 服务通过 MuxCache 将请求分派到相应缓存。两个代理各自建立连接、订阅和确认配置。
 
 领域资源是事实来源，编译结果保存在控制面内存中。控制面重启后从领域资源重新建立计算图，
 不依赖持久化的编译产物或历史增量日志。
 
 这张图描述配置流。业务请求由 Envoy 接收，普通 HTTP 请求由 Envoy 转发；
-模型和 MCP 请求进入 Go 处理，再通过 Envoy 出口访问后端。配置订阅不在业务请求路径上。
+模型和 MCP 请求进入 AI Proxy 处理，再通过 Envoy 出口访问后端。配置订阅不在业务请求路径上。
 
 ## 4. 资源设计
 
@@ -113,12 +113,12 @@ Backend 描述网络目标，AIBackend 描述模型协议及其网络引用。
 修改 Route 条件时，也不重新规范化 Backend。
 共享后端由 Backend 结果唯一拥有，Route 只建立使用关系，避免多条 Route 竞争输出同名资源。
 
-### 4.3 Envoy 使用原生资源，Go 使用独立规则资源
+### 4.3 Envoy 使用原生资源，AI Proxy 使用独立规则资源
 
 Envoy 接收 Listener、RouteConfiguration、Cluster 和 ClusterLoadAssignment。
 每个命名资源独立比较版本；同一 RouteConfiguration 内的路由仍按 Envoy 的结构聚合。
 
-Go 接收一个自定义 protobuf 外层类型，资源内容分为 Entry、ModelRule 和 MCPRoute：
+AI Proxy 接收一个自定义 protobuf 外层类型，资源内容分为 Entry、ModelRule 和 MCPRoute：
 
 ```proto
 message Resource {
@@ -175,13 +175,13 @@ Entry 不保存子路由列表。ModelRule 可引用多个入口；修改模型�
 不会因为入口需要知道子路由而重发 Entry 或其他规则。
 MCPRoute 使用相同的入口引用和来源信息，内容为精确请求路径、上游路径与目标标识。
 
-Go 不接收网络端点和 TLS 参数。targetName 由协议绑定与网络内容共同计算，
-Go 将它交给 Envoy 选择对应出口。网络目标变化会改变相关规则的 targetName，
+AI Proxy 不接收网络端点和 TLS 参数。targetName 由协议绑定与网络内容共同计算，
+AI Proxy 将它交给 Envoy 选择对应出口。网络目标变化会改变相关规则的 targetName，
 但不会使无关规则发生变化。
 
 本设计将目标嵌入规则，保证一次规则替换同时更新匹配和协议目标。
 与独立发布共享 Backend 相比，这会在后端变化时更新所有相关规则；
-选择这一方式，是因为 Go 的目标还要与 Envoy 出口对应，规则携带完整目标更容易保持绑定一致。
+选择这一方式，是因为 AI Proxy 的目标还要与 Envoy 出口对应，规则携带完整目标更容易保持绑定一致。
 共享网络资源仍由 Envoy 独立管理，不随每条规则复制。
 
 后端引用无效时，规则保留匹配并以 unavailable 代替 target。
@@ -217,9 +217,9 @@ Go 将它交给 Envoy 选择对应出口。网络目标变化会改变相关规�
 1. A 的源投影变化，krt 重新生成 A 的匹配结果；附着和后端结果未变化，可以复用。
 2. 8080 的聚合节点取得新的 A 与已有 B，重新排序并生成该入口的 RouteConfiguration。
 3. 9090 的聚合节点、B/C 的匹配转换和 P/Q/R 的网络转换不执行。
-4. 发布器安装变化的命名资源，Envoy 收到完整的 8080 RouteConfiguration；Go 没有相关变化，不收到业务配置更新。
+4. 发布器安装变化的命名资源，Envoy 收到完整的 8080 RouteConfiguration；AI Proxy 没有相关变化，不收到业务配置更新。
 
-若修改的是模型规则 A 的匹配条件，则更新对应 ModelRule，Go 只重建 A 所属入口的查询索引。
+若修改的是模型规则 A 的匹配条件，则更新对应 ModelRule，AI Proxy 只重建 A 所属入口的查询索引。
 若修改的是后端 P 的端点，则重算 P 和引用 P 的绑定、出口及相关资源，不重译 B/C。
 删除和改绑同时影响旧、新关联入口，最后一个使用者消失后撤销不再使用的共享输出。
 
@@ -238,36 +238,36 @@ Envoy 的一份 RDS 资源包含多条路由，修改其中一条仍要组装和
 版本不使用 API Server 的 resourceVersion，也不要求连续递增。
 
 Envoy 的 SnapshotCache 保存命名原生资源，通过 Delta 协议发送订阅范围内的差异。
-Go 的 LinearCache 接收资源更新和删除的批次，通过 MuxCache 接入同一 ADS 服务。
+AI Proxy 的 LinearCache 接收资源更新和删除的批次，通过 MuxCache 接入同一 ADS 服务。
 保留一份完整的服务端资源状态，用于新连接和恢复；这不意味着正常更新要重新生成或传输完整配置。
 
 同一共享数据面组中的副本订阅同一份期望配置。不同 Gateway 的资源名称保持独立，
-共享端口只在必要的 Envoy 资源处聚合。Envoy 与 Go 按消费类型隔离，不向 Go 下发普通 HTTP 路由和网络端点。
+共享端口只在必要的 Envoy 资源处聚合。Envoy 与 AI Proxy 按消费类型隔离，不向 AI Proxy 下发普通 HTTP 路由和网络端点。
 
 ### 6.2 首次同步、更新与重连
 
-![Go 配置订阅与更新时序](../diagrams/control-plane-incremental-sequence.svg)
+![AI Proxy 配置订阅与更新时序](../diagrams/control-plane-incremental-sequence.svg)
 
 首次连接时，控制面在源缓存和计算图初始化完成后提供当前完整状态。
-Go 建立有效视图之后才接受需要配置的请求；合法空配置表示没有可用路由。
+AI Proxy 建立有效视图之后才接受需要配置的请求；合法空配置表示没有可用路由。
 后续响应只包含变化资源和 removed_resources。
 
-Go 将一个响应应用到临时资源表，校验字段及引用，重建受影响入口的索引，再一次性交换不可变运行视图并 ACK。
+AI Proxy 将一个响应应用到临时资源表，校验字段及引用，重建受影响入口的索引，再一次性交换不可变运行视图并 ACK。
 校验失败时整批拒绝，继续使用上一份有效视图。
 请求开始时捕获视图，处理中不切换到另一个版本。
 
-Go 资源使用一个 type URL，关联变更在同一批响应中交付，避免入口与规则跨类型到达时的激活顺序问题。
+AI Proxy 资源使用一个 type URL，关联变更在同一批响应中交付，避免入口与规则跨类型到达时的激活顺序问题。
 首次和恢复同步由服务端提供一份完整差异响应，包括合法的空响应；这是本设计的服务端约束，不是通用 xDS 保证。
 这一选择使初始化和整批应用简单，但完整初始响应必须满足消息大小预算。
 若规模需要分块同步，必须同时设计完成边界，不能将任意第一包视为完整配置。
 
-断线不视为资源删除。Go 在新流通过 initial_resource_versions 报告实际已接受的资源版本，
+断线不视为资源删除。AI Proxy 在新流通过 initial_resource_versions 报告实际已接受的资源版本，
 控制面补发变化与删除，避免重复发送未变资源。
 NACK 后重新建立流，以已接受版本重新对账；控制面发布失败也继续对最新期望重试，不依赖下一次用户修改。
 
 ### 6.3 两路数据面保持最终一致
 
-Envoy 与 Go 独立接收配置，不建立跨进程原子提交。
+Envoy 与 AI Proxy 独立接收配置，不建立跨进程原子提交。
 内容寻址的 targetName 使旧协议配置不能误用新的网络目标；传播顺序不一致时可以暂时失败，但不能转发到错误目标。
 ACK 表示对应代理接受了配置，不表示另一代理或真实后端已经可用。
 
@@ -285,12 +285,12 @@ ACK 表示对应代理接受了配置，不表示另一代理或真实后端已�
 | 传输协议 | Delta ADS protobuf、grpc-go | 客户端连接、资源校验、版本登记与恢复 |
 | 请求读取 | 不可变运行视图 | 入口索引、规则排序、目标查询和视图交换 |
 
-Controller 持有业务内部表示，Envoy 适配层持有原生 protobuf，Go 适配层持有自定义 protobuf；
+Controller 持有业务内部表示，Envoy 适配层持有原生 protobuf，AI Proxy 适配层持有自定义 protobuf；
 发布器统一拥有共享输出的写入顺序，转换函数不各自直接写 Cache。
-同一份 AI 编译结果同时生成 Go 规则和 Envoy 出口，避免两条独立编译链对目标作出不同解释。
+同一份 AI 编译结果同时生成 AI Proxy 规则和 Envoy 出口，避免两条独立编译链对目标作出不同解释。
 
-实现顺序先确定内部结果及 Go 资源结构，再建立源集合和依赖图，
-随后接入两个资源缓存与 Delta 服务，最后实现 Go 的资源表和查询视图。
+实现顺序先确定内部结果及 AI Proxy 资源结构，再建立源集合和依赖图，
+随后接入两个资源缓存与 Delta 服务，最后实现 AI Proxy 的资源表和查询视图。
 通用依赖追踪和 xDS 协议复用库；业务资源如何裁决、编译和执行由 Ingate 实现。
 
 ## 8. 参考设计

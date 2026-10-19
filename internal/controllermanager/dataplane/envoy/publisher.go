@@ -13,7 +13,7 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
-const sharedDataPlaneCluster = "ingate-shared-data-plane"
+const sharedDataPlaneCluster = dataplane.SharedDataPlaneCluster
 
 // Publisher 保存共享 Envoy 数据面的完整 xDS 配置。
 type Publisher struct {
@@ -66,6 +66,20 @@ func (p *Publisher) PublishAI(ctx context.Context, config aidataplane.Config) er
 	}
 
 	return p.publish(ctx, p.http, translation)
+}
+
+// DiscoveryCache 只提供原生发现接口；快照写入仍由 Publisher 串行管理。
+func (p *Publisher) DiscoveryCache() cachev3.Cache {
+	return p.cache
+}
+
+// CheckReady 要求至少安装过一份有效的 Envoy 快照，合法空配置也满足条件。
+func (p *Publisher) CheckReady() error {
+	if _, err := p.cache.GetSnapshot(sharedDataPlaneCluster); err != nil {
+		return fmt.Errorf("initial Envoy configuration is unavailable: %w", err)
+	}
+
+	return nil
 }
 
 func (p *Publisher) publish(ctx context.Context, http httpTranslation, ai aiTranslation) error {

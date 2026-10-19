@@ -29,8 +29,8 @@ func TestResourcePayloadRoundTrip(t *testing.T) {
 		t.Fatalf("anypb.New(entry) error = %v, want nil", err)
 	}
 
-	if encoded.TypeUrl != "type.googleapis.com/aidataplane.v1.Resource" {
-		t.Errorf("anypb.New(entry).TypeUrl = %q, want aidataplane.v1.Resource URL", encoded.TypeUrl)
+	if encoded.TypeUrl != aidataplanev1.ResourceType {
+		t.Errorf("anypb.New(entry).TypeUrl = %q, want %q", encoded.TypeUrl, aidataplanev1.ResourceType)
 	}
 
 	var decoded aidataplanev1.Resource

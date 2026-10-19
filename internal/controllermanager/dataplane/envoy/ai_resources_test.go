@@ -119,7 +119,7 @@ func TestBuildAIResourcesRejectsAndRevokes(t *testing.T) {
 
 	resources, err := buildAIResources(config, "/run/ingate/ingress.sock", "")
 	if err != nil || len(resources.listeners) != 0 || len(resources.clusters) != 1 || len(resources.ingressRoutes) != 1 {
-		t.Errorf("buildAIResources(no usable target) = (%+v, %v), want Go ingress retained without an outlet", resources, err)
+		t.Errorf("buildAIResources(no usable target) = (%+v, %v), want AI Proxy ingress retained without an outlet", resources, err)
 	}
 
 	config = aiFixture(t)

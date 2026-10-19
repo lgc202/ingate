@@ -15,7 +15,7 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
-// aiResourceCompilation 将同一份已收敛的入口结果转换为独立 Go 资源。
+// aiResourceCompilation 将同一份已收敛的入口结果转换为独立 AI Proxy 资源。
 // 目标名称复用 Envoy 出口的计算规则，不从路由名称反解析来源或规则位置。
 type aiResourceCompilation struct {
 	resources    map[string]*aidataplanev1.Resource
@@ -31,6 +31,11 @@ func (p publication) aiResources() ([]*aidataplanev1.Resource, error) {
 		return nil, err
 	}
 
+	return p.compileAIResources(config)
+}
+
+// compileAIResources 复用同一发布捕获已组装、校验的配置，不重复组装网络与协议绑定。
+func (p publication) compileAIResources(config aidataplane.Config) ([]*aidataplanev1.Resource, error) {
 	c, err := newAIResourceCompilation(config)
 	if err != nil {
 		return nil, err
@@ -51,7 +56,7 @@ func (p publication) aiResources() ([]*aidataplanev1.Resource, error) {
 		resource := c.resources[name]
 		sortAIEntryReferences(resource)
 		if err := protovalidate.Validate(resource); err != nil {
-			return nil, fmt.Errorf("validate Go data-plane resource %q: %w", name, err)
+			return nil, fmt.Errorf("validate AI Proxy data-plane resource %q: %w", name, err)
 		}
 
 		resources = append(resources, resource)

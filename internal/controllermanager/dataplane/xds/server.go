@@ -1,4 +1,4 @@
-package envoy
+package xds
 
 import (
 	"context"
@@ -16,12 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-var (
-	_ manager.Runnable                             = (*Server)(nil)
-	_ manager.LeaderElectionRunnable               = (*Server)(nil)
-	_ discoveryv3.AggregatedDiscoveryServiceServer = (*adsServer)(nil)
-)
-
 // Server 在 Manager 生命周期内提供 Delta ADS gRPC 服务。
 type Server struct {
 	address    string
@@ -35,6 +29,12 @@ type adsServer struct {
 	discoveryv3.UnimplementedAggregatedDiscoveryServiceServer
 	server deltav3.Server
 }
+
+var (
+	_ manager.Runnable                             = (*Server)(nil)
+	_ manager.LeaderElectionRunnable               = (*Server)(nil)
+	_ discoveryv3.AggregatedDiscoveryServiceServer = (*adsServer)(nil)
+)
 
 // NewServer 注册 ADS 服务，但不监听端口或启动 goroutine。
 func NewServer(address string, publisher *Publisher, logger logr.Logger) *Server {
@@ -82,17 +82,13 @@ func (s *Server) NeedLeaderElection() bool {
 	return true
 }
 
-// CheckReady 要求 xDS 正在监听且已发布首份完整配置。
+// CheckReady 要求 xDS 正在监听且两个缓存均已安装首份有效配置，合法空配置也可就绪。
 func (s *Server) CheckReady(_ *http.Request) error {
 	if !s.listening.Load() {
 		return errors.New("xDS server is not listening")
 	}
 
-	if _, err := s.publisher.cache.GetSnapshot(sharedDataPlaneCluster); err != nil {
-		return fmt.Errorf("initial xDS configuration is unavailable: %w", err)
-	}
-
-	return nil
+	return s.publisher.checkReady()
 }
 
 // DeltaAggregatedResources 把资源订阅、版本对账和差异发送交给 go-control-plane。

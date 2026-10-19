@@ -15,7 +15,7 @@
 
 后续统一测试时，按真实 MySQL Repository、HTTP 功能主链路、部署权限与 TLS 分别取证。权限、凭据和 TLS 的设计与必要实现仍随对应功能评审；推迟整链路测试不表示允许提前接入真实密钥或开放不安全的公网入口。测试失败若需要修改生产实现，先说明问题、依据和行为影响，不随测试工程扩展产品契约。
 
-源码依据：[MySQL 读取实现](../../internal/adminapi/repository/mysql/store.go) 明确事务选项；[迁移入口](../../internal/adminapi/migration/migration.go) 只执行尚未应用的迁移；[Manager 入口](../../internal/controllermanager/command.go) 在启动控制器前打开 MySQL；[Admin 装配](../../internal/adminapi/app.go) 创建初始账户并挂接真实会话校验；[API Server 集成 fixture](../../internal/apiserver/integration_test.go) 关闭认证授权；[ADS 服务](../../internal/controllermanager/dataplane/envoy/server.go) 与 [Publisher](../../internal/controllermanager/dataplane/envoy/publisher.go) 区分监听、Snapshot 和 Envoy 确认。以上都是当前实现，不能替代拟执行的验证。
+源码依据：[MySQL 读取实现](../../internal/adminapi/repository/mysql/store.go) 明确事务选项；[迁移入口](../../internal/adminapi/migration/migration.go) 只执行尚未应用的迁移；[Manager 入口](../../internal/controllermanager/command.go) 在启动控制器前打开 MySQL；[Admin 装配](../../internal/adminapi/app.go) 创建初始账户并挂接真实会话校验；[API Server 集成 fixture](../../internal/apiserver/integration_test.go) 关闭认证授权；[ADS 服务](../../internal/controllermanager/dataplane/xds/server.go) 与 [Publisher](../../internal/controllermanager/dataplane/envoy/publisher.go) 区分监听、Snapshot 和 Envoy 确认。以上都是当前实现，不能替代拟执行的验证。
 
 ## 环境与复用边界
 

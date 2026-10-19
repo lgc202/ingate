@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	aidataplanev1 "github.com/lgc202/ingate/api/aidataplane/v1"
 	"github.com/lgc202/ingate/internal/controllermanager/dataplane"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
@@ -30,12 +31,12 @@ const (
 	controllerName = "gateway.ingate.io/gateway-controller"
 )
 
-// Publisher 分别替换 HTTP 与 AI 期望配置，在适配器内合成完整 xDS 视图。
+// Publisher 分别替换 HTTP 与 AI 期望配置，在适配器内维护两类发现缓存。
 // 构建失败保留该路最近有效的结果；通知失败可能已更新缓存，必须重试而非假定回滚。
-// 成功不代表 Envoy 已接收或 ACK。
+// 成功不代表 Envoy 或 AI Proxy 已接收或 ACK。
 type Publisher interface {
 	Publish(context.Context, dataplane.Config) error
-	PublishAI(context.Context, aidataplane.Config) error
+	PublishAI(context.Context, aidataplane.Config, []*aidataplanev1.Resource) error
 }
 
 // Reconciler 协调六种领域资源，分别发布共享 HTTP 与 AI 配置。
@@ -125,13 +126,18 @@ func (r *Reconciler) reconcileAI(ctx context.Context, snapshot publication) erro
 		return fmt.Errorf("compile AI data plane configuration: %w", err)
 	}
 
+	resources, err := snapshot.compileAIResources(config)
+	if err != nil {
+		return fmt.Errorf("compile AI Proxy data plane resources: %w", err)
+	}
+
 	data, err := aidataplane.Encode(config)
 	if err != nil {
 		return fmt.Errorf("encode AI data plane configuration: %w", err)
 	}
 
 	// 两个输出独立尝试；不把一次 Cache 更新当作 Envoy 已接收，不增加全局 ACK 协调。
-	xdsErr := r.publisher.PublishAI(ctx, config)
+	xdsErr := r.publisher.PublishAI(ctx, config, resources)
 	if xdsErr != nil {
 		xdsErr = fmt.Errorf("publish AI xDS configuration: %w", xdsErr)
 	}

@@ -93,12 +93,12 @@ func TestAIResourcesPreserveCompiledTargetsAndOrigin(t *testing.T) {
 			},
 		}
 
-		got := compiledGoResources(t, p)
+		got := compiledAIResources(t, p)
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("aiResources() mismatch (-want +got):\n%s", diff)
 		}
 
-		// ops 只有普通 HTTPRoute，不得向 Go 下发这个入口。
+		// ops 只有普通 HTTPRoute，不得向 AI Proxy 下发这个入口。
 		if _, ok := got["entry/9090/gateway/team-a/public/listener/ops"]; ok {
 			t.Error("aiResources() included HTTP-only entry")
 		}
@@ -118,7 +118,7 @@ func TestAIResourcesMergeEntryReferencesAndPreserveMatchOrder(t *testing.T) {
 		synctest.Wait()
 		p := s.readPublication()
 
-		got := compiledGoResources(t, p)
+		got := compiledAIResources(t, p)
 		if len(got) != 5 {
 			t.Fatalf("aiResources(two entries) count = %d, want 5", len(got))
 		}
@@ -154,14 +154,14 @@ func TestAIResourcesMergeEntryReferencesAndPreserveMatchOrder(t *testing.T) {
 		// 表的遍历顺序不能成为资源或引用顺序；结果也不能持有可变图数据。
 		p.tables = slices.Clone(p.tables)
 		slices.Reverse(p.tables)
-		reversed := compiledGoResources(t, p)
+		reversed := compiledAIResources(t, p)
 		if diff := cmp.Diff(got, reversed, protocmp.Transform()); diff != "" {
 			t.Errorf("aiResources(reversed tables) mismatch (-want +got):\n%s", diff)
 		}
 
 		got["model/team-a/coding/rule/0"].GetModelRule().GetTarget().Schema.Prefix = "/mutated"
 		got["mcp/team-a/tools"].GetMcpRoute().EntryRefs[0].HostName = "mutated"
-		if diff := cmp.Diff(reversed, compiledGoResources(t, p), protocmp.Transform()); diff != "" {
+		if diff := cmp.Diff(reversed, compiledAIResources(t, p), protocmp.Transform()); diff != "" {
 			t.Errorf("aiResources(after caller mutation) mismatch (-want +got):\n%s", diff)
 		}
 	})
@@ -173,14 +173,14 @@ func TestAIResourcesChangesRemainScoped(t *testing.T) {
 		s, producers := newCompilationTestSource(t, fixtures)
 		startCompilationTestSource(t, s)
 		synctest.Wait()
-		before := compiledGoResources(t, s.readPublication())
+		before := compiledAIResources(t, s.readPublication())
 
 		http := &fixtures.httpRoutes.Items[0]
 		http.Spec.Rules[0].Matches[0].Path.Value = "/changed"
 		producers[reflect.TypeFor[*gatewayv1alpha1.HTTPRoute]()].Modify(http.DeepCopy())
 		synctest.Wait()
 
-		if diff := cmp.Diff(before, compiledGoResources(t, s.readPublication()), protocmp.Transform()); diff != "" {
+		if diff := cmp.Diff(before, compiledAIResources(t, s.readPublication()), protocmp.Transform()); diff != "" {
 			t.Errorf("aiResources(HTTP-only update) mismatch (-want +got):\n%s", diff)
 		}
 
@@ -188,7 +188,7 @@ func TestAIResourcesChangesRemainScoped(t *testing.T) {
 		model.Spec.Rules[0].Matches[0].Headers[0].Value = "changed-model"
 		producers[reflect.TypeFor[*gatewayv1alpha1.ModelRoute]()].Modify(model.DeepCopy())
 		synctest.Wait()
-		after := compiledGoResources(t, s.readPublication())
+		after := compiledAIResources(t, s.readPublication())
 
 		want := proto.Clone(before["model/team-a/coding/rule/0"]).(*aidataplanev1.Resource)
 		want.GetModelRule().Matches[0].Condition = &aidataplanev1.ModelMatch_Exact{Exact: "changed-model"}
@@ -201,7 +201,7 @@ func TestAIResourcesChangesRemainScoped(t *testing.T) {
 		network.Spec.Endpoints[0].Address = "changed.example.com"
 		producers[reflect.TypeFor[*gatewayv1alpha1.Backend]()].Modify(network.DeepCopy())
 		synctest.Wait()
-		after = compiledGoResources(t, s.readPublication())
+		after = compiledAIResources(t, s.readPublication())
 
 		target := after[want.Name].GetModelRule().GetTarget().TargetName
 		if target == want.GetModelRule().GetTarget().TargetName {
@@ -237,7 +237,7 @@ func TestAIResourcesKeepSameNamesInDifferentNamespacesSeparate(t *testing.T) {
 		startCompilationTestSource(t, s)
 		synctest.Wait()
 
-		got := compiledGoResources(t, s.readPublication())
+		got := compiledAIResources(t, s.readPublication())
 		if len(got) != 6 {
 			t.Fatalf("aiResources(two namespaces) count = %d, want 6", len(got))
 		}
@@ -267,7 +267,7 @@ func TestAIResourcesRetainUnavailableRulesAndRemoveDeletedResources(t *testing.T
 		startCompilationTestSource(t, s)
 		synctest.Wait()
 
-		got := compiledGoResources(t, s.readPublication())
+		got := compiledAIResources(t, s.readPublication())
 		if len(got) != 3 {
 			t.Fatalf("aiResources(missing backends) count = %d, want 3", len(got))
 		}
@@ -284,7 +284,7 @@ func TestAIResourcesRetainUnavailableRulesAndRemoveDeletedResources(t *testing.T
 
 		producers[reflect.TypeFor[*gatewayv1alpha1.ModelRoute]()].Delete(fixtures.modelRoutes.Items[0].DeepCopy())
 		synctest.Wait()
-		got = compiledGoResources(t, s.readPublication())
+		got = compiledAIResources(t, s.readPublication())
 
 		if len(got) != 2 || got["model/team-a/coding/rule/0"] != nil || got["mcp/team-a/tools"] == nil {
 			t.Errorf("aiResources(deleted model) = %v, want entry and MCP only", got)
@@ -293,7 +293,7 @@ func TestAIResourcesRetainUnavailableRulesAndRemoveDeletedResources(t *testing.T
 		producers[reflect.TypeFor[*gatewayv1alpha1.MCPRoute]()].Delete(fixtures.mcpRoutes.Items[0].DeepCopy())
 		synctest.Wait()
 
-		if got := compiledGoResources(t, s.readPublication()); len(got) != 0 {
+		if got := compiledAIResources(t, s.readPublication()); len(got) != 0 {
 			t.Errorf("aiResources(deleted last route) = %v, want empty", got)
 		}
 	})
@@ -334,7 +334,7 @@ func TestAIResourcesRejectInconsistentEntryResults(t *testing.T) {
 	})
 }
 
-func compiledGoResources(t *testing.T, p publication) map[string]*aidataplanev1.Resource {
+func compiledAIResources(t *testing.T, p publication) map[string]*aidataplanev1.Resource {
 	t.Helper()
 	resources, err := p.aiResources()
 	if err != nil {

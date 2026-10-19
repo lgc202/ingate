@@ -75,7 +75,7 @@ func TestAIIngressSharesHTTPListener(t *testing.T) {
 				}
 
 				if entry.GetRoute().GetCluster() != aiIngressName || entry.GetRoute().Timeout == nil || entry.GetRoute().Timeout.AsDuration() != 0 || entry.GetRoute().RetryPolicy != nil {
-					t.Errorf("model entry(%s) action = %v, want fixed Go cluster without total timeout or retries", operationPath, entry.GetRoute())
+					t.Errorf("model entry(%s) action = %v, want fixed AI Proxy cluster without total timeout or retries", operationPath, entry.GetRoute())
 				}
 
 				wantHeaders := map[string]string{aidataplane.ListenerPortHeader: "8080", aidataplane.HostNameHeader: hostName, aidataplane.EntryProtocolHeader: "model"}
@@ -101,7 +101,7 @@ func TestAIIngressSharesHTTPListener(t *testing.T) {
 			}
 
 			if mcpEntry.GetRoute().GetCluster() != aiIngressName || mcpEntry.GetRoute().Timeout == nil || mcpEntry.GetRoute().Timeout.AsDuration() != 0 {
-				t.Errorf("MCP entry action = %v, want fixed Go cluster without total timeout", mcpEntry.GetRoute())
+				t.Errorf("MCP entry action = %v, want fixed AI Proxy cluster without total timeout", mcpEntry.GetRoute())
 			}
 
 			if !slices.Equal(mcpEntry.RequestHeadersToRemove, []string{aidataplane.TargetHeader}) {

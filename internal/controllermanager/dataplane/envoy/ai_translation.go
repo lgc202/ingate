@@ -204,7 +204,7 @@ func (t *aiTranslation) addTarget(previous *aiTranslation, target string, networ
 	return nil
 }
 
-// compile 忽略由 Go 解释的模型匹配、上游路径等字段；Envoy 只需要固定接口和 MCP 精确路径。
+// compile 忽略由 AI Proxy 解释的模型匹配、上游路径等字段；Envoy 只需要固定接口和 MCP 精确路径。
 func (t aiEntryTranslation) compile(port int32, host aidataplane.Host) (aiEntryTranslation, error) {
 	model := len(host.ModelRoutes) != 0
 	var paths []string

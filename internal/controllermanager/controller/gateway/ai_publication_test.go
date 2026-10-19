@@ -12,11 +12,15 @@ import (
 	discoveryv3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	resourcev3 "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"github.com/go-logr/logr"
+	"github.com/google/go-cmp/cmp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/testing/protocmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/lgc202/ingate/internal/controllermanager/dataplane/envoy"
+	aidataplanev1 "github.com/lgc202/ingate/api/aidataplane/v1"
+	"github.com/lgc202/ingate/internal/controllermanager/dataplane"
+	"github.com/lgc202/ingate/internal/controllermanager/dataplane/xds"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
@@ -34,7 +38,7 @@ func TestGatewayDeletionTransfersPublicAIEntries(t *testing.T) {
 		snapshot.httpRoutes.Items = append(snapshot.httpRoutes.Items, route)
 	}
 
-	publisher := envoy.NewPublisher("/run/ingate/ingress.sock", "/run/ingate/egress.sock")
+	publisher := xds.NewPublisher("/run/ingate/ingress.sock", "/run/ingate/egress.sock")
 	connection := newPublicationADSClient(t, publisher)
 	for _, phase := range []struct {
 		name       string
@@ -88,7 +92,14 @@ func TestGatewayDeletionTransfersPublicAIEntries(t *testing.T) {
 				t.Fatalf("Publish(HTTP compilation) error = %v", err)
 			}
 
-			if err := publisher.PublishAI(t.Context(), ai); err != nil {
+			reconciler := New(apiClient, apiClient, publisher, "control-plane")
+			setTestResources(t, reconciler, snapshot)
+			resources, err := reconciler.sources.readPublication().aiResources()
+			if err != nil {
+				t.Fatalf("aiResources() error = %v", err)
+			}
+
+			if err := publisher.PublishAI(t.Context(), ai, resources); err != nil {
 				t.Fatalf("PublishAI(AI compilation) error = %v", err)
 			}
 
@@ -123,8 +134,58 @@ func TestGatewayDeletionTransfersPublicAIEntries(t *testing.T) {
 	}
 }
 
+func TestReconcilePublishesAIResourcesOverADS(t *testing.T) {
+	fixtures := aiResourceSnapshot()
+	apiClient := aiResourceClient(t, fixtures)
+	publisher := xds.NewPublisher("/run/ingate/ingress.sock", "/run/ingate/egress.sock")
+	reconciler := newTestReconciler(t, apiClient, publisher)
+	connection := newPublicationADSClient(t, publisher)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	if _, err := reconciler.Reconcile(ctx, sharedRequest()); err != nil {
+		t.Fatalf("Reconcile(AI Proxy publication) error = %v", err)
+	}
+
+	stream, err := discoveryv3.NewAggregatedDiscoveryServiceClient(connection).DeltaAggregatedResources(ctx)
+	if err != nil {
+		t.Fatalf("DeltaAggregatedResources(AI Proxy publication) error = %v", err)
+	}
+
+	if err := stream.Send(&discoveryv3.DeltaDiscoveryRequest{
+		Node:    &corev3.Node{Id: "aiproxy-1", Cluster: dataplane.SharedDataPlaneCluster},
+		TypeUrl: aidataplanev1.ResourceType, ResourceNamesSubscribe: []string{"*"},
+	}); err != nil {
+		t.Fatalf("Send(AI Proxy publication) error = %v", err)
+	}
+
+	response, err := stream.Recv()
+	if err != nil {
+		t.Fatalf("Recv(AI Proxy publication) error = %v", err)
+	}
+
+	if response.TypeUrl != aidataplanev1.ResourceType || len(response.Resources) != 3 || len(response.RemovedResources) != 0 {
+		t.Fatalf("Recv(AI Proxy publication) = %v, want entry, model rule and MCP route", response)
+	}
+
+	got := make(map[string]*aidataplanev1.Resource)
+	for _, resource := range response.Resources {
+		var decoded aidataplanev1.Resource
+		if err := resource.Resource.UnmarshalTo(&decoded); err != nil {
+			t.Fatalf("UnmarshalTo(AI Proxy %q) error = %v", resource.Name, err)
+		}
+
+		got[resource.Name] = &decoded
+	}
+
+	want := compiledAIResources(t, reconciler.sources.readPublication())
+	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+		t.Errorf("Reconcile → AI Proxy ADS mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // newPublicationADSClient 从公开 ADS 边界读取真实 Publisher，不暴露生产缓存给测试。
-func newPublicationADSClient(t *testing.T, publisher *envoy.Publisher) *grpc.ClientConn {
+func newPublicationADSClient(t *testing.T, publisher *xds.Publisher) *grpc.ClientConn {
 	t.Helper()
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -138,7 +199,7 @@ func newPublicationADSClient(t *testing.T, publisher *envoy.Publisher) *grpc.Cli
 	}
 
 	ctx, cancel := context.WithCancel(t.Context())
-	server := envoy.NewServer(address, publisher, logr.Discard())
+	server := xds.NewServer(address, publisher, logr.Discard())
 	finished := make(chan error, 1)
 	go func() { finished <- server.Start(ctx) }()
 	t.Cleanup(func() {

@@ -88,8 +88,8 @@ func newAIIngressCluster(socket string) (*clusterv3.Cluster, error) {
 	return cluster, nil
 }
 
-// newAIIngressRoute 为模型或 MCP 生成转到 Go 的精确路径路由。
-// MCP 接管所有方法，由 Go 返回非 POST 的 405；模型只注册已实现的 POST 操作。
+// newAIIngressRoute 为模型或 MCP 生成转到 AI Proxy 的精确路径路由。
+// MCP 接管所有方法，由 AI Proxy 返回非 POST 的 405；模型只注册已实现的 POST 操作。
 func newAIIngressRoute(port int32, hostName, entryPath, protocol string) *routev3.Route {
 	match := &routev3.RouteMatch{PathSpecifier: &routev3.RouteMatch_Path{Path: entryPath}}
 	if protocol == "model" {

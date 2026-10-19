@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
+	aidataplanev1 "github.com/lgc202/ingate/api/aidataplane/v1"
 	"github.com/lgc202/ingate/internal/controllermanager/dataplane"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
@@ -115,6 +116,6 @@ func TestReconcileAIOutputsFailIndependently(t *testing.T) {
 	}
 }
 
-func (p aiPublisherStub) PublishAI(ctx context.Context, config aidataplane.Config) error {
+func (p aiPublisherStub) PublishAI(ctx context.Context, config aidataplane.Config, _ []*aidataplanev1.Resource) error {
 	return p.publishAI(ctx, config)
 }

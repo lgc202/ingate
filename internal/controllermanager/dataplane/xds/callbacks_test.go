@@ -1,4 +1,4 @@
-package envoy
+package xds
 
 import (
 	"bytes"
@@ -16,6 +16,8 @@ import (
 	resourcev3 "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"github.com/go-logr/logr"
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
+
+	aidataplanev1 "github.com/lgc202/ingate/api/aidataplane/v1"
 )
 
 func TestCallbacksFeedback(t *testing.T) {
@@ -273,7 +275,7 @@ func TestCallbacksResponseStateBounded(t *testing.T) {
 	}
 
 	for _, typeURL := range []string{
-		resourcev3.ListenerType, resourcev3.RouteType, resourcev3.ClusterType, resourcev3.EndpointType,
+		resourcev3.ListenerType, resourcev3.RouteType, resourcev3.ClusterType, resourcev3.EndpointType, aidataplanev1.ResourceType,
 	} {
 		for i := range 100 {
 			response := &discoveryv3.DeltaDiscoveryResponse{
@@ -299,8 +301,8 @@ func TestCallbacksResponseStateBounded(t *testing.T) {
 	callback.OnStreamDeltaResponse(1, nil, &discoveryv3.DeltaDiscoveryResponse{
 		TypeUrl: resourcev3.ListenerType, SystemVersionInfo: "without-nonce",
 	})
-	if got := len(callback.streams[1].responses); got != 4 {
-		t.Errorf("stored response types = %d, want 4", got)
+	if got := len(callback.streams[1].responses); got != 5 {
+		t.Errorf("stored response types = %d, want 5", got)
 	}
 
 	if got := callback.streams[1].responses[resourcev3.ListenerType].systemVersion; got != "v2" {

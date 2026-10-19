@@ -71,7 +71,7 @@ func (APISchemaName) EnumDescriptor() ([]byte, []int) {
 	return file_aidataplane_v1_resource_proto_rawDescGZIP(), []int{0}
 }
 
-// Resource 是一个独立版本化的 Go 数据面资源，不包含整个数据面的配置。
+// Resource 是一个独立版本化的 AI Proxy 数据面资源，不包含整个数据面的配置。
 // name 同时用作 xDS 资源名；接收端须核对外层 xDS 名称与这里一致。
 type Resource struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -609,7 +609,7 @@ func (x *APISchema) GetPrefix() string {
 	return ""
 }
 
-// ModelTarget 绑定协议处理参数与受保护的 Envoy 出口，不向 Go 下发端点或 TLS。
+// ModelTarget 绑定协议处理参数与受保护的 Envoy 出口，不向 AI Proxy 下发端点或 TLS。
 type ModelTarget struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	BindingName string                 `protobuf:"bytes,1,opt,name=binding_name,json=bindingName,proto3" json:"binding_name,omitempty"`
