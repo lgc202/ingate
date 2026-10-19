@@ -133,6 +133,9 @@ message Resource {
 
 这是结构示意。三种 payload 分别对应入口、一条 ModelRoute 规则和一条 MCPRoute，
 每个实例都是独立的 xDS 资源，并不是把它们封装成一份完整配置。
+可生成的完整契约见 [resource.proto](../../api/aidataplane/v1/resource.proto)，
+统一消息类型为 `aidataplane.v1.Resource`。模型条件用 oneof 区分精确值与 catch-all，
+规则结果用 oneof 区分 target 与 unavailable，不依赖字段缺省推断拒绝或放行。
 Agentgateway 的 [Resource protobuf](https://github.com/agentgateway/agentgateway/blob/main/crates/protos/proto/resource.proto)
 也采用统一外层类型承载不同配置资源；这里仅采用组织方式，不复制其全部资源。
 

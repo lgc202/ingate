@@ -1,0 +1,125 @@
+syntax = "proto3";
+
+package aidataplane.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/aidataplane/v1;aidataplanev1";
+
+// Resource 是一个独立版本化的 Go 数据面资源，不包含整个数据面的配置。
+// name 同时用作 xDS 资源名；接收端须核对外层 xDS 名称与这里一致。
+message Resource {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  oneof payload {
+    option (buf.validate.oneof).required = true;
+    Entry entry = 2;
+    ModelRule model_rule = 3;
+    MCPRoute mcp_route = 4;
+  }
+}
+
+// Entry 只描述一个已接纳的模型或 MCP 入口，不包含子路由或网络参数。
+message Entry {
+  int32 port = 1 [(buf.validate.field).int32 = {
+    gte: 1
+    lte: 65535
+  }];
+  string host_name = 2 [(buf.validate.field).string.min_len = 1];
+  // 空 hostname 表示不限制公网主机名；host_name 始终是内部入口标识。
+  string hostname = 3;
+}
+
+// EntryReference 引用入口，不因兄弟规则的匹配变化而改变。
+message EntryReference {
+  int32 port = 1 [(buf.validate.field).int32 = {
+    gte: 1
+    lte: 65535
+  }];
+  string host_name = 2 [(buf.validate.field).string.min_len = 1];
+}
+
+// Origin 保留稳定排序所需的来源信息；不含展示名、资源版本或查询投影字段。
+message Origin {
+  string namespace = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  google.protobuf.Timestamp creation_time = 3 [(buf.validate.field).required = true];
+}
+
+// ModelRule 对应一条 ModelRoute 规则，可同时附着多个入口。
+// matches 保留声明顺序；运行时 Exact 优先，再按来源、规则及匹配位置排序。
+message ModelRule {
+  repeated EntryReference entry_refs = 1 [(buf.validate.field).repeated.min_items = 1];
+  Origin origin = 2 [(buf.validate.field).required = true];
+  uint32 rule_index = 3;
+  repeated ModelMatch matches = 4 [(buf.validate.field).repeated.min_items = 1];
+  // unavailable 保留匹配并拒绝，不能回退到下一条候选。
+  oneof outcome {
+    option (buf.validate.oneof).required = true;
+    ModelTarget target = 5;
+    google.protobuf.Empty unavailable = 6;
+  }
+}
+
+// ModelMatch 只支持当前契约的精确模型名与 catch-all，不新增 Header 匹配能力。
+message ModelMatch {
+  oneof condition {
+    option (buf.validate.oneof).required = true;
+    string exact = 1 [(buf.validate.field).string.min_len = 1];
+    google.protobuf.Empty all = 2;
+  }
+}
+
+// APISchemaName 是上游协议格式，不表示支持该提供商的全部操作。
+enum APISchemaName {
+  API_SCHEMA_NAME_UNSPECIFIED = 0;
+  API_SCHEMA_NAME_OPENAI = 1;
+}
+
+// APISchema 携带已默认化的上游协议及路径前缀，不含凭据。
+message APISchema {
+  APISchemaName name = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  string prefix = 2 [(buf.validate.field).string = {
+    min_len: 1
+    prefix: "/"
+  }];
+}
+
+// ModelTarget 绑定协议处理参数与受保护的 Envoy 出口，不向 Go 下发端点或 TLS。
+message ModelTarget {
+  string binding_name = 1 [(buf.validate.field).string.min_len = 1];
+  APISchema schema = 2 [(buf.validate.field).required = true];
+  // 空字符串表示保留请求中的模型名。
+  string model_name_override = 3;
+  string network_backend_name = 4 [(buf.validate.field).string.min_len = 1];
+  string target_name = 5 [(buf.validate.field).string.min_len = 1];
+}
+
+// MCPRoute 对应单个 MCPRoute 对象，不包含聚合、会话或工具状态。
+message MCPRoute {
+  repeated EntryReference entry_refs = 1 [(buf.validate.field).repeated.min_items = 1];
+  Origin origin = 2 [(buf.validate.field).required = true];
+  string path = 3 [(buf.validate.field).string = {
+    min_len: 1
+    prefix: "/"
+  }];
+  oneof outcome {
+    option (buf.validate.oneof).required = true;
+    MCPTarget target = 4;
+    google.protobuf.Empty unavailable = 5;
+  }
+}
+
+// MCPTarget 携带固定上游路径及内容寻址出口；网络连接仍由 Envoy 管理。
+message MCPTarget {
+  string network_backend_name = 1 [(buf.validate.field).string.min_len = 1];
+  string backend_path = 2 [(buf.validate.field).string = {
+    min_len: 1
+    prefix: "/"
+  }];
+  string target_name = 3 [(buf.validate.field).string.min_len = 1];
+}

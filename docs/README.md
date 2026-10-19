@@ -10,6 +10,7 @@
   Envoy 快照使用 go-control-plane 的原生资源版本表，按类型和名称复用内容未变的消息，撤销时同时移除资源及版本；类型级聚合版本仅作 Delta 响应诊断，差异按逐资源版本计算。ADS 不保留 SotW 入口，Envoy 启动配置须使用 `DELTA_GRPC`。
   HTTP protobuf 按端口缓存 LDS/RDS，按 Backend 身份缓存 CDS/EDS；AI 入口按端口与 Host 缓存固定模型接口和 MCP 路径，合入公共 RDS 的结果按端口缓存。AI 出口按内容寻址目标复用 CDS/EDS 与路由，目标列表未变时复用出口 RDS；UDS 资源独立复用，无入口或出口时清理。
   缓存只保存当前有效键，校验失败保旧，通知失败保留新期望并重试。最终配置扫描、目标哈希、快照序列化和版本计算仍遍历全量。Delta 的订阅、变化、删除和已知版本重连已由原生 gRPC 客户端验证，尚未进行真实 Envoy 联调。
+  Go 独立资源已定义为 [protobuf 契约](../api/aidataplane/v1/resource.proto)，并提供[控制面纯转换](../internal/controllermanager/controller/gateway/ai_resources.go)：按入口、模型规则和 MCPRoute 输出，保留来源与拒绝语义，复用 Envoy 的内容寻址出口。当前尚未接入 LinearCache、ADS 分流或 Go 客户端，运行时仍使用 ConfigMap；转换阶段仍扫描完整候选。
 
 - [GoCanon 模板对齐](decisions/0016-gocanon-template-alignment.md)：本轮规则版本、重构边界、实施顺序与验证进度；不把参考示例覆盖到产品业务。
 
