@@ -42,3 +42,16 @@ mmdc -i docs/diagrams/ai-current-model-sequence.mmd \
 本次在相同本机工具、浏览器和字体环境中重复生成，核对 SVG SHA-256 一致；并在
 736 与 1100 像素容器中预览，检查文字边界和水平溢出。不同渲染器和字体环境仍需复核，
 这些图形检查不替代 API Server、Envoy 或模型提供商的业务联调。
+
+## 增量设计图
+
+[控制面增量设计](../design/control-plane-incremental-design.md)使用以下两张手工坐标 SVG：
+
+| SVG 源文件 | 内容 |
+| --- | --- |
+| [control-plane-incremental-architecture.svg](control-plane-incremental-architecture.svg) | 拟议的源缓存、增量计算、配置发布和两路 Delta |
+| [control-plane-incremental-sequence.svg](control-plane-incremental-sequence.svg) | 拟议的 Go 首次订阅、应用、ACK、更新和重连 |
+
+这两张 SVG 本身就是维护源，不由 Mermaid 生成，也没有对应 `.mmd`。
+修改时直接编辑坐标与文本，保留水平/垂直连线，并在窄、宽容器中检查文字与箭头。
+它们描述目标方案，不代表增量编译与分发已全部接通，也不替换上面的当前实现图。

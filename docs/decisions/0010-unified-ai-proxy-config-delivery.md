@@ -1,5 +1,7 @@
 # 0010：模型与 MCP 使用统一 Go AI Proxy，由 Controller 编译配置并通过 API Server 下发
 
+> 2026-10-19：用户确认增量编译与资源级 Delta 下发方案并授权开始实现，Go AI Proxy 不再以单 ConfigMap 为终态。选型、架构、资源组织和分发方案见[控制面增量设计](../design/control-plane-incremental-design.md)，代码按阶段 review；本页 API Server List/Watch 路径仍是当前分发实现与历史依据。
+
 - 日期：2026-10-10
 - 状态：统一运行组件、配置下发、资源关系及最终一致性取舍已确认；最新实现与待评审边界见后续契约
 - 讨论入口：本仓库文档 review；当前没有对应 Issue 或 PR

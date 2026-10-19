@@ -2,6 +2,8 @@
 
 阅读顺序：先看当前能力和主链路，再看 AI 网关的已确认方向与待评审设计。
 
+- [控制面增量编译与配置分发设计](design/control-plane-incremental-design.md)：方案选型、总体架构、资源结构、增量计算和 Delta 分发；结合 Envoy Gateway、Istio、Agentgateway 的设计说明采用理由及差异。已获准开始实现；首步接入 krt 事件输入，编译和下发尚未切换。
+
 - [GoCanon 模板对齐](decisions/0016-gocanon-template-alignment.md)：本轮规则版本、重构边界、实施顺序与验证进度；不把参考示例覆盖到产品业务。
 
 - [控制面 Namespace 初始化](control-plane-initialization.md)：通过 Ingate API 创建配置空间的清单与手动安装顺序，已提交为 `6979b0c5`，未执行真实安装；Controller 不自动创建 Namespace，不提前创建共享 ConfigMap。

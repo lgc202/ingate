@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 350" role="img" aria-label="Go 初次订阅、原子应用、ACK、变化更新与带版本重连的时序">
+<!-- 手工坐标 SVG 源文件；布局只用水平/垂直连线。 -->
+<style>
+:root{--old:#b45309;--old-bg:#fef3c7;--new:#1d4ed8;--new-bg:#dbeafe;--infra:#047857;--infra-bg:#d1fae5;--ext:#475569;--ink:#0f172a;--muted:#64748b;--border:#e2e8f0}
+text{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+.svg-t{font-size:12.5px;fill:var(--ink)}.svg-s{font-size:11px;fill:var(--muted)}.svg-title{font-size:13px;font-weight:700;fill:var(--ink)}
+</style>
+<rect width="900" height="350" fill="#fff"/>
+<defs><marker id="seq-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="var(--ext)"/></marker></defs>
+<g stroke="var(--border)" stroke-width="1.2"><path d="M100 45V335"/><path d="M410 45V335"/><path d="M780 45V335"/></g>
+<text x="100" y="25" text-anchor="middle" class="svg-title">Controller / Cache</text><text x="410" y="25" text-anchor="middle" class="svg-title">ADS</text><text x="780" y="25" text-anchor="middle" class="svg-title">Go 资源集 / 活动视图</text>
+<g fill="none" stroke="var(--ext)" stroke-width="1.5" marker-end="url(#seq-arrow)"><path d="M780 70H410"/><path d="M410 112H780"/><path d="M780 155H410"/><path d="M100 198H410"/><path d="M410 240H780"/><path d="M780 282H410"/></g>
+<text x="590" y="61" text-anchor="middle" class="svg-t">订阅 *；首次 versions 为空</text><text x="590" y="102" text-anchor="middle" class="svg-t">当前全集（合法空集也响应）</text><text x="590" y="145" text-anchor="middle" class="svg-t">校验、视图交换后 ACK</text><text x="255" y="188" text-anchor="middle" class="svg-t">仅更新 A，删除旧项</text><text x="590" y="230" text-anchor="middle" class="svg-t">只发变化 resources / removed_resources</text><text x="590" y="272" text-anchor="middle" class="svg-t">断线后新流：携带 acceptedVersions</text>
+<text x="450" y="326" text-anchor="middle" class="svg-s">断线不等于删除；重连响应完成后才恢复该连接的同步状态。</text>
+</svg>

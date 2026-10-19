@@ -60,41 +60,17 @@ func New(
 	}
 }
 
-// SetupWithManager 合并领域资源与受管 ConfigMap 事件，并在启动时主动协调一次。
-// ConfigMap Cache 的对象范围由 Manager 组合根限定，不使用全局 Generation 过滤。
+// SetupWithManager 通过 krt 输入集合合并六类领域资源事件，受管 ConfigMap 保留原生 Watch。
+// 所有源完成初始同步后才启动 Worker；空资源集合也主动协调一次。
 func (r *Reconciler) SetupWithManager(manager ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(manager).
 		Named("gateway").
-		Watches(
-			&gatewayv1alpha1.Gateway{},
-			handler.EnqueueRequestsFromMapFunc(sharedRequests),
-			builder.WithPredicates(resourcePredicate()),
-		).
-		Watches(
-			&gatewayv1alpha1.HTTPRoute{},
-			handler.EnqueueRequestsFromMapFunc(sharedRequests),
-			builder.WithPredicates(resourcePredicate()),
-		).
-		Watches(
-			&gatewayv1alpha1.Backend{},
-			handler.EnqueueRequestsFromMapFunc(sharedRequests),
-			builder.WithPredicates(resourcePredicate()),
-		).
-		Watches(
-			&gatewayv1alpha1.AIBackend{},
-			handler.EnqueueRequestsFromMapFunc(sharedRequests),
-			builder.WithPredicates(resourcePredicate()),
-		).
-		Watches(
-			&gatewayv1alpha1.ModelRoute{},
-			handler.EnqueueRequestsFromMapFunc(sharedRequests),
-			builder.WithPredicates(resourcePredicate()),
-		).
-		Watches(
-			&gatewayv1alpha1.MCPRoute{},
-			handler.EnqueueRequestsFromMapFunc(sharedRequests),
-			builder.WithPredicates(resourcePredicate()),
-		).
+		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.Gateway{})).
+		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.HTTPRoute{})).
+		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.Backend{})).
+		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.AIBackend{})).
+		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.ModelRoute{})).
+		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.MCPRoute{})).
 		Watches(
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(sharedRequests),
