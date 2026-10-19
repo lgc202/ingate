@@ -5,59 +5,10 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
-	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
-
-func TestResourcePredicate(t *testing.T) {
-	filter := resourcePredicate()
-	for _, resource := range []client.Object{
-		&gatewayv1alpha1.Gateway{}, &gatewayv1alpha1.Backend{}, &gatewayv1alpha1.HTTPRoute{},
-		&gatewayv1alpha1.AIBackend{}, &gatewayv1alpha1.ModelRoute{}, &gatewayv1alpha1.MCPRoute{},
-	} {
-		resource.SetGeneration(1)
-		if !filter.Create(event.CreateEvent{Object: resource}) || !filter.Delete(event.DeleteEvent{Object: resource}) {
-			t.Errorf("resourcePredicate(%T) filtered a create or delete event", resource)
-		}
-
-		if filter.Generic(event.GenericEvent{Object: resource}) {
-			t.Errorf("resourcePredicate(%T) accepted a generic event", resource)
-		}
-
-		for _, tt := range []struct {
-			name   string
-			change func(client.Object)
-			want   bool
-		}{
-			{name: "unchanged", change: func(client.Object) {}},
-			{name: "resourceVersion only", change: func(object client.Object) { object.SetResourceVersion("2") }},
-			{name: "annotation", change: func(object client.Object) { object.SetAnnotations(map[string]string{"other": "new"}) }},
-			{name: "finalizer only", change: func(object client.Object) { object.SetFinalizers([]string{"example.com/cleanup"}) }},
-			{name: "spec generation", change: func(object client.Object) { object.SetGeneration(2) }, want: true},
-			{name: "deletion starts", change: func(object client.Object) { object.SetDeletionTimestamp(new(metav1.Unix(3, 0))) }, want: true},
-		} {
-			current := resource.DeepCopyObject().(client.Object)
-			tt.change(current)
-
-			got := filter.Update(event.UpdateEvent{ObjectOld: resource, ObjectNew: current})
-
-			if got != tt.want {
-				t.Errorf("resourcePredicate.Update(%T, %s) = %t, want %t", resource, tt.name, got, tt.want)
-			}
-		}
-	}
-
-	previous := &gatewayv1alpha1.Gateway{}
-	current := previous.DeepCopy()
-	current.Status.Conditions = []metav1.Condition{{Type: gatewayv1alpha1.ConditionAccepted, Status: metav1.ConditionTrue}}
-
-	if filter.Update(event.UpdateEvent{ObjectOld: previous, ObjectNew: current}) {
-		t.Error("resourcePredicate.Update(status only) = true, want false")
-	}
-}
 
 func TestAIConfigPredicateScope(t *testing.T) {
 	writer := aiConfigWriter{namespace: "control-plane"}

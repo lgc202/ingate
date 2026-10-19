@@ -60,17 +60,17 @@ func New(
 	}
 }
 
-// SetupWithManager 通过 krt 输入集合合并六类领域资源事件，受管 ConfigMap 保留原生 Watch。
+// SetupWithManager 通过 krt 运行投影合并六类领域资源事件，受管 ConfigMap 保留原生 Watch。
 // 所有源完成初始同步后才启动 Worker；空资源集合也主动协调一次。
 func (r *Reconciler) SetupWithManager(manager ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(manager).
 		Named("gateway").
-		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.Gateway{})).
-		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.HTTPRoute{})).
-		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.Backend{})).
-		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.AIBackend{})).
-		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.ModelRoute{})).
-		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.MCPRoute{})).
+		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.Gateway{}, projectGateway)).
+		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.HTTPRoute{}, projectHTTPRoute)).
+		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.Backend{}, projectBackend)).
+		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.AIBackend{}, projectAIBackend)).
+		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.ModelRoute{}, projectModelRoute)).
+		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.MCPRoute{}, projectMCPRoute)).
 		Watches(
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(sharedRequests),

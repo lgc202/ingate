@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"istio.io/istio/pkg/kube/controllers"
 	"istio.io/istio/pkg/kube/krt"
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -18,11 +17,13 @@ import (
 )
 
 // resourceSource 将 Manager 的 Informer 事件接入 krt，不创建第二套 List/Watch。
-// 集合中的对象沿用 Informer 的只读契约，后续转换不得原地修改对象。
+// 原始集合沿用 Informer 的只读对象；运行投影另建副本，后续转换也只能读取。
 type resourceSource[T client.Object] struct {
 	cache        cache.Cache
 	object       T
+	project      func(T) T
 	objects      krt.StaticCollection[T]
+	projected    krt.Collection[T]
 	kind         source.SyncingSource
 	subscription krt.HandlerRegistration
 	replayed     chan struct{}
@@ -36,8 +37,12 @@ type replaySync struct {
 
 var _ source.SyncingSource = (*resourceSource[*gatewayv1alpha1.Gateway])(nil)
 
-func newResourceSource[T client.Object](resourceCache cache.Cache, object T) *resourceSource[T] {
-	return &resourceSource[T]{cache: resourceCache, object: object}
+func newResourceSource[T client.Object](
+	resourceCache cache.Cache,
+	object T,
+	project func(T) T,
+) *resourceSource[T] {
+	return &resourceSource[T]{cache: resourceCache, object: object, project: project}
 }
 
 func (s *resourceSource[T]) Start(
@@ -51,8 +56,16 @@ func (s *resourceSource[T]) Start(
 		krt.WithStop(ctx.Done()),
 		krt.WithName(fmt.Sprintf("gateway/%T", s.object)),
 	)
-	s.subscription = s.objects.AsCollection().RegisterBatch(func(changes []krt.Event[T]) {
-		enqueueResourceChanges(queue, changes)
+
+	// NewCollection 按 T 存放输出，转换函数返回 *T；这里 T 已经是 API 指针。
+	// 投影内容相等时由 krt 保留旧结果，不通知队列或后续派生集合。
+	s.projected = krt.NewCollection(s.objects.AsCollection(), func(_ krt.HandlerContext, resource T) *T {
+		return new(s.project(resource))
+	}, krt.WithStop(ctx.Done()), krt.WithName(fmt.Sprintf("gateway/%T/runtime", s.object)))
+	s.subscription = s.projected.RegisterBatch(func(changes []krt.Event[T]) {
+		for range changes {
+			queue.Add(sharedRequest())
+		}
 	}, true)
 
 	// 原生 Kind 负责异步取得 Informer、启动重试和 Handler 初始回放等待。
@@ -117,21 +130,5 @@ func (s replaySync) WaitUntilSynced(stop <-chan struct{}) bool {
 		return true
 	case <-stop:
 		return false
-	}
-}
-
-func enqueueResourceChanges[T client.Object](
-	queue workqueue.TypedRateLimitingInterface[reconcile.Request],
-	changes []krt.Event[T],
-) {
-	for _, change := range changes {
-		if change.Event == controllers.EventUpdate && !resourcePredicate().Update(event.UpdateEvent{
-			ObjectOld: *change.Old,
-			ObjectNew: *change.New,
-		}) {
-			continue
-		}
-
-		queue.Add(sharedRequest())
 	}
 }

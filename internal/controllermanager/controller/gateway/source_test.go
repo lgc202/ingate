@@ -5,9 +5,9 @@ import (
 	"errors"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
-	"istio.io/istio/pkg/kube/controllers"
 	"istio.io/istio/pkg/kube/krt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -65,7 +65,7 @@ func TestResourceSourceInitialReplay(t *testing.T) {
 			}
 
 			informer := toolscache.NewSharedIndexInformer(producer, &gatewayv1alpha1.Gateway{}, 0, nil)
-			s := newResourceSource(&resourceSourceCache{informer: informer}, &gatewayv1alpha1.Gateway{})
+			s := newResourceSource(&resourceSourceCache{informer: informer}, &gatewayv1alpha1.Gateway{}, projectGateway)
 			queue := newResourceSourceQueue(t)
 			if err := s.Start(t.Context(), queue); err != nil {
 				t.Fatalf("Start() error = %v, want nil", err)
@@ -85,6 +85,10 @@ func TestResourceSourceInitialReplay(t *testing.T) {
 
 			if got := len(s.objects.List()); got != len(tt.objects) {
 				t.Errorf("objects.List() length = %d, want %d", got, len(tt.objects))
+			}
+
+			if got := len(s.projected.List()); got != len(tt.objects) {
+				t.Errorf("projected.List() length = %d, want %d", got, len(tt.objects))
 			}
 
 			if got := queue.Len(); got != len(tt.objects) {
@@ -107,7 +111,7 @@ func TestResourceSourceWaitsForItsHandler(t *testing.T) {
 		release:  release,
 		stop:     t.Context().Done(),
 	}
-	s := newResourceSource(&resourceSourceCache{informer: blocked}, &gatewayv1alpha1.Gateway{})
+	s := newResourceSource(&resourceSourceCache{informer: blocked}, &gatewayv1alpha1.Gateway{}, projectGateway)
 	if err := s.Start(t.Context(), newResourceSourceQueue(t)); err != nil {
 		t.Fatalf("Start() error = %v, want nil", err)
 	}
@@ -145,7 +149,7 @@ func TestResourceSourceWaitsForItsHandler(t *testing.T) {
 
 func TestResourceSourceReturnsRegistrationFailure(t *testing.T) {
 	cause := errors.New("handler registration unavailable")
-	s := newResourceSource(&resourceSourceCache{informer: &registrationFailedInformer{err: cause}}, &gatewayv1alpha1.Gateway{})
+	s := newResourceSource(&resourceSourceCache{informer: &registrationFailedInformer{err: cause}}, &gatewayv1alpha1.Gateway{}, projectGateway)
 	if err := s.Start(t.Context(), newResourceSourceQueue(t)); err != nil {
 		t.Fatalf("Start() error = %v, want asynchronous initialization", err)
 	}
@@ -159,6 +163,77 @@ func TestResourceSourceReturnsRegistrationFailure(t *testing.T) {
 	}
 }
 
+func TestResourceSourceNotifiesRuntimeChanges(t *testing.T) {
+	tests := []struct {
+		name   string
+		change func(*gatewayv1alpha1.Gateway)
+		queued bool
+	}{
+		{name: "resource version", change: func(resource *gatewayv1alpha1.Gateway) { resource.ResourceVersion = "2" }},
+		{name: "status", change: func(resource *gatewayv1alpha1.Gateway) {
+			resource.Status.Conditions = []metav1.Condition{{Type: "Accepted", Status: metav1.ConditionTrue}}
+		}},
+		{name: "labels", change: func(resource *gatewayv1alpha1.Gateway) { resource.Labels = map[string]string{"team": "a"} }},
+		{name: "annotations", change: func(resource *gatewayv1alpha1.Gateway) { resource.Annotations = map[string]string{"note": "updated"} }},
+		{name: "finalizers", change: func(resource *gatewayv1alpha1.Gateway) { resource.Finalizers = []string{"example.com/cleanup"} }},
+		{name: "display name and generation", change: func(resource *gatewayv1alpha1.Gateway) {
+			resource.Spec.DisplayName = "新的展示名称"
+			resource.Generation++
+		}, queued: true},
+		{name: "listener port", change: func(resource *gatewayv1alpha1.Gateway) {
+			resource.Spec.Listeners[0].Port = 9090
+			resource.Generation++
+		}, queued: true},
+		{name: "deletion starts", change: func(resource *gatewayv1alpha1.Gateway) {
+			resource.DeletionTimestamp = new(metav1.Unix(3, 0))
+		}, queued: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				producer := informertesting.NewFakeControllerSource()
+				t.Cleanup(producer.Shutdown)
+				resource := &gatewayv1alpha1.Gateway{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "edge", Generation: 1},
+					Spec: gatewayv1alpha1.GatewaySpec{
+						Listeners: []gatewayv1alpha1.Listener{{Name: "http", Protocol: gatewayv1alpha1.ProtocolHTTP, Port: 8080}},
+					},
+				}
+				producer.Add(resource.DeepCopy())
+				informer := toolscache.NewSharedIndexInformer(producer, &gatewayv1alpha1.Gateway{}, 0, nil)
+				s := newResourceSource(&resourceSourceCache{informer: informer}, &gatewayv1alpha1.Gateway{}, projectGateway)
+				queue := newResourceSourceQueue(t)
+				if err := s.Start(t.Context(), queue); err != nil {
+					t.Fatalf("Start() error = %v, want nil", err)
+				}
+
+				runResourceInformer(t, informer)
+				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+				defer cancel()
+
+				if err := s.WaitForSync(ctx); err != nil {
+					t.Fatalf("WaitForSync() error = %v, want nil", err)
+				}
+
+				if got := queue.Len(); got != 1 {
+					t.Fatalf("initial queue length = %d, want 1", got)
+				}
+
+				request, _ := queue.Get()
+				queue.Done(request)
+				tt.change(resource)
+
+				producer.Modify(resource.DeepCopy())
+				synctest.Wait()
+
+				if got := queue.Len() != 0; got != tt.queued {
+					t.Errorf("resource update (%s) queued = %t, want %t", tt.name, got, tt.queued)
+				}
+			})
+		})
+	}
+}
+
 // 验证适配后的输入可直接用于按对象派生，A 的更新和删除不重算同名的 B。
 func TestResourceSourceSupportsPerObjectDerivation(t *testing.T) {
 	producer := informertesting.NewFakeControllerSource()
@@ -169,13 +244,13 @@ func TestResourceSourceSupportsPerObjectDerivation(t *testing.T) {
 	producer.Add(second.DeepCopy())
 
 	informer := toolscache.NewSharedIndexInformer(producer, &gatewayv1alpha1.Gateway{}, 0, nil)
-	s := newResourceSource(&resourceSourceCache{informer: informer}, &gatewayv1alpha1.Gateway{})
+	s := newResourceSource(&resourceSourceCache{informer: informer}, &gatewayv1alpha1.Gateway{}, projectGateway)
 	if err := s.Start(t.Context(), newResourceSourceQueue(t)); err != nil {
 		t.Fatalf("Start() error = %v, want nil", err)
 	}
 
 	var firstCalls, secondCalls atomic.Int64
-	derived := krt.NewCollection(s.objects.AsCollection(), func(_ krt.HandlerContext, gateway *gatewayv1alpha1.Gateway) *derivedGateway {
+	derived := krt.NewCollection(s.projected, func(_ krt.HandlerContext, gateway *gatewayv1alpha1.Gateway) *derivedGateway {
 		if gateway.Namespace == "team-a" {
 			firstCalls.Add(1)
 		} else {
@@ -226,58 +301,6 @@ func TestResourceSourceSupportsPerObjectDerivation(t *testing.T) {
 
 	if got := secondCalls.Load(); got != previousSecondCalls {
 		t.Errorf("team-b transform calls = %d, want unchanged %d", got, previousSecondCalls)
-	}
-}
-
-func TestEnqueueResourceChanges(t *testing.T) {
-	previous := &gatewayv1alpha1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: "edge", Generation: 1}}
-	statusOnly := previous.DeepCopy()
-	statusOnly.Status.Conditions = []metav1.Condition{{Type: "Accepted", Status: metav1.ConditionTrue}}
-	specChange := previous.DeepCopy()
-	specChange.Generation++
-	deleting := previous.DeepCopy()
-	deleting.DeletionTimestamp = new(metav1.Now())
-
-	tests := []struct {
-		name   string
-		change krt.Event[*gatewayv1alpha1.Gateway]
-		queued bool
-	}{
-		{
-			name:   "create",
-			change: krt.Event[*gatewayv1alpha1.Gateway]{Event: controllers.EventAdd, New: new(previous)},
-			queued: true,
-		},
-		{
-			name:   "status",
-			change: krt.Event[*gatewayv1alpha1.Gateway]{Event: controllers.EventUpdate, Old: new(previous), New: new(statusOnly)},
-		},
-		{
-			name:   "spec",
-			change: krt.Event[*gatewayv1alpha1.Gateway]{Event: controllers.EventUpdate, Old: new(previous), New: new(specChange)},
-			queued: true,
-		},
-		{
-			name:   "deletion begins",
-			change: krt.Event[*gatewayv1alpha1.Gateway]{Event: controllers.EventUpdate, Old: new(previous), New: new(deleting)},
-			queued: true,
-		},
-		{
-			name:   "delete",
-			change: krt.Event[*gatewayv1alpha1.Gateway]{Event: controllers.EventDelete, Old: new(previous)},
-			queued: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			queue := newResourceSourceQueue(t)
-
-			enqueueResourceChanges(queue, []krt.Event[*gatewayv1alpha1.Gateway]{tt.change})
-
-			if got := queue.Len() != 0; got != tt.queued {
-				t.Errorf("enqueueResourceChanges(%s) queued = %t, want %t", tt.name, got, tt.queued)
-			}
-		})
 	}
 }
 

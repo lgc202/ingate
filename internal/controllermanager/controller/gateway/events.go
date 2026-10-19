@@ -10,17 +10,6 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
-// resourcePredicate 忽略 Status 和无关 metadata 更新，但保留带 finalizer 的删除开始事件。
-func resourcePredicate() predicate.Predicate {
-	return predicate.Funcs{
-		UpdateFunc: func(change event.UpdateEvent) bool {
-			return change.ObjectOld.GetGeneration() != change.ObjectNew.GetGeneration() ||
-				change.ObjectOld.GetDeletionTimestamp().IsZero() != change.ObjectNew.GetDeletionTimestamp().IsZero()
-		},
-		GenericFunc: func(event.GenericEvent) bool { return false },
-	}
-}
-
 // predicate 不用 managed-by 做筛选，否则标签被移除后无法触发冲突诊断。
 // 只关注所属内容与影响写入的字段，忽略自身写入带来的纯 resourceVersion 变化。
 func (w *aiConfigWriter) predicate() predicate.Predicate {
