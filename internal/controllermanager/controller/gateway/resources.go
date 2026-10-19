@@ -8,7 +8,7 @@ import (
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
-// resources 保存本轮读取的只读派生结果；不同集合的读取不构成跨资源事务。
+// resources 保存单入口计算需要的只读派生结果，不作为全量重编译的回退路径。
 type resources struct {
 	gateways    gatewayv1alpha1.GatewayList
 	httpRoutes  []*httpRoute
@@ -25,22 +25,6 @@ type resolution struct {
 	bindings         []httpRouteBinding
 	gatewayConflicts []gatewayConflict
 	parents          []httpRouteParentResolution
-}
-
-// readResources 只在所有源和绑定完成初始同步后使用，不回退到原始 API 对象重译。
-func (s *compilationSource) readResources() resources {
-	result := resources{
-		httpRoutes:  s.httpRoutes.projected.List(),
-		backends:    s.backends.projected.List(),
-		aiBackends:  s.bindings.List(),
-		modelRoutes: s.modelRoutes.projected.List(),
-		mcpRoutes:   s.mcpRoutes.projected.List(),
-	}
-	for _, gateway := range s.gateways.projected.List() {
-		result.gateways.Items = append(result.gateways.Items, *gateway)
-	}
-
-	return result
 }
 
 // resolve 按创建时间、Namespace 和名称稳定排列候选；引用失效不移除路径匹配。

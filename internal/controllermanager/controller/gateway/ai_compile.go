@@ -21,13 +21,35 @@ type aiCompilation struct {
 	modelRoutes      map[listenerRef][]aidataplane.ModelRoute
 	mcpRoutes        map[listenerRef][]aidataplane.MCPRoute
 	protocolBackends map[string]aidataplane.Backend
-	networkBackends  map[string]aidataplane.NetworkBackend
+	networkBackends  map[string]bool
 }
 
 // compileAI 将派生的匹配与后端结果组装为共享配置，不读取 API 或修改输入。
 // 调用方必须等待全部集合初始同步；空输入表示撤销，不能代替未同步的集合。
 // 此处不裁决跨 Kind 的网络入口、不发布 xDS，也不写入 ConfigMap。
 func compileAI(snapshot resources) (aidataplane.Config, error) {
+	c, err := resolveAI(snapshot)
+	if err != nil {
+		return aidataplane.Config{}, err
+	}
+
+	config := c.buildConfig()
+	for _, backend := range snapshot.backends {
+		if c.networkBackends[backend.ResourceName()] {
+			config.NetworkBackends = append(config.NetworkBackends, backend.aiBackend())
+		}
+	}
+
+	slices.SortFunc(config.NetworkBackends, func(a, b aidataplane.NetworkBackend) int { return cmp.Compare(a.Name, b.Name) })
+
+	if err := aidataplane.Validate(config); err != nil {
+		return aidataplane.Config{}, fmt.Errorf("validate compiled AI configuration: %w", err)
+	}
+
+	return config, nil
+}
+
+func resolveAI(snapshot resources) (*aiCompilation, error) {
 	var accepted resolution
 	accepted.selectGateways(snapshot.gateways.Items)
 
@@ -38,7 +60,7 @@ func compileAI(snapshot resources) (aidataplane.Config, error) {
 		modelRoutes:      make(map[listenerRef][]aidataplane.ModelRoute),
 		mcpRoutes:        make(map[listenerRef][]aidataplane.MCPRoute),
 		protocolBackends: make(map[string]aidataplane.Backend),
-		networkBackends:  make(map[string]aidataplane.NetworkBackend),
+		networkBackends:  make(map[string]bool),
 	}
 	for _, binding := range snapshot.aiBackends {
 		if !binding.backend.deleting {
@@ -53,19 +75,14 @@ func compileAI(snapshot resources) (aidataplane.Config, error) {
 	}
 
 	if err := c.compileModelRoutes(snapshot.modelRoutes); err != nil {
-		return aidataplane.Config{}, err
+		return nil, err
 	}
 
 	if err := c.compileMCPRoutes(snapshot.mcpRoutes); err != nil {
-		return aidataplane.Config{}, err
+		return nil, err
 	}
 
-	config := c.buildConfig()
-	if err := aidataplane.Validate(config); err != nil {
-		return aidataplane.Config{}, fmt.Errorf("validate compiled AI configuration: %w", err)
-	}
-
-	return config, nil
+	return &c, nil
 }
 
 func (c *aiCompilation) buildConfig() aidataplane.Config {
@@ -121,10 +138,6 @@ func (c *aiCompilation) buildConfig() aidataplane.Config {
 		config.Backends = append(config.Backends, c.protocolBackends[name])
 	}
 
-	for _, name := range slices.Sorted(maps.Keys(c.networkBackends)) {
-		config.NetworkBackends = append(config.NetworkBackends, c.networkBackends[name])
-	}
-
 	return config
 }
 
@@ -170,7 +183,7 @@ func (c *aiCompilation) bindNetworkBackend(key client.ObjectKey) string {
 		return name
 	}
 
-	c.networkBackends[name] = backend.aiBackend()
+	c.networkBackends[name] = true
 
 	return name
 }

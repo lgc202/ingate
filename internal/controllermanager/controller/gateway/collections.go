@@ -7,6 +7,7 @@ import (
 	"istio.io/istio/pkg/kube/krt"
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -16,14 +17,24 @@ import (
 // compilationSource 统一拥有六类源和跨资源派生集合，依赖全部创建后再等待初始同步。
 // 所有集合受同一个 Manager Context 管理，不另建 Informer 或后台发布循环。
 type compilationSource struct {
-	gateways    *resourceSource[*gatewayv1alpha1.Gateway, gatewayv1alpha1.Gateway]
-	httpRoutes  *resourceSource[*gatewayv1alpha1.HTTPRoute, httpRoute]
-	backends    *resourceSource[*gatewayv1alpha1.Backend, networkBackend]
-	aiBackends  *resourceSource[*gatewayv1alpha1.AIBackend, modelBackend]
-	modelRoutes *resourceSource[*gatewayv1alpha1.ModelRoute, modelRoute]
-	mcpRoutes   *resourceSource[*gatewayv1alpha1.MCPRoute, mcpRoute]
-	bindings    krt.Collection[*modelBackendBinding]
-	boundSync   krt.HandlerRegistration
+	gateways         *resourceSource[*gatewayv1alpha1.Gateway, gatewayv1alpha1.Gateway]
+	httpRoutes       *resourceSource[*gatewayv1alpha1.HTTPRoute, httpRoute]
+	backends         *resourceSource[*gatewayv1alpha1.Backend, networkBackend]
+	aiBackends       *resourceSource[*gatewayv1alpha1.AIBackend, modelBackend]
+	modelRoutes      *resourceSource[*gatewayv1alpha1.ModelRoute, modelRoute]
+	mcpRoutes        *resourceSource[*gatewayv1alpha1.MCPRoute, mcpRoute]
+	bindings         krt.Collection[*modelBackendBinding]
+	boundSync        krt.HandlerRegistration
+	selection        krt.Singleton[gatewaySelection]
+	entries          krt.Collection[*listenerEntry]
+	entriesByGateway krt.Index[client.ObjectKey, *listenerEntry]
+	httpAttachments  krt.Collection[*routeAttachment]
+	modelAttachments krt.Collection[*routeAttachment]
+	mcpAttachments   krt.Collection[*routeAttachment]
+	routeIndexes     entryRouteIndexes
+	tables           krt.Collection[*entryTable]
+	httpStatuses     krt.Collection[*httpRouteStatus]
+	entrySync        []krt.HandlerRegistration
 }
 
 var _ source.SyncingSource = (*compilationSource)(nil)
@@ -50,6 +61,7 @@ func (s *compilationSource) Start(
 	}
 
 	s.registerBindings(ctx, queue)
+	s.registerEntryGraph(ctx, queue)
 
 	return nil
 }
@@ -65,7 +77,7 @@ func (s *compilationSource) WaitForSync(ctx context.Context) error {
 		return fmt.Errorf("wait for model backend bindings: %w", ctx.Err())
 	}
 
-	return nil
+	return s.waitForEntries(ctx)
 }
 
 func (s *compilationSource) sources() []source.SyncingSource {

@@ -17,6 +17,15 @@ type listenerRef struct {
 
 // compile 只转换已接纳资源；跨资源引用和冲突已由 resolve 处理。
 func compile(result resolution) dataplane.Config {
+	config := dataplane.Config{Listeners: compileHTTPListeners(result)}
+	for _, backend := range result.backends {
+		config.Backends = append(config.Backends, backend.httpBackend())
+	}
+
+	return config
+}
+
+func compileHTTPListeners(result resolution) []dataplane.Listener {
 	routesByListener := make(map[listenerRef][]dataplane.Route)
 	for _, binding := range result.bindings {
 		ref := listenerRef{gatewayKey: binding.gatewayKey, listenerName: binding.listenerName}
@@ -44,14 +53,10 @@ func compile(result resolution) dataplane.Config {
 		}
 	}
 
-	var config dataplane.Config
+	var listeners []dataplane.Listener
 	for _, port := range slices.Sorted(maps.Keys(listenersByPort)) {
-		config.Listeners = append(config.Listeners, *listenersByPort[port])
+		listeners = append(listeners, *listenersByPort[port])
 	}
 
-	for _, backend := range result.backends {
-		config.Backends = append(config.Backends, backend.httpBackend())
-	}
-
-	return config
+	return listeners
 }

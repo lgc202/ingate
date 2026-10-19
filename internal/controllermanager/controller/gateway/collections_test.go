@@ -35,10 +35,11 @@ func TestCompilationSourceInitialSync(t *testing.T) {
 
 				s, _ := newCompilationTestSource(t, fixtures)
 				startCompilationTestSource(t, s)
+				synctest.Wait()
 
-				config, err := compileAI(s.readResources())
+				config, err := s.readPublication().aiConfig()
 				if err != nil {
-					t.Fatalf("compileAI(initial collections) error = %v, want nil", err)
+					t.Fatalf("aiConfig(initial collections) error = %v, want nil", err)
 				}
 
 				if empty && (len(config.Listeners) != 0 || len(config.Backends) != 0 || len(config.NetworkBackends) != 0) {

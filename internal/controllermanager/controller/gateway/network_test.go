@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"reflect"
 	"slices"
 	"sync/atomic"
 	"testing"
@@ -194,15 +195,10 @@ func TestReconcileReusesDerivedBackends(t *testing.T) {
 				return underlying.List(ctx, list, options...)
 			},
 		})
-		producer := informertesting.NewFakeControllerSource()
-		t.Cleanup(producer.Shutdown)
-		for i := range snapshot.backends.Items {
-			producer.Add(snapshot.backends.Items[i].DeepCopy())
-		}
-
+		sources, producers := newCompilationTestSource(t, snapshot)
+		producer := producers[reflect.TypeFor[*gatewayv1alpha1.Backend]()]
 		var modelCalls, toolsCalls atomic.Int64
-		informer := toolscache.NewSharedIndexInformer(producer, &gatewayv1alpha1.Backend{}, 0, nil)
-		s := newResourceSource(&resourceSourceCache{informer: informer}, &gatewayv1alpha1.Backend{}, func(backend *gatewayv1alpha1.Backend) *networkBackend {
+		sources.backends.project = func(backend *gatewayv1alpha1.Backend) *networkBackend {
 			if backend.Name == "model-network" {
 				modelCalls.Add(1)
 			} else {
@@ -210,18 +206,8 @@ func TestReconcileReusesDerivedBackends(t *testing.T) {
 			}
 
 			return compileNetworkBackend(backend)
-		})
-		if err := s.Start(t.Context(), newResourceSourceQueue(t)); err != nil {
-			t.Fatalf("Start() error = %v, want nil", err)
 		}
-
-		runResourceInformer(t, informer)
-		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-		defer cancel()
-
-		if err := s.WaitForSync(ctx); err != nil {
-			t.Fatalf("WaitForSync() error = %v, want nil", err)
-		}
+		startCompilationTestSource(t, sources)
 
 		var http dataplane.Config
 		var ai aidataplane.Config
@@ -230,9 +216,7 @@ func TestReconcileReusesDerivedBackends(t *testing.T) {
 			publishAI:     func(_ context.Context, config aidataplane.Config) error { ai = config; return nil },
 		}
 		r := New(reads, apiClient, publisher, "control-plane")
-		setTestResources(t, r, snapshot)
-		r.sources.backends = s
-		r.sources.registerBindings(t.Context(), newResourceSourceQueue(t))
+		r.sources = sources
 		synctest.Wait()
 		for range 2 {
 			if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
@@ -253,8 +237,8 @@ func TestReconcileReusesDerivedBackends(t *testing.T) {
 			t.Fatalf("Update(HTTPRoute) error = %v, want nil", err)
 		}
 
-		// 这个测试单独驱动 Backend Informer，Route 在集合边界提供更新后的匹配结果。
-		r.sources.httpRoutes.projected = krt.NewStaticCollection(nil, []*httpRoute{compileHTTPRoute(&route)}, krt.WithStop(t.Context().Done()))
+		producers[reflect.TypeFor[*gatewayv1alpha1.HTTPRoute]()].Modify(route.DeepCopy())
+		synctest.Wait()
 
 		if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 			t.Fatalf("Reconcile(changed Route) error = %v, want nil", err)

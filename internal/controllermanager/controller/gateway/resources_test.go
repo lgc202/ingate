@@ -1,11 +1,13 @@
 package gateway
 
 import (
+	"context"
 	"testing"
+	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"istio.io/istio/pkg/kube/krt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
@@ -18,28 +20,6 @@ type resourceFixtures struct {
 	aiBackends  gatewayv1alpha1.AIBackendList
 	modelRoutes gatewayv1alpha1.ModelRouteList
 	mcpRoutes   gatewayv1alpha1.MCPRouteList
-}
-
-func TestReadResources(t *testing.T) {
-	gateway := gatewayResource("edge", 1, listener("http", 8080, ""))
-	route := routeResource("route", 2, "edge", "http", "backend", gatewayv1alpha1.PathMatchPrefix)
-	backend := backendResource("backend")
-	apiClient := newFakeClient(t, &gateway, &route, &backend)
-	r := newTestReconciler(t, apiClient, nil)
-
-	got := r.sources.readResources()
-
-	if diff := cmp.Diff([]gatewayv1alpha1.Gateway{*projectGateway(&gateway)}, got.gateways.Items); diff != "" {
-		t.Errorf("readResources() Gateways mismatch (-want +got):\n%s", diff)
-	}
-
-	if len(got.httpRoutes) != 1 || got.httpRoutes[0].Name != route.Name {
-		t.Errorf("readResources() HTTPRoutes = %+v, want compiled route", got.httpRoutes)
-	}
-
-	if diff := cmp.Diff(compileTestBackends([]gatewayv1alpha1.Backend{backend}), got.backends, cmp.AllowUnexported(networkBackend{})); diff != "" {
-		t.Errorf("readResources() Backends mismatch (-want +got):\n%s", diff)
-	}
 }
 
 func (f resourceFixtures) compiled() resources {
@@ -92,6 +72,16 @@ func setTestResources(t *testing.T, reconciler *Reconciler, fixtures resourceFix
 			projected: krt.NewStaticCollection(nil, compiled.mcpRoutes, stop),
 		},
 		bindings: krt.NewStaticCollection(nil, compiled.aiBackends, stop),
+	}
+	reconciler.sources.registerEntryGraph(t.Context(), newResourceSourceQueue(t))
+	if err := reconciler.sources.waitForEntries(t.Context()); err != nil {
+		t.Fatalf("waitForEntries() error = %v, want nil", err)
+	}
+
+	if err := wait.PollUntilContextTimeout(t.Context(), time.Millisecond, 5*time.Second, true, func(context.Context) (bool, error) {
+		return reconciler.sources.readPublication().err == nil, nil
+	}); err != nil {
+		t.Fatalf("test entry graph did not converge: %v", err)
 	}
 }
 

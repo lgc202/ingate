@@ -5,7 +5,8 @@
 - [控制面增量编译与配置分发设计](design/control-plane-incremental-design.md)：方案选型、总体架构、资源结构、增量计算和 Delta 分发；结合 Envoy Gateway、Istio、Agentgateway 的设计说明采用理由及差异。
   六类资源统一接入 krt；Backend 网络结果、三类 Route 匹配和 AIBackend 协议声明按对象派生，AIBackend 通过按键 Fetch 关联网络后端。
   协调器读取编译集合，不再逐次 List 六类原对象并重做端点、匹配和协议转换。Gateway 与 HTTPRoute 为状态协调保留实例身份和 Generation，写回前核对当前对象。
-  Gateway 冲突裁决、路由附着、入口聚合和最终配置组装仍是全量；发布仍使用现有 xDS 快照及 ConfigMap，尚未切换 Delta。
+  Gateway 变化驱动集中入口冲突裁决；三类 Route 通过父引用建立附着关系，再按入口索引聚合，匹配变化只重算相关入口，端点变化不重算路由表。
+  发布边界核对异步集合的结果是否收敛，合并入口缓存并从唯一 Backend 集合填充网络结果。最终一致性核对、配置组装和发布仍遍历完整结果；发布仍使用现有 xDS 快照及 ConfigMap，尚未切换 Delta。
 
 - [GoCanon 模板对齐](decisions/0016-gocanon-template-alignment.md)：本轮规则版本、重构边界、实施顺序与验证进度；不把参考示例覆盖到产品业务。
 

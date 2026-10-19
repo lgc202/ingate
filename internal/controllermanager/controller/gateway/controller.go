@@ -83,7 +83,7 @@ func (r *Reconciler) SetupWithManager(manager ctrl.Manager) error {
 // Reconcile 从已同步的派生集合组装两份完整配置；请求键只负责合并事件。
 // 两路输出不是事务，一路失败不阻断另一路；错误交给工作队列限速重试。
 func (r *Reconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
-	snapshot := r.sources.readResources()
+	snapshot := r.sources.readPublication()
 
 	httpErr := r.reconcileHTTP(ctx, snapshot)
 	aiErr := r.reconcileAI(ctx, snapshot)
@@ -91,27 +91,36 @@ func (r *Reconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result
 	return ctrl.Result{}, errors.Join(httpErr, aiErr)
 }
 
-func (r *Reconciler) reconcileHTTP(ctx context.Context, snapshot resources) error {
-	result := resolve(snapshot.gateways.Items, snapshot.httpRoutes, snapshot.backends)
-	config := compile(result)
+func (r *Reconciler) reconcileHTTP(ctx context.Context, snapshot publication) error {
+	config, err := snapshot.httpConfig()
+	if err != nil {
+		return fmt.Errorf("assemble HTTP data plane configuration: %w", err)
+	}
 
 	if err := r.publisher.Publish(ctx, config); err != nil {
 		return fmt.Errorf("publish HTTP data plane configuration: %w", err)
 	}
 
-	if err := r.updateGatewayStatuses(ctx, snapshot.gateways.Items, result.gatewayConflicts); err != nil {
+	if err := r.updateGatewayStatuses(ctx, snapshot.selection.gateways, snapshot.selection.conflicts); err != nil {
 		return err
 	}
 
-	if err := r.updateHTTPRouteStatuses(ctx, snapshot.httpRoutes, result.parents); err != nil {
+	var routes []*httpRoute
+	var parents []httpRouteParentResolution
+	for _, status := range snapshot.statuses {
+		routes = append(routes, status.route)
+		parents = append(parents, status.parents...)
+	}
+
+	if err := r.updateHTTPRouteStatuses(ctx, routes, parents); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (r *Reconciler) reconcileAI(ctx context.Context, snapshot resources) error {
-	config, err := compileAI(snapshot)
+func (r *Reconciler) reconcileAI(ctx context.Context, snapshot publication) error {
+	config, err := snapshot.aiConfig()
 	if err != nil {
 		return fmt.Errorf("compile AI data plane configuration: %w", err)
 	}
