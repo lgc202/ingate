@@ -20,12 +20,12 @@ type Publisher struct {
 	cache           cachev3.SnapshotCache
 	aiEgressSocket  string
 	aiIngressSocket string
-	// mu 串行化 HTTP 增量转换、两类期望配置的合并与发布，保存最近构建有效的只读结果。
+	// mu 串行化 HTTP/AI 增量转换、两类期望配置的合并与发布，保存最近构建有效的只读结果。
 	// SetSnapshot 的 Watch 通知错误不代表缓存未更新，不能据此回滚该状态。
-	mu          sync.Mutex
-	http        httpTranslation
-	ingress     ingressTranslation
-	aiResources resourceSet
+	mu      sync.Mutex
+	http    httpTranslation
+	ai      aiTranslation
+	ingress ingressTranslation
 }
 
 type clusterHash struct{}
@@ -50,26 +50,27 @@ func (p *Publisher) Publish(ctx context.Context, config dataplane.Config) error 
 		return fmt.Errorf("build xDS resources: %w", err)
 	}
 
-	return p.publish(ctx, translation, p.aiResources)
+	return p.publish(ctx, translation, p.ai)
 }
 
 // PublishAI 替换模型入口和出口，保留最近成功的 HTTP 配置；合法空配置撤销 AI 资源。
 // 构建失败保留已有结果；缓存安装后的通知错误保留新期望，交给协调器重试。
 // 与 Publish 可并发调用，不保存调用方的可变集合，不回滚可能已经发出的 xDS。
 func (p *Publisher) PublishAI(ctx context.Context, config aidataplane.Config) error {
-	resources, err := buildAIResources(config, p.aiIngressSocket, p.aiEgressSocket)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	translation, err := p.ai.compile(config, p.aiIngressSocket, p.aiEgressSocket)
 	if err != nil {
 		return fmt.Errorf("build AI xDS resources: %w", err)
 	}
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	return p.publish(ctx, p.http, resources)
+	return p.publish(ctx, p.http, translation)
 }
 
-func (p *Publisher) publish(ctx context.Context, http httpTranslation, aiResources resourceSet) error {
+func (p *Publisher) publish(ctx context.Context, http httpTranslation, ai aiTranslation) error {
 	httpResources := http.resources
+	aiResources := ai.resources
 	ingress := p.ingress.merge(httpResources.routes, aiResources.ingressRoutes)
 	resources := resourceSet{
 		listeners: append(slices.Clone(httpResources.listeners), aiResources.listeners...),
@@ -96,7 +97,7 @@ func (p *Publisher) publish(ctx context.Context, http httpTranslation, aiResourc
 	// 记录同一份期望；即使版本未变也再次调用，以恢复上次失败后仍悬挂的 Watch。
 	p.http = http
 	p.ingress = ingress
-	p.aiResources = aiResources
+	p.ai = ai
 	if err := p.cache.SetSnapshot(ctx, sharedDataPlaneCluster, desired); err != nil {
 		return fmt.Errorf("publish xDS snapshot: %w", err)
 	}

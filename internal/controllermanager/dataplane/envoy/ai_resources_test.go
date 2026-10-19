@@ -255,6 +255,11 @@ func TestPublishRetriesWatchAfterCacheInstallation(t *testing.T) {
 		t.Fatalf("SetSnapshot notification failure did not retain installed AI: snapshot=%v, error=%v", installed, err)
 	}
 
+	translation := publisher.ai
+	if len(translation.targets) != 2 || translation.egressRoutes == nil {
+		t.Fatal("PublishAI(notification failure) lost the installed translation cache")
+	}
+
 	// 重试 HTTP 时必须保留已安装的 AI，并且相同版本也要恢复尚未完成的 Watch。
 	retryCtx, retryCancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer retryCancel()
@@ -275,6 +280,17 @@ func TestPublishRetriesWatchAfterCacheInstallation(t *testing.T) {
 	if err := <-result; err != nil {
 		t.Errorf("Publish(retry notification) error = %v, want success", err)
 	}
+
+	// 同一份 AI 重试也须保留转换对象，不能依赖 Snapshot 的内容去重掩盖重新构建。
+	if err := publisher.PublishAI(t.Context(), aiFixture(t)); err != nil {
+		t.Fatalf("PublishAI(retry identical configuration) error = %v", err)
+	}
+
+	model := translation.egressTargets[0]
+	if publisher.ai.targets[model].cluster != translation.targets[model].cluster ||
+		publisher.ai.egressListener != translation.egressListener || publisher.ai.egressRoutes != translation.egressRoutes {
+		t.Error("PublishAI(notification retry) rebuilt unchanged AI resources")
+	}
 }
 
 func aiFixture(t *testing.T) aidataplane.Config {
@@ -290,4 +306,15 @@ func aiFixture(t *testing.T) aidataplane.Config {
 	}
 
 	return *config
+}
+
+// buildAIResources 让既有资源契约测试覆盖生产转换的首次构建，而非只验证参考实现。
+func buildAIResources(config aidataplane.Config, ingressSocket, egressSocket string) (resourceSet, error) {
+	var empty aiTranslation
+	translated, err := empty.compile(config, ingressSocket, egressSocket)
+	if err != nil {
+		return resourceSet{}, err
+	}
+
+	return translated.resources, nil
 }
