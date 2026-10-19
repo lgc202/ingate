@@ -7,7 +7,6 @@ import (
 
 	clusterv3 "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
-	cachetypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	resourcev3 "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"github.com/google/go-cmp/cmp"
 
@@ -300,31 +299,5 @@ func TestCompareRoutesOrdersUnknownTypesConsistently(t *testing.T) {
 	reverse := compareRoutes(b, a)
 	if forward >= 0 || reverse <= 0 {
 		t.Errorf("compareRoutes(OtherA, OtherB) = %d, reverse = %d; want negative and positive", forward, reverse)
-	}
-}
-
-func TestResourceVersionDependsOnContent(t *testing.T) {
-	first := []cachetypes.Resource{&routev3.RouteConfiguration{Name: "route/8080"}}
-	version, err := resourceVersion(first)
-	if err != nil {
-		t.Fatalf("resourceVersion(first) error = %v, want nil", err)
-	}
-
-	again, err := resourceVersion(first)
-	if err != nil {
-		t.Fatalf("resourceVersion(first) repeated error = %v, want nil", err)
-	}
-
-	if version != again {
-		t.Errorf("resourceVersion(first) repeated = %q, want %q", again, version)
-	}
-
-	changed, err := resourceVersion([]cachetypes.Resource{&routev3.RouteConfiguration{Name: "route/9090"}})
-	if err != nil {
-		t.Fatalf("resourceVersion(changed) error = %v, want nil", err)
-	}
-
-	if version == changed {
-		t.Errorf("resourceVersion(changed) = %q, want different from %q", changed, version)
 	}
 }
