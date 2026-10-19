@@ -16,43 +16,20 @@ func projectGateway(gateway *gatewayv1alpha1.Gateway) *gatewayv1alpha1.Gateway {
 	return &gatewayv1alpha1.Gateway{ObjectMeta: projectResourceMeta(gateway), Spec: *spec}
 }
 
-func projectHTTPRoute(route *gatewayv1alpha1.HTTPRoute) *gatewayv1alpha1.HTTPRoute {
-	spec := route.Spec.DeepCopy()
-	spec.DisplayName = ""
-
-	return &gatewayv1alpha1.HTTPRoute{ObjectMeta: projectResourceMeta(route), Spec: *spec}
-}
-
-func projectAIBackend(backend *gatewayv1alpha1.AIBackend) *gatewayv1alpha1.AIBackend {
-	spec := backend.Spec.DeepCopy()
-	spec.DisplayName = ""
-
-	return &gatewayv1alpha1.AIBackend{ObjectMeta: projectResourceMeta(backend), Spec: *spec}
-}
-
-func projectModelRoute(route *gatewayv1alpha1.ModelRoute) *gatewayv1alpha1.ModelRoute {
-	spec := route.Spec.DeepCopy()
-	spec.DisplayName = ""
-
-	return &gatewayv1alpha1.ModelRoute{ObjectMeta: projectResourceMeta(route), Spec: *spec}
-}
-
-func projectMCPRoute(route *gatewayv1alpha1.MCPRoute) *gatewayv1alpha1.MCPRoute {
-	spec := route.Spec.DeepCopy()
-	spec.DisplayName = ""
-
-	return &gatewayv1alpha1.MCPRoute{ObjectMeta: projectResourceMeta(route), Spec: *spec}
-}
-
 func projectResourceMeta(resource client.Object) metav1.ObjectMeta {
+	meta := projectForwardingMeta(resource)
+	// Gateway 与 HTTPRoute 当前仍协调状态，保留实例身份和代次用于写回前核对。
+	meta.UID = resource.GetUID()
+	meta.Generation = resource.GetGeneration()
+
+	return meta
+}
+
+func projectForwardingMeta(resource client.Object) metav1.ObjectMeta {
 	return metav1.ObjectMeta{
 		Namespace:         resource.GetNamespace(),
 		Name:              resource.GetName(),
-		UID:               resource.GetUID(),
 		CreationTimestamp: resource.GetCreationTimestamp(),
 		DeletionTimestamp: resource.GetDeletionTimestamp().DeepCopy(),
-		// 当前队列仍同时协调状态，保留代次以更新 ObservedGeneration。
-		// 后续转发派生结果不应携带代次，避免展示名称修改继续传播到配置输出。
-		Generation: resource.GetGeneration(),
 	}
 }

@@ -230,7 +230,10 @@ func TestReconcileReusesDerivedBackends(t *testing.T) {
 			publishAI:     func(_ context.Context, config aidataplane.Config) error { ai = config; return nil },
 		}
 		r := New(reads, apiClient, publisher, "control-plane")
-		r.backends = s
+		setTestResources(t, r, snapshot)
+		r.sources.backends = s
+		r.sources.registerBindings(t.Context(), newResourceSourceQueue(t))
+		synctest.Wait()
 		for range 2 {
 			if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 				t.Fatalf("Reconcile() error = %v, want nil", err)
@@ -249,6 +252,9 @@ func TestReconcileReusesDerivedBackends(t *testing.T) {
 		if err := apiClient.Update(t.Context(), &route); err != nil {
 			t.Fatalf("Update(HTTPRoute) error = %v, want nil", err)
 		}
+
+		// 这个测试单独驱动 Backend Informer，Route 在集合边界提供更新后的匹配结果。
+		r.sources.httpRoutes.projected = krt.NewStaticCollection(nil, []*httpRoute{compileHTTPRoute(&route)}, krt.WithStop(t.Context().Done()))
 
 		if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 			t.Fatalf("Reconcile(changed Route) error = %v, want nil", err)

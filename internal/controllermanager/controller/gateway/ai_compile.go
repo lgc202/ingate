@@ -16,7 +16,7 @@ import (
 // aiCompilation 只保存一次纯编译的索引和结果，不作为协调器缓存。
 type aiCompilation struct {
 	gateways         []*gatewayv1alpha1.Gateway
-	aiBackends       map[client.ObjectKey]*gatewayv1alpha1.AIBackend
+	aiBackends       map[client.ObjectKey]*modelBackendBinding
 	backends         map[client.ObjectKey]*networkBackend
 	modelRoutes      map[listenerRef][]aidataplane.ModelRoute
 	mcpRoutes        map[listenerRef][]aidataplane.MCPRoute
@@ -24,8 +24,8 @@ type aiCompilation struct {
 	networkBackends  map[string]aidataplane.NetworkBackend
 }
 
-// compileAI 将完整领域输入编译为共享配置，不读取 API 或修改输入。
-// 调用方必须完成全部输入读取；空输入表示撤销，不能用它代替读取失败。
+// compileAI 将派生的匹配与后端结果组装为共享配置，不读取 API 或修改输入。
+// 调用方必须等待全部集合初始同步；空输入表示撤销，不能代替未同步的集合。
 // 此处不裁决跨 Kind 的网络入口、不发布 xDS，也不写入 ConfigMap。
 func compileAI(snapshot resources) (aidataplane.Config, error) {
 	var accepted resolution
@@ -33,17 +33,16 @@ func compileAI(snapshot resources) (aidataplane.Config, error) {
 
 	c := aiCompilation{
 		gateways:         accepted.gateways,
-		aiBackends:       make(map[client.ObjectKey]*gatewayv1alpha1.AIBackend),
+		aiBackends:       make(map[client.ObjectKey]*modelBackendBinding),
 		backends:         make(map[client.ObjectKey]*networkBackend),
 		modelRoutes:      make(map[listenerRef][]aidataplane.ModelRoute),
 		mcpRoutes:        make(map[listenerRef][]aidataplane.MCPRoute),
 		protocolBackends: make(map[string]aidataplane.Backend),
 		networkBackends:  make(map[string]aidataplane.NetworkBackend),
 	}
-	for i := range snapshot.aiBackends.Items {
-		backend := &snapshot.aiBackends.Items[i]
-		if backend.DeletionTimestamp.IsZero() {
-			c.aiBackends[client.ObjectKeyFromObject(backend)] = backend
+	for _, binding := range snapshot.aiBackends {
+		if !binding.backend.deleting {
+			c.aiBackends[binding.backend.key] = binding
 		}
 	}
 
@@ -53,11 +52,11 @@ func compileAI(snapshot resources) (aidataplane.Config, error) {
 		}
 	}
 
-	if err := c.compileModelRoutes(snapshot.modelRoutes.Items); err != nil {
+	if err := c.compileModelRoutes(snapshot.modelRoutes); err != nil {
 		return aidataplane.Config{}, err
 	}
 
-	if err := c.compileMCPRoutes(snapshot.mcpRoutes.Items); err != nil {
+	if err := c.compileMCPRoutes(snapshot.mcpRoutes); err != nil {
 		return aidataplane.Config{}, err
 	}
 

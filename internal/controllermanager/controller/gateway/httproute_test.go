@@ -26,7 +26,7 @@ func TestResolveParentsAndMissingBackend(t *testing.T) {
 		gatewayv1alpha1.ParentReference{Name: "edge", SectionName: "absent"},
 		gatewayv1alpha1.ParentReference{Name: "unknown"},
 	)
-	result := resolve(gateways, []gatewayv1alpha1.HTTPRoute{route}, nil)
+	result := resolve(gateways, compileTestObjects([]gatewayv1alpha1.HTTPRoute{route}, compileHTTPRoute), nil)
 	if len(result.bindings) != 2 {
 		t.Fatalf("bindings = %d, want both HTTP listeners", len(result.bindings))
 	}
@@ -73,18 +73,17 @@ func TestResolveKeepsOverlapsAndStableRuleOrder(t *testing.T) {
 	before := (&gatewayv1alpha1.HTTPRouteList{Items: routes}).DeepCopy().Items
 	result := resolve(
 		[]gatewayv1alpha1.Gateway{gateway},
-		routes,
+		compileTestObjects(routes, compileHTTPRoute),
 		compileTestBackends([]gatewayv1alpha1.Backend{backendResource("backend"), backendResource("unused")}),
 	)
 	var names []string
-	var indexes []int
 	for _, binding := range result.bindings {
-		names = append(names, binding.route.Name)
-		indexes = append(indexes, binding.ruleIndex)
+		names = append(names, binding.match.Name)
 	}
 
-	if !slices.Equal(names, []string{"a", "z", "z", "a-later"}) || !slices.Equal(indexes, []int{0, 0, 1, 0}) {
-		t.Errorf("order = %v %v; want age, name, rule list order with overlaps kept", names, indexes)
+	wantNames := []string{"a/rule/0/match/0", "z/rule/0/match/0", "z/rule/1/match/0", "a-later/rule/0/match/0"}
+	if !slices.Equal(names, wantNames) {
+		t.Errorf("match order = %v, want %v with overlaps kept", names, wantNames)
 	}
 
 	if len(result.backends) != 1 || result.backends[0].key.Name != "backend" {
@@ -93,7 +92,9 @@ func TestResolveKeepsOverlapsAndStableRuleOrder(t *testing.T) {
 
 	originalConfig := compile(result)
 	slices.Reverse(routes)
-	reversed := resolve([]gatewayv1alpha1.Gateway{gateway}, routes, compileTestBackends([]gatewayv1alpha1.Backend{backendResource("backend")}))
+	compiledRoutes := compileTestObjects(routes, compileHTTPRoute)
+	compiledBackends := compileTestBackends([]gatewayv1alpha1.Backend{backendResource("backend")})
+	reversed := resolve([]gatewayv1alpha1.Gateway{gateway}, compiledRoutes, compiledBackends)
 	if diff := cmp.Diff(originalConfig, compile(reversed)); diff != "" {
 		t.Errorf("permutation changed config:\n%s", diff)
 	}
@@ -112,10 +113,10 @@ func TestResolveDefaultsAndORMatches(t *testing.T) {
 	}
 	result := resolve(
 		[]gatewayv1alpha1.Gateway{gatewayResource("edge", 1, listener("http", 8080, ""))},
-		[]gatewayv1alpha1.HTTPRoute{route},
+		compileTestObjects([]gatewayv1alpha1.HTTPRoute{route}, compileHTTPRoute),
 		compileTestBackends([]gatewayv1alpha1.Backend{backendResource("backend")}),
 	)
-	if len(result.bindings) != 2 || result.bindings[0].path.Value != "/" || result.bindings[1].path.Value != "/api/" {
+	if len(result.bindings) != 2 || result.bindings[0].match.Path != "/" || result.bindings[1].match.Path != "/api/" {
 		t.Fatalf("OR/default matches = %+v", result.bindings)
 	}
 
@@ -176,7 +177,7 @@ func TestReconcileUpdatesStatusOnlyWhenAcceptanceChanges(t *testing.T) {
 		t.Fatalf("Create(Backend) error = %v", err)
 	}
 
-	setTestBackends(t, r, []gatewayv1alpha1.Backend{backend})
+	loadTestCollections(t, r)
 
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 		t.Fatalf("Reconcile(available Backend) error = %v", err)
@@ -251,7 +252,7 @@ func TestHTTPRouteParentStatusesPreserveOwnershipAndTransitionTime(t *testing.T)
 			message:   "missing Gateway",
 		},
 	}
-	if err := r.updateHTTPRouteStatuses(t.Context(), []gatewayv1alpha1.HTTPRoute{route}, parents); err != nil {
+	if err := r.updateHTTPRouteStatuses(t.Context(), compileTestObjects([]gatewayv1alpha1.HTTPRoute{route}, compileHTTPRoute), parents); err != nil {
 		t.Fatalf("updateHTTPRouteStatuses(route) error = %v, want nil", err)
 	}
 
@@ -295,7 +296,7 @@ func TestHTTPRouteParentStatusesPreserveOwnershipAndTransitionTime(t *testing.T)
 		t.Errorf("input route changed (-want +got):\n%s", diff)
 	}
 
-	if err := r.updateHTTPRouteStatuses(t.Context(), []gatewayv1alpha1.HTTPRoute{stored}, parents); err != nil {
+	if err := r.updateHTTPRouteStatuses(t.Context(), compileTestObjects([]gatewayv1alpha1.HTTPRoute{stored}, compileHTTPRoute), parents); err != nil {
 		t.Fatalf("repeat updateHTTPRouteStatuses(route) error = %v, want nil", err)
 	}
 

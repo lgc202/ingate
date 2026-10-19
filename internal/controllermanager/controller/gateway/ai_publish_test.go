@@ -36,7 +36,7 @@ func TestReconcilePublishesTypedAIConfiguration(t *testing.T) {
 			return nil
 		},
 	}
-	r := newTestReconciler(t, apiClient, publisher, snapshot.backends.Items...)
+	r := newTestReconciler(t, apiClient, publisher)
 	want, err := compileAI(snapshot.compiled())
 	if err != nil {
 		t.Fatalf("compileAI(expected configuration) error = %v", err)
@@ -100,7 +100,7 @@ func TestReconcileAIOutputsFailIndependently(t *testing.T) {
 				},
 			}
 			r := New(writes, apiClient, publisher, "control-plane")
-			setTestBackends(t, r, snapshot.backends.Items)
+			loadTestCollections(t, r)
 
 			_, err := r.Reconcile(t.Context(), sharedRequest())
 

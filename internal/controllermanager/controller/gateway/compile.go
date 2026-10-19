@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"fmt"
 	"maps"
 	"path"
 	"slices"
@@ -21,14 +20,9 @@ func compile(result resolution) dataplane.Config {
 	routesByListener := make(map[listenerRef][]dataplane.Route)
 	for _, binding := range result.bindings {
 		ref := listenerRef{gatewayKey: binding.gatewayKey, listenerName: binding.listenerName}
-		routeKey := client.ObjectKeyFromObject(binding.route)
-		routeName := path.Join(routeKey.Namespace, routeKey.Name)
-		routesByListener[ref] = append(routesByListener[ref], dataplane.Route{
-			Name:        fmt.Sprintf("%s/rule/%d/match/%d", routeName, binding.ruleIndex, binding.matchIndex),
-			PathType:    dataplane.PathMatchType(binding.path.Type),
-			Path:        binding.path.Value,
-			BackendName: binding.backendName,
-		})
+		match := binding.match
+		match.BackendName = binding.backendName
+		routesByListener[ref] = append(routesByListener[ref], match)
 	}
 
 	listenersByPort := make(map[int32]*dataplane.Listener)

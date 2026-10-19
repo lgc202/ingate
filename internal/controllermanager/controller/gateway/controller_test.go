@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"istio.io/istio/pkg/kube/krt"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,7 +39,7 @@ func TestReconcilePublishesAcceptedResources(t *testing.T) {
 		calls++
 
 		return nil
-	}), backend)
+	}))
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 		t.Fatalf("Reconcile(shared request) error = %v", err)
 	}
@@ -96,62 +95,34 @@ func TestReconcilePublishesEmptyConfiguration(t *testing.T) {
 	}
 }
 
-func TestReconcileDoesNotPublishAfterListFailure(t *testing.T) {
-	tests := []struct {
-		name       string
-		failedRead int
-	}{
-		{name: "Gateways", failedRead: 1},
-		{name: "HTTPRoutes", failedRead: 2},
+func TestReconcileDoesNotListRawResources(t *testing.T) {
+	snapshot := aiResourceSnapshot()
+	apiClient := aiResourceClient(t, snapshot)
+	reads := interceptor.NewClient(apiClient, interceptor.Funcs{
+		List: func(context.Context, client.WithWatch, client.ObjectList, ...client.ListOption) error {
+			t.Error("Reconcile listed raw resources instead of reading compiled collections")
+
+			return errors.New("raw List is forbidden")
+		},
+	})
+	var publishes int
+	r := New(reads, apiClient, publisherFunc(func(context.Context, dataplane.Config) error {
+		publishes++
+
+		return nil
+	}), "control-plane")
+	setTestResources(t, r, snapshot)
+
+	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
+		t.Fatalf("Reconcile(compiled collections) error = %v, want nil", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			wantErr := errors.New("list unavailable")
-			ctx := t.Context()
-			var reads int
-			apiClient := fake.NewClientBuilder().
-				WithScheme(newTestScheme(t)).
-				WithObjects(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "control-plane"}}).
-				WithInterceptorFuncs(interceptor.Funcs{
-					List: func(gotCtx context.Context, _ client.WithWatch, _ client.ObjectList, _ ...client.ListOption) error {
-						if gotCtx != ctx {
-							t.Error("List() did not receive the Reconcile context")
-						}
 
-						reads++
-						if reads == tt.failedRead {
-							return wantErr
-						}
+	if publishes != 1 {
+		t.Errorf("Reconcile(compiled collections) HTTP publishes = %d, want 1", publishes)
+	}
 
-						return nil
-					},
-				}).
-				Build()
-
-			var publishes int
-			r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error {
-				publishes++
-				return nil
-			}))
-
-			_, err := r.Reconcile(ctx, sharedRequest())
-			if !errors.Is(err, wantErr) {
-				t.Errorf("Reconcile(%s list failure) error = %v, want wrapped %v", tt.name, err, wantErr)
-			}
-
-			wantReads := tt.failedRead
-			if tt.name == "HTTPRoutes" {
-				wantReads += 3 // HTTP 专属读取失败后，仍读取 AI 的三个资源集合。
-			}
-
-			if reads != wantReads {
-				t.Errorf("Reconcile(%s list failure) reads = %d, want %d", tt.name, reads, wantReads)
-			}
-
-			if publishes != 0 {
-				t.Errorf("Reconcile(%s list failure) publishes = %d, want 0", tt.name, publishes)
-			}
-		})
+	if got := storedAIConfigMap(t, apiClient); got.Data[aidataplane.ConfigMapDataKey] != string(aiConfigPayload(t, snapshot)) {
+		t.Errorf("Reconcile(compiled collections) AI payload = %s, want complete compiled payload", got.Data[aidataplane.ConfigMapDataKey])
 	}
 }
 
@@ -215,7 +186,7 @@ func TestReconcileWritesAcceptedStatuses(t *testing.T) {
 	rejected.Generation = 6
 	backend := backendResource("backend")
 	apiClient := newFakeClient(t, &first, &conflicting, &valid, &rejected, &backend)
-	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }), backend)
+	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }))
 
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
@@ -296,22 +267,35 @@ func newTestReconciler(
 	t *testing.T,
 	apiClient client.Client,
 	publisher Publisher,
-	backends ...gatewayv1alpha1.Backend,
 ) *Reconciler {
 	t.Helper()
 
 	r := New(apiClient, apiClient, publisher, "control-plane")
-	setTestBackends(t, r, backends)
+	loadTestCollections(t, r)
 
 	return r
 }
 
-// setTestBackends 在 Reconcile 的集合读取边界注入完整结果；Informer 同步另由 Source 测试覆盖。
-func setTestBackends(t *testing.T, reconciler *Reconciler, backends []gatewayv1alpha1.Backend) {
+// loadTestCollections 将当前 API 场景装入只读集合，供不启动 Informer 的协调测试使用。
+func loadTestCollections(t *testing.T, reconciler *Reconciler) {
 	t.Helper()
-	reconciler.backends = &resourceSource[*gatewayv1alpha1.Backend, networkBackend]{
-		projected: krt.NewStaticCollection(nil, compileTestBackends(backends), krt.WithStop(t.Context().Done())),
+	fixtures := readTestResources(t, reconciler.client)
+	setTestResources(t, reconciler, fixtures)
+}
+
+func readTestResources(t *testing.T, apiClient client.Reader) resourceFixtures {
+	t.Helper()
+	var fixtures resourceFixtures
+	for _, list := range []client.ObjectList{
+		&fixtures.gateways, &fixtures.httpRoutes, &fixtures.backends,
+		&fixtures.aiBackends, &fixtures.modelRoutes, &fixtures.mcpRoutes,
+	} {
+		if err := apiClient.List(t.Context(), list); err != nil {
+			t.Fatalf("List(%T) for test collections error = %v, want nil", list, err)
+		}
 	}
+
+	return fixtures
 }
 
 func newFakeClient(t *testing.T, objects ...client.Object) client.WithWatch {

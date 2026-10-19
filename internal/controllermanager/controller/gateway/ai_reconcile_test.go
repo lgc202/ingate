@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/url"
-	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -27,7 +26,7 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 	r := newTestReconciler(t, apiClient, publisherFunc(func(_ context.Context, config dataplane.Config) error {
 		published = config
 		return nil
-	}), snapshot.backends.Items...)
+	}))
 	want := aiConfigPayload(t, snapshot)
 
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
@@ -39,7 +38,8 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 		t.Errorf("Reconcile() AI payload = %s, want %s", stored.Data[aidataplane.ConfigMapDataKey], want)
 	}
 
-	wantHTTP := compile(resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, compileTestBackends(snapshot.backends.Items)))
+	compiled := snapshot.compiled()
+	wantHTTP := compile(resolve(compiled.gateways.Items, compiled.httpRoutes, compiled.backends))
 	if diff := cmp.Diff(wantHTTP, published); diff != "" {
 		t.Errorf("Reconcile() HTTP payload mismatch (-want +got):\n%s", diff)
 	}
@@ -74,6 +74,8 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 		t.Fatalf("Delete(MCPRoute) error = %v", err)
 	}
 
+	loadTestCollections(t, r)
+
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 		t.Fatalf("Reconcile(no model or MCP routes) error = %v", err)
 	}
@@ -101,45 +103,43 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 	}
 }
 
-func TestReconcileIsolatesResourceReadFailures(t *testing.T) {
+func TestReconcileIsolatesStatusReadFailures(t *testing.T) {
 	tests := []struct {
-		name         string
-		failedList   client.ObjectList
-		wantHTTP     int
-		wantAIWrites int
+		name string
+		fail func(client.Object) bool
 	}{
-		{name: "common Gateway read", failedList: &gatewayv1alpha1.GatewayList{}},
-		{name: "HTTPRoute read", failedList: &gatewayv1alpha1.HTTPRouteList{}, wantAIWrites: 1},
-		{name: "AIBackend read", failedList: &gatewayv1alpha1.AIBackendList{}, wantHTTP: 1},
-		{name: "ModelRoute read", failedList: &gatewayv1alpha1.ModelRouteList{}, wantHTTP: 1},
-		{name: "MCPRoute read", failedList: &gatewayv1alpha1.MCPRouteList{}, wantHTTP: 1},
+		{name: "Gateway", fail: func(object client.Object) bool { _, ok := object.(*gatewayv1alpha1.Gateway); return ok }},
+		{name: "HTTPRoute", fail: func(object client.Object) bool { _, ok := object.(*gatewayv1alpha1.HTTPRoute); return ok }},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			snapshot := aiResourceSnapshot()
+			route := routeResource("ordinary", 1, "public", "api", "model-network", gatewayv1alpha1.PathMatchPrefix)
+			route.Namespace = "team-a"
+			snapshot.httpRoutes.Items = append(snapshot.httpRoutes.Items, route)
 			previous := managedAIConfigMap(string(aiConfigPayload(t, resourceFixtures{})))
 			apiClient := aiResourceClient(t, snapshot, &previous)
-			before := storedAIConfigMap(t, apiClient)
 			cause := errors.New("dependency unavailable")
 			ctx := t.Context()
 			var httpCalls, aiWrites int
 			writes := interceptor.NewClient(apiClient, interceptor.Funcs{
-				List: func(
+				Get: func(
 					gotCtx context.Context,
 					underlying client.WithWatch,
-					list client.ObjectList,
-					options ...client.ListOption,
+					key client.ObjectKey,
+					object client.Object,
+					options ...client.GetOption,
 				) error {
 					if gotCtx != ctx {
-						t.Error("List() did not receive the Reconcile context")
+						t.Error("Get() did not receive the Reconcile context")
 					}
 
-					if reflect.TypeOf(list) == reflect.TypeOf(tt.failedList) {
+					if tt.fail(object) {
 						return cause
 					}
 
-					return underlying.List(gotCtx, list, options...)
+					return underlying.Get(gotCtx, key, object, options...)
 				},
 				Update: func(
 					gotCtx context.Context,
@@ -160,7 +160,7 @@ func TestReconcileIsolatesResourceReadFailures(t *testing.T) {
 				httpCalls++
 				return nil
 			}), "control-plane")
-			setTestBackends(t, r, snapshot.backends.Items)
+			setTestResources(t, r, snapshot)
 
 			_, err := r.Reconcile(ctx, sharedRequest())
 
@@ -168,16 +168,12 @@ func TestReconcileIsolatesResourceReadFailures(t *testing.T) {
 				t.Errorf("Reconcile(%s) error = %v, want wrapped %v", tt.name, err, cause)
 			}
 
-			if httpCalls != tt.wantHTTP || aiWrites != tt.wantAIWrites {
-				t.Errorf("Reconcile(%s) HTTP/AI attempts = %d/%d, want %d/%d", tt.name, httpCalls, aiWrites, tt.wantHTTP, tt.wantAIWrites)
+			if httpCalls != 1 || aiWrites != 1 {
+				t.Errorf("Reconcile(%s status read failure) HTTP/AI attempts = %d/%d, want 1/1", tt.name, httpCalls, aiWrites)
 			}
 
 			got := storedAIConfigMap(t, apiClient)
-			if tt.wantAIWrites == 0 {
-				if diff := cmp.Diff(before, got); diff != "" {
-					t.Errorf("Reconcile(%s) replaced previous AI configuration (-want +got):\n%s", tt.name, diff)
-				}
-			} else if got.Data[aidataplane.ConfigMapDataKey] != string(aiConfigPayload(t, snapshot)) {
+			if got.Data[aidataplane.ConfigMapDataKey] != string(aiConfigPayload(t, snapshot)) {
 				t.Errorf("Reconcile(%s) did not store the complete AI configuration: %s", tt.name, got.Data[aidataplane.ConfigMapDataKey])
 			}
 		})
@@ -188,7 +184,7 @@ func TestReconcileStoresAIAfterHTTPPublishFailure(t *testing.T) {
 	snapshot := aiResourceSnapshot()
 	apiClient := aiResourceClient(t, snapshot)
 	cause := errors.New("HTTP publish unavailable")
-	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return cause }), snapshot.backends.Items...)
+	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return cause }))
 
 	_, err := r.Reconcile(t.Context(), sharedRequest())
 
@@ -211,7 +207,7 @@ func TestReconcileStoresAIAfterHTTPStatusFailure(t *testing.T) {
 		},
 	})
 	r := New(writes, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }), "control-plane")
-	setTestBackends(t, r, snapshot.backends.Items)
+	loadTestCollections(t, r)
 
 	_, err := r.Reconcile(t.Context(), sharedRequest())
 
@@ -237,7 +233,7 @@ func TestReconcileKeepsAIConfigurationAfterWriteFailure(t *testing.T) {
 		httpCalls++
 		return nil
 	}), "control-plane")
-	setTestBackends(t, r, snapshot.backends.Items)
+	loadTestCollections(t, r)
 
 	_, err := r.Reconcile(t.Context(), sharedRequest())
 
@@ -261,7 +257,7 @@ func TestReconcileKeepsAIConfigurationAfterCompileFailure(t *testing.T) {
 		httpCalls++
 		return nil
 	}), "control-plane")
-	setTestBackends(t, r, snapshot.backends.Items)
+	loadTestCollections(t, r)
 
 	_, err := r.Reconcile(t.Context(), sharedRequest())
 
@@ -284,7 +280,7 @@ func TestReconcileReturnsBothOutputErrors(t *testing.T) {
 		Update: func(context.Context, client.WithWatch, client.Object, ...client.UpdateOption) error { return aiError },
 	})
 	r := New(writes, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return httpError }), "control-plane")
-	setTestBackends(t, r, snapshot.backends.Items)
+	loadTestCollections(t, r)
 
 	_, err := r.Reconcile(t.Context(), sharedRequest())
 
@@ -309,7 +305,7 @@ func TestReconcileKeepsAIConfigurationAfterMCPModelConflict(t *testing.T) {
 		publishAI:     func(context.Context, aidataplane.Config) error { aiCalls++; return nil },
 	}
 	reconciler := New(writes, apiClient, publisher, "control-plane")
-	setTestBackends(t, reconciler, snapshot.backends.Items)
+	loadTestCollections(t, reconciler)
 
 	_, err := reconciler.Reconcile(t.Context(), sharedRequest())
 

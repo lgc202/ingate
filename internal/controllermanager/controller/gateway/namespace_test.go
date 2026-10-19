@@ -20,7 +20,8 @@ func TestCompileSeparatesNamespacedResources(t *testing.T) {
 	before.gateways = *snapshot.gateways.DeepCopy()
 	before.httpRoutes = *snapshot.httpRoutes.DeepCopy()
 	before.backends = *snapshot.backends.DeepCopy()
-	got := compile(resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, compileTestBackends(snapshot.backends.Items)))
+	compiled := snapshot.compiled()
+	got := compile(resolve(compiled.gateways.Items, compiled.httpRoutes, compiled.backends))
 	want := dataplane.Config{Listeners: []dataplane.Listener{{Port: 8080}}}
 	for _, namespace := range []string{"team-a", "team-b"} {
 		want.Listeners[0].Hosts = append(want.Listeners[0].Hosts, dataplane.Host{
@@ -50,7 +51,8 @@ func TestCompileSeparatesNamespacedResources(t *testing.T) {
 	slices.Reverse(snapshot.gateways.Items)
 	slices.Reverse(snapshot.httpRoutes.Items)
 	slices.Reverse(snapshot.backends.Items)
-	reversed := compile(resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, compileTestBackends(snapshot.backends.Items)))
+	compiled = snapshot.compiled()
+	reversed := compile(resolve(compiled.gateways.Items, compiled.httpRoutes, compiled.backends))
 	if diff := cmp.Diff(want, reversed); diff != "" {
 		t.Errorf("compile(reversed namespaced resources) mismatch (-want +got):\n%s", diff)
 	}
@@ -58,7 +60,8 @@ func TestCompileSeparatesNamespacedResources(t *testing.T) {
 
 func TestResolveDoesNotAttachToAnotherNamespace(t *testing.T) {
 	snapshot := namespacedHTTPResources()
-	result := resolve(snapshot.gateways.Items[1:], snapshot.httpRoutes.Items[:1], compileTestBackends(snapshot.backends.Items))
+	compiled := snapshot.compiled()
+	result := resolve(compiled.gateways.Items[1:], compiled.httpRoutes[:1], compiled.backends)
 	if len(result.bindings) != 0 || len(result.backends) != 0 {
 		t.Errorf("resolve(team-a route, team-b Gateway) bindings = %+v, backends = %+v, want none", result.bindings, result.backends)
 	}
@@ -74,7 +77,8 @@ func TestResolveDoesNotAttachToAnotherNamespace(t *testing.T) {
 
 func TestResolveDoesNotForwardToAnotherNamespace(t *testing.T) {
 	snapshot := namespacedHTTPResources()
-	result := resolve(snapshot.gateways.Items[:1], snapshot.httpRoutes.Items[:1], compileTestBackends(snapshot.backends.Items[1:]))
+	compiled := snapshot.compiled()
+	result := resolve(compiled.gateways.Items[:1], compiled.httpRoutes[:1], compiled.backends[1:])
 	config := compile(result)
 	want := dataplane.Config{Listeners: []dataplane.Listener{{
 		Port: 8080,
@@ -103,7 +107,7 @@ func TestReconcileSeparatesNamespacedRouteStatuses(t *testing.T) {
 		&snapshot.gateways.Items[0], &snapshot.gateways.Items[1],
 		&snapshot.httpRoutes.Items[0], &snapshot.httpRoutes.Items[1], &snapshot.backends.Items[0],
 	)
-	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }), snapshot.backends.Items[0])
+	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }))
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 		t.Fatalf("Reconcile(namespaced resources) error = %v", err)
 	}

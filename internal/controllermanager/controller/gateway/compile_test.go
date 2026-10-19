@@ -23,7 +23,7 @@ func TestCompileGroupsHostsByPort(t *testing.T) {
 	}
 	backends := []gatewayv1alpha1.Backend{backendResource("backend")}
 
-	got := compile(resolve(gateways, routes, compileTestBackends(backends)))
+	got := compile(resolve(gateways, compileTestObjects(routes, compileHTTPRoute), compileTestBackends(backends)))
 	want := dataplane.Config{
 		Listeners: []dataplane.Listener{
 			{
@@ -81,7 +81,7 @@ func TestCompileNormalizesPathPrefix(t *testing.T) {
 
 	config := compile(resolve(
 		[]gatewayv1alpha1.Gateway{gatewayResource("edge", 1, listener("http", 8080, ""))},
-		[]gatewayv1alpha1.HTTPRoute{route},
+		compileTestObjects([]gatewayv1alpha1.HTTPRoute{route}, compileHTTPRoute),
 		compileTestBackends([]gatewayv1alpha1.Backend{backendResource("backend")}),
 	))
 	want := []dataplane.Listener{{

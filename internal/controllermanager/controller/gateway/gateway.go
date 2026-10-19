@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -63,9 +64,23 @@ func (r *Reconciler) updateGatewayStatuses(
 	}
 
 	for i := range gateways {
-		gateway := gateways[i].DeepCopy()
+		compiled := &gateways[i]
+		key := client.ObjectKeyFromObject(compiled)
+		var gateway gatewayv1alpha1.Gateway
+		if err := r.client.Get(ctx, key, &gateway); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+
+			return fmt.Errorf("get Gateway %q for status: %w", key.String(), err)
+		}
+
+		// 发布的是派生版本，不能替尚未编译的新声明确认 ObservedGeneration。
+		if gateway.UID != compiled.UID || gateway.Generation != compiled.Generation {
+			continue
+		}
+
 		condition := acceptedCondition(gateway.Generation)
-		key := client.ObjectKeyFromObject(gateway)
 		if conflict, found := byKey[key]; found {
 			condition.Status = metav1.ConditionFalse
 			condition.Reason = "ListenerConflict"
@@ -79,7 +94,7 @@ func (r *Reconciler) updateGatewayStatuses(
 			continue
 		}
 
-		if err := r.client.Status().Update(ctx, gateway); err != nil {
+		if err := r.client.Status().Update(ctx, &gateway); err != nil {
 			return fmt.Errorf("update Gateway %q status: %w", key.String(), err)
 		}
 	}

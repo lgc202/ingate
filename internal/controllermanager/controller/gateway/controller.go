@@ -43,12 +43,12 @@ type Reconciler struct {
 	client    client.Client
 	publisher Publisher
 	aiConfig  aiConfigWriter
-	backends  *resourceSource[*gatewayv1alpha1.Backend, networkBackend]
+	sources   *compilationSource
 }
 
 // New 创建 Reconciler；Controller 的运行生命周期由 Manager 管理。
 // apiReader 使用 Manager 的 APIReader，namespace 是预先创建的控制面空间。
-// SetupWithManager 注册 Backend 派生集合，框架在初始同步完成后才调用 Reconcile。
+// SetupWithManager 注册计算集合，框架在初始同步完成后才调用 Reconcile。
 func New(
 	apiClient client.Client,
 	apiReader client.Reader,
@@ -65,16 +65,11 @@ func New(
 // SetupWithManager 通过 krt 运行投影合并六类领域资源事件，受管 ConfigMap 保留原生 Watch。
 // 所有源完成初始同步后才启动 Worker；空资源集合也主动协调一次。
 func (r *Reconciler) SetupWithManager(manager ctrl.Manager) error {
-	r.backends = newResourceSource(manager.GetCache(), &gatewayv1alpha1.Backend{}, compileNetworkBackend)
+	r.sources = newCompilationSource(manager.GetCache())
 
 	return ctrl.NewControllerManagedBy(manager).
 		Named("gateway").
-		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.Gateway{}, projectGateway)).
-		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.HTTPRoute{}, projectHTTPRoute)).
-		WatchesRawSource(r.backends).
-		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.AIBackend{}, projectAIBackend)).
-		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.ModelRoute{}, projectModelRoute)).
-		WatchesRawSource(newResourceSource(manager.GetCache(), &gatewayv1alpha1.MCPRoute{}, projectMCPRoute)).
+		WatchesRawSource(r.sources).
 		Watches(
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(sharedRequests),
@@ -85,13 +80,10 @@ func (r *Reconciler) SetupWithManager(manager ctrl.Manager) error {
 		Complete(r)
 }
 
-// Reconcile 从当前 Cache 与已同步的 Backend 派生集合组装两份完整配置；请求键只负责合并事件。
+// Reconcile 从已同步的派生集合组装两份完整配置；请求键只负责合并事件。
 // 两路输出不是事务，一路失败不阻断另一路；错误交给工作队列限速重试。
 func (r *Reconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
-	snapshot, err := r.readResources(ctx)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
+	snapshot := r.sources.readResources()
 
 	httpErr := r.reconcileHTTP(ctx, snapshot)
 	aiErr := r.reconcileAI(ctx, snapshot)
@@ -100,11 +92,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result
 }
 
 func (r *Reconciler) reconcileHTTP(ctx context.Context, snapshot resources) error {
-	if err := r.client.List(ctx, &snapshot.httpRoutes); err != nil {
-		return fmt.Errorf("list HTTPRoutes: %w", err)
-	}
-
-	result := resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, snapshot.backends)
+	result := resolve(snapshot.gateways.Items, snapshot.httpRoutes, snapshot.backends)
 	config := compile(result)
 
 	if err := r.publisher.Publish(ctx, config); err != nil {
@@ -115,7 +103,7 @@ func (r *Reconciler) reconcileHTTP(ctx context.Context, snapshot resources) erro
 		return err
 	}
 
-	if err := r.updateHTTPRouteStatuses(ctx, snapshot.httpRoutes.Items, result.parents); err != nil {
+	if err := r.updateHTTPRouteStatuses(ctx, snapshot.httpRoutes, result.parents); err != nil {
 		return err
 	}
 
@@ -123,11 +111,6 @@ func (r *Reconciler) reconcileHTTP(ctx context.Context, snapshot resources) erro
 }
 
 func (r *Reconciler) reconcileAI(ctx context.Context, snapshot resources) error {
-	snapshot, err := r.readAIResources(ctx, snapshot)
-	if err != nil {
-		return err
-	}
-
 	config, err := compileAI(snapshot)
 	if err != nil {
 		return fmt.Errorf("compile AI data plane configuration: %w", err)

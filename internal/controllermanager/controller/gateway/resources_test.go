@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"istio.io/istio/pkg/kube/krt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
-// resourceFixtures 保留 API 对象，便于场景构造；编译入口显式转换 Backend 网络结果。
+// resourceFixtures 保留 API 对象，编译测试显式转换对象结果和引用绑定。
 type resourceFixtures struct {
 	gateways    gatewayv1alpha1.GatewayList
 	httpRoutes  gatewayv1alpha1.HTTPRouteList
@@ -24,19 +25,16 @@ func TestReadResources(t *testing.T) {
 	route := routeResource("route", 2, "edge", "http", "backend", gatewayv1alpha1.PathMatchPrefix)
 	backend := backendResource("backend")
 	apiClient := newFakeClient(t, &gateway, &route, &backend)
-	r := newTestReconciler(t, apiClient, nil, backend)
+	r := newTestReconciler(t, apiClient, nil)
 
-	got, err := r.readResources(t.Context())
-	if err != nil {
-		t.Fatalf("readResources() error = %v, want nil", err)
-	}
+	got := r.sources.readResources()
 
-	if diff := cmp.Diff([]gatewayv1alpha1.Gateway{gateway}, got.gateways.Items); diff != "" {
+	if diff := cmp.Diff([]gatewayv1alpha1.Gateway{*projectGateway(&gateway)}, got.gateways.Items); diff != "" {
 		t.Errorf("readResources() Gateways mismatch (-want +got):\n%s", diff)
 	}
 
-	if len(got.httpRoutes.Items) != 0 {
-		t.Errorf("readResources() HTTPRoutes = %+v, want no protocol-specific input", got.httpRoutes.Items)
+	if len(got.httpRoutes) != 1 || got.httpRoutes[0].Name != route.Name {
+		t.Errorf("readResources() HTTPRoutes = %+v, want compiled route", got.httpRoutes)
 	}
 
 	if diff := cmp.Diff(compileTestBackends([]gatewayv1alpha1.Backend{backend}), got.backends, cmp.AllowUnexported(networkBackend{})); diff != "" {
@@ -45,14 +43,65 @@ func TestReadResources(t *testing.T) {
 }
 
 func (f resourceFixtures) compiled() resources {
-	return resources{
+	compiled := resources{
 		gateways:    f.gateways,
-		httpRoutes:  f.httpRoutes,
+		httpRoutes:  compileTestObjects(f.httpRoutes.Items, compileHTTPRoute),
 		backends:    compileTestBackends(f.backends.Items),
-		aiBackends:  f.aiBackends,
-		modelRoutes: f.modelRoutes,
-		mcpRoutes:   f.mcpRoutes,
+		modelRoutes: compileTestObjects(f.modelRoutes.Items, compileModelRoute),
+		mcpRoutes:   compileTestObjects(f.mcpRoutes.Items, compileMCPRoute),
 	}
+	for _, backend := range compileTestObjects(f.aiBackends.Items, compileModelBackend) {
+		binding := &modelBackendBinding{backend: backend}
+		for _, network := range compiled.backends {
+			if backend.networkKey == network.key && !backend.deleting && !network.deleting {
+				binding.network = network
+			}
+		}
+
+		compiled.aiBackends = append(compiled.aiBackends, binding)
+	}
+
+	return compiled
+}
+
+// setTestResources 在 Reconcile 的只读集合边界注入完整结果，不启动 Informer。
+// 对象转换、动态依赖和实际 Source 生命周期由独立测试覆盖。
+func setTestResources(t *testing.T, reconciler *Reconciler, fixtures resourceFixtures) {
+	t.Helper()
+	compiled := fixtures.compiled()
+	gateways := compileTestObjects(fixtures.gateways.Items, projectGateway)
+	protocols := compileTestObjects(fixtures.aiBackends.Items, compileModelBackend)
+	stop := krt.WithStop(t.Context().Done())
+	reconciler.sources = &compilationSource{
+		gateways: &resourceSource[*gatewayv1alpha1.Gateway, gatewayv1alpha1.Gateway]{
+			projected: krt.NewStaticCollection(nil, gateways, stop),
+		},
+		httpRoutes: &resourceSource[*gatewayv1alpha1.HTTPRoute, httpRoute]{
+			projected: krt.NewStaticCollection(nil, compiled.httpRoutes, stop),
+		},
+		backends: &resourceSource[*gatewayv1alpha1.Backend, networkBackend]{
+			projected: krt.NewStaticCollection(nil, compiled.backends, stop),
+		},
+		aiBackends: &resourceSource[*gatewayv1alpha1.AIBackend, modelBackend]{
+			projected: krt.NewStaticCollection(nil, protocols, stop),
+		},
+		modelRoutes: &resourceSource[*gatewayv1alpha1.ModelRoute, modelRoute]{
+			projected: krt.NewStaticCollection(nil, compiled.modelRoutes, stop),
+		},
+		mcpRoutes: &resourceSource[*gatewayv1alpha1.MCPRoute, mcpRoute]{
+			projected: krt.NewStaticCollection(nil, compiled.mcpRoutes, stop),
+		},
+		bindings: krt.NewStaticCollection(nil, compiled.aiBackends, stop),
+	}
+}
+
+func compileTestObjects[T, R any](objects []T, compile func(*T) *R) []*R {
+	var compiled []*R
+	for i := range objects {
+		compiled = append(compiled, compile(&objects[i]))
+	}
+
+	return compiled
 }
 
 func compileTestBackends(backends []gatewayv1alpha1.Backend) []*networkBackend {
