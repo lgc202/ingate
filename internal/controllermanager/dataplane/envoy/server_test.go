@@ -137,40 +137,15 @@ func TestADSStreamsPublishedResources(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	listener := bufconn.Listen(1 << 20)
 	logs := make(chan string, 1)
 	logger := logr.FromSlogHandler(slog.NewJSONHandler(callbackLogWriter{ctx: ctx, logs: logs}, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}))
-	server := NewServer("", publisher, logger)
-	finished := make(chan error, 1)
-	go func() {
-		finished <- server.grpcServer.Serve(listener)
-	}()
-	t.Cleanup(func() {
-		server.grpcServer.Stop()
-		_ = listener.Close()
-		if err := <-finished; err != nil {
-			t.Errorf("gRPC Serve() after Stop = %v, want nil", err)
-		}
-	})
+	client := newTestADSClient(t, publisher, logger)
 
-	conn, err := grpc.NewClient(
-		"passthrough:///bufnet",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return listener.DialContext(ctx)
-		}),
-	)
+	stream, err := client.DeltaAggregatedResources(ctx)
 	if err != nil {
-		t.Fatalf("grpc.NewClient(bufconn) error = %v, want nil", err)
-	}
-
-	defer func() { _ = conn.Close() }()
-
-	stream, err := discoveryv3.NewAggregatedDiscoveryServiceClient(conn).StreamAggregatedResources(ctx)
-	if err != nil {
-		t.Fatalf("StreamAggregatedResources() error = %v, want nil", err)
+		t.Fatalf("DeltaAggregatedResources() error = %v, want nil", err)
 	}
 
 	for _, request := range []struct {
@@ -182,12 +157,12 @@ func TestADSStreamsPublishedResources(t *testing.T) {
 		{resourcev3.ListenerType, ""},
 		{resourcev3.RouteType, "route/8080"},
 	} {
-		message := &discoveryv3.DiscoveryRequest{
+		message := &discoveryv3.DeltaDiscoveryRequest{
 			Node:    &corev3.Node{Id: "envoy-1", Cluster: sharedDataPlaneCluster},
 			TypeUrl: request.typeURL,
 		}
 		if request.name != "" {
-			message.ResourceNames = []string{request.name}
+			message.ResourceNamesSubscribe = []string{request.name}
 		}
 
 		if err := stream.Send(message); err != nil {
@@ -207,36 +182,88 @@ func TestADSStreamsPublishedResources(t *testing.T) {
 			t.Errorf("ADS Recv(%s) resources = %d, want 1", request.typeURL, got)
 		}
 
-		feedback := &discoveryv3.DiscoveryRequest{
+		feedback := &discoveryv3.DeltaDiscoveryRequest{
 			TypeUrl:       request.typeURL,
-			ResourceNames: message.ResourceNames,
 			ResponseNonce: response.Nonce,
-			VersionInfo:   response.VersionInfo,
 		}
 		if err := stream.Send(feedback); err != nil {
 			t.Fatalf("ADS Send(ACK %s) = %v", request.typeURL, err)
 		}
 
 		record := receiveCallbackLog(t, ctx, logs)
-		if record["result"] != "ack" || record["response_version"] != response.VersionInfo ||
+		if record["result"] != "ack" || record["system_version"] != response.SystemVersionInfo ||
 			record["nonce"] != response.Nonce || record["node_id"] != "envoy-1" {
 			t.Errorf("ADS ACK log = %v, want current response and envoy-1", record)
 		}
 
 		if request.typeURL == resourcev3.RouteType {
-			feedback.VersionInfo = "previous"
+			config.Listeners[0].Hosts[0].Routes[0].Path = "/v2/api"
+			publishTestSnapshot(t, publisher, config)
+
+			rejected, err := stream.Recv()
+			if err != nil {
+				t.Fatalf("Delta ADS Recv(before NACK) error = %v", err)
+			}
+
+			if rejected.TypeUrl != resourcev3.RouteType || rejected.Nonce == response.Nonce {
+				t.Fatalf("Delta ADS(response to reject) = %v, want new RDS response", rejected)
+			}
+
+			feedback.ResponseNonce = rejected.Nonce
 			feedback.ErrorDetail = &statuspb.Status{Code: 3, Message: "secret configuration"}
 			if err := stream.Send(feedback); err != nil {
 				t.Fatalf("ADS Send(NACK) = %v", err)
 			}
 
 			record := receiveCallbackLog(t, ctx, logs)
-			if record["result"] != "nack" || record["response_version"] != response.VersionInfo ||
-				record["client_version"] != "previous" {
-				t.Errorf("ADS NACK log = %v, want rejected response and previous client version", record)
+			if record["result"] != "nack" || record["system_version"] != rejected.SystemVersionInfo ||
+				record["error_code"] != float64(3) {
+				t.Errorf("ADS NACK log = %v, want rejected response and error code", record)
+			}
+
+			config.Listeners[0].Hosts[0].Routes[0].Path = "/v3/api"
+			publishTestSnapshot(t, publisher, config)
+
+			update, err := stream.Recv()
+			if err != nil {
+				t.Fatalf("Delta ADS Recv(after NACK) error = %v", err)
+			}
+
+			if update.TypeUrl != resourcev3.RouteType || len(update.Resources) != 1 || update.Resources[0].Name != "route/8080" {
+				t.Errorf("Delta ADS(after NACK) = %v, want changed route/8080 on the same stream", update)
 			}
 		}
 	}
+}
+
+func newTestADSClient(t *testing.T, publisher *Publisher, logger logr.Logger) discoveryv3.AggregatedDiscoveryServiceClient {
+	t.Helper()
+	listener := bufconn.Listen(1 << 20)
+	server := NewServer("", publisher, logger)
+	finished := make(chan error, 1)
+	go func() { finished <- server.grpcServer.Serve(listener) }()
+	t.Cleanup(func() {
+		server.grpcServer.Stop()
+		_ = listener.Close()
+		if err := <-finished; err != nil {
+			t.Errorf("gRPC Serve() after Stop = %v, want nil", err)
+		}
+	})
+
+	conn, err := grpc.NewClient(
+		"passthrough:///bufnet",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return listener.DialContext(ctx)
+		}),
+	)
+	if err != nil {
+		t.Fatalf("grpc.NewClient(bufconn) error = %v, want nil", err)
+	}
+
+	t.Cleanup(func() { _ = conn.Close() })
+
+	return discoveryv3.NewAggregatedDiscoveryServiceClient(conn)
 }
 
 func receiveCallbackLog(t *testing.T, ctx context.Context, logs <-chan string) map[string]any {

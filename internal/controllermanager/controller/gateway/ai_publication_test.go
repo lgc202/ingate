@@ -172,12 +172,12 @@ func receivePublishedPublicRoutes(t *testing.T, connection *grpc.ClientConn) *ro
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	stream, err := discoveryv3.NewAggregatedDiscoveryServiceClient(connection).StreamAggregatedResources(ctx, grpc.WaitForReady(true))
+	stream, err := discoveryv3.NewAggregatedDiscoveryServiceClient(connection).DeltaAggregatedResources(ctx, grpc.WaitForReady(true))
 	if err != nil {
-		t.Fatalf("StreamAggregatedResources() error = %v", err)
+		t.Fatalf("DeltaAggregatedResources() error = %v", err)
 	}
 
-	if err := stream.Send(&discoveryv3.DiscoveryRequest{
+	if err := stream.Send(&discoveryv3.DeltaDiscoveryRequest{
 		Node:    &corev3.Node{Id: "publication-regression", Cluster: "ingate-shared-data-plane"},
 		TypeUrl: resourcev3.RouteType,
 	}); err != nil {
@@ -191,7 +191,7 @@ func receivePublishedPublicRoutes(t *testing.T, connection *grpc.ClientConn) *ro
 
 	for _, resource := range response.Resources {
 		var routes routev3.RouteConfiguration
-		if err := resource.UnmarshalTo(&routes); err != nil {
+		if err := resource.Resource.UnmarshalTo(&routes); err != nil {
 			t.Fatalf("UnmarshalTo(published routes) error = %v", err)
 		}
 

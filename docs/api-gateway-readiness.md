@@ -1,6 +1,6 @@
 # API 网关完成度与 AI 网关开发条件
 
-- 评估日期：2026-10-10；2026-10-11 同步 ADS 反馈；2026-10-12 同步声明式资源及 AIBackend、ModelRoute、MCPRoute 管理与投影；2026-10-13 同步 Namespace 全链路切换
+- 评估日期：2026-10-10；2026-10-11 同步 ADS 反馈；2026-10-12 同步声明式资源及 AIBackend、ModelRoute、MCPRoute 管理与投影；2026-10-13 同步 Namespace 全链路切换；2026-10-19 同步 Envoy Delta ADS
 - 源码基线：`f054c54b` 已提交 MCPRoute 管理与查询投影；共享协调器及 Namespace 基础设施已提交；当前六种资源 Namespace 全链路切换待用户 review，未提交；HTTP 替换前评估基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
 - 分支：`codex/rebuild-from-zero`
 - 范围：现有三个组件、资源契约、控制面到数据面的调用关系与已有测试；HTTPRoute/Backend 替换已实现，用户于 2026-10-11 授权提交，真实组件验收仍未完成
@@ -29,9 +29,32 @@ Gateway 定义 HTTP Listener；HTTPRoute 通过 parentRefs 绑定入口，通过
 
 Admin API 按 Handler → Service → Repository 处理请求。创建、更新、删除写入 Ingate API Server；读取和列表来自 Controller 异步维护的 MySQL 查询模型。刚写入的资源可能暂时读不到，更新令牌可能滞后，不能据此认为写入失败；现有契约不承诺读后立即一致。
 
-Gateway Controller 把三类资源事件合并到一个固定队列键，每轮从 Cache 列出全部对象，依次解析引用、稳定裁决、编译 `dataplane.Config`、发布 xDS，再更新 Gateway 的 `Accepted` 和 HTTPRoute 的逐父引用 Conditions。三次 List 没有跨资源事务；后续事件驱动再次收敛。
+Gateway Controller 从 krt 编译集合读取六类资源的派生结果；共享入口冲突集中裁决，三类 Route 按父引用和入口索引聚合，网络与匹配转换按对象复用。发布仍汇总完整候选并核对结果是否收敛，再更新 Gateway 的 `Accepted` 和 HTTPRoute 的逐父引用 Conditions。不同集合没有跨资源事务；后续事件驱动再次收敛。
 
-ADS 是 Envoy 接收多个 xDS 资源类型的 gRPC 服务。当前使用 SotW，不提供 Delta RPC；按 Envoy 的 `node.cluster=ingate-shared-data-plane` 获取同一配置组。LDS 描述 Listener，RDS 描述路由，CDS 描述后端 Cluster，EDS 描述端点分配。发布 Cache、Envoy ACK 和请求成功需要分别验证。
+ADS 是 Envoy 接收多个 xDS 资源类型的 gRPC 服务。当前使用 Delta ADS，不保留 SotW RPC；按 Envoy 的 `node.cluster=ingate-shared-data-plane` 获取同一配置组。LDS 描述 Listener，RDS 描述路由，CDS 描述后端 Cluster，EDS 描述端点分配。发布 Cache、Envoy ACK 和请求成功需要分别验证。
+
+Envoy bootstrap 的 ADS 配置须使用 `DELTA_GRPC`。以下是需要合入部署配置的片段，不是已经运行验收的完整配置；静态 `ingate_xds` Cluster 须使用 HTTP/2，并指向 Controller 的 `--xds-bind-address`（默认 `:18000`）。`node.id` 应由部署侧为实例分配，不能作为认证身份：
+
+```yaml
+node:
+  id: envoy-1
+  cluster: ingate-shared-data-plane
+dynamic_resources:
+  ads_config:
+    api_type: DELTA_GRPC
+    transport_api_version: V3
+    grpc_services:
+      - envoy_grpc:
+          cluster_name: ingate_xds
+  cds_config:
+    ads: {}
+    resource_api_version: V3
+  lds_config:
+    ads: {}
+    resource_api_version: V3
+```
+
+RDS/EDS 沿用资源中的 ADS 引用，不另建发现流。协议依据：[Envoy xDS API](https://www.envoyproxy.io/docs/envoy/latest/configuration/overview/xds_api.html)。
 
 ## 能力和证据
 
@@ -40,7 +63,7 @@ ADS 是 Envoy 接收多个 xDS 资源类型的 gRPC 服务。当前使用 SotW�
 | 资源 API | Gateway、HTTPRoute、Backend、AIBackend、ModelRoute、MCPRoute 的 CRUD/List/Watch、Status 子资源、字段校验、Generation、resourceVersion 冲突 | 真实 HTTPS + 隔离 etcd 存储集成测试；没有覆盖生产认证授权 |
 | 资源裁决 | Listener 端口/Host 冲突、独立父引用接纳、缺省路径、重叠规则优先顺序及失效目标恢复 | 单元测试覆盖正反例、输入顺序变化及不修改输入；没有验证真实 Manager Watch 收敛 |
 | HTTP 配置 | Exact 优先、长 PathPrefix 优先；路径段匹配；IP 使用 EDS，含 DNS 使用 STRICT_DNS；端点权重与 ROUND_ROBIN | protobuf、失效后端的 500 directResponse、稳定排序、内容版本和空配置替换测试；尚非真实 Envoy 转发证据 |
-| ADS 服务 | 原生 gRPC，监听/取消生命周期，首次 Snapshot 就绪，按流/类型/nonce 关联 ACK/NACK 日志 | 本地监听和 bufconn ADS 收取/反馈接入测试；回调单元测试覆盖版本归属、过期反馈、隔离与清理；没有真实 Envoy ACK/NACK 验收 |
+| ADS 服务 | 原生 Delta gRPC，监听/取消生命周期，首次 Snapshot 就绪，按流/类型/nonce 关联 ACK/NACK 日志 | 本地监听和 bufconn Delta 更新、删除、订阅与重连测试；回调单元测试覆盖响应关联、过期反馈、隔离与清理；没有真实 Envoy ACK/NACK 验收 |
 | 管理端资源 | HTTP/gRPC 管理 Gateway、HTTPRoute、Backend、AIBackend、ModelRoute、MCPRoute，完整 PUT、并发版本冲突、错误映射 | HTTP/bufconn gRPC、fake Kubernetes Client 与模拟查询模型合同测试；没有实库联合服务验收 |
 | MySQL 投影 | 启动补齐后清理残留、六类单 Worker、AIBackend 单行字段、HTTPRoute/ModelRoute 单行 JSON、MCPRoute 单后端列与父引用 JSON、Gateway/Backend 父子记录事务、Status 版本投影、失败重试 | fake Client + sqlmock；未证明真实 MySQL SQL、迁移与事务行为 |
 | 管理鉴权 | 账户、密码校验、Redis Bearer Session、改密后的会话版本校验 | Service、Session 存储及真实 RequireSession 有回归测试；中间件测试使用 sqlmock 与 miniredis，不代表实库或真实 Redis 故障转移已验证 |
@@ -132,11 +155,13 @@ GoCanon MCP 重新核对为 `5684841-dirty`，规则 revision `5684841d220f95431
 
 ### 后续统一测试需要覆盖真实转发与 ACK
 
-`Publisher.Publish` 只构建 Snapshot 并调用 `SetSnapshot`。2026-10-11 ADS 已接入 go-control-plane 的原生 SotW 回调，沿用 Manager 的 logr；同流、同类型、同 nonce 的 ACK 还必须匹配响应版本，NACK 的被拒绝版本取自响应记录，不误用请求携带的旧接受版本。过期或无法关联的反馈只作诊断，不归入当前版本。ACK/无法关联的反馈使用 V(1) 日志，已关联 NACK 使用 Error 日志；不记录配置正文或 ErrorDetail.Message。
+`Publisher.Publish` 构建完整 Snapshot 并调用 `SetSnapshot`，go-control-plane 的 Delta Server 与 SnapshotCache 按订阅和逐资源版本计算差异，发送变化资源及 `removed_resources`，重连使用 `initial_resource_versions` 对账。完整服务端状态仍用于首次订阅与恢复；这不意味着每次都传输整份配置。
 
-回调在每条活动流内仅保存 LDS/RDS/CDS/EDS 各自的最新 nonce 与版本，流关闭即清理，发送回调不重建已关闭状态。状态只用于运行观测，不持久化、不回写资源 Status，也不参与发布或全体实例确认；`node.id` 是客户端自报信息，不作为认证证据。`OnStreamResponse` 位于 gRPC Send 之前，不代表发送成功。回调测试覆盖错误版本、过期 nonce、跨流/类型、重连隔离、状态界限与并发清理；不替代真实 Envoy 验收。
+ADS 回调沿用 Manager 的 logr；只关联同流、同类型、同 nonce 的最新响应。Delta 不携带 SotW 的整体客户端版本，`system_version_info` 仅供诊断，不用于判定逐资源是否接受。过期或无法关联的反馈只作诊断，不阻止订阅变更。ACK/无法关联的反馈使用 V(1) 日志，已关联 NACK 使用 Error 日志；不记录配置正文或 ErrorDetail.Message。依据：[Delta xDS 协议](https://www.envoyproxy.io/docs/envoy/latest/api-docs/xds_protocol.html#incremental-xds)。
 
-`CheckReady` 仍只要求监听和首份 Snapshot，甚至空 Snapshot 也满足这一条件。`TestADSStreamsPublishedResources` 验证四类资源收取与实际 gRPC ACK/NACK 回调接入，不能证明 Envoy 安装了 Listener 或后端可访问。临时将 NACK 的响应版本错取为客户端版本时，两个版本归属反例失败；临时丢弃注入的日志时，ADS 接入断言失败。恢复实现后通过，未修改 Snapshot、HTTP 路由或就绪语义。
+回调在每条活动流内仅保存 LDS/RDS/CDS/EDS 各自的最新 nonce 与诊断版本，流关闭即清理，发送回调不重建已关闭状态。状态只用于运行观测，不持久化、不回写资源 Status，也不参与发布或全体实例确认；`node.id` 是客户端自报信息，不作为认证证据。`OnStreamDeltaResponse` 位于 gRPC Send 之前，不代表发送成功。回调测试覆盖过期 nonce、跨流/类型、重连隔离、状态界限与并发清理；不替代真实 Envoy 验收。
+
+`CheckReady` 仍只要求监听和首份 Snapshot，甚至空 Snapshot 也满足这一条件。`TestADSStreamsPublishedResources` 验证四类资源收取、gRPC ACK/NACK 回调及 NACK 后继续更新；Delta 流测试覆盖单资源变化、无变化不发更新、显式删除、已知版本重连、具名订阅及取消订阅、过期 nonce 不拦截订阅变更、合法空配置，以及通知失败后的同内容重试。这些测试使用原生 gRPC 客户端，不证明真实 Envoy 安装了 Listener、正确执行跨类型激活顺序或后端可访问。
 
 建议验收覆盖：创建资源后请求命中；Exact/PathPrefix 的匹配与不匹配；不同 Host；后端 IP/DNS；更新与删除；引用缺失与恢复；Controller 重启后 ADS 重连；真实 ACK/NACK 及错误版本。记录请求结果、相关资源版本和 Envoy 已接收状态，不只观察 Controller 日志。
 

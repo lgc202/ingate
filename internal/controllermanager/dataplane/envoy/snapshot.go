@@ -13,7 +13,7 @@ import (
 )
 
 // newSnapshot 在安装前建立名称唯一、引用闭合的候选，并生成原生 Delta 资源版本表。
-// 构造后不再修改消息和版本表；即使先沿用 SotW，也可安全共享未变化的资源。
+// 构造后不再修改消息和版本表，可以安全共享未变化的资源。
 func newSnapshot(resources resourceSet) (*cachev3.Snapshot, error) {
 	// go-control-plane 检查 LDS→RDS、CDS→EDS，但不检查 RDS→CDS。
 	if err := checkClusterReferences(resources); err != nil {
@@ -135,7 +135,7 @@ func checkClusterReferences(resources resourceSet) error {
 	return nil
 }
 
-// resourceVersion 从名称和原生资源版本聚合 SotW 类型级版本，不重复序列化消息。
+// resourceVersion 聚合类型级诊断版本；Delta 差异仍依据原生逐资源版本，不重复序列化消息。
 func resourceVersion(versions map[string]string) string {
 	var data []byte
 	for _, name := range slices.Sorted(maps.Keys(versions)) {

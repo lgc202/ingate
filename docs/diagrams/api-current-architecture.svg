@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 600" role="img" aria-labelledby="title desc">
   <title id="title">当前 Ingate HTTP API 网关架构</title>
-  <desc id="desc">Admin API 管理 Gateway、HTTPRoute、Backend、AIBackend、ModelRoute、MCPRoute，写入 API Server。Controller 发布 HTTP xDS 并维护六类资源的 MySQL 查询投影，模型和 MCP 尚无运行链路；真实整链路尚未验收。</desc>
+  <desc id="desc">Admin API 管理 Gateway、HTTPRoute、Backend、AIBackend、ModelRoute、MCPRoute，写入 API Server。图中只展开 HTTP xDS 和六类资源的 MySQL 查询投影，AI 与 MCP 运行链路见独立图；真实整链路尚未验收。</desc>
   <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#5B8A72"/></marker></defs>
   <style>text{font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif;fill:#252525;font-size:17px;text-anchor:middle}.note{font-size:14px;fill:#666}.edge{fill:none;stroke:#5B8A72;stroke-width:2;marker-end:url(#arrow)}.box{fill:#F5F8F6;stroke:#5B8A72;stroke-width:1.5}.store{fill:#F5F3F8;stroke:#8B6F8A;stroke-width:1.5}</style>
   <rect width="100%" height="100%" fill="#FAF9F6"/>
@@ -20,7 +20,7 @@
     <text x="565" y="212" class="note">etcd 存储</text>
     <text x="710" y="219" class="note">异步投影</text>
     <text x="63" y="217" class="note">查询读取</text>
-    <text x="835" y="419" class="note">ADS / xDS（SotW）</text>
+    <text x="835" y="419" class="note">ADS / xDS（Delta）</text>
     <text x="320" y="491" class="note">HTTP</text>
     <text x="700" y="491" class="note">HTTP 转发</text>
     <rect class="box" x="30" y="90" width="210" height="70" rx="10"/>

@@ -29,7 +29,7 @@ Controller 负责裁决并生成完整配置，Go 负责加载配置与授权凭
 
 当前 [Options](../../internal/apiserver/options.go) 沿用 RecommendedOptions；其上游采用委托认证与授权，并依赖 CoreAPI/Admission 的配置。已有 HTTPS Listener 不证明身份和资源权限已配置正确。[存储测试](../../internal/apiserver/integration_test.go) 为隔离存储，将这些选项设为 nil，不能作为密钥访问隔离的证据。
 
-当前 [Publisher](../../internal/controllermanager/dataplane/envoy/publisher.go) 按 `node.cluster=ingate-shared-data-plane` 发布共享快照，以不同资源类型的内容哈希作为 xDS 版本。[ADS Server](../../internal/controllermanager/dataplane/envoy/server.go) 使用 SotW 服务，没有 Callback。Cache 发布成功和 Manager ready 只说明本地状态，不说明任一 Envoy 已接受配置。
+当前 [Publisher](../../internal/controllermanager/dataplane/envoy/publisher.go) 按 `node.cluster=ingate-shared-data-plane` 发布共享快照，使用原生逐资源内容版本。[ADS Server](../../internal/controllermanager/dataplane/envoy/server.go) 已接入 Delta ADS 和 ACK/NACK Callback；Go 仍消费完整 ConfigMap。Cache 发布成功和 Manager ready 只说明本地状态，不说明任一 Envoy 已接受配置。
 
 官方 BackendSecurityPolicy 的 `apiKey.secretRef` 引用 Secret，其中 key 为 `apiKey`，组件必须有读取权限。依据：[Agent Router API](https://theagentrouter.ai/docs/api/#backendsecuritypolicyapikey)。官方将编译配置和凭据放入挂载 Secret；我们已经选择直接订阅 Ingate API，因此需要另外定义读取和版本绑定，不复制 kubelet 文件投射过程。
 
@@ -131,9 +131,9 @@ sequenceDiagram
 
 建议由 Go 在选定目标后按上游 schema 注入对应凭据，先移除客户端 Authorization、Cookie 及不允许转发的内部 Header。凭据只随该次请求进入受保护本地出站和对应 HTTPS 后端，不写入 xDS 资源；Envoy 不依据认证 Header 改换目标，不叠加业务重试或自动跟随重定向到其他地址。缺凭据时拒绝，不能把管理员 Session 或客户端 Token 当作后端 API key。
 
-现有 go-control-plane v0.14.0 的 [SotW Server 接口](https://github.com/envoyproxy/go-control-plane/blob/v0.14.0/pkg/server/sotw/v3/server.go#L37)提供 `WithOrderedADS` 与标准 Callback，可优先评估用于资源发送顺序和 ACK 观测；不重新实现 ADS。它们只覆盖 xDS，不排序 Go Watch 与凭据读取，也不提供跨实例原子提交。Envoy 资源按 make-before-break 准备，必要出口先于新入口，旧资源受限保留；仅一次完整 `SetSnapshot` 不能被描述为已经证明此顺序。依据：[xDS 顺序与最终一致性](https://www.envoyproxy.io/docs/envoy/latest/api-docs/xds_protocol#eventual-consistency-considerations)。
+当前复用 go-control-plane v0.14.0 的 [Delta Server](https://github.com/envoyproxy/go-control-plane/blob/v0.14.0/pkg/server/delta/v3/server.go) 与原生 Callback，不自行实现 ADS。SotW 的 `WithOrderedADS` 不能直接套用到 Delta 服务；现有接线不保证跨类型 ACK 屏障，也不排序 Go Watch 与凭据读取。Envoy 资源按 make-before-break 准备、必要出口先于新入口及旧资源受限保留，仍属于待验证的发布建议；仅一次完整 `SetSnapshot` 不能被描述为已经证明此顺序。依据：[xDS 顺序与最终一致性](https://www.envoyproxy.io/docs/envoy/latest/api-docs/xds_protocol#eventual-consistency-considerations)。
 
-ACK/NACK 只在相同 stream、资源类型和已发送 nonce 下关联到版本；nonce 不跨重连。回调记录是有界运行观测，断线或 Manager 重启后重新建立，不继承陈旧「已确认」。必要权限和实例身份需随 ADS 传输保护设计，`node.id` 或 `node.cluster` 自报值不是认证。不能从一个 Envoy 的 ACK 推导全体实例成功，也不能从全部相关 ACK 推导真实提供商请求成功。
+ACK/NACK 只在相同 stream、资源类型和响应 nonce 下关联；nonce 不跨重连。Delta 的 `system_version_info` 仅供诊断，不能当作逐资源已接受版本；重连依据客户端实际持有的 `initial_resource_versions`。回调记录是有界运行观测，断线或 Manager 重启后重新建立，不继承陈旧「已确认」。必要权限和实例身份需随 ADS 传输保护设计，`node.id` 或 `node.cluster` 自报值不是认证。不能从一个 Envoy 的 ACK 推导全体实例成功，也不能从全部相关 ACK 推导真实提供商请求成功。
 
 这是对 0010 的全局实例报告候选方案的简化备选，尚未确认：首批利用本地配对和请求校验，不增加 ProxyInstance、Rollout、Lease 或全局 loaded API。我们接受加载、健康状态和资源传播之间可能出现短暂拒绝。若产品要求无损更新或全局发布完成判定，就需要另行设计实例确认与发布协调，不能暗中承诺。
 

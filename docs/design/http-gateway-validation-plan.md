@@ -32,7 +32,7 @@ flowchart LR
     S --> E[(专有 etcd)]
     S -->|List / Watch| C[单 Manager]
     C -->|异步查询投影| M
-    C -->|SotW ADS| V[真实 Envoy]
+    C -->|Delta ADS| V[真实 Envoy]
     T -->|带 Host 的 HTTP 请求| V
     V -->|转发| B[两个测试 HTTP 后端]
     T -->|配置 / 状态观测| V
