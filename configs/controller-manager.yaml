@@ -1,2 +1,8 @@
 mysql:
+  # 每实例的示例连接池参数；与 Admin API 的连接池独立计算容量。
   dsn: "replace-with-your-mysql-dsn"
+  max_open_connections: 20
+  max_idle_connections: 10
+  connection_max_lifetime: 1800s
+  connection_max_idle_time: 300s
+  ping_timeout: 3s

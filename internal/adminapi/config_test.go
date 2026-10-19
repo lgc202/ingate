@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	logconfig "github.com/lgc202/ingate/internal/pkg/log"
+	mysqlclient "github.com/lgc202/ingate/internal/pkg/mysql"
 	redisclient "github.com/lgc202/ingate/internal/pkg/redis"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
@@ -24,6 +25,17 @@ func TestExampleConfig(t *testing.T) {
 		t.Error("loadConfig(configs/admin-api.yaml) kubeconfig is empty, want example path")
 	}
 
+	wantMySQL := mysqlclient.Config{
+		DSN:                   config.GetMysql().GetDsn(),
+		MaxOpenConnections:    20,
+		MaxIdleConnections:    10,
+		ConnectionMaxLifetime: 30 * time.Minute,
+		ConnectionMaxIdleTime: 5 * time.Minute,
+	}
+	if diff := cmp.Diff(wantMySQL, mysqlConfig(config.GetMysql())); diff != "" {
+		t.Errorf("example MySQL client config mismatch (-want +got):\n%s", diff)
+	}
+
 	if diff := cmp.Diff([]string{"127.0.0.1:6379"}, config.GetRedis().GetAddrs()); diff != "" {
 		t.Errorf("example Redis addresses mismatch (-want +got):\n%s", diff)
 	}
@@ -31,6 +43,44 @@ func TestExampleConfig(t *testing.T) {
 	wantLog := logconfig.Config{Level: "info", Format: logconfig.FormatJSON, Outputs: []logconfig.Output{logconfig.OutputStdout}}
 	if diff := cmp.Diff(wantLog, logConfig(config.GetLog())); diff != "" {
 		t.Errorf("example log config mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestLoadConfigRejectsInvalidPoolAndProbeSettings(t *testing.T) {
+	data, err := os.ReadFile("../../configs/admin-api.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name string
+		old  string
+		new  string
+	}{
+		{name: "unbounded pool", old: "max_open_connections: 20", new: "max_open_connections: 0"},
+		{name: "idle exceeds open", old: "max_idle_connections: 10", new: "max_idle_connections: 21"},
+		{name: "nonpositive lifetime", old: "connection_max_lifetime: 1800s", new: "connection_max_lifetime: 0s"},
+		{name: "missing MySQL probe timeout", old: "  ping_timeout: 3s\n"},
+		{name: "nonpositive MySQL probe timeout", old: "ping_timeout: 3s", new: "ping_timeout: 0s"},
+		{name: "missing Redis probe timeout", old: "  db: 0\n  ping_timeout: 3s\n", new: "  db: 0\n"},
+		{name: "nonpositive Redis probe timeout", old: "  db: 0\n  ping_timeout: 3s", new: "  db: 0\n  ping_timeout: 0s"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			content := strings.Replace(string(data), tt.old, tt.new, 1)
+			if content == string(data) {
+				t.Fatal("config fixture did not change")
+			}
+
+			path := filepath.Join(t.TempDir(), "admin-api.yaml")
+			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			if _, err := loadConfig(path); err == nil {
+				t.Errorf("loadConfig(%s) succeeded, want configuration rejected before startup", tt.name)
+			}
+		})
 	}
 }
 
@@ -207,6 +257,9 @@ func TestListenAddressesRequireLoopback(t *testing.T) {
 
 func writeRedisTestConfig(t *testing.T, redis string) string {
 	t.Helper()
+
+	// 场景片段只指定连接选项，共用一个有效的启动探测期限。
+	redis += "  ping_timeout: 3s\n"
 	data, err := os.ReadFile("../../configs/admin-api.yaml")
 	if err != nil {
 		t.Fatalf("read example config: %v", err)

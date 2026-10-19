@@ -43,7 +43,7 @@ func (o *Options) Run(ctx context.Context) (runErr error) {
 		return err
 	}
 
-	db, err := mysqlclient.Open(bootstrap.GetMysql().GetDsn())
+	db, err := mysqlclient.Open(mysqlConfig(bootstrap.GetMysql()))
 	if err != nil {
 		return fmt.Errorf("open MySQL projection store: %w", err)
 	}
@@ -58,6 +58,14 @@ func (o *Options) Run(ctx context.Context) (runErr error) {
 			runErr = errors.Join(runErr, fmt.Errorf("close MySQL projection store: %w", err))
 		}
 	}()
+
+	// 保留数据库不可用时拒绝启动的产品策略，不把探测放回共享客户端。
+	pingCtx, cancelPing := context.WithTimeout(ctx, bootstrap.GetMysql().GetPingTimeout().AsDuration())
+	defer cancelPing()
+	if err := sqlDB.PingContext(pingCtx); err != nil {
+		return fmt.Errorf("verify MySQL projection connection: %w", err)
+	}
+
 	store := mysqlstore.New(db)
 
 	manager, err := config.New(store)

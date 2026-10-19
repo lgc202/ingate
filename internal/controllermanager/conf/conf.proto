@@ -3,6 +3,7 @@ syntax = "proto3";
 package controllermanager.conf;
 
 import "buf/validate/validate.proto";
+import "google/protobuf/duration.proto";
 
 option go_package = "github.com/lgc202/ingate/internal/controllermanager/conf;conf";
 
@@ -14,6 +15,31 @@ message Bootstrap {
 
 // MySQL 配置资源查询模型使用的数据库连接。
 message MySQL {
+  option (buf.validate.message).cel = {
+    id: "mysql.pool_size"
+    message: "max_idle_connections must not exceed max_open_connections"
+    expression: "this.max_idle_connections <= this.max_open_connections"
+  };
+
   // dsn 是 MySQL Driver 使用的连接字符串。
   string dsn = 1 [(buf.validate.field).string.min_len = 1];
+  // max_open_connections 限制本组件的数据库连接总数。
+  int32 max_open_connections = 2 [(buf.validate.field).int32.gt = 0];
+  // max_idle_connections 是允许保留的空闲连接数，零值不保留。
+  int32 max_idle_connections = 3 [(buf.validate.field).int32.gte = 0];
+  // connection_max_lifetime 限制连接总存活时间。
+  google.protobuf.Duration connection_max_lifetime = 4 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).duration.gt = {}
+  ];
+  // connection_max_idle_time 限制空闲连接的存活时间。
+  google.protobuf.Duration connection_max_idle_time = 5 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).duration.gt = {}
+  ];
+  // ping_timeout 仅用于组件启动前探测，不进入共享客户端配置。
+  google.protobuf.Duration ping_timeout = 6 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).duration.gt = {}
+  ];
 }

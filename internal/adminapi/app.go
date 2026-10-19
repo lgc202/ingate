@@ -61,7 +61,7 @@ func Run(ctx context.Context, configFile string) (runErr error) {
 		return fmt.Errorf("create API server store: %w", err)
 	}
 
-	db, err := mysqlclient.Open(config.GetMysql().GetDsn())
+	db, err := mysqlclient.Open(mysqlConfig(config.GetMysql()))
 	if err != nil {
 		return fmt.Errorf("open MySQL store: %w", err)
 	}
@@ -76,6 +76,14 @@ func Run(ctx context.Context, configFile string) (runErr error) {
 			runErr = errors.Join(runErr, fmt.Errorf("close MySQL store: %w", err))
 		}
 	}()
+
+	// 初始化不访问数据库；启动前可用性由组件以独立期限确认。
+	mysqlPingCtx, cancelMySQLPing := context.WithTimeout(ctx, config.GetMysql().GetPingTimeout().AsDuration())
+	defer cancelMySQLPing()
+	if err := sqlDB.PingContext(mysqlPingCtx); err != nil {
+		return fmt.Errorf("verify MySQL connection: %w", err)
+	}
+
 	mysqlStore := mysqlstore.New(db)
 
 	redisClient, err := redisclient.New(redisConfig(config.GetRedis()))
@@ -88,7 +96,10 @@ func Run(ctx context.Context, configFile string) (runErr error) {
 			runErr = errors.Join(runErr, fmt.Errorf("close session store: %w", err))
 		}
 	}()
-	if err := redisClient.Ping(ctx).Err(); err != nil {
+
+	redisPingCtx, cancelRedisPing := context.WithTimeout(ctx, config.GetRedis().GetPingTimeout().AsDuration())
+	defer cancelRedisPing()
+	if err := redisClient.Ping(redisPingCtx).Err(); err != nil {
 		return fmt.Errorf("open session store: ping Redis: %w", err)
 	}
 

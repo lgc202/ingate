@@ -1,7 +1,9 @@
 package mysql
 
 import (
+	"context"
 	"errors"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +12,46 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
+
+func TestOpenDefersConnectionUntilExplicitPing(t *testing.T) {
+	const network = "ingate-mysql-open-test"
+	dialErr := errors.New("test MySQL dial failure")
+	mysqldriver.RegisterDialContext(network, func(context.Context, string) (net.Conn, error) {
+		return nil, dialErr
+	})
+	t.Cleanup(func() { mysqldriver.DeregisterDialContext(network) })
+	config := Config{
+		DSN:                   "test@" + network + "(unused)/ingate",
+		MaxOpenConnections:    7,
+		MaxIdleConnections:    2,
+		ConnectionMaxLifetime: 11 * time.Minute,
+		ConnectionMaxIdleTime: time.Minute,
+	}
+
+	db, err := Open(config)
+	if err != nil {
+		t.Fatalf("Open(unavailable driver) error = %v, want initialization without dialing", err)
+	}
+
+	pool, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() {
+		if err := pool.Close(); err != nil {
+			t.Errorf("close test MySQL pool: %v", err)
+		}
+	})
+
+	if got := pool.Stats().MaxOpenConnections; got != config.MaxOpenConnections {
+		t.Errorf("pool connection limit = %d, want %d", got, config.MaxOpenConnections)
+	}
+
+	if err := pool.PingContext(t.Context()); !errors.Is(err, dialErr) {
+		t.Errorf("PingContext(unavailable driver) error = %v, want original dial failure", err)
+	}
+}
 
 func TestParseDSNPreservesConnectionSettings(t *testing.T) {
 	tests := []struct {
@@ -165,7 +207,13 @@ func TestOpenRejectsInvalidDSN(t *testing.T) {
 		t.Fatal("ParseDSN(invalid DSN) error = nil, want driver parse failure")
 	}
 
-	db, err := Open(dsn)
+	db, err := Open(Config{
+		DSN:                   dsn,
+		MaxOpenConnections:    7,
+		MaxIdleConnections:    2,
+		ConnectionMaxLifetime: 11 * time.Minute,
+		ConnectionMaxIdleTime: time.Minute,
+	})
 	if !errors.Is(err, wantCause) {
 		t.Errorf("Open(invalid DSN) error = %v, want driver cause %v", err, wantCause)
 	}

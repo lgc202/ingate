@@ -8,6 +8,7 @@ import (
 	"buf.build/go/protovalidate"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	logconfig "github.com/lgc202/ingate/internal/pkg/log"
+	mysqlclient "github.com/lgc202/ingate/internal/pkg/mysql"
 	redisclient "github.com/lgc202/ingate/internal/pkg/redis"
 	"google.golang.org/protobuf/encoding/protojson"
 	"sigs.k8s.io/yaml"
@@ -62,6 +63,16 @@ func logConfig(config *conf.Log) logconfig.Config {
 			MaxAgeDays: int(config.GetFile().GetMaxAgeDays()),
 			Compress:   config.GetFile().GetCompress(),
 		},
+	}
+}
+
+func mysqlConfig(config *conf.MySQL) mysqlclient.Config {
+	return mysqlclient.Config{
+		DSN:                   config.GetDsn(),
+		MaxOpenConnections:    int(config.GetMaxOpenConnections()),
+		MaxIdleConnections:    int(config.GetMaxIdleConnections()),
+		ConnectionMaxLifetime: config.GetConnectionMaxLifetime().AsDuration(),
+		ConnectionMaxIdleTime: config.GetConnectionMaxIdleTime().AsDuration(),
 	}
 }
 

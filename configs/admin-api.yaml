@@ -11,7 +11,13 @@ server:
 api_server:
   kubeconfig: /etc/ingate/admin-api.kubeconfig
 mysql:
+  # 每实例的示例连接池参数；部署时结合数据库容量和组件实例数调整。
   dsn: ingate:change-me@tcp(127.0.0.1:3306)/ingate
+  max_open_connections: 20
+  max_idle_connections: 10
+  connection_max_lifetime: 1800s
+  connection_max_idle_time: 300s
+  ping_timeout: 3s
 log:
   level: info
   format: json
@@ -20,3 +26,4 @@ redis:
   addrs:
     - 127.0.0.1:6379
   db: 0
+  ping_timeout: 3s

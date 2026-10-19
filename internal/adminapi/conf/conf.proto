@@ -44,13 +44,35 @@ message Log {
   }
 
   // level 省略时为 info。
-  string level = 1 [(buf.validate.field).string = {in: ["", "debug", "info", "warn", "error"]}];
+  string level = 1 [(buf.validate.field).string = {
+    in: [
+      "",
+      "debug",
+      "info",
+      "warn",
+      "error"
+    ]
+  }];
   // format 省略时为 json。
-  string format = 2 [(buf.validate.field).string = {in: ["", "json", "text"]}];
+  string format = 2 [(buf.validate.field).string = {
+    in: [
+      "",
+      "json",
+      "text"
+    ]
+  }];
   // outputs 可组合但不能重复；省略时只输出 stdout。
   repeated string outputs = 3 [(buf.validate.field).repeated = {
     unique: true
-    items: {string: {in: ["stdout", "stderr", "file"]}}
+    items: {
+      string: {
+        in: [
+          "stdout",
+          "stderr",
+          "file"
+        ]
+      }
+    }
   }];
   // add_source 是否在日志中附带调用位置。
   bool add_source = 4;
@@ -112,8 +134,33 @@ message APIServer {
 
 // MySQL 配置管理员账户与资源查询模型使用的数据库连接。
 message MySQL {
+  option (buf.validate.message).cel = {
+    id: "mysql.pool_size"
+    message: "max_idle_connections must not exceed max_open_connections"
+    expression: "this.max_idle_connections <= this.max_open_connections"
+  };
+
   // dsn 是 MySQL Driver 使用的连接字符串。
   string dsn = 1 [(buf.validate.field).string.min_len = 1];
+  // max_open_connections 限制本组件的数据库连接总数。
+  int32 max_open_connections = 2 [(buf.validate.field).int32.gt = 0];
+  // max_idle_connections 是允许保留的空闲连接数，零值不保留。
+  int32 max_idle_connections = 3 [(buf.validate.field).int32.gte = 0];
+  // connection_max_lifetime 限制连接总存活时间。
+  google.protobuf.Duration connection_max_lifetime = 4 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).duration.gt = {}
+  ];
+  // connection_max_idle_time 限制空闲连接的存活时间。
+  google.protobuf.Duration connection_max_idle_time = 5 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).duration.gt = {}
+  ];
+  // ping_timeout 仅用于组件启动前探测，不进入共享客户端配置。
+  google.protobuf.Duration ping_timeout = 6 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).duration.gt = {}
+  ];
 }
 
 // Redis 配置管理员登录态使用的数据库连接。
@@ -124,7 +171,9 @@ message Redis {
   // addrs 是单节点地址或 Sentinel/Cluster 种子地址，不是连接 URL。
   repeated string addrs = 2 [(buf.validate.field).repeated = {
     min_items: 1
-    items: {string: {min_len: 1}}
+    items: {
+      string: {min_len: 1}
+    }
   }];
   // username 是 Redis 数据节点的 ACL 用户名。
   string username = 3;
@@ -157,4 +206,9 @@ message Redis {
   bool tls = 16;
   // tls_server_name 可覆盖 TLS 证书验证使用的服务器名称。
   string tls_server_name = 17;
+  // ping_timeout 仅用于启动探测，与连接、读写和连接池等待超时独立。
+  google.protobuf.Duration ping_timeout = 18 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).duration.gt = {}
+  ];
 }

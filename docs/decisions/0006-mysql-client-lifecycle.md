@@ -3,6 +3,8 @@
 - 状态：已接受（用户已确认提交）
 - 日期：2026-10-07
 
+后续修订：[0017](0017-client-startup-probes.md) 将 DSN-only 和自动探测调整为完整 Config 与组件有界探测；下文保留原阶段记录，客户端归属和共享 DSN 解析结论继续有效。
+
 重构前，Admin API 与 Controller Manager 都通过 `internal/adminapi/repository/mysql.Open` 创建连接。这个包同时保存账户和资源查询模型的表操作，连接初始化、业务访问和连接池关闭由同一个 Store 承担。
 
 按已确认的重构计划，将客户端初始化移至 `internal/pkg/mysql`，返回原生 `*gorm.DB`。`repository/mysql.New` 只保存已构造的客户端，直接返回业务 Store；Store 不再持有独立的 SQL 连接池或提供 Open、Close。两个组件的运行入口通过 `db.DB()` 取得原生连接池，在继续组装依赖前安排关闭，覆盖后续构造失败、运行失败和正常退出。关闭错误仍由运行入口记录，保持当前返回语义。

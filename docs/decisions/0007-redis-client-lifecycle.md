@@ -3,6 +3,8 @@
 - 状态：已接受（用户已确认提交）
 - 日期：2026-10-07
 
+后续修订：[0017](0017-client-startup-probes.md) 为组件启动 Ping 增加显式期限；下文保留原阶段记录，原生客户端模式和业务存储边界不变。运行配置需补齐 `ping_timeout`，完整示例以 configs/admin-api.yaml 为准。
+
 重构前，`internal/adminapi/repository/redis.Store` 同时解析连接 URL、构造客户端、执行启动 Ping、关闭连接池和读写登录态。启动策略或资源归属的变化因此需要修改业务存储包。初始重构仅移动这些职责；用户随后确认按原生 UniversalClient 扩展，并明确不兼容旧 URL 配置。本决策记录更新后的范围，登录态业务方法仍保留。
 
 `internal/pkg/redis.New` 接收普通 Go Config，校验后构造 `redis.UniversalOptions`，调用 `redis.NewUniversalClient`，返回原生 `redis.UniversalClient`。不自建客户端类型、接口或探测方法，也不执行应用层启动 Ping；配置最小空闲连接数后，驱动可能后台建连。Admin API 的 `Run` 仍在 MySQL 初始化之后、初始管理员 Bootstrap 之前执行 Ping；探测失败时关闭客户端，清理失败不覆盖探测错误。探测成功后立即安排关闭，覆盖后续构造失败、服务运行失败和正常退出。`repository/redis.New` 接收原生通用接口，Store 不管理客户端生命周期。

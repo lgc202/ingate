@@ -292,7 +292,17 @@ func (x *APIServer) GetKubeconfig() string {
 type MySQL struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// dsn 是 MySQL Driver 使用的连接字符串。
-	Dsn           string `protobuf:"bytes,1,opt,name=dsn,proto3" json:"dsn,omitempty"`
+	Dsn string `protobuf:"bytes,1,opt,name=dsn,proto3" json:"dsn,omitempty"`
+	// max_open_connections 限制本组件的数据库连接总数。
+	MaxOpenConnections int32 `protobuf:"varint,2,opt,name=max_open_connections,json=maxOpenConnections,proto3" json:"max_open_connections,omitempty"`
+	// max_idle_connections 是允许保留的空闲连接数，零值不保留。
+	MaxIdleConnections int32 `protobuf:"varint,3,opt,name=max_idle_connections,json=maxIdleConnections,proto3" json:"max_idle_connections,omitempty"`
+	// connection_max_lifetime 限制连接总存活时间。
+	ConnectionMaxLifetime *durationpb.Duration `protobuf:"bytes,4,opt,name=connection_max_lifetime,json=connectionMaxLifetime,proto3" json:"connection_max_lifetime,omitempty"`
+	// connection_max_idle_time 限制空闲连接的存活时间。
+	ConnectionMaxIdleTime *durationpb.Duration `protobuf:"bytes,5,opt,name=connection_max_idle_time,json=connectionMaxIdleTime,proto3" json:"connection_max_idle_time,omitempty"`
+	// ping_timeout 仅用于组件启动前探测，不进入共享客户端配置。
+	PingTimeout   *durationpb.Duration `protobuf:"bytes,6,opt,name=ping_timeout,json=pingTimeout,proto3" json:"ping_timeout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -334,6 +344,41 @@ func (x *MySQL) GetDsn() string {
 	return ""
 }
 
+func (x *MySQL) GetMaxOpenConnections() int32 {
+	if x != nil {
+		return x.MaxOpenConnections
+	}
+	return 0
+}
+
+func (x *MySQL) GetMaxIdleConnections() int32 {
+	if x != nil {
+		return x.MaxIdleConnections
+	}
+	return 0
+}
+
+func (x *MySQL) GetConnectionMaxLifetime() *durationpb.Duration {
+	if x != nil {
+		return x.ConnectionMaxLifetime
+	}
+	return nil
+}
+
+func (x *MySQL) GetConnectionMaxIdleTime() *durationpb.Duration {
+	if x != nil {
+		return x.ConnectionMaxIdleTime
+	}
+	return nil
+}
+
+func (x *MySQL) GetPingTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.PingTimeout
+	}
+	return nil
+}
+
 // Redis 配置管理员登录态使用的数据库连接。
 type Redis struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -370,6 +415,8 @@ type Redis struct {
 	Tls bool `protobuf:"varint,16,opt,name=tls,proto3" json:"tls,omitempty"`
 	// tls_server_name 可覆盖 TLS 证书验证使用的服务器名称。
 	TlsServerName string `protobuf:"bytes,17,opt,name=tls_server_name,json=tlsServerName,proto3" json:"tls_server_name,omitempty"`
+	// ping_timeout 仅用于启动探测，与连接、读写和连接池等待超时独立。
+	PingTimeout   *durationpb.Duration `protobuf:"bytes,18,opt,name=ping_timeout,json=pingTimeout,proto3" json:"ping_timeout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -514,6 +561,13 @@ func (x *Redis) GetTlsServerName() string {
 		return x.TlsServerName
 	}
 	return ""
+}
+
+func (x *Redis) GetPingTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.PingTimeout
+	}
+	return nil
 }
 
 // File 配置一个进程独占的轮转文件，路径相对进程工作目录解析。
@@ -768,9 +822,15 @@ const file_adminapi_conf_conf_proto_rawDesc = "" +
 	"\tAPIServer\x12\x1e\n" +
 	"\n" +
 	"kubeconfig\x18\x01 \x01(\tR\n" +
-	"kubeconfig\"\"\n" +
+	"kubeconfig\"\xb2\x04\n" +
 	"\x05MySQL\x12\x19\n" +
-	"\x03dsn\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x03dsn\"\xdd\x05\n" +
+	"\x03dsn\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x03dsn\x129\n" +
+	"\x14max_open_connections\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02 \x00R\x12maxOpenConnections\x129\n" +
+	"\x14max_idle_connections\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x12maxIdleConnections\x12^\n" +
+	"\x17connection_max_lifetime\x18\x04 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x01\xaa\x01\x02*\x00R\x15connectionMaxLifetime\x12_\n" +
+	"\x18connection_max_idle_time\x18\x05 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x01\xaa\x01\x02*\x00R\x15connectionMaxIdleTime\x12I\n" +
+	"\fping_timeout\x18\x06 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x01\xaa\x01\x02*\x00R\vpingTimeout:\x8b\x01\xbaH\x87\x01\x1a\x84\x01\n" +
+	"\x0fmysql.pool_size\x129max_idle_connections must not exceed max_open_connections\x1a6this.max_idle_connections <= this.max_open_connections\"\xa8\x06\n" +
 	"\x05Redis\x12$\n" +
 	"\x05addrs\x18\x02 \x03(\tB\x0e\xbaH\v\x92\x01\b\b\x01\"\x04r\x02\x10\x01R\x05addrs\x12\x1a\n" +
 	"\busername\x18\x03 \x01(\tR\busername\x12\x1a\n" +
@@ -789,7 +849,8 @@ const file_adminapi_conf_conf_proto_rawDesc = "" +
 	"\rwrite_timeout\x18\x0e \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\fwriteTimeout\x12F\n" +
 	"\fpool_timeout\x18\x0f \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x02*\x00R\vpoolTimeout\x12\x10\n" +
 	"\x03tls\x18\x10 \x01(\bR\x03tls\x12&\n" +
-	"\x0ftls_server_name\x18\x11 \x01(\tR\rtlsServerNameJ\x04\b\x01\x10\x02R\x03urlB6Z4github.com/lgc202/ingate/internal/adminapi/conf;confb\x06proto3"
+	"\x0ftls_server_name\x18\x11 \x01(\tR\rtlsServerName\x12I\n" +
+	"\fping_timeout\x18\x12 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x01\xaa\x01\x02*\x00R\vpingTimeoutJ\x04\b\x01\x10\x02R\x03urlB6Z4github.com/lgc202/ingate/internal/adminapi/conf;confb\x06proto3"
 
 var (
 	file_adminapi_conf_conf_proto_rawDescOnce sync.Once
@@ -825,17 +886,21 @@ var file_adminapi_conf_conf_proto_depIdxs = []int32{
 	6,  // 5: adminapi.conf.Log.file:type_name -> adminapi.conf.Log.File
 	7,  // 6: adminapi.conf.Server.http:type_name -> adminapi.conf.Server.HTTP
 	8,  // 7: adminapi.conf.Server.grpc:type_name -> adminapi.conf.Server.GRPC
-	9,  // 8: adminapi.conf.Redis.dial_timeout:type_name -> google.protobuf.Duration
-	9,  // 9: adminapi.conf.Redis.read_timeout:type_name -> google.protobuf.Duration
-	9,  // 10: adminapi.conf.Redis.write_timeout:type_name -> google.protobuf.Duration
-	9,  // 11: adminapi.conf.Redis.pool_timeout:type_name -> google.protobuf.Duration
-	9,  // 12: adminapi.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	9,  // 13: adminapi.conf.Server.GRPC.timeout:type_name -> google.protobuf.Duration
-	14, // [14:14] is the sub-list for method output_type
-	14, // [14:14] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	9,  // 8: adminapi.conf.MySQL.connection_max_lifetime:type_name -> google.protobuf.Duration
+	9,  // 9: adminapi.conf.MySQL.connection_max_idle_time:type_name -> google.protobuf.Duration
+	9,  // 10: adminapi.conf.MySQL.ping_timeout:type_name -> google.protobuf.Duration
+	9,  // 11: adminapi.conf.Redis.dial_timeout:type_name -> google.protobuf.Duration
+	9,  // 12: adminapi.conf.Redis.read_timeout:type_name -> google.protobuf.Duration
+	9,  // 13: adminapi.conf.Redis.write_timeout:type_name -> google.protobuf.Duration
+	9,  // 14: adminapi.conf.Redis.pool_timeout:type_name -> google.protobuf.Duration
+	9,  // 15: adminapi.conf.Redis.ping_timeout:type_name -> google.protobuf.Duration
+	9,  // 16: adminapi.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	9,  // 17: adminapi.conf.Server.GRPC.timeout:type_name -> google.protobuf.Duration
+	18, // [18:18] is the sub-list for method output_type
+	18, // [18:18] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_adminapi_conf_conf_proto_init() }

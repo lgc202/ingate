@@ -6,6 +6,7 @@ import (
 
 	"buf.build/go/protovalidate"
 	"github.com/lgc202/ingate/internal/controllermanager/conf"
+	mysqlclient "github.com/lgc202/ingate/internal/pkg/mysql"
 	"google.golang.org/protobuf/encoding/protojson"
 	"sigs.k8s.io/yaml"
 )
@@ -31,4 +32,14 @@ func loadConfig(path string) (*conf.Bootstrap, error) {
 	}
 
 	return config, nil
+}
+
+func mysqlConfig(config *conf.MySQL) mysqlclient.Config {
+	return mysqlclient.Config{
+		DSN:                   config.GetDsn(),
+		MaxOpenConnections:    int(config.GetMaxOpenConnections()),
+		MaxIdleConnections:    int(config.GetMaxIdleConnections()),
+		ConnectionMaxLifetime: config.GetConnectionMaxLifetime().AsDuration(),
+		ConnectionMaxIdleTime: config.GetConnectionMaxIdleTime().AsDuration(),
+	}
 }

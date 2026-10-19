@@ -325,6 +325,7 @@ func projectionTestCases() []projectionTestCase {
 	parentsJSON := `[{"name":"edge","sectionName":"http"}]`
 	rulesJSON := `[{"matches":[{"pathType":"PathPrefix","pathValue":"/api"}],"backendRefs":[{"name":"backend"}]}]`
 	modelRulesJSON := `[{"matches":[{"headers":[{"name":"x-ai-eg-model","type":"Exact","value":"model"}]}],"backendRefs":[{"name":"models","modelNameOverride":"provider-model"}]}]`
+	backendTLSJSON := `{"sni":"service.example.com","wellKnownCACertificates":"System"}`
 
 	return []projectionTestCase{
 		{
@@ -527,22 +528,32 @@ func projectionTestCases() []projectionTestCase {
 			name: "Backend", table: "backends", initialSyncName: backendInitialSyncName,
 			object: &gatewayv1alpha1.Backend{
 				ObjectMeta: metadata,
-				Spec: gatewayv1alpha1.BackendSpec{DisplayName: "订单后端", Endpoints: []gatewayv1alpha1.Endpoint{
-					{Address: "127.0.0.1", Port: 9090, Weight: 3},
-				}},
+				Spec: gatewayv1alpha1.BackendSpec{
+					DisplayName: "订单后端",
+					Endpoints: []gatewayv1alpha1.Endpoint{
+						{Address: "127.0.0.1", Port: 9090, Weight: 3},
+					},
+					// 使用非空 TLS，避免转换遗漏该字段时仍以 NULL 通过断言。
+					TLS: &gatewayv1alpha1.BackendTLSSettings{
+						SNI:                     "service.example.com",
+						WellKnownCACertificates: "System",
+					},
+				},
 			},
 			newReconciler: func(c client.Client, s *mysql.Store) reconcile.Reconciler { return NewBackend(c, s) },
 			expectCreate: func(mock sqlmock.Sqlmock, key types.NamespacedName, version string) {
 				expectProjectionLookup(mock, "backends", key, false)
-				mock.ExpectExec("INSERT INTO `backends` (`namespace`,`name`,`display_name`,`version`,`created_at`,`updated_at`) VALUES (?,?,?,?,?,?)").
-					WithArgs(key.Namespace, key.Name, "订单后端", version, createdAt, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(41, 1))
+				mock.ExpectExec("INSERT INTO `backends` (`namespace`,`name`,`display_name`,`tls`,`version`,`created_at`,`updated_at`) VALUES (?,?,?,?,?,?,?)").
+					WithArgs(key.Namespace, key.Name, "订单后端", backendTLSJSON, version, createdAt, sqlmock.AnyArg()).
+					WillReturnResult(sqlmock.NewResult(41, 1))
 				expectBackendEndpoints(mock)
 				mock.ExpectCommit()
 			},
 			expectUpdate: func(mock sqlmock.Sqlmock, key types.NamespacedName, version string) {
 				expectProjectionLookup(mock, "backends", key, true)
-				mock.ExpectExec("UPDATE `backends` SET `created_at`=?,`display_name`=?,`version`=?,`updated_at`=? WHERE `id` = ?").
-					WithArgs(createdAt, "订单后端", version, sqlmock.AnyArg(), 41).WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec("UPDATE `backends` SET `display_name`=?,`tls`=?,`version`=?,`created_at`=?,`updated_at`=? WHERE `id` = ?").
+					WithArgs("订单后端", backendTLSJSON, version, createdAt, sqlmock.AnyArg(), 41).
+					WillReturnResult(sqlmock.NewResult(0, 1))
 				expectBackendEndpoints(mock)
 				mock.ExpectCommit()
 			},

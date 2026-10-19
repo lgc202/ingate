@@ -10,6 +10,7 @@ import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -72,7 +73,17 @@ func (x *Bootstrap) GetMysql() *MySQL {
 type MySQL struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// dsn 是 MySQL Driver 使用的连接字符串。
-	Dsn           string `protobuf:"bytes,1,opt,name=dsn,proto3" json:"dsn,omitempty"`
+	Dsn string `protobuf:"bytes,1,opt,name=dsn,proto3" json:"dsn,omitempty"`
+	// max_open_connections 限制本组件的数据库连接总数。
+	MaxOpenConnections int32 `protobuf:"varint,2,opt,name=max_open_connections,json=maxOpenConnections,proto3" json:"max_open_connections,omitempty"`
+	// max_idle_connections 是允许保留的空闲连接数，零值不保留。
+	MaxIdleConnections int32 `protobuf:"varint,3,opt,name=max_idle_connections,json=maxIdleConnections,proto3" json:"max_idle_connections,omitempty"`
+	// connection_max_lifetime 限制连接总存活时间。
+	ConnectionMaxLifetime *durationpb.Duration `protobuf:"bytes,4,opt,name=connection_max_lifetime,json=connectionMaxLifetime,proto3" json:"connection_max_lifetime,omitempty"`
+	// connection_max_idle_time 限制空闲连接的存活时间。
+	ConnectionMaxIdleTime *durationpb.Duration `protobuf:"bytes,5,opt,name=connection_max_idle_time,json=connectionMaxIdleTime,proto3" json:"connection_max_idle_time,omitempty"`
+	// ping_timeout 仅用于组件启动前探测，不进入共享客户端配置。
+	PingTimeout   *durationpb.Duration `protobuf:"bytes,6,opt,name=ping_timeout,json=pingTimeout,proto3" json:"ping_timeout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -114,15 +125,56 @@ func (x *MySQL) GetDsn() string {
 	return ""
 }
 
+func (x *MySQL) GetMaxOpenConnections() int32 {
+	if x != nil {
+		return x.MaxOpenConnections
+	}
+	return 0
+}
+
+func (x *MySQL) GetMaxIdleConnections() int32 {
+	if x != nil {
+		return x.MaxIdleConnections
+	}
+	return 0
+}
+
+func (x *MySQL) GetConnectionMaxLifetime() *durationpb.Duration {
+	if x != nil {
+		return x.ConnectionMaxLifetime
+	}
+	return nil
+}
+
+func (x *MySQL) GetConnectionMaxIdleTime() *durationpb.Duration {
+	if x != nil {
+		return x.ConnectionMaxIdleTime
+	}
+	return nil
+}
+
+func (x *MySQL) GetPingTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.PingTimeout
+	}
+	return nil
+}
+
 var File_controllermanager_conf_conf_proto protoreflect.FileDescriptor
 
 const file_controllermanager_conf_conf_proto_rawDesc = "" +
 	"\n" +
-	"!controllermanager/conf/conf.proto\x12\x16controllermanager.conf\x1a\x1bbuf/validate/validate.proto\"H\n" +
+	"!controllermanager/conf/conf.proto\x12\x16controllermanager.conf\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\"H\n" +
 	"\tBootstrap\x12;\n" +
-	"\x05mysql\x18\x01 \x01(\v2\x1d.controllermanager.conf.MySQLB\x06\xbaH\x03\xc8\x01\x01R\x05mysql\"\"\n" +
+	"\x05mysql\x18\x01 \x01(\v2\x1d.controllermanager.conf.MySQLB\x06\xbaH\x03\xc8\x01\x01R\x05mysql\"\xb2\x04\n" +
 	"\x05MySQL\x12\x19\n" +
-	"\x03dsn\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x03dsnB?Z=github.com/lgc202/ingate/internal/controllermanager/conf;confb\x06proto3"
+	"\x03dsn\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x03dsn\x129\n" +
+	"\x14max_open_connections\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02 \x00R\x12maxOpenConnections\x129\n" +
+	"\x14max_idle_connections\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x12maxIdleConnections\x12^\n" +
+	"\x17connection_max_lifetime\x18\x04 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x01\xaa\x01\x02*\x00R\x15connectionMaxLifetime\x12_\n" +
+	"\x18connection_max_idle_time\x18\x05 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x01\xaa\x01\x02*\x00R\x15connectionMaxIdleTime\x12I\n" +
+	"\fping_timeout\x18\x06 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x01\xaa\x01\x02*\x00R\vpingTimeout:\x8b\x01\xbaH\x87\x01\x1a\x84\x01\n" +
+	"\x0fmysql.pool_size\x129max_idle_connections must not exceed max_open_connections\x1a6this.max_idle_connections <= this.max_open_connectionsB?Z=github.com/lgc202/ingate/internal/controllermanager/conf;confb\x06proto3"
 
 var (
 	file_controllermanager_conf_conf_proto_rawDescOnce sync.Once
@@ -138,16 +190,20 @@ func file_controllermanager_conf_conf_proto_rawDescGZIP() []byte {
 
 var file_controllermanager_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_controllermanager_conf_conf_proto_goTypes = []any{
-	(*Bootstrap)(nil), // 0: controllermanager.conf.Bootstrap
-	(*MySQL)(nil),     // 1: controllermanager.conf.MySQL
+	(*Bootstrap)(nil),           // 0: controllermanager.conf.Bootstrap
+	(*MySQL)(nil),               // 1: controllermanager.conf.MySQL
+	(*durationpb.Duration)(nil), // 2: google.protobuf.Duration
 }
 var file_controllermanager_conf_conf_proto_depIdxs = []int32{
 	1, // 0: controllermanager.conf.Bootstrap.mysql:type_name -> controllermanager.conf.MySQL
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	2, // 1: controllermanager.conf.MySQL.connection_max_lifetime:type_name -> google.protobuf.Duration
+	2, // 2: controllermanager.conf.MySQL.connection_max_idle_time:type_name -> google.protobuf.Duration
+	2, // 3: controllermanager.conf.MySQL.ping_timeout:type_name -> google.protobuf.Duration
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_controllermanager_conf_conf_proto_init() }
