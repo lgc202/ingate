@@ -7,7 +7,8 @@
   协调器读取编译集合，不再逐次 List 六类原对象并重做端点、匹配和协议转换。Gateway 与 HTTPRoute 为状态协调保留实例身份和 Generation，写回前核对当前对象。
   Gateway 变化驱动集中入口冲突裁决；三类 Route 通过父引用建立附着关系，再按入口索引聚合，匹配变化只重算相关入口，端点变化不重算路由表。
   发布边界核对异步集合的结果是否收敛，合并入口缓存并从唯一 Backend 集合填充网络结果。最终一致性核对、配置组装和发布仍遍历完整结果；发布仍使用现有 xDS 快照及 ConfigMap，尚未切换 Delta。
-  Envoy 快照使用 go-control-plane 的原生资源版本表，按类型和名称复用内容未变的消息，撤销时同时移除资源及版本；SotW 类型版本由具名版本聚合。当前适配器仍完整生成 protobuf，尚未接入具名转换缓存与 Delta ADS。
+  Envoy 快照使用 go-control-plane 的原生资源版本表，按类型和名称复用内容未变的消息，撤销时同时移除资源及版本；SotW 类型版本由具名版本聚合。
+  HTTP protobuf 按端口缓存 LDS/RDS，按 Backend 身份缓存 CDS/EDS；AI 入口合入公共 RDS 的结果按端口缓存。缓存只保存当前有效键，校验失败保旧，通知失败保留新期望并重试。最终配置扫描、快照序列化和版本计算仍遍历全量；AI 入口/出口自身仍完整生成，尚未切换 Delta ADS。
 
 - [GoCanon 模板对齐](decisions/0016-gocanon-template-alignment.md)：本轮规则版本、重构边界、实施顺序与验证进度；不把参考示例覆盖到产品业务。
 

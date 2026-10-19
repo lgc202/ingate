@@ -2,6 +2,7 @@ package envoy
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"time"
@@ -21,6 +22,49 @@ const aiIngressName = "ai/ingress"
 type entryKey struct {
 	routeName string
 	hostName  string
+}
+
+// ingressTranslation 按公共 RDS 缓存 AI 入口合入结果；不保存尚未出现的公共 Host。
+// source 与 entries 都是适配器拥有的只读消息，不引用调用方的领域配置。
+type ingressTranslation struct {
+	routes []*routev3.RouteConfiguration
+	byName map[string]ingressRouteTranslation
+}
+
+type ingressRouteTranslation struct {
+	source   *routev3.RouteConfiguration
+	entries  map[string][]*routev3.Route
+	resource *routev3.RouteConfiguration
+}
+
+// merge 只比较当前 RDS 的 Host 依赖，兄弟端口的入口变化不使本端口重新克隆。
+func (t *ingressTranslation) merge(
+	routes []*routev3.RouteConfiguration,
+	entries map[entryKey][]*routev3.Route,
+) ingressTranslation {
+	next := ingressTranslation{byName: make(map[string]ingressRouteTranslation, len(routes))}
+	for _, config := range routes {
+		matched := make(map[string][]*routev3.Route)
+		for _, host := range config.VirtualHosts {
+			key := entryKey{routeName: config.Name, hostName: host.Name}
+			if len(entries[key]) != 0 {
+				matched[host.Name] = entries[key]
+			}
+		}
+
+		previous := t.byName[config.Name]
+		if previous.source != config || !sameIngressEntries(previous.entries, matched) {
+			previous = ingressRouteTranslation{source: config, entries: matched, resource: config}
+			if len(matched) != 0 {
+				previous.resource = mergeAIIngress(config, matched)
+			}
+		}
+
+		next.byName[config.Name] = previous
+		next.routes = append(next.routes, previous.resource)
+	}
+
+	return next
 }
 
 func newAIIngressCluster(socket string) (*clusterv3.Cluster, error) {
@@ -80,22 +124,19 @@ func newAIIngressRoute(port int32, hostName, entryPath, protocol string) *routev
 // mergeAIIngress 按 Listener/Host 合入模型与 MCP 入口。AI 入口排在普通 HTTPRoute
 // 之前，其他请求保持原匹配顺序；HTTP 与 AI 视图独立到达，尚未出现的公共 Host
 // 不凭 AI 配置单独开放。不修改传入 proto，防止更新污染已发布的 Snapshot 或积累重复路由。
-func mergeAIIngress(
-	routes []*routev3.RouteConfiguration,
-	entries map[entryKey][]*routev3.Route,
-) []*routev3.RouteConfiguration {
-	merged := make([]*routev3.RouteConfiguration, 0, len(routes))
-	for _, config := range routes {
-		clone := proto.Clone(config).(*routev3.RouteConfiguration)
-		for _, host := range clone.VirtualHosts {
-			key := entryKey{routeName: config.Name, hostName: host.Name}
-			if matched := entries[key]; len(matched) != 0 {
-				host.Routes = slices.Concat(matched, host.Routes)
-			}
+func mergeAIIngress(config *routev3.RouteConfiguration, entries map[string][]*routev3.Route) *routev3.RouteConfiguration {
+	merged := proto.Clone(config).(*routev3.RouteConfiguration)
+	for _, host := range merged.VirtualHosts {
+		if matched := entries[host.Name]; len(matched) != 0 {
+			host.Routes = slices.Concat(matched, host.Routes)
 		}
-
-		merged = append(merged, clone)
 	}
 
 	return merged
+}
+
+func sameIngressEntries(a, b map[string][]*routev3.Route) bool {
+	return maps.EqualFunc(a, b, func(a, b []*routev3.Route) bool {
+		return slices.EqualFunc(a, b, func(a, b *routev3.Route) bool { return proto.Equal(a, b) })
+	})
 }

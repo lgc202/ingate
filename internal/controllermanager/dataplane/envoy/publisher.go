@@ -20,11 +20,12 @@ type Publisher struct {
 	cache           cachev3.SnapshotCache
 	aiEgressSocket  string
 	aiIngressSocket string
-	// mu 串行化两类期望配置的合并与发布；保存最近构建有效的不可变期望资源。
+	// mu 串行化 HTTP 增量转换、两类期望配置的合并与发布，保存最近构建有效的只读结果。
 	// SetSnapshot 的 Watch 通知错误不代表缓存未更新，不能据此回滚该状态。
-	mu            sync.Mutex
-	httpResources resourceSet
-	aiResources   resourceSet
+	mu          sync.Mutex
+	http        httpTranslation
+	ingress     ingressTranslation
+	aiResources resourceSet
 }
 
 type clusterHash struct{}
@@ -41,15 +42,15 @@ func NewPublisher(aiIngressSocket, aiEgressSocket string) *Publisher {
 // Publish 替换 HTTP 期望配置，并与最近构建有效的 AI 入口/出口合并为完整 xDS 视图。
 // 返回成功表示 Cache 已更新，不表示 Envoy 已 ACK 或开始接流量。
 func (p *Publisher) Publish(ctx context.Context, config dataplane.Config) error {
-	resources, err := buildResources(config)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	translation, err := p.http.compile(config)
 	if err != nil {
 		return fmt.Errorf("build xDS resources: %w", err)
 	}
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	return p.publish(ctx, resources, p.aiResources)
+	return p.publish(ctx, translation, p.aiResources)
 }
 
 // PublishAI 替换模型入口和出口，保留最近成功的 HTTP 配置；合法空配置撤销 AI 资源。
@@ -64,13 +65,15 @@ func (p *Publisher) PublishAI(ctx context.Context, config aidataplane.Config) er
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	return p.publish(ctx, p.httpResources, resources)
+	return p.publish(ctx, p.http, resources)
 }
 
-func (p *Publisher) publish(ctx context.Context, httpResources, aiResources resourceSet) error {
+func (p *Publisher) publish(ctx context.Context, http httpTranslation, aiResources resourceSet) error {
+	httpResources := http.resources
+	ingress := p.ingress.merge(httpResources.routes, aiResources.ingressRoutes)
 	resources := resourceSet{
 		listeners: append(slices.Clone(httpResources.listeners), aiResources.listeners...),
-		routes:    append(mergeAIIngress(httpResources.routes, aiResources.ingressRoutes), aiResources.routes...),
+		routes:    append(slices.Clone(ingress.routes), aiResources.routes...),
 		clusters:  append(slices.Clone(httpResources.clusters), aiResources.clusters...),
 		endpoints: append(slices.Clone(httpResources.endpoints), aiResources.endpoints...),
 	}
@@ -91,7 +94,8 @@ func (p *Publisher) publish(ctx context.Context, httpResources, aiResources reso
 
 	// 原生 Cache 先安装再通知，通知可因取消失败且部分 Watch 已收到结果。
 	// 记录同一份期望；即使版本未变也再次调用，以恢复上次失败后仍悬挂的 Watch。
-	p.httpResources = httpResources
+	p.http = http
+	p.ingress = ingress
 	p.aiResources = aiResources
 	if err := p.cache.SetSnapshot(ctx, sharedDataPlaneCluster, desired); err != nil {
 		return fmt.Errorf("publish xDS snapshot: %w", err)

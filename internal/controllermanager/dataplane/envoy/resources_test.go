@@ -301,3 +301,37 @@ func TestCompareRoutesOrdersUnknownTypesConsistently(t *testing.T) {
 		t.Errorf("compareRoutes(OtherA, OtherB) = %d, reverse = %d; want negative and positive", forward, reverse)
 	}
 }
+
+// buildResources 是不带缓存的测试基准，生产发布不保留全量重译的回退路径。
+func buildResources(config dataplane.Config) (resourceSet, error) {
+	var resources resourceSet
+	for _, listener := range config.Listeners {
+		routeConfig, err := newRouteConfiguration(listener)
+		if err != nil {
+			return resourceSet{}, err
+		}
+
+		resources.routes = append(resources.routes, routeConfig)
+
+		xdsListener, err := newListener(listener.Port)
+		if err != nil {
+			return resourceSet{}, err
+		}
+
+		resources.listeners = append(resources.listeners, xdsListener)
+	}
+
+	for _, backend := range config.Backends {
+		cluster, assignment, err := newCluster(backend)
+		if err != nil {
+			return resourceSet{}, err
+		}
+
+		resources.clusters = append(resources.clusters, cluster)
+		if cluster.GetType() == clusterv3.Cluster_EDS {
+			resources.endpoints = append(resources.endpoints, assignment)
+		}
+	}
+
+	return resources, nil
+}
