@@ -56,27 +56,7 @@ func compile(result resolution) dataplane.Config {
 	}
 
 	for _, backend := range result.backends {
-		endpoints := make([]dataplane.Endpoint, len(backend.Spec.Endpoints))
-		for i, endpoint := range backend.Spec.Endpoints {
-			endpoints[i] = dataplane.Endpoint{
-				Address: endpoint.Address,
-				Port:    endpoint.Port,
-				Weight:  endpoint.Weight,
-			}
-		}
-
-		var tls *dataplane.BackendTLSSettings
-		if backend.Spec.TLS != nil {
-			tls = &dataplane.BackendTLSSettings{
-				SNI: backend.Spec.TLS.SNI,
-			}
-		}
-
-		config.Backends = append(config.Backends, dataplane.Backend{
-			Name:      path.Join(backend.Namespace, backend.Name),
-			Endpoints: endpoints,
-			TLS:       tls,
-		})
+		config.Backends = append(config.Backends, backend.httpBackend())
 	}
 
 	return config

@@ -74,7 +74,7 @@ func TestResolveKeepsOverlapsAndStableRuleOrder(t *testing.T) {
 	result := resolve(
 		[]gatewayv1alpha1.Gateway{gateway},
 		routes,
-		[]gatewayv1alpha1.Backend{backendResource("backend"), backendResource("unused")},
+		compileTestBackends([]gatewayv1alpha1.Backend{backendResource("backend"), backendResource("unused")}),
 	)
 	var names []string
 	var indexes []int
@@ -87,13 +87,13 @@ func TestResolveKeepsOverlapsAndStableRuleOrder(t *testing.T) {
 		t.Errorf("order = %v %v; want age, name, rule list order with overlaps kept", names, indexes)
 	}
 
-	if len(result.backends) != 1 || result.backends[0].Name != "backend" {
+	if len(result.backends) != 1 || result.backends[0].key.Name != "backend" {
 		t.Errorf("backends = %+v, want only used target", result.backends)
 	}
 
 	originalConfig := compile(result)
 	slices.Reverse(routes)
-	reversed := resolve([]gatewayv1alpha1.Gateway{gateway}, routes, []gatewayv1alpha1.Backend{backendResource("backend")})
+	reversed := resolve([]gatewayv1alpha1.Gateway{gateway}, routes, compileTestBackends([]gatewayv1alpha1.Backend{backendResource("backend")}))
 	if diff := cmp.Diff(originalConfig, compile(reversed)); diff != "" {
 		t.Errorf("permutation changed config:\n%s", diff)
 	}
@@ -113,7 +113,7 @@ func TestResolveDefaultsAndORMatches(t *testing.T) {
 	result := resolve(
 		[]gatewayv1alpha1.Gateway{gatewayResource("edge", 1, listener("http", 8080, ""))},
 		[]gatewayv1alpha1.HTTPRoute{route},
-		[]gatewayv1alpha1.Backend{backendResource("backend")},
+		compileTestBackends([]gatewayv1alpha1.Backend{backendResource("backend")}),
 	)
 	if len(result.bindings) != 2 || result.bindings[0].path.Value != "/" || result.bindings[1].path.Value != "/api/" {
 		t.Fatalf("OR/default matches = %+v", result.bindings)
@@ -175,6 +175,8 @@ func TestReconcileUpdatesStatusOnlyWhenAcceptanceChanges(t *testing.T) {
 	if err := apiClient.Create(t.Context(), &backend); err != nil {
 		t.Fatalf("Create(Backend) error = %v", err)
 	}
+
+	setTestBackends(t, r, []gatewayv1alpha1.Backend{backend})
 
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 		t.Fatalf("Reconcile(available Backend) error = %v", err)

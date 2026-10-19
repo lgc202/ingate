@@ -19,7 +19,7 @@ import (
 
 func TestCompileAIGolden(t *testing.T) {
 	snapshot := aiResourceSnapshot()
-	before := resources{
+	before := resourceFixtures{
 		gateways:    *snapshot.gateways.DeepCopy(),
 		httpRoutes:  *snapshot.httpRoutes.DeepCopy(),
 		backends:    *snapshot.backends.DeepCopy(),
@@ -46,7 +46,7 @@ func TestCompileAIGolden(t *testing.T) {
 		t.Errorf("encodeTestAI(golden) = %s, want %s", data, compact.Bytes())
 	}
 
-	if diff := cmp.Diff(before, snapshot, cmp.AllowUnexported(resources{})); diff != "" {
+	if diff := cmp.Diff(before, snapshot, cmp.AllowUnexported(resourceFixtures{})); diff != "" {
 		t.Errorf("encodeTestAI(golden) changed snapshot (-want +got):\n%s", diff)
 	}
 }
@@ -157,34 +157,34 @@ func TestCompileAIDefaults(t *testing.T) {
 func TestCompileAIUnavailableBackends(t *testing.T) {
 	tests := []struct {
 		name             string
-		change           func(*resources)
+		change           func(*resourceFixtures)
 		modelUnavailable bool
 		mcpUnavailable   bool
 	}{
 		{
 			name: "missing AIBackend",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.aiBackends.Items = nil
 			},
 			modelUnavailable: true,
 		},
 		{
 			name: "deleting AIBackend",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.aiBackends.Items[0].DeletionTimestamp = new(metav1.Unix(3, 0))
 			},
 			modelUnavailable: true,
 		},
 		{
 			name: "other namespace AIBackend",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.aiBackends.Items[0].Namespace = "team-b"
 			},
 			modelUnavailable: true,
 		},
 		{
 			name: "missing network",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.backends.Items = nil
 			},
 			modelUnavailable: true,
@@ -192,28 +192,28 @@ func TestCompileAIUnavailableBackends(t *testing.T) {
 		},
 		{
 			name: "deleting model network",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.backends.Items[0].DeletionTimestamp = new(metav1.Unix(3, 0))
 			},
 			modelUnavailable: true,
 		},
 		{
 			name: "other namespace model network",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.backends.Items[0].Namespace = "team-b"
 			},
 			modelUnavailable: true,
 		},
 		{
 			name: "deleting MCP network",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.backends.Items[1].DeletionTimestamp = new(metav1.Unix(3, 0))
 			},
 			mcpUnavailable: true,
 		},
 		{
 			name: "other namespace MCP network",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.backends.Items[1].Namespace = "team-b"
 			},
 			mcpUnavailable: true,
@@ -250,21 +250,21 @@ func TestCompileAIUnavailableBackends(t *testing.T) {
 func TestCompileAIRouteRemoval(t *testing.T) {
 	tests := []struct {
 		name        string
-		change      func(*resources)
+		change      func(*resourceFixtures)
 		removeModel bool
 		removeMCP   bool
 	}{
 		{
 			name: "empty",
-			change: func(snapshot *resources) {
-				*snapshot = resources{}
+			change: func(snapshot *resourceFixtures) {
+				*snapshot = resourceFixtures{}
 			},
 			removeModel: true,
 			removeMCP:   true,
 		},
 		{
 			name: "deleting Gateway",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.gateways.Items[0].DeletionTimestamp = new(metav1.Unix(3, 0))
 			},
 			removeModel: true,
@@ -272,7 +272,7 @@ func TestCompileAIRouteRemoval(t *testing.T) {
 		},
 		{
 			name: "other namespace Gateway",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.gateways.Items[0].Namespace = "team-b"
 			},
 			removeModel: true,
@@ -280,35 +280,35 @@ func TestCompileAIRouteRemoval(t *testing.T) {
 		},
 		{
 			name: "wrong section",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.modelRoutes.Items[0].Spec.ParentRefs[0].SectionName = "missing"
 			},
 			removeModel: true,
 		},
 		{
 			name: "missing parent",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.mcpRoutes.Items[0].Spec.ParentRefs[0].Name = "missing"
 			},
 			removeMCP: true,
 		},
 		{
 			name: "deleting ModelRoute",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.modelRoutes.Items[0].DeletionTimestamp = new(metav1.Unix(3, 0))
 			},
 			removeModel: true,
 		},
 		{
 			name: "deleting MCPRoute",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.mcpRoutes.Items[0].DeletionTimestamp = new(metav1.Unix(3, 0))
 			},
 			removeMCP: true,
 		},
 		{
 			name: "Gateway conflict",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				owner := *snapshot.gateways.Items[0].DeepCopy()
 				owner.Name = "earlier"
 				owner.CreationTimestamp = metav1.Unix(0, 0)
@@ -319,7 +319,7 @@ func TestCompileAIRouteRemoval(t *testing.T) {
 		},
 		{
 			name: "deleting Gateway releases listener",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				owner := *snapshot.gateways.Items[0].DeepCopy()
 				owner.Name = "earlier"
 				owner.CreationTimestamp = metav1.Unix(0, 0)
@@ -516,67 +516,67 @@ func TestCompileAIUnavailableHigherPriorityRoutes(t *testing.T) {
 func TestCompileAIInvalidInputs(t *testing.T) {
 	tests := []struct {
 		name   string
-		change func(*resources)
+		change func(*resourceFixtures)
 	}{
 		{
 			name: "multiple model targets",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				rule := &snapshot.modelRoutes.Items[0].Spec.Rules[0]
 				rule.BackendRefs = append(rule.BackendRefs, gatewayv1alpha1.AIBackendReference{Name: "other"})
 			},
 		},
 		{
 			name: "no model target",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.modelRoutes.Items[0].Spec.Rules[0].BackendRefs = nil
 			},
 		},
 		{
 			name: "multiple MCP targets",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				route := &snapshot.mcpRoutes.Items[0]
 				route.Spec.BackendRefs = append(route.Spec.BackendRefs, gatewayv1alpha1.MCPBackendReference{Name: "other"})
 			},
 		},
 		{
 			name: "no MCP target",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.mcpRoutes.Items[0].Spec.BackendRefs = nil
 			},
 		},
 		{
 			name: "unsupported schema",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.aiBackends.Items[0].Spec.Schema.Name = "Anthropic"
 			},
 		},
 		{
 			name: "unknown header",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.modelRoutes.Items[0].Spec.Rules[0].Matches[0].Headers[0].Name = "other"
 			},
 		},
 		{
 			name: "unknown match type",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.modelRoutes.Items[0].Spec.Rules[0].Matches[0].Headers[0].Type = "RegularExpression"
 			},
 		},
 		{
 			name: "empty MCP path",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.mcpRoutes.Items[0].Spec.Path = new("")
 			},
 		},
 		{
 			name: "empty upstream path",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.mcpRoutes.Items[0].Spec.BackendRefs[0].Path = new("")
 			},
 		},
 		{
 			name: "empty endpoints",
-			change: func(snapshot *resources) {
+			change: func(snapshot *resourceFixtures) {
 				snapshot.backends.Items[0].Spec.Endpoints = nil
 			},
 		},
@@ -614,14 +614,14 @@ func TestCompileAIMCPModelPathConflicts(t *testing.T) {
 			snapshot := aiResourceSnapshot()
 			snapshot.mcpRoutes.Items[0].Spec.Path = new(entryPath)
 
-			_, err := compileAI(snapshot)
+			_, err := compileAI(snapshot.compiled())
 
 			if err == nil || !strings.Contains(err.Error(), "conflicts with model operations") {
 				t.Fatalf("compileAI(overlapping entries)=%v, want diagnostic", err)
 			}
 
 			snapshot.modelRoutes.Items = nil
-			config, err := compileAI(snapshot)
+			config, err := compileAI(snapshot.compiled())
 			if err != nil {
 				t.Fatalf("compileAI(MCP-only fixed path)=%v", err)
 			}
@@ -633,7 +633,7 @@ func TestCompileAIMCPModelPathConflicts(t *testing.T) {
 	}
 }
 
-func aiResourceSnapshot() resources {
+func aiResourceSnapshot() resourceFixtures {
 	gw := gatewayResource("public", 1, listener("api", 8080, "gateway.example.com"))
 	gw.Namespace = "team-a"
 	modelNetwork := backendResource("model-network")
@@ -644,7 +644,7 @@ func aiResourceSnapshot() resources {
 	toolsNetwork.Spec.Endpoints[0].Address = "tools.internal.example"
 	toolsNetwork.Spec.Endpoints[0].Port = 8082
 
-	return resources{
+	return resourceFixtures{
 		gateways: gatewayv1alpha1.GatewayList{Items: []gatewayv1alpha1.Gateway{gw}},
 		backends: gatewayv1alpha1.BackendList{Items: []gatewayv1alpha1.Backend{modelNetwork, toolsNetwork}},
 		aiBackends: gatewayv1alpha1.AIBackendList{Items: []gatewayv1alpha1.AIBackend{{
@@ -682,8 +682,8 @@ func aiResourceSnapshot() resources {
 }
 
 // encodeTestAI 验证纯编译结果可以按共享契约编码，不在生产编译路径往返 JSON。
-func encodeTestAI(snapshot resources) ([]byte, error) {
-	config, err := compileAI(snapshot)
+func encodeTestAI(snapshot resourceFixtures) ([]byte, error) {
+	config, err := compileAI(snapshot.compiled())
 	if err != nil {
 		return nil, err
 	}
@@ -691,7 +691,7 @@ func encodeTestAI(snapshot resources) ([]byte, error) {
 	return aidataplane.Encode(config)
 }
 
-func compiledAIConfig(t *testing.T, snapshot resources) aidataplane.Config {
+func compiledAIConfig(t *testing.T, snapshot resourceFixtures) aidataplane.Config {
 	t.Helper()
 
 	data, err := encodeTestAI(snapshot)

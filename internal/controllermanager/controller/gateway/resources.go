@@ -10,11 +10,11 @@ import (
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
 
-// resources 保存一次协调读取的输入；多次 List 不构成跨资源事务。
+// resources 保存一次协调读取的输入及 Backend 网络结果；Cache 与集合读取不构成跨资源事务。
 type resources struct {
 	gateways    gatewayv1alpha1.GatewayList
 	httpRoutes  gatewayv1alpha1.HTTPRouteList
-	backends    gatewayv1alpha1.BackendList
+	backends    []*networkBackend
 	aiBackends  gatewayv1alpha1.AIBackendList
 	modelRoutes gatewayv1alpha1.ModelRouteList
 	mcpRoutes   gatewayv1alpha1.MCPRouteList
@@ -23,22 +23,21 @@ type resources struct {
 // resolution 是本轮配置及父引用状态，不修改输入，也不代表数据面已 ACK。
 type resolution struct {
 	gateways         []*gatewayv1alpha1.Gateway
-	backends         []*gatewayv1alpha1.Backend
+	backends         []*networkBackend
 	bindings         []httpRouteBinding
 	gatewayConflicts []gatewayConflict
 	parents          []httpRouteParentResolution
 }
 
-// readResources 只读取两路输出共有的资源；任一失败时都不能发布部分配置。
+// readResources 只读取两路输出共有的输入；Gateway 读取失败时不能发布部分配置。
 func (r *Reconciler) readResources(ctx context.Context) (resources, error) {
 	var result resources
 	if err := r.client.List(ctx, &result.gateways); err != nil {
 		return resources{}, fmt.Errorf("list Gateways: %w", err)
 	}
 
-	if err := r.client.List(ctx, &result.backends); err != nil {
-		return resources{}, fmt.Errorf("list Backends: %w", err)
-	}
+	// 从同一个集合同时取得身份和网络结果，不再混读 Cache 的原对象与异步派生结果。
+	result.backends = r.backends.projected.List()
 
 	return result, nil
 }
@@ -64,7 +63,7 @@ func (r *Reconciler) readAIResources(ctx context.Context, snapshot resources) (r
 func resolve(
 	gateways []gatewayv1alpha1.Gateway,
 	routes []gatewayv1alpha1.HTTPRoute,
-	backends []gatewayv1alpha1.Backend,
+	backends []*networkBackend,
 ) resolution {
 	var result resolution
 	result.selectGateways(gateways)

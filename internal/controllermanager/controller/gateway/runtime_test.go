@@ -54,26 +54,6 @@ func TestProjectHTTPRoute(t *testing.T) {
 	})
 }
 
-func TestProjectBackend(t *testing.T) {
-	resource := &gatewayv1alpha1.Backend{
-		Spec: gatewayv1alpha1.BackendSpec{
-			DisplayName: "订单后端",
-			Endpoints:   []gatewayv1alpha1.Endpoint{{Address: "orders.example.com", Port: 443, Weight: 1}},
-			TLS:         &gatewayv1alpha1.BackendTLSSettings{SNI: "orders.example.com", WellKnownCACertificates: "System"},
-		},
-		Status: gatewayv1alpha1.BackendStatus{Conditions: []metav1.Condition{{Type: "Accepted"}}},
-	}
-	want := &gatewayv1alpha1.Backend{Spec: gatewayv1alpha1.BackendSpec{
-		Endpoints: []gatewayv1alpha1.Endpoint{{Address: "orders.example.com", Port: 443, Weight: 1}},
-		TLS:       &gatewayv1alpha1.BackendTLSSettings{SNI: "orders.example.com", WellKnownCACertificates: "System"},
-	}}
-
-	testResourceProjection(t, resource, projectBackend, want, func(backend *gatewayv1alpha1.Backend) {
-		backend.Spec.Endpoints[0].Address = "other.example.com"
-		backend.Spec.TLS.SNI = "other.example.com"
-	})
-}
-
 func TestProjectAIBackend(t *testing.T) {
 	resource := &gatewayv1alpha1.AIBackend{
 		Spec: gatewayv1alpha1.AIBackendSpec{

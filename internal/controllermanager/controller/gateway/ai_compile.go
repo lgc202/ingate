@@ -17,7 +17,7 @@ import (
 type aiCompilation struct {
 	gateways         []*gatewayv1alpha1.Gateway
 	aiBackends       map[client.ObjectKey]*gatewayv1alpha1.AIBackend
-	backends         map[client.ObjectKey]*gatewayv1alpha1.Backend
+	backends         map[client.ObjectKey]*networkBackend
 	modelRoutes      map[listenerRef][]aidataplane.ModelRoute
 	mcpRoutes        map[listenerRef][]aidataplane.MCPRoute
 	protocolBackends map[string]aidataplane.Backend
@@ -34,7 +34,7 @@ func compileAI(snapshot resources) (aidataplane.Config, error) {
 	c := aiCompilation{
 		gateways:         accepted.gateways,
 		aiBackends:       make(map[client.ObjectKey]*gatewayv1alpha1.AIBackend),
-		backends:         make(map[client.ObjectKey]*gatewayv1alpha1.Backend),
+		backends:         make(map[client.ObjectKey]*networkBackend),
 		modelRoutes:      make(map[listenerRef][]aidataplane.ModelRoute),
 		mcpRoutes:        make(map[listenerRef][]aidataplane.MCPRoute),
 		protocolBackends: make(map[string]aidataplane.Backend),
@@ -47,10 +47,9 @@ func compileAI(snapshot resources) (aidataplane.Config, error) {
 		}
 	}
 
-	for i := range snapshot.backends.Items {
-		backend := &snapshot.backends.Items[i]
-		if backend.DeletionTimestamp.IsZero() {
-			c.backends[client.ObjectKeyFromObject(backend)] = backend
+	for _, backend := range snapshot.backends {
+		if !backend.deleting {
+			c.backends[backend.key] = backend
 		}
 	}
 
@@ -172,33 +171,7 @@ func (c *aiCompilation) bindNetworkBackend(key client.ObjectKey) string {
 		return name
 	}
 
-	endpoints := make([]aidataplane.Endpoint, len(backend.Spec.Endpoints))
-	for i, endpoint := range backend.Spec.Endpoints {
-		endpoints[i] = aidataplane.Endpoint{Address: endpoint.Address, Port: endpoint.Port, Weight: endpoint.Weight}
-	}
-
-	// 与现有 Envoy 端点顺序一致，不让输入 List 或端点排列造成版本抖动。
-	slices.SortFunc(endpoints, func(a, b aidataplane.Endpoint) int {
-		if order := cmp.Compare(a.Address, b.Address); order != 0 {
-			return order
-		}
-
-		if order := cmp.Compare(a.Port, b.Port); order != 0 {
-			return order
-		}
-
-		return cmp.Compare(a.Weight, b.Weight)
-	})
-
-	var tls *aidataplane.BackendTLSSettings
-	if backend.Spec.TLS != nil {
-		tls = &aidataplane.BackendTLSSettings{
-			SNI:                     backend.Spec.TLS.SNI,
-			WellKnownCACertificates: backend.Spec.TLS.WellKnownCACertificates,
-		}
-	}
-
-	c.networkBackends[name] = aidataplane.NetworkBackend{Name: name, Endpoints: endpoints, TLS: tls}
+	c.networkBackends[name] = backend.aiBackend()
 
 	return name
 }

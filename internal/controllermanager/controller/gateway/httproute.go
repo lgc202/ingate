@@ -38,16 +38,16 @@ type httpRouteParentResolution struct {
 
 func (r *resolution) selectHTTPRoutes(
 	routes []gatewayv1alpha1.HTTPRoute,
-	backends []gatewayv1alpha1.Backend,
+	backends []*networkBackend,
 ) {
 	gatewaysByKey := make(map[client.ObjectKey]*gatewayv1alpha1.Gateway, len(r.gateways))
 	for _, gateway := range r.gateways {
 		gatewaysByKey[client.ObjectKeyFromObject(gateway)] = gateway
 	}
 
-	backendsByKey := make(map[client.ObjectKey]*gatewayv1alpha1.Backend, len(backends))
-	for i := range backends {
-		backendsByKey[client.ObjectKeyFromObject(&backends[i])] = &backends[i]
+	backendsByKey := make(map[client.ObjectKey]*networkBackend, len(backends))
+	for _, backend := range backends {
+		backendsByKey[backend.key] = backend
 	}
 
 	ordered := make([]*gatewayv1alpha1.HTTPRoute, len(routes))
@@ -89,7 +89,7 @@ func (r *resolution) attachHTTPRouteParent(
 	route *gatewayv1alpha1.HTTPRoute,
 	parent gatewayv1alpha1.ParentReference,
 	gateway *gatewayv1alpha1.Gateway,
-	backends map[client.ObjectKey]*gatewayv1alpha1.Backend,
+	backends map[client.ObjectKey]*networkBackend,
 	used map[client.ObjectKey]bool,
 ) httpRouteParentResolution {
 	state := httpRouteParentResolution{
@@ -124,7 +124,7 @@ func (r *resolution) bindHTTPRouteRules(
 	route *gatewayv1alpha1.HTTPRoute,
 	gatewayKey client.ObjectKey,
 	listenerName string,
-	backends map[client.ObjectKey]*gatewayv1alpha1.Backend,
+	backends map[client.ObjectKey]*networkBackend,
 	used map[client.ObjectKey]bool,
 ) {
 	for i, rule := range route.Spec.Rules {

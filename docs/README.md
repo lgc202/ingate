@@ -3,8 +3,9 @@
 阅读顺序：先看当前能力和主链路，再看 AI 网关的已确认方向与待评审设计。
 
 - [控制面增量编译与配置分发设计](design/control-plane-incremental-design.md)：方案选型、总体架构、资源结构、增量计算和 Delta 分发；结合 Envoy Gateway、Istio、Agentgateway 的设计说明采用理由及差异。
-  已接入 krt 事件输入及六类资源的运行字段投影，编译和下发尚未切换。
-  投影排除状态、展示名称及无关 metadata；当前为状态协调保留 Generation，展示名称修改递增代次时仍会通知现有协调队列。
+  已接入 krt 事件输入；Backend 网络结果按对象派生，两路编译复用同一集合，端点规范化和排序不再随每次协调重复执行。
+  Backend 结果排除状态、展示名称、Generation 及无关 metadata，等价端点重排不再通知协调队列。
+  其余运行投影为状态协调保留 Generation；路由仍全量裁决、组装，发布仍使用现有 xDS 快照及 ConfigMap，尚未切换 Delta。
 
 - [GoCanon 模板对齐](decisions/0016-gocanon-template-alignment.md)：本轮规则版本、重构边界、实施顺序与验证进度；不把参考示例覆盖到产品业务。
 

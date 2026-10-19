@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"istio.io/istio/pkg/kube/krt"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +40,7 @@ func TestReconcilePublishesAcceptedResources(t *testing.T) {
 		calls++
 
 		return nil
-	}))
+	}), backend)
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 		t.Fatalf("Reconcile(shared request) error = %v", err)
 	}
@@ -101,8 +102,7 @@ func TestReconcileDoesNotPublishAfterListFailure(t *testing.T) {
 		failedRead int
 	}{
 		{name: "Gateways", failedRead: 1},
-		{name: "Backends", failedRead: 2},
-		{name: "HTTPRoutes", failedRead: 3},
+		{name: "HTTPRoutes", failedRead: 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -215,7 +215,7 @@ func TestReconcileWritesAcceptedStatuses(t *testing.T) {
 	rejected.Generation = 6
 	backend := backendResource("backend")
 	apiClient := newFakeClient(t, &first, &conflicting, &valid, &rejected, &backend)
-	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }))
+	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }), backend)
 
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
@@ -292,10 +292,26 @@ func (f publisherFunc) PublishAI(context.Context, aidataplane.Config) error {
 	return nil
 }
 
-func newTestReconciler(t *testing.T, apiClient client.Client, publisher Publisher) *Reconciler {
+func newTestReconciler(
+	t *testing.T,
+	apiClient client.Client,
+	publisher Publisher,
+	backends ...gatewayv1alpha1.Backend,
+) *Reconciler {
 	t.Helper()
 
-	return New(apiClient, apiClient, publisher, "control-plane")
+	r := New(apiClient, apiClient, publisher, "control-plane")
+	setTestBackends(t, r, backends)
+
+	return r
+}
+
+// setTestBackends 在 Reconcile 的集合读取边界注入完整结果；Informer 同步另由 Source 测试覆盖。
+func setTestBackends(t *testing.T, reconciler *Reconciler, backends []gatewayv1alpha1.Backend) {
+	t.Helper()
+	reconciler.backends = &resourceSource[*gatewayv1alpha1.Backend, networkBackend]{
+		projected: krt.NewStaticCollection(nil, compileTestBackends(backends), krt.WithStop(t.Context().Done())),
+	}
 }
 
 func newFakeClient(t *testing.T, objects ...client.Object) client.WithWatch {

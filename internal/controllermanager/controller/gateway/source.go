@@ -18,12 +18,12 @@ import (
 
 // resourceSource 将 Manager 的 Informer 事件接入 krt，不创建第二套 List/Watch。
 // 原始集合沿用 Informer 的只读对象；运行投影另建副本，后续转换也只能读取。
-type resourceSource[T client.Object] struct {
+type resourceSource[T client.Object, R any] struct {
 	cache        cache.Cache
 	object       T
-	project      func(T) T
+	project      func(T) *R
 	objects      krt.StaticCollection[T]
-	projected    krt.Collection[T]
+	projected    krt.Collection[*R]
 	kind         source.SyncingSource
 	subscription krt.HandlerRegistration
 	replayed     chan struct{}
@@ -35,17 +35,17 @@ type replaySync struct {
 	done <-chan struct{}
 }
 
-var _ source.SyncingSource = (*resourceSource[*gatewayv1alpha1.Gateway])(nil)
+var _ source.SyncingSource = (*resourceSource[*gatewayv1alpha1.Gateway, gatewayv1alpha1.Gateway])(nil)
 
-func newResourceSource[T client.Object](
+func newResourceSource[T client.Object, R any](
 	resourceCache cache.Cache,
 	object T,
-	project func(T) T,
-) *resourceSource[T] {
-	return &resourceSource[T]{cache: resourceCache, object: object, project: project}
+	project func(T) *R,
+) *resourceSource[T, R] {
+	return &resourceSource[T, R]{cache: resourceCache, object: object, project: project}
 }
 
-func (s *resourceSource[T]) Start(
+func (s *resourceSource[T, R]) Start(
 	ctx context.Context,
 	queue workqueue.TypedRateLimitingInterface[reconcile.Request],
 ) error {
@@ -57,12 +57,11 @@ func (s *resourceSource[T]) Start(
 		krt.WithName(fmt.Sprintf("gateway/%T", s.object)),
 	)
 
-	// NewCollection 按 T 存放输出，转换函数返回 *T；这里 T 已经是 API 指针。
 	// 投影内容相等时由 krt 保留旧结果，不通知队列或后续派生集合。
-	s.projected = krt.NewCollection(s.objects.AsCollection(), func(_ krt.HandlerContext, resource T) *T {
-		return new(s.project(resource))
+	s.projected = krt.NewPointerCollection(s.objects.AsCollection(), func(_ krt.HandlerContext, resource T) *R {
+		return s.project(resource)
 	}, krt.WithStop(ctx.Done()), krt.WithName(fmt.Sprintf("gateway/%T/runtime", s.object)))
-	s.subscription = s.projected.RegisterBatch(func(changes []krt.Event[T]) {
+	s.subscription = s.projected.RegisterBatch(func(changes []krt.Event[*R]) {
 		for range changes {
 			queue.Add(sharedRequest())
 		}
@@ -97,7 +96,7 @@ func (s *resourceSource[T]) Start(
 	return s.kind.Start(ctx, queue)
 }
 
-func (s *resourceSource[T]) WaitForSync(ctx context.Context) error {
+func (s *resourceSource[T, R]) WaitForSync(ctx context.Context) error {
 	if err := s.kind.WaitForSync(ctx); err != nil {
 		return fmt.Errorf("sync %T source: %w", s.object, err)
 	}

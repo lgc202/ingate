@@ -23,13 +23,6 @@ func projectHTTPRoute(route *gatewayv1alpha1.HTTPRoute) *gatewayv1alpha1.HTTPRou
 	return &gatewayv1alpha1.HTTPRoute{ObjectMeta: projectResourceMeta(route), Spec: *spec}
 }
 
-func projectBackend(backend *gatewayv1alpha1.Backend) *gatewayv1alpha1.Backend {
-	spec := backend.Spec.DeepCopy()
-	spec.DisplayName = ""
-
-	return &gatewayv1alpha1.Backend{ObjectMeta: projectResourceMeta(backend), Spec: *spec}
-}
-
 func projectAIBackend(backend *gatewayv1alpha1.AIBackend) *gatewayv1alpha1.AIBackend {
 	spec := backend.Spec.DeepCopy()
 	spec.DisplayName = ""

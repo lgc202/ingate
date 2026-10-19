@@ -27,7 +27,7 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 	r := newTestReconciler(t, apiClient, publisherFunc(func(_ context.Context, config dataplane.Config) error {
 		published = config
 		return nil
-	}))
+	}), snapshot.backends.Items...)
 	want := aiConfigPayload(t, snapshot)
 
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
@@ -39,7 +39,7 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 		t.Errorf("Reconcile() AI payload = %s, want %s", stored.Data[aidataplane.ConfigMapDataKey], want)
 	}
 
-	wantHTTP := compile(resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, snapshot.backends.Items))
+	wantHTTP := compile(resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, compileTestBackends(snapshot.backends.Items)))
 	if diff := cmp.Diff(wantHTTP, published); diff != "" {
 		t.Errorf("Reconcile() HTTP payload mismatch (-want +got):\n%s", diff)
 	}
@@ -53,7 +53,7 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 	}
 
 	drifted := stored.DeepCopy()
-	drifted.Data[aidataplane.ConfigMapDataKey] = string(aiConfigPayload(t, resources{}))
+	drifted.Data[aidataplane.ConfigMapDataKey] = string(aiConfigPayload(t, resourceFixtures{}))
 	if err := apiClient.Update(t.Context(), drifted); err != nil {
 		t.Fatalf("Update(drifted AI ConfigMap) error = %v", err)
 	}
@@ -78,7 +78,7 @@ func TestReconcileStoresAndRevokesAIConfiguration(t *testing.T) {
 		t.Fatalf("Reconcile(no model or MCP routes) error = %v", err)
 	}
 
-	empty := aiConfigPayload(t, resources{})
+	empty := aiConfigPayload(t, resourceFixtures{})
 	revoked := storedAIConfigMap(t, apiClient)
 	if revoked.Data[aidataplane.ConfigMapDataKey] != string(empty) || revoked.ResourceVersion == stored.ResourceVersion {
 		t.Errorf("Reconcile(no AI routes) ConfigMap = %+v, want complete empty payload with changed resourceVersion", revoked)
@@ -109,7 +109,6 @@ func TestReconcileIsolatesResourceReadFailures(t *testing.T) {
 		wantAIWrites int
 	}{
 		{name: "common Gateway read", failedList: &gatewayv1alpha1.GatewayList{}},
-		{name: "common Backend read", failedList: &gatewayv1alpha1.BackendList{}},
 		{name: "HTTPRoute read", failedList: &gatewayv1alpha1.HTTPRouteList{}, wantAIWrites: 1},
 		{name: "AIBackend read", failedList: &gatewayv1alpha1.AIBackendList{}, wantHTTP: 1},
 		{name: "ModelRoute read", failedList: &gatewayv1alpha1.ModelRouteList{}, wantHTTP: 1},
@@ -119,7 +118,7 @@ func TestReconcileIsolatesResourceReadFailures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			snapshot := aiResourceSnapshot()
-			previous := managedAIConfigMap(string(aiConfigPayload(t, resources{})))
+			previous := managedAIConfigMap(string(aiConfigPayload(t, resourceFixtures{})))
 			apiClient := aiResourceClient(t, snapshot, &previous)
 			before := storedAIConfigMap(t, apiClient)
 			cause := errors.New("dependency unavailable")
@@ -161,6 +160,7 @@ func TestReconcileIsolatesResourceReadFailures(t *testing.T) {
 				httpCalls++
 				return nil
 			}), "control-plane")
+			setTestBackends(t, r, snapshot.backends.Items)
 
 			_, err := r.Reconcile(ctx, sharedRequest())
 
@@ -188,7 +188,7 @@ func TestReconcileStoresAIAfterHTTPPublishFailure(t *testing.T) {
 	snapshot := aiResourceSnapshot()
 	apiClient := aiResourceClient(t, snapshot)
 	cause := errors.New("HTTP publish unavailable")
-	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return cause }))
+	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return cause }), snapshot.backends.Items...)
 
 	_, err := r.Reconcile(t.Context(), sharedRequest())
 
@@ -211,6 +211,7 @@ func TestReconcileStoresAIAfterHTTPStatusFailure(t *testing.T) {
 		},
 	})
 	r := New(writes, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }), "control-plane")
+	setTestBackends(t, r, snapshot.backends.Items)
 
 	_, err := r.Reconcile(t.Context(), sharedRequest())
 
@@ -225,7 +226,7 @@ func TestReconcileStoresAIAfterHTTPStatusFailure(t *testing.T) {
 
 func TestReconcileKeepsAIConfigurationAfterWriteFailure(t *testing.T) {
 	snapshot := aiResourceSnapshot()
-	previous := managedAIConfigMap(string(aiConfigPayload(t, resources{})))
+	previous := managedAIConfigMap(string(aiConfigPayload(t, resourceFixtures{})))
 	apiClient := aiResourceClient(t, snapshot, &previous)
 	cause := errors.New("AI write unavailable")
 	writes := interceptor.NewClient(apiClient, interceptor.Funcs{
@@ -236,6 +237,7 @@ func TestReconcileKeepsAIConfigurationAfterWriteFailure(t *testing.T) {
 		httpCalls++
 		return nil
 	}), "control-plane")
+	setTestBackends(t, r, snapshot.backends.Items)
 
 	_, err := r.Reconcile(t.Context(), sharedRequest())
 
@@ -251,7 +253,7 @@ func TestReconcileKeepsAIConfigurationAfterWriteFailure(t *testing.T) {
 func TestReconcileKeepsAIConfigurationAfterCompileFailure(t *testing.T) {
 	snapshot := aiResourceSnapshot()
 	snapshot.aiBackends.Items[0].Spec.Schema.Prefix = "%zz"
-	previous := managedAIConfigMap(string(aiConfigPayload(t, resources{})))
+	previous := managedAIConfigMap(string(aiConfigPayload(t, resourceFixtures{})))
 	apiClient := aiResourceClient(t, snapshot, &previous)
 	writes := forbiddenAIConfigWrites(t, apiClient)
 	var httpCalls int
@@ -259,6 +261,7 @@ func TestReconcileKeepsAIConfigurationAfterCompileFailure(t *testing.T) {
 		httpCalls++
 		return nil
 	}), "control-plane")
+	setTestBackends(t, r, snapshot.backends.Items)
 
 	_, err := r.Reconcile(t.Context(), sharedRequest())
 
@@ -273,7 +276,7 @@ func TestReconcileKeepsAIConfigurationAfterCompileFailure(t *testing.T) {
 
 func TestReconcileReturnsBothOutputErrors(t *testing.T) {
 	snapshot := aiResourceSnapshot()
-	previous := managedAIConfigMap(string(aiConfigPayload(t, resources{})))
+	previous := managedAIConfigMap(string(aiConfigPayload(t, resourceFixtures{})))
 	apiClient := aiResourceClient(t, snapshot, &previous)
 	httpError := errors.New("HTTP publish unavailable")
 	aiError := errors.New("AI write unavailable")
@@ -281,6 +284,7 @@ func TestReconcileReturnsBothOutputErrors(t *testing.T) {
 		Update: func(context.Context, client.WithWatch, client.Object, ...client.UpdateOption) error { return aiError },
 	})
 	r := New(writes, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return httpError }), "control-plane")
+	setTestBackends(t, r, snapshot.backends.Items)
 
 	_, err := r.Reconcile(t.Context(), sharedRequest())
 
@@ -296,7 +300,7 @@ func TestReconcileReturnsBothOutputErrors(t *testing.T) {
 func TestReconcileKeepsAIConfigurationAfterMCPModelConflict(t *testing.T) {
 	snapshot := aiResourceSnapshot()
 	snapshot.mcpRoutes.Items[0].Spec.Path = new(aidataplane.ModelResponsesPath)
-	previous := managedAIConfigMap(string(aiConfigPayload(t, resources{})))
+	previous := managedAIConfigMap(string(aiConfigPayload(t, resourceFixtures{})))
 	apiClient := aiResourceClient(t, snapshot, &previous)
 	writes := forbiddenAIConfigWrites(t, apiClient)
 	var httpCalls, aiCalls int
@@ -305,6 +309,7 @@ func TestReconcileKeepsAIConfigurationAfterMCPModelConflict(t *testing.T) {
 		publishAI:     func(context.Context, aidataplane.Config) error { aiCalls++; return nil },
 	}
 	reconciler := New(writes, apiClient, publisher, "control-plane")
+	setTestBackends(t, reconciler, snapshot.backends.Items)
 
 	_, err := reconciler.Reconcile(t.Context(), sharedRequest())
 
@@ -317,7 +322,7 @@ func TestReconcileKeepsAIConfigurationAfterMCPModelConflict(t *testing.T) {
 	}
 }
 
-func aiResourceClient(t *testing.T, snapshot resources, additional ...client.Object) client.WithWatch {
+func aiResourceClient(t *testing.T, snapshot resourceFixtures, additional ...client.Object) client.WithWatch {
 	t.Helper()
 
 	var objects []client.Object

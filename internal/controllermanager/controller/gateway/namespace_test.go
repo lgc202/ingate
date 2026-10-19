@@ -20,7 +20,7 @@ func TestCompileSeparatesNamespacedResources(t *testing.T) {
 	before.gateways = *snapshot.gateways.DeepCopy()
 	before.httpRoutes = *snapshot.httpRoutes.DeepCopy()
 	before.backends = *snapshot.backends.DeepCopy()
-	got := compile(resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, snapshot.backends.Items))
+	got := compile(resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, compileTestBackends(snapshot.backends.Items)))
 	want := dataplane.Config{Listeners: []dataplane.Listener{{Port: 8080}}}
 	for _, namespace := range []string{"team-a", "team-b"} {
 		want.Listeners[0].Hosts = append(want.Listeners[0].Hosts, dataplane.Host{
@@ -43,14 +43,14 @@ func TestCompileSeparatesNamespacedResources(t *testing.T) {
 		t.Errorf("compile(same names in two namespaces) mismatch (-want +got):\n%s", diff)
 	}
 
-	if diff := cmp.Diff(before, snapshot, cmp.AllowUnexported(resources{})); diff != "" {
+	if diff := cmp.Diff(before, snapshot, cmp.AllowUnexported(resourceFixtures{})); diff != "" {
 		t.Errorf("compile(namespaced resources) changed snapshot (-want +got):\n%s", diff)
 	}
 
 	slices.Reverse(snapshot.gateways.Items)
 	slices.Reverse(snapshot.httpRoutes.Items)
 	slices.Reverse(snapshot.backends.Items)
-	reversed := compile(resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, snapshot.backends.Items))
+	reversed := compile(resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, compileTestBackends(snapshot.backends.Items)))
 	if diff := cmp.Diff(want, reversed); diff != "" {
 		t.Errorf("compile(reversed namespaced resources) mismatch (-want +got):\n%s", diff)
 	}
@@ -58,7 +58,7 @@ func TestCompileSeparatesNamespacedResources(t *testing.T) {
 
 func TestResolveDoesNotAttachToAnotherNamespace(t *testing.T) {
 	snapshot := namespacedHTTPResources()
-	result := resolve(snapshot.gateways.Items[1:], snapshot.httpRoutes.Items[:1], snapshot.backends.Items)
+	result := resolve(snapshot.gateways.Items[1:], snapshot.httpRoutes.Items[:1], compileTestBackends(snapshot.backends.Items))
 	if len(result.bindings) != 0 || len(result.backends) != 0 {
 		t.Errorf("resolve(team-a route, team-b Gateway) bindings = %+v, backends = %+v, want none", result.bindings, result.backends)
 	}
@@ -74,7 +74,7 @@ func TestResolveDoesNotAttachToAnotherNamespace(t *testing.T) {
 
 func TestResolveDoesNotForwardToAnotherNamespace(t *testing.T) {
 	snapshot := namespacedHTTPResources()
-	result := resolve(snapshot.gateways.Items[:1], snapshot.httpRoutes.Items[:1], snapshot.backends.Items[1:])
+	result := resolve(snapshot.gateways.Items[:1], snapshot.httpRoutes.Items[:1], compileTestBackends(snapshot.backends.Items[1:]))
 	config := compile(result)
 	want := dataplane.Config{Listeners: []dataplane.Listener{{
 		Port: 8080,
@@ -103,7 +103,7 @@ func TestReconcileSeparatesNamespacedRouteStatuses(t *testing.T) {
 		&snapshot.gateways.Items[0], &snapshot.gateways.Items[1],
 		&snapshot.httpRoutes.Items[0], &snapshot.httpRoutes.Items[1], &snapshot.backends.Items[0],
 	)
-	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }))
+	r := newTestReconciler(t, apiClient, publisherFunc(func(context.Context, dataplane.Config) error { return nil }), snapshot.backends.Items[0])
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
 		t.Fatalf("Reconcile(namespaced resources) error = %v", err)
 	}
@@ -178,8 +178,8 @@ func TestReconcileListenerConflictsAcrossNamespaces(t *testing.T) {
 	}
 }
 
-func namespacedHTTPResources() resources {
-	var snapshot resources
+func namespacedHTTPResources() resourceFixtures {
+	var snapshot resourceFixtures
 	for _, namespace := range []string{"team-a", "team-b"} {
 		gateway := gatewayResource("edge", 1, listener("http", 8080, namespace+".example.com"))
 		gateway.Namespace = namespace

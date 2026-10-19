@@ -46,7 +46,7 @@ func TestAIConfigWriterCreatesAndRevokes(t *testing.T) {
 		t.Error("write(initial configuration) resourceVersion is empty")
 	}
 
-	empty := aiConfigPayload(t, resources{})
+	empty := aiConfigPayload(t, resourceFixtures{})
 	if err := writer.write(t.Context(), empty); err != nil {
 		t.Fatalf("write(empty configuration) error = %v", err)
 	}
@@ -246,7 +246,7 @@ func TestAIConfigWriterRejectsUnsafeWrites(t *testing.T) {
 }
 
 func TestAIConfigWriterAcceptsSizeLimit(t *testing.T) {
-	data := aiConfigPayload(t, resources{})
+	data := aiConfigPayload(t, resourceFixtures{})
 	existing := managedAIConfigMap("old")
 	existing.BinaryData = map[string][]byte{"other": make([]byte, corev1.MaxSecretSize-len(data))}
 	apiClient := aiConfigClient(t, &existing, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "control-plane"}})
@@ -400,7 +400,7 @@ func storedAIConfigMap(t *testing.T, apiClient client.Reader) corev1.ConfigMap {
 	return configMap
 }
 
-func aiConfigPayload(t *testing.T, snapshot resources) []byte {
+func aiConfigPayload(t *testing.T, snapshot resourceFixtures) []byte {
 	t.Helper()
 
 	data, err := encodeTestAI(snapshot)

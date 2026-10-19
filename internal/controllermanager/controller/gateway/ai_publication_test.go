@@ -71,14 +71,14 @@ func TestGatewayDeletionTransfersPublicAIEntries(t *testing.T) {
 				}
 			}
 
-			resolved := resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, snapshot.backends.Items)
+			resolved := resolve(snapshot.gateways.Items, snapshot.httpRoutes.Items, compileTestBackends(snapshot.backends.Items))
 			if !phase.deleting {
 				if len(resolved.gatewayConflicts) != 1 || resolved.gatewayConflicts[0].gateway.Name != "public" {
 					t.Errorf("resolve(live owner) conflicts = %+v, want public rejected", resolved.gatewayConflicts)
 				}
 			}
 
-			ai, err := compileAI(snapshot)
+			ai, err := compileAI(snapshot.compiled())
 			if err != nil {
 				t.Fatalf("compileAI() error = %v", err)
 			}
