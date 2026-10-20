@@ -20,9 +20,10 @@ const validStartupYAML = `server:
   socket: /run/ingate/ingress.sock
   max_request_body_bytes: 1048576
   shutdown_timeout: 30s
-api_server:
-  kubeconfig: /etc/ingate/ai-proxy.kubeconfig
-  ai_config_namespace: control-plane
+discovery:
+  address: 127.0.0.1:18000
+  node_id: ingate-ai-proxy-1
+  max_response_bytes: 16777216
 envoy:
   egress_socket: /run/ingate/egress.sock
 `
@@ -34,11 +35,9 @@ func TestLoadConfigExample(t *testing.T) {
 			MaxRequestBodyBytes: 1048576,
 			ShutdownTimeout:     durationpb.New(30 * time.Second),
 		},
-		ApiServer: &conf.APIServer{
-			Kubeconfig: "/etc/ingate/ai-proxy.kubeconfig", AiConfigNamespace: "control-plane",
-		},
-		Envoy: &conf.Envoy{EgressSocket: "/run/ingate/egress.sock"},
-		Log:   &conf.Log{Level: "info", Format: "json", Outputs: []string{"stdout"}},
+		Discovery: &conf.Discovery{Address: "127.0.0.1:18000", NodeId: "ingate-ai-proxy-1", MaxResponseBytes: 16777216},
+		Envoy:     &conf.Envoy{EgressSocket: "/run/ingate/egress.sock"},
+		Log:       &conf.Log{Level: "info", Format: "json", Outputs: []string{"stdout"}},
 	}
 
 	config, err := loadConfig("../../configs/ai-proxy.yaml")
@@ -64,7 +63,7 @@ func TestLoadConfigRejectsInvalidInputs(t *testing.T) {
 		{name: "duplicate field", data: strings.Replace(validStartupYAML, "  max_request_body_bytes:", "  socket: /run/other.sock\n  max_request_body_bytes:", 1)},
 		{name: "duplicate proto field alias", data: strings.Replace(validStartupYAML, "  max_request_body_bytes:", "  maxRequestBodyBytes: 2097152\n  max_request_body_bytes:", 1)},
 		{name: "missing server", data: strings.Replace(validStartupYAML, "server:\n  socket: /run/ingate/ingress.sock\n  max_request_body_bytes: 1048576\n  shutdown_timeout: 30s\n", "", 1)},
-		{name: "missing API connection", data: strings.Replace(validStartupYAML, "api_server:\n  kubeconfig: /etc/ingate/ai-proxy.kubeconfig\n  ai_config_namespace: control-plane\n", "", 1)},
+		{name: "missing discovery", data: strings.Replace(validStartupYAML, "discovery:\n  address: 127.0.0.1:18000\n  node_id: ingate-ai-proxy-1\n  max_response_bytes: 16777216\n", "", 1)},
 		{name: "missing Envoy", data: strings.Replace(validStartupYAML, "envoy:\n  egress_socket: /run/ingate/egress.sock\n", "", 1)},
 		{name: "zero body limit", data: strings.Replace(validStartupYAML, "1048576", "0", 1)},
 		{name: "negative body limit", data: strings.Replace(validStartupYAML, "1048576", "-1", 1)},
@@ -73,8 +72,14 @@ func TestLoadConfigRejectsInvalidInputs(t *testing.T) {
 		{name: "negative shutdown timeout", data: strings.Replace(validStartupYAML, "30s", "-1s", 1)},
 		{name: "missing body limit", data: strings.Replace(validStartupYAML, "  max_request_body_bytes: 1048576\n", "", 1)},
 		{name: "overflow body limit", data: strings.Replace(validStartupYAML, "1048576", "9223372036854775808", 1)},
-		{name: "empty namespace", data: strings.Replace(validStartupYAML, "control-plane", "''", 1)},
-		{name: "invalid namespace", data: strings.Replace(validStartupYAML, "control-plane", "Control-Plane", 1)},
+		{name: "empty address", data: strings.Replace(validStartupYAML, "127.0.0.1:18000", "''", 1)},
+		{name: "missing node", data: strings.Replace(validStartupYAML, "ingate-ai-proxy-1", "''", 1)},
+		{name: "zero response limit", data: strings.Replace(validStartupYAML, "16777216", "0", 1)},
+		{name: "invalid address", data: strings.Replace(validStartupYAML, "127.0.0.1:18000", "no-port", 1)},
+		{name: "empty discovery host", data: strings.Replace(validStartupYAML, "127.0.0.1:18000", "':18000'", 1)},
+		{name: "named discovery port", data: strings.Replace(validStartupYAML, "127.0.0.1:18000", "127.0.0.1:http", 1)},
+		{name: "zero discovery port", data: strings.Replace(validStartupYAML, "127.0.0.1:18000", "127.0.0.1:0", 1)},
+		{name: "overflow discovery port", data: strings.Replace(validStartupYAML, "127.0.0.1:18000", "127.0.0.1:65536", 1)},
 		{name: "relative ingress", data: strings.Replace(validStartupYAML, "/run/ingate/ingress.sock", "ingress.sock", 1)},
 		{name: "relative egress", data: strings.Replace(validStartupYAML, "/run/ingate/egress.sock", "egress.sock", 1)},
 		{name: "empty ingress", data: strings.Replace(validStartupYAML, "/run/ingate/ingress.sock", "''", 1)},
@@ -111,9 +116,7 @@ func TestLoadConfigRejectsInvalidInputs(t *testing.T) {
 func TestLoadConfigDoesNotAcquireRuntimeResources(t *testing.T) {
 	directory := t.TempDir()
 	ingress := filepath.Join(directory, "not-created", "ingress.sock")
-	kubeconfig := filepath.Join(directory, "missing.kubeconfig")
 	data := strings.ReplaceAll(validStartupYAML, "/run/ingate/ingress.sock", ingress)
-	data = strings.ReplaceAll(data, "/etc/ingate/ai-proxy.kubeconfig", kubeconfig)
 	data += "log:\n  outputs: [file]\n  file:\n    path: " + filepath.Join(directory, "not-created", "ai-proxy.log") + "\n"
 	configFile := writeStartupConfig(t, data)
 
@@ -122,7 +125,7 @@ func TestLoadConfigDoesNotAcquireRuntimeResources(t *testing.T) {
 		t.Fatalf("loadConfig(unallocated resources) error = %v", err)
 	}
 
-	if config.GetServer().GetSocket() != ingress || config.GetApiServer().GetKubeconfig() != kubeconfig {
+	if config.GetServer().GetSocket() != ingress || config.GetDiscovery().GetAddress() != "127.0.0.1:18000" {
 		t.Errorf("loadConfig(unallocated resources) changed configured paths: %v", config)
 	}
 
@@ -131,17 +134,17 @@ func TestLoadConfigDoesNotAcquireRuntimeResources(t *testing.T) {
 	}
 }
 
-func TestLoadConfigAllowsInClusterConfiguration(t *testing.T) {
-	data := strings.Replace(validStartupYAML, "  kubeconfig: /etc/ingate/ai-proxy.kubeconfig\n", "", 1)
+func TestLoadConfigAllowsIPv6Discovery(t *testing.T) {
+	data := strings.Replace(validStartupYAML, "127.0.0.1:18000", "'[::1]:18000'", 1)
 	configFile := writeStartupConfig(t, data)
 
 	config, err := loadConfig(configFile)
 	if err != nil {
-		t.Fatalf("loadConfig(in-cluster) error = %v", err)
+		t.Fatalf("loadConfig(IPv6) error = %v", err)
 	}
 
-	if config.GetApiServer().GetKubeconfig() != "" {
-		t.Errorf("loadConfig(in-cluster) kubeconfig = %q, want empty path without API access", config.GetApiServer().GetKubeconfig())
+	if config.GetDiscovery().GetAddress() != "[::1]:18000" {
+		t.Errorf("loadConfig(IPv6) address = %q, want configured IPv6 address", config.GetDiscovery().GetAddress())
 	}
 }
 

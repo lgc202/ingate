@@ -81,7 +81,7 @@ func TestStatusUpdatesConfirmOnlyCompiledGeneration(t *testing.T) {
 					return underlying.SubResource(name).Update(ctx, object, options...)
 				},
 			})
-			r := New(statusClient, apiClient, nil, "control-plane")
+			r := New(statusClient, nil)
 			parents := []httpRouteParentResolution{{
 				routeKey:  client.ObjectKeyFromObject(&route),
 				parentRef: route.Spec.ParentRefs[0],

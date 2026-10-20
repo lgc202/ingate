@@ -28,8 +28,8 @@ type Bootstrap struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// server 配置受保护的 Go HTTP 入口。
 	Server *Server `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
-	// api_server 配置 Ingate API 连接及编译配置的读取空间。
-	ApiServer *APIServer `protobuf:"bytes,2,opt,name=api_server,json=apiServer,proto3" json:"api_server,omitempty"`
+	// discovery 配置 Controller 的 Delta ADS 连接与数据面实例标识。
+	Discovery *Discovery `protobuf:"bytes,2,opt,name=discovery,proto3" json:"discovery,omitempty"`
 	// envoy 配置模型请求使用的本地 Envoy 出口。
 	Envoy *Envoy `protobuf:"bytes,3,opt,name=envoy,proto3" json:"envoy,omitempty"`
 	// log 配置普通运行日志；省略时使用 info、JSON 和 stdout。
@@ -75,9 +75,9 @@ func (x *Bootstrap) GetServer() *Server {
 	return nil
 }
 
-func (x *Bootstrap) GetApiServer() *APIServer {
+func (x *Bootstrap) GetDiscovery() *Discovery {
 	if x != nil {
-		return x.ApiServer
+		return x.Discovery
 	}
 	return nil
 }
@@ -242,31 +242,34 @@ func (x *Server) GetShutdownTimeout() *durationpb.Duration {
 	return nil
 }
 
-// APIServer 连接 Ingate API，而不是宿主 Kubernetes。
-type APIServer struct {
+// Discovery 只订阅共享数据面组的 AI 配置资源，不订阅 Envoy 或领域资源。
+// 当前连接与 Envoy 的 ADS 一样依赖受保护的部署网络，不提供 TLS 或服务间认证。
+type Discovery struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// kubeconfig 是连接配置路径；为空时沿用 client-go 的集群内配置。
-	Kubeconfig string `protobuf:"bytes,1,opt,name=kubeconfig,proto3" json:"kubeconfig,omitempty"`
-	// ai_config_namespace 是共享编译 ConfigMap 所在的已有 Namespace。
-	AiConfigNamespace string `protobuf:"bytes,2,opt,name=ai_config_namespace,json=aiConfigNamespace,proto3" json:"ai_config_namespace,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// address 是 Controller ADS 的 host:port，不接受由业务请求指定的地址。
+	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	// node_id 是部署侧分配的副本实例标识；同组副本读取同一份期望配置。
+	NodeId string `protobuf:"bytes,2,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	// max_response_bytes 限制单个完整初始响应及增量批次，须按部署规模显式选择。
+	MaxResponseBytes int32 `protobuf:"varint,3,opt,name=max_response_bytes,json=maxResponseBytes,proto3" json:"max_response_bytes,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
-func (x *APIServer) Reset() {
-	*x = APIServer{}
+func (x *Discovery) Reset() {
+	*x = Discovery{}
 	mi := &file_aiproxy_conf_conf_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *APIServer) String() string {
+func (x *Discovery) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*APIServer) ProtoMessage() {}
+func (*Discovery) ProtoMessage() {}
 
-func (x *APIServer) ProtoReflect() protoreflect.Message {
+func (x *Discovery) ProtoReflect() protoreflect.Message {
 	mi := &file_aiproxy_conf_conf_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -278,23 +281,30 @@ func (x *APIServer) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use APIServer.ProtoReflect.Descriptor instead.
-func (*APIServer) Descriptor() ([]byte, []int) {
+// Deprecated: Use Discovery.ProtoReflect.Descriptor instead.
+func (*Discovery) Descriptor() ([]byte, []int) {
 	return file_aiproxy_conf_conf_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *APIServer) GetKubeconfig() string {
+func (x *Discovery) GetAddress() string {
 	if x != nil {
-		return x.Kubeconfig
+		return x.Address
 	}
 	return ""
 }
 
-func (x *APIServer) GetAiConfigNamespace() string {
+func (x *Discovery) GetNodeId() string {
 	if x != nil {
-		return x.AiConfigNamespace
+		return x.NodeId
 	}
 	return ""
+}
+
+func (x *Discovery) GetMaxResponseBytes() int32 {
+	if x != nil {
+		return x.MaxResponseBytes
+	}
+	return 0
 }
 
 // Envoy 只指定固定的本地出口，不允许请求选择网络地址。
@@ -429,11 +439,10 @@ var File_aiproxy_conf_conf_proto protoreflect.FileDescriptor
 
 const file_aiproxy_conf_conf_proto_rawDesc = "" +
 	"\n" +
-	"\x17aiproxy/conf/conf.proto\x12\faiproxy.conf\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\"\xd9\x01\n" +
+	"\x17aiproxy/conf/conf.proto\x12\faiproxy.conf\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\"\xd8\x01\n" +
 	"\tBootstrap\x124\n" +
-	"\x06server\x18\x01 \x01(\v2\x14.aiproxy.conf.ServerB\x06\xbaH\x03\xc8\x01\x01R\x06server\x12>\n" +
-	"\n" +
-	"api_server\x18\x02 \x01(\v2\x17.aiproxy.conf.APIServerB\x06\xbaH\x03\xc8\x01\x01R\tapiServer\x121\n" +
+	"\x06server\x18\x01 \x01(\v2\x14.aiproxy.conf.ServerB\x06\xbaH\x03\xc8\x01\x01R\x06server\x12=\n" +
+	"\tdiscovery\x18\x02 \x01(\v2\x17.aiproxy.conf.DiscoveryB\x06\xbaH\x03\xc8\x01\x01R\tdiscovery\x121\n" +
 	"\x05envoy\x18\x03 \x01(\v2\x13.aiproxy.conf.EnvoyB\x06\xbaH\x03\xc8\x01\x01R\x05envoy\x12#\n" +
 	"\x03log\x18\x04 \x01(\v2\x11.aiproxy.conf.LogR\x03log\"\xb7\x04\n" +
 	"\x03Log\x127\n" +
@@ -455,12 +464,11 @@ const file_aiproxy_conf_conf_proto_rawDesc = "" +
 	"\x06Server\x12\x1f\n" +
 	"\x06socket\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06socket\x12<\n" +
 	"\x16max_request_body_bytes\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x13maxRequestBodyBytes\x12Q\n" +
-	"\x10shutdown_timeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x01\xaa\x01\x02*\x00R\x0fshutdownTimeout\"d\n" +
-	"\tAPIServer\x12\x1e\n" +
-	"\n" +
-	"kubeconfig\x18\x01 \x01(\tR\n" +
-	"kubeconfig\x127\n" +
-	"\x13ai_config_namespace\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x11aiConfigNamespace\"5\n" +
+	"\x10shutdown_timeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x01\xaa\x01\x02*\x00R\x0fshutdownTimeout\"\x87\x01\n" +
+	"\tDiscovery\x12!\n" +
+	"\aaddress\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aaddress\x12 \n" +
+	"\anode_id\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06nodeId\x125\n" +
+	"\x12max_response_bytes\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02 \x00R\x10maxResponseBytes\"5\n" +
 	"\x05Envoy\x12,\n" +
 	"\regress_socket\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\fegressSocketB5Z3github.com/lgc202/ingate/internal/aiproxy/conf;confb\x06proto3"
 
@@ -481,14 +489,14 @@ var file_aiproxy_conf_conf_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: aiproxy.conf.Bootstrap
 	(*Log)(nil),                 // 1: aiproxy.conf.Log
 	(*Server)(nil),              // 2: aiproxy.conf.Server
-	(*APIServer)(nil),           // 3: aiproxy.conf.APIServer
+	(*Discovery)(nil),           // 3: aiproxy.conf.Discovery
 	(*Envoy)(nil),               // 4: aiproxy.conf.Envoy
 	(*Log_File)(nil),            // 5: aiproxy.conf.Log.File
 	(*durationpb.Duration)(nil), // 6: google.protobuf.Duration
 }
 var file_aiproxy_conf_conf_proto_depIdxs = []int32{
 	2, // 0: aiproxy.conf.Bootstrap.server:type_name -> aiproxy.conf.Server
-	3, // 1: aiproxy.conf.Bootstrap.api_server:type_name -> aiproxy.conf.APIServer
+	3, // 1: aiproxy.conf.Bootstrap.discovery:type_name -> aiproxy.conf.Discovery
 	4, // 2: aiproxy.conf.Bootstrap.envoy:type_name -> aiproxy.conf.Envoy
 	1, // 3: aiproxy.conf.Bootstrap.log:type_name -> aiproxy.conf.Log
 	5, // 4: aiproxy.conf.Log.file:type_name -> aiproxy.conf.Log.File

@@ -2,603 +2,315 @@ package aiconfig
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"io"
 	"log/slog"
-	"os"
-	"strings"
+	"maps"
+	"net"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/kubernetes/fake"
-	clienttesting "k8s.io/client-go/testing"
+	discoveryv3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/lgc202/ingate/internal/pkg/aidataplane"
+	aidataplanev1 "github.com/lgc202/ingate/api/aidataplane/v1"
 )
 
-func TestNewLoader(t *testing.T) {
-	apiClient := fake.NewClientset()
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+type scriptedADS struct {
+	discoveryv3.UnimplementedAggregatedDiscoveryServiceServer
+	run func(discoveryv3.AggregatedDiscoveryService_DeltaAggregatedResourcesServer) error
+}
 
-	NewLoader(apiClient, "control-plane", logger)
+// feedbackClient 只截取客户端提交给 gRPC 的消息，不把 Send 成功冒充远端必然收到。
+type feedbackClient struct {
+	discoveryv3.AggregatedDiscoveryServiceClient
+	stream *feedbackStream
+}
 
-	if actions := apiClient.Actions(); len(actions) != 0 {
-		t.Errorf("NewLoader() API actions = %v, want none", actions)
+type feedbackStream struct {
+	grpc.ClientStream
+	responses []*discoveryv3.DeltaDiscoveryResponse
+	feedback  []*discoveryv3.DeltaDiscoveryRequest
+}
+
+func TestDeltaStreamSubmitsNACKBeforeReconnect(t *testing.T) {
+	entry, rule := testResources()
+	bad := testBatch(t)
+	bad.Nonce = "bad-batch"
+	bad.RemovedResources = []string{entry.Name}
+	stream := &feedbackStream{responses: []*discoveryv3.DeltaDiscoveryResponse{testBatch(t, entry, rule), bad}}
+	loader := NewLoader(&feedbackClient{stream: stream}, "test", slog.Default())
+
+	accepted, err := loader.runStream(t.Context())
+
+	if !accepted || err == nil || len(stream.feedback) != 3 {
+		t.Fatalf("runStream(bad second batch) = (%t, %v), feedback count %d, want subscribe, ACK, NACK and reconnect failure", accepted, err, len(stream.feedback))
+	}
+
+	nack := stream.feedback[2]
+	if nack.ResponseNonce != bad.Nonce || nack.ErrorDetail == nil || nack.ErrorDetail.Code == 0 || len(nack.InitialResourceVersions) != 0 {
+		t.Errorf("submitted NACK = %v, want rejected nonce and error without new accepted versions", nack)
 	}
 }
 
-func TestReplaceAndRevoke(t *testing.T) {
-	l := newTestLoader(t, fake.NewClientset())
-	configMap := fixtureConfigMap(t)
-	want, err := newConfig([]byte(configMap.Data[aidataplane.ConfigMapDataKey]))
-	if err != nil {
-		t.Fatalf("newConfig(fixture) error = %v", err)
+func TestDeltaStreamAppliesBeforeACKAndNACKKeepsAcceptedVersions(t *testing.T) {
+	entry, rule := testResources()
+	initial := testBatch(t, entry, rule)
+	initial.Nonce = "accepted"
+	bad := testBatch(t)
+	bad.Nonce, bad.RemovedResources = "rejected", []string{entry.Name}
+	resumed := testBatch(t)
+	versions := make(map[string]string)
+	for _, resource := range initial.Resources {
+		versions[resource.Name] = resource.Version
 	}
 
-	if err := l.replace(configMap); err != nil {
-		t.Fatalf("replace(initial valid configuration) error = %v", err)
-	}
+	var attempts atomic.Int32
+	var loader *Loader
+	client := newScriptedADSClient(t, func(stream discoveryv3.AggregatedDiscoveryService_DeltaAggregatedResourcesServer) error {
+		request, err := stream.Recv()
+		if err != nil {
+			return err
+		}
 
-	_, initial := loaderState(l)
-	if initial == nil {
-		t.Fatal("replace(initial) has no snapshot, want valid configuration")
-	}
+		if request.TypeUrl != aidataplanev1.ResourceType || request.GetNode().GetCluster() != aidataplanev1.SharedDataPlaneCluster ||
+			request.GetNode().GetId() != "test-node" || len(request.ResourceNamesSubscribe) != 1 || request.ResourceNamesSubscribe[0] != "*" || request.ResponseNonce != "" {
+			t.Errorf("initial Delta request = %v, want scoped wildcard subscription with node and no inherited nonce", request)
+		}
 
-	if diff := cmp.Diff(want, initial, cmp.AllowUnexported(Config{})); diff != "" {
-		t.Errorf("replace(initial) mismatch (-want +got):\n%s", diff)
-	}
+		if attempts.Add(1) == 1 {
+			if len(request.InitialResourceVersions) != 0 {
+				t.Error("first subscription carried unaccepted versions")
+			}
 
-	configMap.Data[aidataplane.ConfigMapDataKey] += "\n"
-	if err := l.replace(configMap); err != nil {
-		t.Fatalf("replace(same content with whitespace) error = %v", err)
-	}
+			if err := stream.Send(initial); err != nil {
+				return err
+			}
 
-	if _, got := loaderState(l); got != initial {
-		t.Error("replace(same content) replaced the existing snapshot, want reuse")
-	}
-
-	configMap.Data[aidataplane.ConfigMapDataKey] = emptyPayload(t)
-	if err := l.replace(configMap); err != nil {
-		t.Fatalf("replace(valid empty configuration) error = %v", err)
-	}
-
-	_, revoked := loaderState(l)
-	if revoked == nil || revoked.Revision() == initial.Revision() {
-		t.Errorf("replace(empty) = %+v, want a valid new snapshot without listeners", revoked)
-	}
-
-	wantEmpty, err := newConfig([]byte(configMap.Data[aidataplane.ConfigMapDataKey]))
-	if err != nil {
-		t.Fatalf("newConfig(empty configuration) error = %v", err)
-	}
-
-	if diff := cmp.Diff(wantEmpty, revoked, cmp.AllowUnexported(Config{})); diff != "" {
-		t.Errorf("replace(empty) did not revoke complete contents (-want +got):\n%s", diff)
-	}
-
-	if diff := cmp.Diff(want, initial, cmp.AllowUnexported(Config{})); diff != "" {
-		t.Errorf("replace(empty) mutated the previous snapshot (-want +got):\n%s", diff)
-	}
-}
-
-func TestReplaceRejectsInvalidUpdates(t *testing.T) {
-	for _, tt := range []struct {
-		name   string
-		change func(*corev1.ConfigMap)
-	}{
-		{name: "missing key", change: func(c *corev1.ConfigMap) { delete(c.Data, aidataplane.ConfigMapDataKey) }},
-		{name: "empty bytes", change: func(c *corev1.ConfigMap) { c.Data[aidataplane.ConfigMapDataKey] = "" }},
-		{name: "invalid JSON", change: func(c *corev1.ConfigMap) { c.Data[aidataplane.ConfigMapDataKey] = "{" }},
-		{name: "unsupported format", change: func(c *corev1.ConfigMap) {
-			c.Data[aidataplane.ConfigMapDataKey] = strings.Replace(c.Data[aidataplane.ConfigMapDataKey], `"v1"`, `"v2"`, 1)
-		}},
-		{name: "binary key", change: func(c *corev1.ConfigMap) {
-			c.BinaryData = map[string][]byte{aidataplane.ConfigMapDataKey: {}}
-		}},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			l := newTestLoader(t, fake.NewClientset())
-			valid := fixtureConfigMap(t)
-			want, err := newConfig([]byte(valid.Data[aidataplane.ConfigMapDataKey]))
+			ack, err := stream.Recv()
 			if err != nil {
-				t.Fatalf("newConfig(valid fixture) error = %v", err)
+				return err
 			}
 
-			invalid := valid.DeepCopy()
-			tt.change(invalid)
-
-			if err := l.replace(invalid); err == nil {
-				t.Errorf("replace(initial %s) error = nil, want rejection", tt.name)
+			view, loaded := loader.Capture()
+			if !loaded {
+				t.Error("received ACK before publishing a complete runtime view")
+				return errors.New("missing runtime view")
 			}
 
-			if _, got := loaderState(l); got != nil {
-				t.Errorf("replace(initial %s) = %+v, want no snapshot", tt.name, got)
+			if ack.ResponseNonce != initial.Nonce || ack.ErrorDetail != nil || len(ack.InitialResourceVersions) != 0 {
+				t.Errorf("ACK = %v, want matching nonce without error or initial versions", ack)
 			}
 
-			if err := l.replace(valid); err != nil {
-				t.Fatalf("replace(valid recovery) error = %v", err)
+			if _, err := view.ResolveModel(8080, "host", "coding"); err != nil {
+				t.Errorf("ResolveModel(before ACK) error = %v", err)
 			}
 
-			_, previous := loaderState(l)
-			if previous == nil {
-				t.Fatal("replace(valid recovery) has no snapshot, want valid configuration")
+			if err := stream.Send(bad); err != nil {
+				return err
 			}
 
-			if err := l.replace(invalid); err == nil {
-				t.Errorf("replace(update %s) error = nil, want rejection", tt.name)
+			nack, err := stream.Recv()
+			if err != nil {
+				return err
 			}
 
-			_, got := loaderState(l)
-			if got != previous {
-				t.Errorf("replace(update %s) snapshot = %p, want previous %p", tt.name, got, previous)
+			if nack.ResponseNonce != bad.Nonce || nack.ErrorDetail == nil || nack.ErrorDetail.Code == 0 {
+				t.Errorf("NACK = %v, want rejected nonce and an error code", nack)
 			}
 
-			if diff := cmp.Diff(want, got, cmp.AllowUnexported(Config{})); diff != "" {
-				t.Errorf("replace(update %s) changed snapshot contents (-want +got):\n%s", tt.name, diff)
+			if current, loaded := loader.Capture(); !loaded || current != view {
+				t.Error("NACK changed the active runtime view")
 			}
-		})
+
+			return nil
+		}
+
+		if !maps.Equal(request.InitialResourceVersions, versions) {
+			t.Errorf("reconnect versions = %v, want last accepted %v", request.InitialResourceVersions, versions)
+		}
+
+		if err := stream.Send(resumed); err != nil {
+			return err
+		}
+
+		_, err = stream.Recv()
+
+		return err
+	})
+	loader = NewLoader(client, "test-node", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	accepted, err := loader.runStream(ctx)
+	if !accepted || err == nil {
+		t.Fatalf("runStream(rejected second batch) = (%t, %v), want prior accepted state and failure", accepted, err)
+	}
+
+	accepted, err = loader.runStream(ctx)
+	if !accepted || !errors.Is(err, io.EOF) {
+		t.Errorf("runStream(known-version resume) = (%t, %v), want valid empty difference followed by EOF", accepted, err)
 	}
 }
 
-func TestReplaceNewInstanceAndDeletion(t *testing.T) {
-	l := newTestLoader(t, fake.NewClientset())
-	previous := fixtureConfigMap(t)
-	if err := l.replace(previous); err != nil {
-		t.Fatalf("replace(previous instance) error = %v", err)
-	}
-
-	current := previous.DeepCopy()
-	current.UID = "replacement"
-	current.Data[aidataplane.ConfigMapDataKey] = "{}"
-
-	if err := l.replace(current); err == nil {
-		t.Error("replace(new invalid instance) error = nil, want rejection")
-	}
-
-	if uid, got := loaderState(l); uid != current.UID || got != nil {
-		t.Errorf("replace(new invalid instance) = (%q, %+v), want (%q, nil)", uid, got, current.UID)
-	}
-
-	current.Data = previous.Data
-	if err := l.replace(current); err != nil {
-		t.Fatalf("replace(new valid instance) error = %v", err)
-	}
-
-	_, loaded := loaderState(l)
-	if loaded == nil {
-		t.Fatal("replace(new valid instance) has no snapshot, want valid configuration")
-	}
-
-	if err := l.remove(previous); err != nil {
-		t.Fatalf("remove(previous instance) error = %v", err)
-	}
-
-	if _, got := loaderState(l); got != loaded {
-		t.Error("remove(previous instance) removed the current snapshot")
-	}
-
-	if err := l.remove(current); err != nil {
-		t.Fatalf("remove(current instance) error = %v", err)
-	}
-
-	if uid, got := loaderState(l); uid != "" || got != nil {
-		t.Errorf("remove(current instance) = (%q, %+v), want no instance or snapshot", uid, got)
-	}
-}
-
-func TestNonMatchingObjects(t *testing.T) {
-	l := newTestLoader(t, fake.NewClientset())
-	valid := fixtureConfigMap(t)
-	if err := l.replace(valid); err != nil {
-		t.Fatalf("replace(target) error = %v", err)
-	}
-
-	_, initial := loaderState(l)
-	if initial == nil {
-		t.Fatal("replace(target) has no snapshot, want valid configuration")
-	}
-
-	for _, tt := range []struct {
-		name      string
-		namespace string
-		object    string
-	}{
-		{name: "other namespace", namespace: "team-a", object: aidataplane.ConfigMapName},
-		{name: "other name", namespace: "control-plane", object: "unrelated"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			unrelated := valid.DeepCopy()
-			unrelated.Namespace = tt.namespace
-			unrelated.Name = tt.object
-			unrelated.Data[aidataplane.ConfigMapDataKey] = "invalid"
-
-			if err := l.replace(unrelated); err != nil {
-				t.Errorf("replace(%s) error = %v, want ignored", tt.name, err)
-			}
-
-			if err := l.remove(unrelated); err != nil {
-				t.Errorf("remove(%s) error = %v, want ignored", tt.name, err)
-			}
-
-			if _, got := loaderState(l); got != initial {
-				t.Errorf("events for %s changed snapshot, want original target snapshot", tt.name)
-			}
-		})
-	}
-}
-
-func TestReplacePreservesErrorCause(t *testing.T) {
-	l := newTestLoader(t, fake.NewClientset())
-	configMap := fixtureConfigMap(t)
-	valid, err := aidataplane.Decode([]byte(configMap.Data[aidataplane.ConfigMapDataKey]))
-	if err != nil {
-		t.Fatalf("Decode(fixture) error = %v", err)
-	}
-
-	configMap.Data[aidataplane.ConfigMapDataKey] = strings.Replace(
-		configMap.Data[aidataplane.ConfigMapDataKey], valid.Revision, strings.Repeat("z", 64), 1,
-	)
-
-	err = l.replace(configMap)
-
-	if _, ok := errors.AsType[hex.InvalidByteError](err); !ok {
-		t.Errorf("replace(invalid revision) error = %v, want wrapped hex.InvalidByteError", err)
-	}
-}
-
-func TestEventsWithoutObjectIdentity(t *testing.T) {
-	l := newTestLoader(t, fake.NewClientset())
-	valid := fixtureConfigMap(t)
-	if err := l.replace(valid); err != nil {
-		t.Fatalf("replace(valid instance) error = %v", err)
-	}
-
-	_, initial := loaderState(l)
-	missingUID := valid.DeepCopy()
-	missingUID.UID = ""
-
-	if err := l.replace(nil); err == nil {
-		t.Error("replace(nil object) error = nil, want missing object error")
-	}
-
-	if err := l.replace(missingUID); err == nil {
-		t.Error("replace(missing UID) error = nil, want missing identity error")
-	}
-
-	if err := l.remove(nil); err == nil {
-		t.Error("remove(nil object) error = nil, want missing identity error")
-	}
-
-	if err := l.remove(missingUID); err == nil {
-		t.Error("remove(missing UID) error = nil, want missing identity error")
-	}
-
-	if _, got := loaderState(l); got != initial {
-		t.Error("events without object identity changed the snapshot, want retain previous configuration")
-	}
-}
-
-func TestRunLoadsUpdatesDeletesAndStops(t *testing.T) {
+func TestLoaderRetriesWithBackoffAndStops(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		apiClient := fake.NewClientset()
-		configMaps := apiClient.CoreV1().ConfigMaps("control-plane")
-		l, cancel := runTestLoader(t, apiClient)
-		if _, got := loaderState(l); got != nil {
-			t.Errorf("Run(initial missing object) = %+v, want no snapshot", got)
-		}
+		var attempts atomic.Int32
+		client := newScriptedADSClient(t, func(stream discoveryv3.AggregatedDiscoveryService_DeltaAggregatedResourcesServer) error {
+			if _, err := stream.Recv(); err != nil {
+				return err
+			}
 
-		configMap := fixtureConfigMap(t)
-		configMap, err := configMaps.Create(t.Context(), configMap, metav1.CreateOptions{})
-		if err != nil {
-			t.Fatalf("Create(target) error = %v", err)
-		}
+			attempts.Add(1)
 
+			return nil
+		})
+		loader := NewLoader(client, "test-node", slog.New(slog.NewTextHandler(io.Discard, nil)))
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- loader.Run(ctx) }()
 		synctest.Wait()
-
-		_, initial := loaderState(l)
-		if initial == nil {
-			t.Fatalf("Run(created valid object) = %+v, want nonempty valid configuration", initial)
+		if got := attempts.Load(); got != 1 {
+			t.Fatalf("Run(immediate failure) attempts = %d, want one before backoff", got)
 		}
 
-		want, err := newConfig([]byte(configMap.Data[aidataplane.ConfigMapDataKey]))
-		if err != nil {
-			t.Fatalf("newConfig(initial configuration) error = %v", err)
-		}
-
-		configMap.Data[aidataplane.ConfigMapDataKey] = "{}"
-		configMap.ResourceVersion = "2"
-
-		if _, err := configMaps.Update(t.Context(), configMap, metav1.UpdateOptions{}); err != nil {
-			t.Fatalf("Update(invalid configuration) error = %v", err)
-		}
-
+		time.Sleep(2 * time.Second)
 		synctest.Wait()
-
-		_, afterInvalid := loaderState(l)
-		if afterInvalid != initial {
-			t.Error("Run(invalid update) replaced the valid snapshot")
-		}
-
-		if diff := cmp.Diff(want, afterInvalid, cmp.AllowUnexported(Config{})); diff != "" {
-			t.Errorf("Run(invalid update) changed snapshot contents (-want +got):\n%s", diff)
-		}
-
-		configMap.Data[aidataplane.ConfigMapDataKey] = emptyPayload(t)
-		configMap.ResourceVersion = "3"
-
-		if _, err := configMaps.Update(t.Context(), configMap, metav1.UpdateOptions{}); err != nil {
-			t.Fatalf("Update(empty configuration) error = %v", err)
-		}
-
-		synctest.Wait()
-
-		if _, got := loaderState(l); got == nil || got.Revision() == initial.Revision() {
-			t.Errorf("Run(empty update) = %+v, want valid empty snapshot", got)
-		}
-
-		wantEmpty, err := newConfig([]byte(configMap.Data[aidataplane.ConfigMapDataKey]))
-		if err != nil {
-			t.Fatalf("newConfig(empty configuration) error = %v", err)
-		}
-
-		_, empty := loaderState(l)
-		if diff := cmp.Diff(wantEmpty, empty, cmp.AllowUnexported(Config{})); diff != "" {
-			t.Errorf("Run(empty update) did not revoke complete contents (-want +got):\n%s", diff)
-		}
-
-		if err := configMaps.Delete(t.Context(), aidataplane.ConfigMapName, metav1.DeleteOptions{}); err != nil {
-			t.Fatalf("Delete(target) error = %v", err)
-		}
-
-		synctest.Wait()
-
-		if _, got := loaderState(l); got != nil {
-			t.Errorf("Run(deleted target) = %+v, want no snapshot", got)
-		}
-
-		recreated := fixtureConfigMap(t)
-		recreated.UID = "recreated"
-
-		if _, err := configMaps.Create(t.Context(), recreated, metav1.CreateOptions{}); err != nil {
-			t.Fatalf("Create(recreated target) error = %v", err)
-		}
-
-		synctest.Wait()
-
-		if uid, got := loaderState(l); uid != recreated.UID || got == nil {
-			t.Errorf("Run(recreated target) = (%q, %+v), want recovered configuration", uid, got)
-		}
-
-		if err := l.Run(t.Context()); err == nil {
-			t.Error("Run(already running) error = nil, want rejection")
+		if got := attempts.Load(); got < 2 || got > 3 {
+			t.Errorf("Run(after backoff) attempts = %d, want bounded retries", got)
 		}
 
 		cancel()
-		synctest.Wait()
-
-		if _, got := loaderState(l); got != nil {
-			t.Errorf("Run(stopped) = %+v, want no snapshot", got)
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Errorf("Run(cancelled) error = %v, want context.Canceled", err)
 		}
 
-		if err := l.Run(t.Context()); err == nil {
-			t.Error("Run(restart) error = nil, want rejection")
-		}
-
-		for _, action := range apiClient.Actions() {
-			var selector string
-
-			switch action := action.(type) {
-			case clienttesting.ListAction:
-				selector = action.GetListRestrictions().Fields.String()
-			case clienttesting.WatchAction:
-				selector = action.GetWatchRestrictions().Fields.String()
-			default:
-				continue
-			}
-
-			resource := action.GetResource()
-			if resource.Group != "" || resource.Version != "v1" || resource.Resource != "configmaps" {
-				t.Errorf("Run() %s resource = %v, want only core/v1 ConfigMaps", action.GetVerb(), resource)
-			}
-
-			if action.GetNamespace() != "control-plane" || selector != "metadata.name="+aidataplane.ConfigMapName {
-				t.Errorf("Run() %s scope = (%q, %q), want only target namespace/name", action.GetVerb(), action.GetNamespace(), selector)
-			}
+		if err := loader.Run(t.Context()); err == nil {
+			t.Error("Run(second invocation) error = nil, want single-use failure")
 		}
 	})
 }
 
-func TestRunRelistFailureAndConfirmedAbsence(t *testing.T) {
+func TestLoaderKeepsConfigurationAcrossDisconnectAndClearsOnStop(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		configMap := fixtureConfigMap(t)
-		apiClient := fake.NewClientset()
-		stream := watch.NewRaceFreeFake()
-		forbidden := apierrors.NewForbidden(schema.GroupResource{Resource: "configmaps"}, aidataplane.ConfigMapName, errors.New("denied"))
-		var (
-			mu                        sync.Mutex
-			absent, failList          bool
-			failedLists, missingLists int
-		)
-		apiClient.PrependReactor("list", "configmaps", func(clienttesting.Action) (bool, runtime.Object, error) {
-			mu.Lock()
-			defer mu.Unlock()
-			if failList {
-				failedLists++
-				return true, nil, forbidden
+		entry, rule := testResources()
+		initial := testBatch(t, entry, rule)
+		var attempts atomic.Int32
+		client := newScriptedADSClient(t, func(stream discoveryv3.AggregatedDiscoveryService_DeltaAggregatedResourcesServer) error {
+			if _, err := stream.Recv(); err != nil {
+				return err
 			}
 
-			objects := &corev1.ConfigMapList{ListMeta: metav1.ListMeta{ResourceVersion: "1"}}
-			if !absent {
-				objects.Items = []corev1.ConfigMap{*configMap}
-			} else {
-				missingLists++
+			if attempts.Add(1) == 1 {
+				if err := stream.Send(initial); err != nil {
+					return err
+				}
+
+				_, err := stream.Recv()
+
+				return err
 			}
 
-			return true, objects, nil
+			<-stream.Context().Done()
+
+			return stream.Context().Err()
 		})
-		apiClient.PrependWatchReactor("configmaps", func(clienttesting.Action) (bool, watch.Interface, error) {
-			mu.Lock()
-			defer mu.Unlock()
-
-			return true, stream, nil
-		})
-		l, _ := runTestLoader(t, apiClient)
-		_, initial := loaderState(l)
-		if initial == nil {
-			t.Fatal("Run(initial List) has no configuration, want valid snapshot")
-		}
-
-		mu.Lock()
-		failList = true
-		mu.Unlock()
-		stream.Error(&metav1.Status{Code: 410, Reason: metav1.StatusReasonExpired})
-		time.Sleep(10 * time.Second) // synctest 的虚拟时间，让 SDK 重试失败的 List。
+		loader := NewLoader(client, "test-node", slog.New(slog.NewTextHandler(io.Discard, nil)))
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- loader.Run(ctx) }()
 		synctest.Wait()
-
-		mu.Lock()
-		failedAttempts := failedLists
-		mu.Unlock()
-		if failedAttempts == 0 {
-			t.Fatal("Run(failed relist) made no failing List request, want exercised failure path")
+		previous, loaded := loader.Capture()
+		if !loaded {
+			t.Fatal("Capture(after first response) has no configuration")
 		}
 
-		if _, got := loaderState(l); got != initial {
-			t.Error("Run(failed relist) cleared the configuration, want retain previous snapshot")
-		}
-
-		mu.Lock()
-		failList = false
-		absent = true
-		stream = watch.NewRaceFreeFake()
-		mu.Unlock()
-		time.Sleep(60 * time.Second) // 推进 SDK 退避，不新增生产侧重试或轮询。
+		time.Sleep(2 * time.Second)
 		synctest.Wait()
-
-		mu.Lock()
-		missingAttempts := missingLists
-		mu.Unlock()
-		if missingAttempts == 0 {
-			t.Fatal("Run(successful relist) made no List request confirming absence")
+		if current, loaded := loader.Capture(); !loaded || current != previous || attempts.Load() != 2 {
+			t.Error("disconnect/reconnect discarded the last valid view or did not reconnect")
 		}
 
-		if _, got := loaderState(l); got != nil {
-			t.Errorf("Run(successful relist without target) = %+v, want no snapshot", got)
+		cancel()
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Errorf("Run(cancelled open stream) error = %v", err)
+		}
+
+		if _, loaded := loader.Capture(); loaded || len(loader.state.resources) != 0 {
+			t.Error("Run(stop) retained the current pointer or owned resources")
+		}
+
+		if _, err := previous.ResolveModel(8080, "host", "coding"); err != nil {
+			t.Errorf("ResolveModel(captured before stop) error = %v, want immutable retained view", err)
 		}
 	})
 }
 
-func TestRunWatchFailureRetainsConfig(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		apiClient := fake.NewClientset(fixtureConfigMap(t))
-		forbidden := apierrors.NewForbidden(schema.GroupResource{Resource: "configmaps"}, aidataplane.ConfigMapName, errors.New("denied"))
-		var watchAttempts atomic.Int32
-		apiClient.PrependWatchReactor("configmaps", func(clienttesting.Action) (bool, watch.Interface, error) {
-			watchAttempts.Add(1)
-			return true, nil, forbidden
-		})
-		l, _ := runTestLoader(t, apiClient)
-
-		if watchAttempts.Load() == 0 {
-			t.Fatal("Run(watch failure) made no failing Watch request, want exercised failure path")
-		}
-
-		_, got := loaderState(l)
-		if got == nil {
-			t.Errorf("Run(watch failure) = %+v, want retain the valid initial List configuration", got)
-		} else if _, err := got.ResolveModel(8080, "gateway/team-a/public/listener/api", "coding"); err != nil {
-			t.Errorf("ResolveModel(after Watch failure) error = %v, want valid initial model route", err)
-		}
-	})
-}
-
-func TestRunCancelledBeforeStart(t *testing.T) {
-	apiClient := fake.NewClientset()
-	l := newTestLoader(t, apiClient)
+func TestLoaderRunRejectsCancelledContextWithoutDial(t *testing.T) {
+	loader := NewLoader(nil, "test", slog.Default())
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	if err := l.Run(ctx); !errors.Is(err, context.Canceled) {
-		t.Errorf("Run(cancelled context) error = %v, want context.Canceled", err)
-	}
-
-	if actions := apiClient.Actions(); len(actions) != 0 {
-		t.Errorf("Run(cancelled context) API actions = %v, want none", actions)
+	if err := loader.Run(ctx); !errors.Is(err, context.Canceled) {
+		t.Errorf("Run(cancelled before subscription) error = %v, want context.Canceled", err)
 	}
 }
 
-func newTestLoader(t *testing.T, apiClient *fake.Clientset) *Loader {
-	t.Helper()
-
-	return NewLoader(apiClient, "control-plane", slog.New(slog.NewTextHandler(io.Discard, nil)))
+func (s *scriptedADS) DeltaAggregatedResources(stream discoveryv3.AggregatedDiscoveryService_DeltaAggregatedResourcesServer) error {
+	return s.run(stream)
 }
 
-// runTestLoader 必须在 synctest 内调用；清理时取消并等待 Run 返回。
-func runTestLoader(t *testing.T, apiClient *fake.Clientset) (*Loader, context.CancelFunc) {
+func (c *feedbackClient) DeltaAggregatedResources(context.Context, ...grpc.CallOption) (discoveryv3.AggregatedDiscoveryService_DeltaAggregatedResourcesClient, error) {
+	return c.stream, nil
+}
+
+func (s *feedbackStream) Send(request *discoveryv3.DeltaDiscoveryRequest) error {
+	s.feedback = append(s.feedback, request)
+
+	return nil
+}
+
+func (s *feedbackStream) Recv() (*discoveryv3.DeltaDiscoveryResponse, error) {
+	if len(s.responses) == 0 {
+		return nil, io.EOF
+	}
+
+	response := s.responses[0]
+	s.responses = s.responses[1:]
+
+	return response, nil
+}
+
+func newScriptedADSClient(t *testing.T, run func(discoveryv3.AggregatedDiscoveryService_DeltaAggregatedResourcesServer) error) discoveryv3.AggregatedDiscoveryServiceClient {
 	t.Helper()
-	l := newTestLoader(t, apiClient)
-	ctx, cancel := context.WithCancel(t.Context())
-	done := make(chan error, 1)
-	go func() { done <- l.Run(ctx) }()
-	t.Cleanup(func() {
-		cancel()
-		if err := <-done; !errors.Is(err, context.Canceled) {
-			t.Errorf("Run(stopped test loader) error = %v, want context.Canceled", err)
+	listener := bufconn.Listen(1 << 20)
+	server := grpc.NewServer()
+	discoveryv3.RegisterAggregatedDiscoveryServiceServer(server, &scriptedADS{run: run})
+	var serving sync.WaitGroup
+	serving.Go(func() {
+		if err := server.Serve(listener); err != nil {
+			t.Errorf("Serve(scripted ADS) error = %v", err)
 		}
 	})
-	synctest.Wait()
-
-	return l, cancel
-}
-
-func fixtureConfigMap(t *testing.T) *corev1.ConfigMap {
-	t.Helper()
-	data, err := os.ReadFile("../../../pkg/aidataplane/testdata/v1.json")
+	t.Cleanup(func() { server.Stop(); serving.Wait() })
+	connection, err := grpc.NewClient("passthrough:///scripted-ads",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) { return listener.DialContext(ctx) }),
+	)
 	if err != nil {
-		t.Fatalf("ReadFile(AI configuration fixture) error = %v", err)
+		t.Fatalf("NewClient(scripted ADS) error = %v", err)
 	}
 
-	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       "control-plane",
-			Name:            aidataplane.ConfigMapName,
-			UID:             "original",
-			ResourceVersion: "1",
-		},
-		Data: map[string]string{aidataplane.ConfigMapDataKey: string(data)},
-	}
-}
-
-func emptyPayload(t *testing.T) string {
-	t.Helper()
-	data, err := aidataplane.Encode(aidataplane.Config{
-		FormatVersion:   aidataplane.FormatVersionV1,
-		Listeners:       []aidataplane.Listener{},
-		Backends:        []aidataplane.Backend{},
-		NetworkBackends: []aidataplane.NetworkBackend{},
+	t.Cleanup(func() {
+		if err := connection.Close(); err != nil {
+			t.Errorf("Close(scripted ADS) error = %v", err)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Encode(empty configuration) error = %v", err)
-	}
 
-	return string(data)
-}
-
-// loaderState 仅供测试观察私有状态，不提供可变配置的生产访问入口。
-func loaderState(l *Loader) (types.UID, *Config) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-
-	return l.uid, l.config
+	return discoveryv3.NewAggregatedDiscoveryServiceClient(connection)
 }

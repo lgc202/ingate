@@ -1,5 +1,7 @@
 # API 网关完成度与 AI 网关开发条件
 
+> 当前增量实现入口：[设计](design/control-plane-incremental-design.md)、[启动说明](control-plane-initialization.md)。Controller 与 AI Proxy 已改用资源级 Delta ADS；下文日期化的完成度与 ConfigMap 描述保留为历史评估，不能作为当前启动方式。普通测试与原生 ADS 联合回归不替代真实 Envoy、数据库及部署验收。
+
 - 评估日期：2026-10-10；2026-10-11 同步 ADS 反馈；2026-10-12 同步声明式资源及 AIBackend、ModelRoute、MCPRoute 管理与投影；2026-10-13 同步 Namespace 全链路切换；2026-10-19 同步 Envoy Delta ADS
 - 源码基线：`f054c54b` 已提交 MCPRoute 管理与查询投影；共享协调器及 Namespace 基础设施已提交；当前六种资源 Namespace 全链路切换待用户 review，未提交；HTTP 替换前评估基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
 - 分支：`codex/rebuild-from-zero`

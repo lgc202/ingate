@@ -9,11 +9,12 @@ import (
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 
+	aidataplanev1 "github.com/lgc202/ingate/api/aidataplane/v1"
 	"github.com/lgc202/ingate/internal/controllermanager/dataplane"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
-const sharedDataPlaneCluster = dataplane.SharedDataPlaneCluster
+const sharedDataPlaneCluster = aidataplanev1.SharedDataPlaneCluster
 
 // Publisher 保存共享 Envoy 数据面的完整 xDS 配置。
 type Publisher struct {

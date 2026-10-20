@@ -18,12 +18,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/aiconfig"
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/apischema/openai"
+	"github.com/lgc202/ingate/internal/aiproxy/pkg/configtest"
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/envoyclient"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
@@ -165,7 +163,7 @@ func TestNewHTTPServerLocalUnavailableErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-				loader := aiconfig.NewLoader(fake.NewClientset(), "control-plane", logger)
+				loader := aiconfig.NewLoader(nil, "test", logger)
 				if tt.loaded {
 					loader = loadedConfig(t)
 				}
@@ -205,7 +203,7 @@ func TestNewHTTPServerLocalUnavailableErrors(t *testing.T) {
 func TestNewHTTPServerRejectsInvalidConfiguration(t *testing.T) {
 	listener := unixListener(t, "ingress.sock")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	loader := aiconfig.NewLoader(fake.NewClientset(), "control-plane", logger)
+	loader := aiconfig.NewLoader(nil, "test", logger)
 
 	for _, tt := range []struct {
 		name   string
@@ -333,7 +331,7 @@ func testModelPipelineStream(t *testing.T, operationPath, event string) {
 	})
 }
 
-// loadedConfig 只在 synctest 中运行；假 API 只替换远端服务，保留真实 Loader。
+// loadedConfig 在 synctest 中通过原生内存 ADS 服务驱动真实 Loader。
 func loadedConfig(t *testing.T) *aiconfig.Loader {
 	t.Helper()
 	data, err := os.ReadFile("../pkg/aidataplane/testdata/v1.json")
@@ -341,14 +339,15 @@ func loadedConfig(t *testing.T) *aiconfig.Loader {
 		t.Fatalf("ReadFile(compiled configuration) error = %v", err)
 	}
 
-	configMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "control-plane", Name: aidataplane.ConfigMapName, UID: "fixture",
-		},
-		Data: map[string]string{aidataplane.ConfigMapDataKey: string(data)},
+	compiled, err := aidataplane.Decode(data)
+	if err != nil {
+		t.Fatalf("Decode(test fixture) error = %v", err)
 	}
+
+	source := configtest.New(t)
+	source.Publish(t, *compiled)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	loader := aiconfig.NewLoader(fake.NewClientset(configMap), "control-plane", logger)
+	loader := aiconfig.NewLoader(source.Client, "test", logger)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)

@@ -1,5 +1,7 @@
 # AI 模型操作与数据面部署设计
 
+> 当前部署更新：AI Proxy 使用 `discovery.address`、`node_id`、`max_response_bytes` 订阅 Delta ADS，不再读取 `api_server.kubeconfig` 或 `ai_config_namespace`。本文件中 ConfigMap 启动接线属于历史记录；当前步骤见[启动说明](../control-plane-initialization.md)与[增量设计](control-plane-incremental-design.md)。模型与 MCP 请求行为不因配置通道变化而扩展。
+
 - 状态：模型创建链已提交；2026-10-16 补齐 MCP 2026-07-28 单 Backend 透明代理，本地验证范围见文末，尚未进行真实 Envoy 联调
 - 日期：2026-10-11
 - 资源字段对齐：2026-10-12；首步操作与本地通信确认：2026-10-15
@@ -14,10 +16,10 @@
 
 2026-10-15 用户已确认开始实际 AI Proxy 开发，先做 Chat Completions，普通响应与 SSE 使用同协议转发，Envoy 与 Go 同机通过 UDS 通信，网络连接仍由 Envoy 管理。随后确认两路配置采用最终一致性，不增加每请求整份 revision 相等的准入条件、全局实例确认或发布协调系统；传播期间可能暂时失败，仍须保证目标绑定与失效拒绝。两个创建操作的长期建议保留，但本次确认不包括 Responses。凭据、安全和具体入口/出口关联方式不在本稿中用示例补全，确认方向不等于确认全部内部 Header 或冲突裁决。
 
-## 当前实现的数据流（2026-10-16）
+## 当前实现的数据流（2026-10-19）
 
-以下两图按 `42a6cba9` 的已提交代码描述配置与模型请求的正常路径。普通 HTTP 和
-两个模型创建接口的主链已实现；本轮新增 MCP 请求代理，详见[首版 MCP](#首版-mcpstreamable-http2026-07-28)。这两图仍只描述模型链。
+以下两图描述当前配置与模型请求的正常路径。配置通道已改为资源级 Delta ADS，普通 HTTP 和
+两个模型创建接口的主链保留；MCP 请求代理见[首版 MCP](#首版-mcpstreamable-http2026-07-28)。请求时序图只描述模型链。
 上游 TLS 首版已接通本地源码（见文末），提供商凭据和跨提供商协议转换仍未实现；真实 Envoy、API Server 与模型
 提供商的整链路尚未验收，不能把图中的连接当作已经完成部署验证。
 
@@ -31,15 +33,15 @@ API Server/etcd 保存权威资源，MySQL 是可重建的异步查询投影，�
 Controller 从六种领域资源解析引用并编译：Envoy 消费网络配置，Go 消费协议、模型
 规则和后端绑定，不在每个请求中重新查询 ModelRoute、AIBackend 或 Backend。
 
-AI 配置保存在部署侧预先创建的控制面 Namespace，固定 ConfigMap 名称为
-`ingate-shared-data-plane-ai`，`data["config.json"]` 保存完整 JSON。Loader 使用
-指定 Namespace 和对象名的 List/Watch，校验完整配置并建立索引后，替换当前只读快照。
-多个 Gateway 共用一份配置，请求仍按 Listener/Host 查找各自规则。
+AI Proxy 通过同一 ADS 服务订阅独立的 Entry、ModelRule、MCPRoute 资源。
+Loader 按批校验更新与删除，只重建受影响入口的查询索引，然后替换当前只读视图并 ACK。
+首次完整同步、变化更新和带版本重连的语义见[增量设计](control-plane-incremental-design.md)。
+多个 Gateway 的资源名相互独立，同组副本订阅相同资源集，请求仍按 Listener/Host 查找规则。
 
-xDS 与 ConfigMap 是独立下发的两路输出，不提供原子切换；更新传播期间可能因入口或
-目标暂时不可用而失败。发布到 xDS Cache 不表示 Envoy 已 ACK，成功保存 ConfigMap
-也不表示 Go 已加载。源码入口为 [Reconcile/reconcileAI](../../internal/controllermanager/controller/gateway/controller.go)、
-[ConfigMap 写入](../../internal/controllermanager/controller/gateway/ai_config.go)、
+Envoy 与 AI Proxy 按类型消费两路 Delta 输出，不提供跨进程原子切换；传播期间可能因入口或
+目标暂时不可用而失败。发布到 Cache 不表示代理已 ACK，ACK 也不表示真实后端可用。
+源码入口为 [Reconcile/reconcileAI](../../internal/controllermanager/controller/gateway/controller.go)、
+[共享发布器](../../internal/controllermanager/dataplane/xds/publisher.go)、
 [Loader.Run](../../internal/aiproxy/pkg/aiconfig/loader.go)及
 [查询投影](../../internal/controllermanager/controller/projection/modelroute.go)。
 

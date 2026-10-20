@@ -13,11 +13,9 @@ import (
 	"testing/synctest"
 
 	"github.com/google/go-cmp/cmp"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/aiconfig"
+	"github.com/lgc202/ingate/internal/aiproxy/pkg/configtest"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
@@ -30,7 +28,7 @@ type countedBody struct {
 
 func TestChatCompletionSendsPreparedRequest(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		service, _ := runTestService(t, fixtureConfigMap(t))
+		service, _ := runTestService(t, fixtureConfig(t))
 		body := []byte(`{"model":"coding","messages":[],"stream":true,"vendor":{"enabled":true}}`)
 		original := bytes.Clone(body)
 		params := RequestParams{
@@ -71,11 +69,11 @@ func TestChatCompletionSendsPreparedRequest(t *testing.T) {
 
 func TestChatCompletionWithoutModelOverride(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		configMap := fixtureConfigMap(t)
-		compiled := decodeTestConfig(t, configMap)
+		config := fixtureConfig(t)
+		compiled := cloneTestConfig(t, config)
 		compiled.Backends[0].ModelNameOverride = new("")
-		setTestConfig(t, configMap, *compiled)
-		service, _ := runTestService(t, configMap)
+		*config = *compiled
+		service, _ := runTestService(t, config)
 		body := []byte("{\n  \"model\": \"coding\", \"vendor\": true\n}")
 		original := bytes.Clone(body)
 
@@ -94,11 +92,11 @@ func TestChatCompletionWithoutModelOverride(t *testing.T) {
 
 func TestChatCompletionUsesConfiguredEscapedPrefix(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		configMap := fixtureConfigMap(t)
-		compiled := decodeTestConfig(t, configMap)
+		config := fixtureConfig(t)
+		compiled := cloneTestConfig(t, config)
 		compiled.Backends[0].Schema.Prefix = "/custom%20base/"
-		setTestConfig(t, configMap, *compiled)
-		service, _ := runTestService(t, configMap)
+		*config = *compiled
+		service, _ := runTestService(t, config)
 
 		response, err := service.ChatCompletion(t.Context(), modelParams([]byte(`{"model":"coding"}`)))
 		if err != nil {
@@ -115,7 +113,7 @@ func TestChatCompletionUsesConfiguredEscapedPrefix(t *testing.T) {
 
 func TestChatCompletionRejectsInvalidRequests(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		service, _ := runTestService(t, fixtureConfigMap(t))
+		service, _ := runTestService(t, fixtureConfig(t))
 		service.client.Transport = rejectUnexpectedRequest(t)
 		for _, body := range []string{"", `null`, `{}`, `{"Model":"coding"}`, `{"model":""}`, `{"model":123}`, `{"model":"coding","model":"other"}`} {
 			response, err := service.ChatCompletion(t.Context(), modelParams([]byte(body)))
@@ -135,7 +133,7 @@ func TestChatCompletionRejectsInvalidRequests(t *testing.T) {
 
 func TestChatCompletionDoesNotCrossEntries(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		service, _ := runTestService(t, fixtureConfigMap(t))
+		service, _ := runTestService(t, fixtureConfig(t))
 		service.client.Transport = rejectUnexpectedRequest(t)
 		for _, tt := range []struct {
 			name string
@@ -163,16 +161,16 @@ func TestChatCompletionDoesNotCrossEntries(t *testing.T) {
 
 func TestChatCompletionDoesNotFallThroughUnavailableBackend(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		configMap := fixtureConfigMap(t)
-		compiled := decodeTestConfig(t, configMap)
+		config := fixtureConfig(t)
+		compiled := cloneTestConfig(t, config)
 		host := &compiled.Listeners[0].Hosts[0]
 		fallback := host.ModelRoutes[0]
 		fallback.Name = "team-a/coding/rule/1/match/0"
 		fallback.Headers = []aidataplane.HeaderMatch{}
 		host.ModelRoutes[0].BackendName = new("")
 		host.ModelRoutes = append(host.ModelRoutes, fallback)
-		setTestConfig(t, configMap, *compiled)
-		service, _ := runTestService(t, configMap)
+		*config = *compiled
+		service, _ := runTestService(t, config)
 		service.client.Transport = rejectUnexpectedRequest(t)
 
 		response, err := service.ChatCompletion(t.Context(), modelParams([]byte(`{"model":"coding"}`)))
@@ -185,8 +183,8 @@ func TestChatCompletionDoesNotFallThroughUnavailableBackend(t *testing.T) {
 
 func TestChatCompletionConfigurationChanges(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		configMap := fixtureConfigMap(t)
-		service, apiClient := runTestService(t, configMap)
+		config := fixtureConfig(t)
+		service, source := runTestService(t, config)
 		params := modelParams([]byte(`{"model":"coding"}`))
 		previous, err := service.ChatCompletion(t.Context(), params)
 		if err != nil {
@@ -195,13 +193,11 @@ func TestChatCompletionConfigurationChanges(t *testing.T) {
 
 		previousBody := readResponse(t, previous)
 
-		compiled := decodeTestConfig(t, configMap)
+		compiled := cloneTestConfig(t, config)
 		compiled.Backends[0].ModelNameOverride = new("code-v3")
 		compiled.Backends[0].Schema.Prefix = "v2/"
-		setTestConfig(t, configMap, *compiled)
-		if _, err := apiClient.CoreV1().ConfigMaps(configMap.Namespace).Update(t.Context(), configMap, metav1.UpdateOptions{}); err != nil {
-			t.Fatalf("Update(configuration) error = %v", err)
-		}
+		*config = *compiled
+		source.Publish(t, *config)
 
 		synctest.Wait()
 
@@ -220,23 +216,21 @@ func TestChatCompletionConfigurationChanges(t *testing.T) {
 			t.Error("ChatCompletion(config update) reused target for different protocol content")
 		}
 
-		if err := apiClient.CoreV1().ConfigMaps(configMap.Namespace).Delete(t.Context(), configMap.Name, metav1.DeleteOptions{}); err != nil {
-			t.Fatalf("Delete(configuration) error = %v", err)
-		}
+		source.Publish(t, aidataplane.Config{})
 
 		synctest.Wait()
 		service.client.Transport = rejectUnexpectedRequest(t)
 
 		response, err := service.ChatCompletion(t.Context(), params)
 
-		if response != nil || !errors.Is(err, ErrUnavailable) {
-			t.Errorf("ChatCompletion(deleted configuration) = (%v, %v), want unavailable without outbound request", response, err)
+		if response != nil || !errors.Is(err, ErrModelNotFound) {
+			t.Errorf("ChatCompletion(removed routes) = (%v, %v), want model not found without outbound request", response, err)
 		}
 	})
 }
 
 func TestModelOperationsBeforeConfigurationAndCancelled(t *testing.T) {
-	loader := aiconfig.NewLoader(fake.NewClientset(), "control-plane", slog.Default())
+	loader := aiconfig.NewLoader(nil, "test", slog.Default())
 
 	service := New(loader, &http.Client{Transport: rejectUnexpectedRequest(t)})
 
@@ -266,11 +260,11 @@ func TestModelOperationsBeforeConfigurationAndCancelled(t *testing.T) {
 
 func TestCreateResponseUsesConfiguredEscapedPrefix(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		configMap := fixtureConfigMap(t)
-		compiled := decodeTestConfig(t, configMap)
+		config := fixtureConfig(t)
+		compiled := cloneTestConfig(t, config)
 		compiled.Backends[0].Schema.Prefix = "/custom%20base/"
-		setTestConfig(t, configMap, *compiled)
-		service, _ := runTestService(t, configMap)
+		*config = *compiled
+		service, _ := runTestService(t, config)
 
 		response, err := service.CreateResponse(t.Context(), modelParams([]byte(`{"model":"coding","input":"hello"}`)))
 		if err != nil {
@@ -287,7 +281,7 @@ func TestCreateResponseUsesConfiguredEscapedPrefix(t *testing.T) {
 
 func TestChatCompletionPreservesClientFailure(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		service, _ := runTestService(t, fixtureConfigMap(t))
+		service, _ := runTestService(t, fixtureConfig(t))
 		cause := errors.New("private connection details")
 		service.client.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, cause })
 
@@ -301,7 +295,7 @@ func TestChatCompletionPreservesClientFailure(t *testing.T) {
 
 func TestChatCompletionTransfersResponseBodyWithoutReading(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		service, _ := runTestService(t, fixtureConfigMap(t))
+		service, _ := runTestService(t, fixtureConfig(t))
 		body := &countedBody{}
 		upstream := &http.Response{StatusCode: http.StatusTooManyRequests, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: body, ContentLength: -1}
 		service.client.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) { return upstream, nil })
@@ -320,7 +314,7 @@ func TestChatCompletionTransfersResponseBodyWithoutReading(t *testing.T) {
 
 func TestChatCompletionRejectsUnexpectedProtocolUpgrade(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		service, _ := runTestService(t, fixtureConfigMap(t))
+		service, _ := runTestService(t, fixtureConfig(t))
 		body := &countedBody{}
 		service.client.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: http.StatusSwitchingProtocols, Header: make(http.Header), Body: body}, nil
@@ -354,11 +348,12 @@ func (b *countedBody) Close() error {
 }
 
 // runTestService 在 synctest 中使用真实 Loader，仅将远端 HTTP 替换为原生 Transport 测试替身。
-func runTestService(t *testing.T, configMap *corev1.ConfigMap) (*Service, *fake.Clientset) {
+func runTestService(t *testing.T, config *aidataplane.Config) (*Service, *configtest.Source) {
 	t.Helper()
-	apiClient := fake.NewClientset(configMap)
+	source := configtest.New(t)
+	source.Publish(t, *config)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	loader := aiconfig.NewLoader(apiClient, configMap.Namespace, logger)
+	loader := aiconfig.NewLoader(source.Client, "test", logger)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
@@ -390,7 +385,7 @@ func runTestService(t *testing.T, configMap *corev1.ConfigMap) (*Service, *fake.
 		}, nil
 	})}
 
-	return New(loader, client), apiClient
+	return New(loader, client), source
 }
 
 func rejectUnexpectedRequest(t *testing.T) http.RoundTripper {
@@ -421,35 +416,32 @@ func readResponse(t *testing.T, response *http.Response) []byte {
 	return data
 }
 
-func fixtureConfigMap(t *testing.T) *corev1.ConfigMap {
+func fixtureConfig(t *testing.T) *aidataplane.Config {
 	t.Helper()
 	data, err := os.ReadFile("../../../pkg/aidataplane/testdata/v1.json")
 	if err != nil {
 		t.Fatalf("ReadFile(configuration fixture) error = %v", err)
 	}
 
-	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "control-plane", Name: aidataplane.ConfigMapName, UID: "original", ResourceVersion: "1"},
-		Data:       map[string]string{aidataplane.ConfigMapDataKey: string(data)},
+	config, err := aidataplane.Decode(data)
+	if err != nil {
+		t.Fatalf("Decode(configuration fixture) error = %v", err)
 	}
+
+	return config
 }
 
-func decodeTestConfig(t *testing.T, configMap *corev1.ConfigMap) *aidataplane.Config {
+func cloneTestConfig(t *testing.T, config *aidataplane.Config) *aidataplane.Config {
 	t.Helper()
-	compiled, err := aidataplane.Decode([]byte(configMap.Data[aidataplane.ConfigMapDataKey]))
+	data, err := aidataplane.Encode(*config)
+	if err != nil {
+		t.Fatalf("Encode(test configuration) error = %v", err)
+	}
+
+	compiled, err := aidataplane.Decode(data)
 	if err != nil {
 		t.Fatalf("Decode(test configuration) error = %v", err)
 	}
 
 	return compiled
-}
-
-func setTestConfig(t *testing.T, configMap *corev1.ConfigMap, compiled aidataplane.Config) {
-	t.Helper()
-	data, err := aidataplane.Encode(compiled)
-	if err != nil {
-		t.Fatalf("Encode(test configuration) error = %v", err)
-	}
-
-	configMap.Data[aidataplane.ConfigMapDataKey] = string(data)
 }

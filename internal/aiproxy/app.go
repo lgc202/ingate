@@ -9,11 +9,11 @@ import (
 	"log/slog"
 	"net"
 
+	discoveryv3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"github.com/go-kratos/kratos/v3"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/lgc202/ingate/internal/aiproxy/conf"
 	"github.com/lgc202/ingate/internal/aiproxy/handler"
@@ -29,8 +29,8 @@ import (
 const componentName = "ingate-ai-proxy"
 
 // Run 加载启动配置并运行唯一的 Kratos App，直到 Context 取消或框架收到停止信号。
-// HTTP 先停止接收并有界排空，再取消、等待 Loader，最后清理两个 HTTP 连接池。
-// socket 目录由部署侧准备；不会删除启动前已有的路径或创建 Namespace/ConfigMap。
+// HTTP 先停止接收并有界排空，再取消、等待 Loader，最后关闭出站连接池与发现连接。
+// socket 目录由部署侧准备；不会删除启动前已有的路径或创建 API 资源。
 func Run(ctx context.Context, configFile string) (runErr error) {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("start AI Proxy: %w", err)
@@ -53,11 +53,16 @@ func Run(ctx context.Context, configFile string) (runErr error) {
 	}()
 	logger = logger.With("service", componentName)
 
-	loader, closeAPI, err := newConfigLoader(config.GetApiServer(), logger)
+	loader, closeDiscovery, err := newConfigLoader(config.GetDiscovery(), logger)
 	if err != nil {
 		return err
 	}
-	defer closeAPI()
+
+	defer func() {
+		if err := closeDiscovery(); err != nil {
+			runErr = errors.Join(runErr, fmt.Errorf("close AI discovery connection: %w", err))
+		}
+	}()
 
 	listener, err := listenUnix(config.GetServer().GetSocket())
 	if err != nil {
@@ -170,26 +175,16 @@ func runApp(ctx context.Context, app *kratos.App, loader *aiconfig.Loader) error
 	return errors.Join(appErr, loaderErr)
 }
 
-func newConfigLoader(config *conf.APIServer, logger *slog.Logger) (*aiconfig.Loader, func(), error) {
-	restConfig, err := clientcmd.BuildConfigFromFlags("", config.GetKubeconfig())
+func newConfigLoader(config *conf.Discovery, logger *slog.Logger) (*aiconfig.Loader, func() error, error) {
+	connection, err := grpc.NewClient("passthrough:///"+config.GetAddress(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(int(config.GetMaxResponseBytes()))),
+	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("build Ingate API client configuration: %w", err)
+		return nil, nil, fmt.Errorf("create AI discovery connection: %w", err)
 	}
 
-	restConfig = rest.AddUserAgent(restConfig, componentName)
+	loader := aiconfig.NewLoader(discoveryv3.NewAggregatedDiscoveryServiceClient(connection), config.GetNodeId(), logger)
 
-	apiHTTP, err := rest.HTTPClientFor(restConfig)
-	if err != nil {
-		return nil, nil, fmt.Errorf("create Ingate API HTTP client: %w", err)
-	}
-
-	apiClient, err := kubernetes.NewForConfigAndClient(restConfig, apiHTTP)
-	if err != nil {
-		apiHTTP.CloseIdleConnections()
-		return nil, nil, fmt.Errorf("create Ingate API client: %w", err)
-	}
-
-	loader := aiconfig.NewLoader(apiClient, config.GetAiConfigNamespace(), logger)
-
-	return loader, apiHTTP.CloseIdleConnections, nil
+	return loader, connection.Close, nil
 }

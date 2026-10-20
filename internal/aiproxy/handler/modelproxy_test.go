@@ -18,12 +18,9 @@ import (
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	"github.com/go-kratos/kratos/v3/middleware"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/aiconfig"
+	"github.com/lgc202/ingate/internal/aiproxy/pkg/configtest"
 	"github.com/lgc202/ingate/internal/aiproxy/service/modelproxy"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
@@ -72,7 +69,7 @@ func TestModelProxyHandlerChatCompletion(t *testing.T) {
 
 			return modelResponse(http.StatusAccepted, `{"accepted":true}`, nil), nil
 		})
-		service := startModelService(t, transport, modelConfigMap(t))
+		service := startModelService(t, transport, modelConfig(t))
 		router := newModelRouter(t, service, 1024)
 		request := trustedModelRequest(t, `{"model":"coding"}`)
 		request.URL.Host = "untrusted.example"
@@ -127,7 +124,7 @@ func TestModelProxyHandlerRejectsBeforeClientCall(t *testing.T) {
 					called = true
 					return modelResponse(http.StatusNoContent, "", nil), nil
 				})
-				service := startModelService(t, transport, modelConfigMap(t))
+				service := startModelService(t, transport, modelConfig(t))
 				router := newModelRouter(t, service, tt.limit)
 				request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(tt.body))
 				request.Header.Set("x-ingate-ai-listener-port", "8080")
@@ -156,7 +153,7 @@ func TestModelProxyHandlerExactBodyLimitAndUnloadedConfiguration(t *testing.T) {
 			return modelResponse(http.StatusNoContent, "", nil), nil
 		})
 		body := `{"model":"coding"}`
-		service := startModelService(t, transport, modelConfigMap(t))
+		service := startModelService(t, transport, modelConfig(t))
 		router := newModelRouter(t, service, int64(len(body)))
 		response := httptest.NewRecorder()
 
@@ -189,7 +186,7 @@ func TestModelProxyHandlerMiddlewarePrecedesReadAndPreservesContext(t *testing.T
 
 			return modelResponse(http.StatusNoContent, "", nil), nil
 		})
-		service := startModelService(t, transport, modelConfigMap(t))
+		service := startModelService(t, transport, modelConfig(t))
 		deny := func(middleware.Handler) middleware.Handler {
 			return func(context.Context, any) (any, error) {
 				return nil, kratoserrors.Forbidden("TEST_DENIED", "access denied")
@@ -232,7 +229,7 @@ func TestModelProxyHandlerReadFailures(t *testing.T) {
 					called = true
 					return modelResponse(http.StatusNoContent, "", nil), nil
 				})
-				service := startModelService(t, transport, modelConfigMap(t))
+				service := startModelService(t, transport, modelConfig(t))
 				router := newModelRouter(t, service, 1024)
 				body := &failingBody{err: errors.New("sensitive request details")}
 				request := trustedModelRequest(t, "")
@@ -264,7 +261,7 @@ func TestModelProxyHandlerReadFailures(t *testing.T) {
 }
 
 func TestNewModelProxyRejectsInvalidBodyLimit(t *testing.T) {
-	loader := aiconfig.NewLoader(fake.NewClientset(), "control-plane", slog.Default())
+	loader := aiconfig.NewLoader(nil, "test", slog.Default())
 
 	service := modelproxy.New(loader, &http.Client{})
 	for _, limit := range []int64{0, -1} {
@@ -439,10 +436,16 @@ func newModelRouter(
 	return router
 }
 
-func startModelService(t *testing.T, transport http.RoundTripper, objects ...runtime.Object) *modelproxy.Service {
+func startModelService(t *testing.T, transport http.RoundTripper, configs ...*aidataplane.Config) *modelproxy.Service {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	loader := aiconfig.NewLoader(fake.NewClientset(objects...), "control-plane", logger)
+	if len(configs) == 0 {
+		return modelproxy.New(aiconfig.NewLoader(nil, "test", logger), &http.Client{Transport: transport})
+	}
+
+	source := configtest.New(t)
+	source.Publish(t, *configs[0])
+	loader := aiconfig.NewLoader(source.Client, "test", logger)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
@@ -469,15 +472,17 @@ func modelResponse(status int, body string, headers http.Header) *http.Response 
 	return &http.Response{StatusCode: status, Header: headers, Body: io.NopCloser(strings.NewReader(body)), ContentLength: int64(len(body))}
 }
 
-func modelConfigMap(t *testing.T) *corev1.ConfigMap {
+func modelConfig(t *testing.T) *aidataplane.Config {
 	t.Helper()
 	data, err := os.ReadFile("../../pkg/aidataplane/testdata/v1.json")
 	if err != nil {
 		t.Fatalf("ReadFile(configuration fixture) error = %v", err)
 	}
 
-	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "control-plane", Name: aidataplane.ConfigMapName, UID: "original", ResourceVersion: "1"},
-		Data:       map[string]string{aidataplane.ConfigMapDataKey: string(data)},
+	config, err := aidataplane.Decode(data)
+	if err != nil {
+		t.Fatalf("Decode(configuration fixture) error = %v", err)
 	}
+
+	return config
 }

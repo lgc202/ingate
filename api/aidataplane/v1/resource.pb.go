@@ -904,20 +904,20 @@ const file_aidataplane_v1_resource_proto_rawDesc = "" +
 	"\x13model_name_override\x18\x03 \x01(\tR\x11modelNameOverride\x129\n" +
 	"\x14network_backend_name\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x12networkBackendName\x12(\n" +
 	"\vtarget_name\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\n" +
-	"targetName\"\xae\x02\n" +
+	"targetName\"\xb1\x02\n" +
 	"\bMCPRoute\x12G\n" +
 	"\n" +
 	"entry_refs\x18\x01 \x03(\v2\x1e.aidataplane.v1.EntryReferenceB\b\xbaH\x05\x92\x01\x02\b\x01R\tentryRefs\x126\n" +
-	"\x06origin\x18\x02 \x01(\v2\x16.aidataplane.v1.OriginB\x06\xbaH\x03\xc8\x01\x01R\x06origin\x12\x1e\n" +
-	"\x04path\x18\x03 \x01(\tB\n" +
-	"\xbaH\ar\x05\x10\x01:\x01/R\x04path\x123\n" +
+	"\x06origin\x18\x02 \x01(\v2\x16.aidataplane.v1.OriginB\x06\xbaH\x03\xc8\x01\x01R\x06origin\x12!\n" +
+	"\x04path\x18\x03 \x01(\tB\r\xbaH\n" +
+	"r\b\x10\x01\x18\x80\b:\x01/R\x04path\x123\n" +
 	"\x06target\x18\x04 \x01(\v2\x19.aidataplane.v1.MCPTargetH\x00R\x06target\x12:\n" +
 	"\vunavailable\x18\x05 \x01(\v2\x16.google.protobuf.EmptyH\x00R\vunavailableB\x10\n" +
-	"\aoutcome\x12\x05\xbaH\x02\b\x01\"\x9f\x01\n" +
+	"\aoutcome\x12\x05\xbaH\x02\b\x01\"\xa2\x01\n" +
 	"\tMCPTarget\x129\n" +
-	"\x14network_backend_name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x12networkBackendName\x12-\n" +
-	"\fbackend_path\x18\x02 \x01(\tB\n" +
-	"\xbaH\ar\x05\x10\x01:\x01/R\vbackendPath\x12(\n" +
+	"\x14network_backend_name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x12networkBackendName\x120\n" +
+	"\fbackend_path\x18\x02 \x01(\tB\r\xbaH\n" +
+	"r\b\x10\x01\x18\x80\b:\x01/R\vbackendPath\x12(\n" +
 	"\vtarget_name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\n" +
 	"targetName*L\n" +
 	"\rAPISchemaName\x12\x1f\n" +

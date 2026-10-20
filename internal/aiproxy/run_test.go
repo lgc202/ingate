@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,19 +19,24 @@ import (
 	"testing"
 	"time"
 
+	discoveryv3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/durationpb"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	aidataplanev1 "github.com/lgc202/ingate/api/aidataplane/v1"
 	"github.com/lgc202/ingate/internal/aiproxy/conf"
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/aiconfig"
+	"github.com/lgc202/ingate/internal/aiproxy/pkg/configtest"
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/envoyclient"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
+
+type runtimeADS struct {
+	discoveryv3.UnimplementedAggregatedDiscoveryServiceServer
+	started chan struct{}
+	stopped chan struct{}
+}
 
 func TestRunStartsUnixServerAndStopsConfigWatch(t *testing.T) {
 	deadline, stop := context.WithTimeout(t.Context(), 5*time.Second)
@@ -39,37 +45,23 @@ func TestRunStartsUnixServerAndStopsConfigWatch(t *testing.T) {
 	defer cancel()
 	watchStarted := make(chan struct{})
 	watchStopped := make(chan struct{})
-	var started, stopped sync.Once
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/namespaces/control-plane/configmaps" || r.URL.Query().Get("fieldSelector") != "metadata.name="+aidataplane.ConfigMapName {
-			t.Errorf("AI config API request = %s, want scoped ConfigMap List/Watch", r.URL)
-			w.WriteHeader(http.StatusBadRequest)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen(test ADS) error = %v", err)
+	}
 
-			return
+	grpcServer := grpc.NewServer()
+	discoveryv3.RegisterAggregatedDiscoveryServiceServer(grpcServer, &runtimeADS{started: watchStarted, stopped: watchStopped})
+	var serving sync.WaitGroup
+	serving.Go(func() {
+		if err := grpcServer.Serve(listener); err != nil {
+			t.Errorf("Serve(test ADS) error = %v", err)
 		}
+	})
+	t.Cleanup(func() { grpcServer.Stop(); serving.Wait() })
 
-		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Query().Get("watch") == "true" {
-			w.WriteHeader(http.StatusOK)
-			if err := http.NewResponseController(w).Flush(); err != nil {
-				t.Errorf("Flush(config watch) error = %v", err)
-				return
-			}
-
-			started.Do(func() { close(watchStarted) })
-			<-r.Context().Done()
-			stopped.Do(func() { close(watchStopped) })
-
-			return
-		}
-
-		if _, err := io.WriteString(w, `{"apiVersion":"v1","kind":"ConfigMapList","metadata":{"resourceVersion":"1"},"items":[]}`); err != nil {
-			t.Errorf("WriteString(config list) error = %v", err)
-		}
-	}))
-	t.Cleanup(api.Close)
 	socket := filepath.Join(unixSocketDirectory(t), "ingress.sock")
-	configFile := writeRuntimeConfig(t, socket, api.URL)
+	configFile := writeRuntimeConfig(t, socket, listener.Addr().String())
 	result := make(chan error, 1)
 	var worker sync.WaitGroup
 	worker.Go(func() { result <- Run(ctx, configFile) })
@@ -135,31 +127,30 @@ func TestRunStartsUnixServerAndStopsConfigWatch(t *testing.T) {
 func TestRunRejectsClientConfigBeforeBinding(t *testing.T) {
 	socket := filepath.Join(t.TempDir(), "ingress.sock")
 	data := strings.ReplaceAll(validStartupYAML, "/run/ingate/ingress.sock", socket)
-	data = strings.ReplaceAll(data, "/etc/ingate/ai-proxy.kubeconfig", filepath.Join(t.TempDir(), "missing.kubeconfig"))
+	data = strings.ReplaceAll(data, "127.0.0.1:18000", "invalid-address")
 	configFile := writeStartupConfig(t, data)
 
 	err := Run(t.Context(), configFile)
 	if err == nil {
-		t.Fatal("Run(missing kubeconfig) error = nil, want startup failure")
+		t.Fatal("Run(invalid discovery address) error = nil, want startup failure")
 	}
 
 	if _, err := os.Stat(socket); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("Run(missing kubeconfig) socket path error = %v, want no bound socket", err)
+		t.Errorf("Run(invalid discovery address) socket path error = %v, want no bound socket", err)
 	}
 }
 
-func TestRunRejectsLogFileBeforeCreatingAPIClient(t *testing.T) {
+func TestRunRejectsLogFileBeforeCreatingDiscoveryClient(t *testing.T) {
 	directory := t.TempDir()
 	socket := filepath.Join(directory, "ingress.sock")
 	data := strings.ReplaceAll(validStartupYAML, "/run/ingate/ingress.sock", socket)
-	data = strings.ReplaceAll(data, "/etc/ingate/ai-proxy.kubeconfig", filepath.Join(directory, "missing.kubeconfig"))
 	data += fmt.Sprintf("log:\n  outputs: [file]\n  file:\n    path: %q\n", directory)
 	configFile := writeStartupConfig(t, data)
 
 	err := Run(t.Context(), configFile)
 
 	if err == nil || !strings.Contains(err.Error(), "initialize AI Proxy log") {
-		t.Fatalf("Run(directory as log file) error = %v, want log initialization failure before missing kubeconfig", err)
+		t.Fatalf("Run(directory as log file) error = %v, want log initialization failure", err)
 	}
 
 	if _, err := os.Stat(socket); !errors.Is(err, os.ErrNotExist) {
@@ -206,12 +197,15 @@ func TestAppStopTimeoutCancelsOpenStream(t *testing.T) {
 		t.Fatalf("ReadFile(shutdown config fixture) error = %v", err)
 	}
 
-	configMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "control-plane", Name: aidataplane.ConfigMapName, UID: "shutdown"},
-		Data:       map[string]string{aidataplane.ConfigMapDataKey: string(data)},
+	compiled, err := aidataplane.Decode(data)
+	if err != nil {
+		t.Fatalf("Decode(shutdown config) error = %v", err)
 	}
+
+	source := configtest.New(t)
+	source.Publish(t, *compiled)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	loader := aiconfig.NewLoader(fake.NewClientset(configMap), "control-plane", logger)
+	loader := aiconfig.NewLoader(source.Client, "shutdown", logger)
 
 	config := &conf.Bootstrap{
 		Server: &conf.Server{
@@ -219,7 +213,7 @@ func TestAppStopTimeoutCancelsOpenStream(t *testing.T) {
 			MaxRequestBodyBytes: 1024,
 			ShutdownTimeout:     durationpb.New(20 * time.Millisecond),
 		},
-		ApiServer: &conf.APIServer{AiConfigNamespace: "control-plane"},
+		Discovery: &conf.Discovery{NodeId: "shutdown"},
 		Envoy:     &conf.Envoy{EgressSocket: egress.Addr().String()},
 	}
 	app, closeIdle, err := newApp(ctx, config, ingress, loader, logger)
@@ -301,18 +295,24 @@ func TestAppStopTimeoutCancelsOpenStream(t *testing.T) {
 
 func writeRuntimeConfig(t *testing.T, socket, endpoint string) string {
 	t.Helper()
-	kubeconfig := filepath.Join(t.TempDir(), "api.kubeconfig")
-	connection := clientcmdapi.Config{
-		Clusters:       map[string]*clientcmdapi.Cluster{"ingate": {Server: endpoint}},
-		Contexts:       map[string]*clientcmdapi.Context{"ingate": {Cluster: "ingate"}},
-		CurrentContext: "ingate",
-	}
-	if err := clientcmd.WriteToFile(connection, kubeconfig); err != nil {
-		t.Fatalf("WriteToFile(runtime kubeconfig) error = %v", err)
-	}
-
 	data := strings.ReplaceAll(validStartupYAML, "/run/ingate/ingress.sock", socket)
-	data = strings.ReplaceAll(data, "/etc/ingate/ai-proxy.kubeconfig", kubeconfig)
+	data = strings.ReplaceAll(data, "127.0.0.1:18000", endpoint)
 
 	return writeStartupConfig(t, data)
+}
+
+func (s *runtimeADS) DeltaAggregatedResources(stream discoveryv3.AggregatedDiscoveryService_DeltaAggregatedResourcesServer) error {
+	if _, err := stream.Recv(); err != nil {
+		return err
+	}
+
+	close(s.started)
+	defer close(s.stopped)
+	if err := stream.Send(&discoveryv3.DeltaDiscoveryResponse{TypeUrl: aidataplanev1.ResourceType, Nonce: "empty"}); err != nil {
+		return err
+	}
+
+	<-stream.Context().Done()
+
+	return stream.Context().Err()
 }

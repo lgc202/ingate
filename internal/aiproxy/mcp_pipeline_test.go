@@ -16,11 +16,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes/fake"
-
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/aiconfig"
+	"github.com/lgc202/ingate/internal/aiproxy/pkg/configtest"
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/envoyclient"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
@@ -309,14 +306,9 @@ func TestMCPPipelineExactEntriesAndResponses(t *testing.T) {
 			host.MCPRoutes = append(host.MCPRoutes, candidate)
 		}
 
-		payload, err := aidataplane.Encode(*compiled)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		configMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "control-plane", Name: aidataplane.ConfigMapName, UID: "fixture"}, Data: map[string]string{aidataplane.ConfigMapDataKey: string(payload)}}
-		apiClient := fake.NewClientset(configMap)
-		loader := aiconfig.NewLoader(apiClient, "control-plane", slog.Default())
+		source := configtest.New(t)
+		source.Publish(t, *compiled)
+		loader := aiconfig.NewLoader(source.Client, "test", slog.Default())
 		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan error, 1)
 		go func() { done <- loader.Run(ctx) }()

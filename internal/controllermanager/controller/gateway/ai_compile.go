@@ -26,7 +26,7 @@ type aiCompilation struct {
 
 // compileAI 将派生的匹配与后端结果组装为共享配置，不读取 API 或修改输入。
 // 调用方必须等待全部集合初始同步；空输入表示撤销，不能代替未同步的集合。
-// 此处不裁决跨 Kind 的网络入口、不发布 xDS，也不写入 ConfigMap。
+// 此处不裁决跨 Kind 的网络入口或发布 xDS。
 func compileAI(snapshot resources) (aidataplane.Config, error) {
 	c, err := resolveAI(snapshot)
 	if err != nil {

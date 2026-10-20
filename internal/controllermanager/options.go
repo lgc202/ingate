@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -31,7 +30,6 @@ type Options struct {
 	Kubeconfig             string
 	ConfigFile             string
 	XDSBindAddress         string
-	AIConfigNamespace      string
 	AIIngressSocket        string
 	AIEgressSocket         string
 	MetricsBindAddress     string
@@ -47,7 +45,7 @@ func NewOptions() *Options {
 	}
 }
 
-// AddFlags 注册 API 连接、AI 配置空间、xDS 和探针相关的启动参数。
+// AddFlags 注册 API 连接、AI socket、xDS 和探针相关的启动参数。
 func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&o.MasterURL, "master", o.MasterURL, "API server address; overrides kubeconfig.")
 	fs.StringVar(&o.Kubeconfig, "kubeconfig", o.Kubeconfig, "Path to the API server kubeconfig file.")
@@ -60,12 +58,6 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(
 		&o.AIEgressSocket, "ai-egress-socket", o.AIEgressSocket,
 		"Absolute Envoy-local socket path for model and MCP egress; required when usable AI targets exist.",
-	)
-	fs.StringVar(
-		&o.AIConfigNamespace,
-		"ai-config-namespace",
-		o.AIConfigNamespace,
-		"Existing Ingate namespace for the shared AI ConfigMap; required.",
 	)
 	fs.StringVar(
 		&o.MetricsBindAddress, "metrics-bind-address", o.MetricsBindAddress,
@@ -81,10 +73,6 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 func (o *Options) Config() (*Config, error) {
 	if err := validateAISockets(o.AIIngressSocket, o.AIEgressSocket); err != nil {
 		return nil, err
-	}
-
-	if messages := validation.IsDNS1123Label(o.AIConfigNamespace); len(messages) != 0 {
-		return nil, fmt.Errorf("AI configuration namespace %q must be a valid DNS label", o.AIConfigNamespace)
 	}
 
 	restConfig, err := clientcmd.BuildConfigFromFlags(o.MasterURL, o.Kubeconfig)
@@ -104,11 +92,10 @@ func (o *Options) Config() (*Config, error) {
 	}
 
 	return &Config{
-		RESTConfig:        restConfig,
-		XDSBindAddress:    o.XDSBindAddress,
-		AIConfigNamespace: o.AIConfigNamespace,
-		AIIngressSocket:   o.AIIngressSocket,
-		AIEgressSocket:    o.AIEgressSocket,
+		RESTConfig:      restConfig,
+		XDSBindAddress:  o.XDSBindAddress,
+		AIIngressSocket: o.AIIngressSocket,
+		AIEgressSocket:  o.AIEgressSocket,
 		ManagerOptions: ctrl.Options{
 			Scheme:                 scheme,
 			Metrics:                metricsserver.Options{BindAddress: o.MetricsBindAddress},

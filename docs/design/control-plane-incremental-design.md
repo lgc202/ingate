@@ -1,6 +1,6 @@
 # 控制面增量编译与配置分发设计
 
-状态：实施中
+状态：增量编译、两路 Delta ADS 与 AI Proxy 查询视图已实现，当前变更待 review；真实组件联调尚未执行
 
 ## 1. 设计目标
 
@@ -289,9 +289,31 @@ Controller 持有业务内部表示，Envoy 适配层持有原生 protobuf，AI 
 发布器统一拥有共享输出的写入顺序，转换函数不各自直接写 Cache。
 同一份 AI 编译结果同时生成 AI Proxy 规则和 Envoy 出口，避免两条独立编译链对目标作出不同解释。
 
-实现顺序先确定内部结果及 AI Proxy 资源结构，再建立源集合和依赖图，
-随后接入两个资源缓存与 Delta 服务，最后实现 AI Proxy 的资源表和查询视图。
+源集合、依赖图、两个资源缓存、Delta 服务和 AI Proxy 查询视图按上述边界实现。
+Controller 与 AI Proxy 不再通过 ConfigMap 交换运行配置；JSON 编解码用于已有内部表示的检查与夹具，不作为动态订阅通道。
 通用依赖追踪和 xDS 协议复用库；业务资源如何裁决、编译和执行由 Ingate 实现。
+
+### 7.1 AI Proxy 的批次应用与启动参数
+
+`aiconfig.Loader` 只接收 `aidataplane.v1.Resource`；不订阅普通 HTTP、网络端点或领域对象。
+收到响应时检查 type URL、nonce、外层名称与 payload 名称、逐资源版本和 protobuf 约束；
+将更新与删除合并到候选资源表，再校验入口唯一性及规则引用。失败不登记任何新版本。
+候选沿旧、新引用确定受影响入口，只重建这些入口的排序与索引；未变入口共享只读视图。
+
+完整应用之后才发送 ACK。即使 ACK 在网络中丢失，新流也报告本地已经接受的版本。
+NACK 只携带通用错误，不回显配置；随后取消旧流并重连，以已接受版本重新对账。
+NACK 与 ACK 一样不保证在断线前送达服务端，恢复以客户端已接受状态为准。
+连接失败采用 1 秒起步、基准上限 30 秒并附加最多 20% 抖动的指数退避；有效同步后的故障重新从短退避开始。
+
+启动配置使用 `discovery.address`、`discovery.node_id` 和显式的 `discovery.max_response_bytes`，
+示例见 [ai-proxy.yaml](../../configs/ai-proxy.yaml)。Controller 和 Proxy 不再使用 `ai-config-namespace`。
+当前组固定为 `ingate-shared-data-plane`，Node ID 只区分副本，不提供身份认证。
+ADS 与现有 Envoy 一样依赖受保护的部署网络，本实现没有加入 TLS 或服务间鉴权。
+
+接收上限约束单个 protobuf 响应：初始全集、重连差异及普通更新均不能超过该值。
+示例 16 MiB 不是无限容量；超限产生 gRPC 错误，Loader 保旧并重试，首次超限不能建立配置。
+目前不分块、不落盘。进程重启后从空资源表完整同步，内存规模与当前资源数量相关。
+候选顶层 map 的复制与视图比较仍为全量元数据操作，不等于全量重建业务索引。
 
 ## 8. 参考设计
 

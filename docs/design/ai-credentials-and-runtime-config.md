@@ -1,5 +1,7 @@
 # 集中管理模型凭据，按版本加载派生配置
 
+> 当前配置分发以[增量设计](control-plane-incremental-design.md)为准；本文 ConfigMap 与双版本发布部分属于历史方案或未实施提案，不再作为启动指引。Secret、认证授权与健康准入不在本次增量实现范围。
+
 - 状态：待 review；用户已要求凭据参考官方，具体资源安装、安全机制和发布行为尚未批准实现
 - 日期：2026-10-11
 - 源码基线：`b247a4c6`，分支 `codex/rebuild-from-zero`
@@ -29,7 +31,7 @@ Controller 负责裁决并生成完整配置，AI Proxy 负责加载配置与授
 
 当前 [Options](../../internal/apiserver/options.go) 沿用 RecommendedOptions；其上游采用委托认证与授权，并依赖 CoreAPI/Admission 的配置。已有 HTTPS Listener 不证明身份和资源权限已配置正确。[存储测试](../../internal/apiserver/integration_test.go) 为隔离存储，将这些选项设为 nil，不能作为密钥访问隔离的证据。
 
-当前 [Publisher](../../internal/controllermanager/dataplane/envoy/publisher.go) 按 `node.cluster=ingate-shared-data-plane` 发布共享快照，使用原生逐资源内容版本。[ADS Server](../../internal/controllermanager/dataplane/xds/server.go) 已接入 Delta ADS 和 ACK/NACK Callback，AI Proxy 配置也已发布到独立 LinearCache；AI Proxy 客户端仍消费完整 ConfigMap。Cache 发布成功和 Manager ready 只说明本地状态，不说明任一 Envoy 已接受配置。
+当前 [Publisher](../../internal/controllermanager/dataplane/envoy/publisher.go) 按 `node.cluster=ingate-shared-data-plane` 发布共享快照，使用原生逐资源内容版本。[ADS Server](../../internal/controllermanager/dataplane/xds/server.go) 已接入 Delta ADS 和 ACK/NACK Callback，AI Proxy 配置也已发布到独立 LinearCache；AI Proxy 客户端已通过 Delta ADS 消费独立编译资源，ConfigMap 不再用于运行配置下发。Cache 发布成功和 Manager ready 只说明本地状态，不说明任一 Envoy 已接受配置。
 
 官方 BackendSecurityPolicy 的 `apiKey.secretRef` 引用 Secret，其中 key 为 `apiKey`，组件必须有读取权限。依据：[Agent Router API](https://theagentrouter.ai/docs/api/#backendsecuritypolicyapikey)。官方将编译配置和凭据放入挂载 Secret；我们已经选择直接订阅 Ingate API，因此需要另外定义读取和版本绑定，不复制 kubelet 文件投射过程。
 
@@ -156,7 +158,7 @@ ACK/NACK 只在相同 stream、资源类型和响应 nonce 下关联；nonce 不
 
 配置大小、新鲜度期限、探针时间和排空期限是实现前要确认的运行参数；本稿不填没有部署与业务依据的性能数字。故障表定义了行为方向，不表示这些界限已经落实。只批准此方向，仍不能开始依赖具体期限的运行代码。
 
-## 非敏感配置载体：已确认 ConfigMap，凭据与运行仍待确认
+## 历史载体选择：ConfigMap（已由 Delta ADS 替代）
 
 用户已确认先编译并保存配置，Proxy 的 Watch 在开发该组件时接入。原先 AIProxyConfig 候选已由标准 ConfigMap 替代，不新增公开派生 Kind。原生 API 存储切片已通过用户 review 并获准本地提交，Controller 尚未写入配置；下述对照保留选择依据，不再表示需要重新确认载体。
 

@@ -15,7 +15,7 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
 
-const sharedDataPlaneCluster = dataplane.SharedDataPlaneCluster
+const sharedDataPlaneCluster = aidataplanev1.SharedDataPlaneCluster
 
 // Publisher 将同一次 AI 编译的两类输出分别安装到原生 SnapshotCache 和 AI Proxy LinearCache。
 // 缓存安装不是跨代理事务，也不表示客户端已经 ACK 或后端已可用。

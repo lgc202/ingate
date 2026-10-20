@@ -16,10 +16,9 @@ import (
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	"github.com/go-kratos/kratos/v3/middleware"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/lgc202/ingate/internal/aiproxy/pkg/aiconfig"
+	"github.com/lgc202/ingate/internal/aiproxy/pkg/configtest"
 	"github.com/lgc202/ingate/internal/aiproxy/service/mcpproxy"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 )
@@ -52,7 +51,7 @@ func TestMCPProxyHandlerForwards(t *testing.T) {
 
 			return modelResponse(http.StatusOK, string(body), http.Header{"Content-Type": {"application/json"}}), nil
 		})
-		service := startMCPService(t, transport, modelConfigMap(t))
+		service := startMCPService(t, transport, modelConfig(t))
 		router := newMCPRouter(t, service, 1024)
 		request := trustedMCPRequest(t, http.MethodPost, "/mcp", `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}`)
 		request.Header.Set("Mcp-Protocol-Version", "2026-07-28")
@@ -75,7 +74,7 @@ func TestMCPProxyHandlerRejectsNonPostMethods(t *testing.T) {
 			method = r.Method
 			return modelResponse(http.StatusNoContent, "", nil), nil
 		})
-		service := startMCPService(t, transport, modelConfigMap(t))
+		service := startMCPService(t, transport, modelConfig(t))
 		router := newMCPRouter(t, service, 1024)
 		response := httptest.NewRecorder()
 
@@ -94,7 +93,7 @@ func TestMCPProxyHandlerRejectsOrigin(t *testing.T) {
 			called = true
 			return modelResponse(http.StatusNoContent, "", nil), nil
 		})
-		service := startMCPService(t, transport, modelConfigMap(t))
+		service := startMCPService(t, transport, modelConfig(t))
 		router := newMCPRouter(t, service, 1024)
 
 		for _, tt := range []struct {
@@ -145,7 +144,7 @@ func TestMCPProxyHandlerRejectsBeforeClientCall(t *testing.T) {
 					called = true
 					return modelResponse(http.StatusNoContent, "", nil), nil
 				})
-				service := startMCPService(t, transport, modelConfigMap(t))
+				service := startMCPService(t, transport, modelConfig(t))
 				router := newMCPRouter(t, service, tt.limit)
 				request := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
 				if tt.trusted {
@@ -171,7 +170,7 @@ func TestMCPProxyHandlerMiddlewarePrecedesRead(t *testing.T) {
 			called = true
 			return modelResponse(http.StatusNoContent, "", nil), nil
 		})
-		service := startMCPService(t, transport, modelConfigMap(t))
+		service := startMCPService(t, transport, modelConfig(t))
 		deny := func(middleware.Handler) middleware.Handler {
 			return func(context.Context, any) (any, error) {
 				return nil, kratoserrors.Forbidden("TEST_DENIED", "access denied")
@@ -192,7 +191,7 @@ func TestMCPProxyHandlerMiddlewarePrecedesRead(t *testing.T) {
 }
 
 func TestNewMCPProxyRejectsInvalidBodyLimit(t *testing.T) {
-	loader := aiconfig.NewLoader(fake.NewClientset(), "control-plane", slog.Default())
+	loader := aiconfig.NewLoader(nil, "test", slog.Default())
 
 	service := mcpproxy.New(loader, &http.Client{})
 	for _, limit := range []int64{0, -1} {
@@ -292,7 +291,7 @@ func TestMCPProxyHandlerRejectsMetadata(t *testing.T) {
 		service := startMCPService(t, roundTripFunc(func(*http.Request) (*http.Response, error) {
 			t.Error("invalid metadata reached upstream")
 			return modelResponse(200, "", nil), nil
-		}), modelConfigMap(t))
+		}), modelConfig(t))
 		router := newMCPRouter(t, service, 1024)
 		const body = `{"jsonrpc":"2.0","id":9007199254740993,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}`
 		for _, tt := range []struct {
@@ -355,11 +354,16 @@ func newMCPRouter(
 }
 
 // startMCPService 使用真实 Loader 与原生 Transport 测试替身构造完整 MCP 用例。
-func startMCPService(t *testing.T, transport http.RoundTripper, objects ...runtime.Object) *mcpproxy.Service {
+func startMCPService(t *testing.T, transport http.RoundTripper, configs ...*aidataplane.Config) *mcpproxy.Service {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	apiClient := fake.NewClientset(objects...)
-	loader := aiconfig.NewLoader(apiClient, "control-plane", logger)
+	if len(configs) == 0 {
+		return mcpproxy.New(aiconfig.NewLoader(nil, "test", logger), &http.Client{Transport: transport})
+	}
+
+	source := configtest.New(t)
+	source.Publish(t, *configs[0])
+	loader := aiconfig.NewLoader(source.Client, "test", logger)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)

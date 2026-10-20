@@ -2,6 +2,9 @@ package gateway
 
 import (
 	"context"
+	"errors"
+	"io"
+	"log/slog"
 	"net"
 	"slices"
 	"testing"
@@ -17,9 +20,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/testing/protocmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	aidataplanev1 "github.com/lgc202/ingate/api/aidataplane/v1"
-	"github.com/lgc202/ingate/internal/controllermanager/dataplane"
+	"github.com/lgc202/ingate/internal/aiproxy/pkg/aiconfig"
 	"github.com/lgc202/ingate/internal/controllermanager/dataplane/xds"
 	"github.com/lgc202/ingate/internal/pkg/aidataplane"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
@@ -92,7 +96,7 @@ func TestGatewayDeletionTransfersPublicAIEntries(t *testing.T) {
 				t.Fatalf("Publish(HTTP compilation) error = %v", err)
 			}
 
-			reconciler := New(apiClient, apiClient, publisher, "control-plane")
+			reconciler := New(apiClient, publisher)
 			setTestResources(t, reconciler, snapshot)
 			resources, err := reconciler.sources.readPublication().aiResources()
 			if err != nil {
@@ -153,7 +157,7 @@ func TestReconcilePublishesAIResourcesOverADS(t *testing.T) {
 	}
 
 	if err := stream.Send(&discoveryv3.DeltaDiscoveryRequest{
-		Node:    &corev3.Node{Id: "aiproxy-1", Cluster: dataplane.SharedDataPlaneCluster},
+		Node:    &corev3.Node{Id: "aiproxy-1", Cluster: aidataplanev1.SharedDataPlaneCluster},
 		TypeUrl: aidataplanev1.ResourceType, ResourceNamesSubscribe: []string{"*"},
 	}); err != nil {
 		t.Fatalf("Send(AI Proxy publication) error = %v", err)
@@ -181,6 +185,87 @@ func TestReconcilePublishesAIResourcesOverADS(t *testing.T) {
 	want := compiledAIResources(t, reconciler.sources.readPublication())
 	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 		t.Errorf("Reconcile → AI Proxy ADS mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestReconcileToAIProxyRuntimeOverNativeADS(t *testing.T) {
+	fixtures := aiResourceSnapshot()
+	apiClient := aiResourceClient(t, fixtures)
+	publisher := xds.NewPublisher("/run/ingate/ingress.sock", "/run/ingate/egress.sock")
+	reconciler := newTestReconciler(t, apiClient, publisher)
+	connection := newPublicationADSClient(t, publisher)
+	loader := aiconfig.NewLoader(discoveryv3.NewAggregatedDiscoveryServiceClient(connection), "runtime-test", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- loader.Run(ctx) }()
+	t.Cleanup(func() {
+		cancel()
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Errorf("Run(native ADS loader) error = %v", err)
+		}
+	})
+	if _, err := reconciler.Reconcile(ctx, sharedRequest()); err != nil {
+		t.Fatalf("Reconcile(initial resources) error = %v", err)
+	}
+
+	const hostName = "gateway/team-a/public/listener/api"
+	var previous *aiconfig.Config
+	if err := wait.PollUntilContextTimeout(ctx, time.Millisecond, 5*time.Second, true, func(context.Context) (bool, error) {
+		view, loaded := loader.Capture()
+		if loaded {
+			previous = view
+		}
+
+		return loaded, nil
+	}); err != nil {
+		t.Fatalf("Capture(first native ADS configuration) error = %v", err)
+	}
+
+	model, err := previous.ResolveModel(8080, hostName, "coding")
+	if err != nil || model.ModelNameOverride != "code-v2" || model.Schema.Prefix != "/v1" || model.TargetName == "" {
+		t.Fatalf("ResolveModel(compiled native ADS) = (%+v, %v), want configured protocol and target", model, err)
+	}
+
+	mcp, err := previous.ResolveMCP(8080, hostName, "/mcp")
+	if err != nil || mcp.BackendPath != "/stream" || mcp.TargetName == "" {
+		t.Fatalf("ResolveMCP(compiled native ADS) = (%+v, %v), want configured MCP path and target", mcp, err)
+	}
+
+	fixtures.modelRoutes.Items[0].Spec.Rules[0].BackendRefs[0].ModelNameOverride = "code-v3"
+	setTestResources(t, reconciler, fixtures)
+	if _, err := reconciler.Reconcile(ctx, sharedRequest()); err != nil {
+		t.Fatalf("Reconcile(updated model) error = %v", err)
+	}
+
+	if err := wait.PollUntilContextTimeout(ctx, time.Millisecond, 5*time.Second, true, func(context.Context) (bool, error) {
+		view, _ := loader.Capture()
+		current, err := view.ResolveModel(8080, hostName, "coding")
+
+		return err == nil && current.ModelNameOverride == "code-v3" && current.TargetName != model.TargetName, nil
+	}); err != nil {
+		t.Fatalf("ResolveModel(after native Delta update) error = %v", err)
+	}
+
+	if retained, err := previous.ResolveModel(8080, hostName, "coding"); err != nil || retained != model {
+		t.Errorf("ResolveModel(captured before update) = (%+v, %v), want unchanged %+v", retained, err, model)
+	}
+
+	fixtures.modelRoutes.Items = nil
+	fixtures.mcpRoutes.Items = nil
+	setTestResources(t, reconciler, fixtures)
+	if _, err := reconciler.Reconcile(ctx, sharedRequest()); err != nil {
+		t.Fatalf("Reconcile(remove all AI routes) error = %v", err)
+	}
+
+	if err := wait.PollUntilContextTimeout(ctx, time.Millisecond, 5*time.Second, true, func(context.Context) (bool, error) {
+		view, loaded := loader.Capture()
+		_, modelErr := view.ResolveModel(8080, hostName, "coding")
+		_, mcpErr := view.ResolveMCP(8080, hostName, "/mcp")
+
+		return loaded && errors.Is(modelErr, aiconfig.ErrModelRouteNotFound) && errors.Is(mcpErr, aiconfig.ErrMCPRouteNotFound), nil
+	}); err != nil {
+		t.Fatalf("Capture(valid empty native ADS configuration) error = %v", err)
 	}
 }
 

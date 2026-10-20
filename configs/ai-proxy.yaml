@@ -1,16 +1,19 @@
 # 使用 ingate-ai-proxy --conf configs/ai-proxy.yaml 启动。
 # 部署侧须预先创建由运行用户拥有且不向组/其他用户开放的 socket 目录（如 0700）。
 # 入口与出口在数据面主机上使用两个不同的 Unix socket。
-# 本文件不包含模型路由；路由由 Controller 写入 ConfigMap，再由 Loader Watch。
+# 本文件不包含模型路由；Loader 通过 Controller 的 Delta ADS 接收独立资源。
 server:
   socket: /run/ingate/ingress.sock
   # 示例为 1 MiB，不是默认值；部署时须显式选择正文上限。
   max_request_body_bytes: 1048576
   # 示例关闭期限；没有代码默认值，超时会中断仍未结束的 SSE。
   shutdown_timeout: 30s
-api_server:
-  kubeconfig: /etc/ingate/ai-proxy.kubeconfig
-  ai_config_namespace: control-plane
+discovery:
+  # 当前与 Envoy 的 ADS 端口相同，必须位于受保护的部署网络。
+  address: 127.0.0.1:18000
+  node_id: ingate-ai-proxy-1
+  # 示例为 16 MiB，约束单批初始全集与更新，不是无限容量或默认值。
+  max_response_bytes: 16777216
 envoy:
   egress_socket: /run/ingate/egress.sock
 # 仅启动时读取；省略整个 log 配置也使用以下默认值。

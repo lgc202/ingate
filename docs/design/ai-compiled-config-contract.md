@@ -1,6 +1,6 @@
 # AI 编译配置：沿用官方编译分层，使用标准 ConfigMap 保存非敏感结果
 
-> 长期方向更新（2026-10-19）：用户已确认增量编译和资源级 Delta 分发方案并授权开始实现；选型、资源组织与运行方式见[控制面增量设计](control-plane-incremental-design.md)，代码按阶段 review。本文仍是当前 ConfigMap/JSON 实现契约，不把目标设计误记为已经替换分发实现。
+> 历史方案：本文记录 ConfigMap/JSON 阶段的契约与实现。当前运行通道已由[控制面增量设计](control-plane-incremental-design.md)替代，Controller 不再写入派生 ConfigMap，Proxy 不再通过 Kubernetes API 读取配置。下文旧路径和参数只用于理解当时决策，不作为当前启动或开发指引。
 
 - 状态：契约已于 2026-10-13 经用户确认；原生 ConfigMap API、内部编解码、纯编译及写入边界已提交，完整读取、受限 Watch 与协调发布接线已提交为 `fcc9650b`，模型数据面已提交；MCP 现代透明代理在本轮接通，当前边界见文末
 - 作者：Ingate 开发协作
@@ -314,13 +314,13 @@ Decode 复用已有 sigs.k8s.io/json 的大小写敏感解码、重复字段和�
 
 ## ConfigMap 写入边界切片
 
-纯编译入口已提交为 `63bf1ba3`。[ai_config.go](../../internal/controllermanager/controller/gateway/ai_config.go) 只保存 compileAI 成功返回的 JSON，使用原生 client.Client 写入和 client.Reader 读取；reader 后续由 Manager.GetAPIReader 注入。不新增 Publisher 接口、独立协调器、存储框架或客户端生命周期。
+纯编译入口已提交为 `63bf1ba3`。`ai_config.go`（旧实现，已移除） 只保存 compileAI 成功返回的 JSON，使用原生 client.Client 写入和 client.Reader 读取；reader 后续由 Manager.GetAPIReader 注入。不新增 Publisher 接口、独立协调器、存储框架或客户端生命周期。
 
 Namespace 显式提供，不设置缺省空间、不自动创建。空字节拒绝，撤销必须传完整空配置。写入前核对 Namespace 存在且未进入删除/Terminating；已有同名 ConfigMap 若无约定的 managed-by 标签，报告带对象身份的 Conflict，不接管。该标签不是服务身份或权限证明。ConfigMap 正在删除、所属 key 被 binaryData 占用、immutable 阻止修改时报告失败，不删除重建。
 
 仅更新 data["config.json"]；保留其他 labels、annotations、ownerReferences、finalizers、data 和 binaryData，携带读取到的 resourceVersion。内容相同时不 Update，包括相同内容的 immutable 对象。完整对象的 data 与 binaryData 值字节总量不得超过原生 1 MiB 上限；API Server 仍作权威校验。Create 的 AlreadyExists、Update 的 Conflict 和读写根因均向调用方返回，由后续 Reconcile 重读并重算，不在写入器内部重试。Namespace 检查与 ConfigMap 写入不是事务，检查不消除并发删除窗口。
 
-[写入边界测试](../../internal/controllermanager/controller/gateway/ai_config_test.go) 使用标准 fake client 和 interceptor，核对创建/完整撤销、无关字段保留、原 resourceVersion、Context、独立读取依赖、幂等与 immutable、不接管、不自动创建 Namespace、不强删重建、完整对象 1 MiB 等于/超出边界及 API 错误原因保留。这些测试不替代真实 API Server 的授权、immutable、并发版本和存储验证。
+`写入边界测试`（旧实现，已移除） 使用标准 fake client 和 interceptor，核对创建/完整撤销、无关字段保留、原 resourceVersion、Context、独立读取依赖、幂等与 immutable、不接管、不自动创建 Namespace、不强删重建、完整对象 1 MiB 等于/超出边界及 API 错误原因保留。这些测试不替代真实 API Server 的授权、immutable、并发版本和存储验证。
 
 写入边界提交为 `48d75133`。该切片没有装配到 Reconcile，也没有新增启动参数、Watch 或 AI status；提交时只有测试调用写入器，不能声称运行路径已经将配置保存到 etcd。协调接线属于下一节的独立切片。
 
@@ -334,11 +334,11 @@ Namespace 显式提供，不设置缺省空间、不自动创建。空字节拒�
 
 [Options](../../internal/controllermanager/options.go) 新增必填 `--ai-config-namespace`，不提供默认空间、不自动创建；即使尚无 AI 资源，也必须指定该参数。它指向 Ingate API 中预先创建的 Namespace，不是 API Server 所在宿主集群的空间。[Manager](../../internal/controllermanager/manager.go) 通过 GetClient 注入缓存领域读取和原生写入，通过 GetAPIReader 注入配置对象的实时读取；按标准 Cache.ByObject 将 ConfigMap 的 List/Watch 限定为此 Namespace 下 `metadata.name=ingate-shared-data-plane-ai`，其他 Kind 的作用域不收窄。构造阶段不创建 Namespace 或 ConfigMap。
 
-[事件过滤](../../internal/controllermanager/controller/gateway/events.go) 对六种领域资源保留创建、Spec Generation 更新、删除开始和最终删除，忽略 Status 与不影响代次的 metadata。displayName 属于 Spec，改名仍可能触发协调，但不进入编译结果，不改变内容 revision。ConfigMap 不使用 Generation 过滤，也不用 managed-by 标签作为 Cache 选择器，以免标签漂移后丢失事件。ConfigMap 只关心所属 payload、管理标签、binaryData 占用、immutable 和删除状态；无关字段或纯 resourceVersion 变化不入队。自身 payload 写入可能额外入队一次，后续幂等写入会跳过 Update。删除对象后按当前完整输入重建，未授权对象仍报告冲突而不接管。
+`事件过滤`（旧实现，已移除） 对六种领域资源保留创建、Spec Generation 更新、删除开始和最终删除，忽略 Status 与不影响代次的 metadata。displayName 属于 Spec，改名仍可能触发协调，但不进入编译结果，不改变内容 revision。ConfigMap 不使用 Generation 过滤，也不用 managed-by 标签作为 Cache 选择器，以免标签漂移后丢失事件。ConfigMap 只关心所属 payload、管理标签、binaryData 占用、immutable 和删除状态；无关字段或纯 resourceVersion 变化不入队。自身 payload 写入可能额外入队一次，后续幂等写入会跳过 Update。删除对象后按当前完整输入重建，未授权对象仍报告冲突而不接管。
 
 所有事件映射到既有共享键，保留启动主动入队与单 Worker。上述错误隔离适用于 Reconcile 已开始执行后：Manager 构造可能通过发现查询 ConfigMap 作用域，Controller 启动必须等全部 Watch Cache 同步；某一资源的发现、List/Watch 权限或初始同步不可用仍可能阻止共享 Controller 启动，不能把两路错误隔离说成组件完全独立可用。当前只支持单 Manager 副本，未新增选主、服务身份或授权策略。
 
-[协调测试](../../internal/controllermanager/controller/gateway/ai_reconcile_test.go) 核对完整模型/MCP 输入、HTTP 输出不变、重复写入、删除路由后的完整撤销、ConfigMap 删除后重建、六种资源读取失败、编译错误、HTTP 发布/状态失败、AI 写入失败及两路根因保留；[事件测试](../../internal/controllermanager/controller/gateway/events_test.go) 包含错误 Namespace、错误对象名及不应触发的更新。[Manager 测试](../../internal/controllermanager/manager_test.go) 验证标准 Cache 选择器能排除其他名称，不修改调用方缓存配置，也不收窄领域资源范围；构造测试使用标准 RESTMapper，不依赖本机 API Server。
+[协调测试](../../internal/controllermanager/controller/gateway/ai_reconcile_test.go) 核对完整模型/MCP 输入、HTTP 输出不变、重复写入、删除路由后的完整撤销、ConfigMap 删除后重建、六种资源读取失败、编译错误、HTTP 发布/状态失败、AI 写入失败及两路根因保留；`事件测试`（旧实现，已移除） 包含错误 Namespace、错误对象名及不应触发的更新。[Manager 测试](../../internal/controllermanager/manager_test.go) 验证标准 Cache 选择器能排除其他名称，不修改调用方缓存配置，也不收窄领域资源范围；构造测试使用标准 RESTMapper，不依赖本机 API Server。
 
 本切片已通过用户 review 并获准本地提交；测试采用 fake client、interceptor 与标准对象/选择器。没有修改 API 类型、存储实现、生成源或依赖。尚未运行真实 Manager → API Server/etcd 的事件与存储链路，也未验证 RBAC、故障后的撤销时限或多组件激活，不接 AI 流量。编译存储接线确认后，下一步先明确 Proxy 消费与 Envoy 入口/出口的运行契约，再开始对应服务实现。
 
@@ -381,7 +381,7 @@ resourceVersion 只由原生 SDK 用于 List/Watch 连续性和事件处理，�
 
 该 Factory 只管理目标 ConfigMap，先实例化 Informer 和注册处理器，再调用 `StartWithContext`。`WithTweakListOptions` 的条件作用于整个 Factory；不同筛选范围的资源不能直接复用当前固定对象名条件，应使用与其范围匹配的独立 Factory，不为尚未实现的资源预建监听。若在启动后才实例化其他 Informer，SDK 要求再次调用 Start，而不是自动开始监听。
 
-[storage.go](../../internal/pkg/aidataplane/storage.go) 统一定义固定对象名与 data 键，Controller 写入、Manager Cache 和 Proxy 加载器引用同一契约。该文件不引入 Kubernetes 依赖，JSON 类型和内容哈希保持不变；managed-by 标签仍属于 Controller 的对象管理约定，没有搬成消费者鉴权条件。
+`storage.go`（旧实现，已移除） 统一定义固定对象名与 data 键，Controller 写入、Manager Cache 和 Proxy 加载器引用同一契约。该文件不引入 Kubernetes 依赖，JSON 类型和内容哈希保持不变；managed-by 标签仍属于 Controller 的对象管理约定，没有搬成消费者鉴权条件。
 
 单个 Informer 处理器串行消费事件，严格 Decode 创建独立配置，锁保护 UID 与完整快照的登记。相同实例的有效同 revision 可以复用旧快照，但新 UID 首先撤回旧值，非法的新实例不能借同名继承配置。SDK 在成功重新 List 发现缓存对象缺失时发出删除通知；List 请求失败不会走这条路径。类型安全删除参数仍可能只包含键而没有对象实例；缺少 UID 的通知记录错误，不根据名字清空其他实例，完整重新 List 的撤销路径已通过有缓存旧对象的反例验证。
 

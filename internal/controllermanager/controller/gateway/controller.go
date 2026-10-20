@@ -6,15 +6,12 @@ import (
 	"errors"
 	"fmt"
 
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -43,27 +40,22 @@ type Publisher interface {
 type Reconciler struct {
 	client    client.Client
 	publisher Publisher
-	aiConfig  aiConfigWriter
 	sources   *compilationSource
 }
 
 // New 创建 Reconciler；Controller 的运行生命周期由 Manager 管理。
-// apiReader 使用 Manager 的 APIReader，namespace 是预先创建的控制面空间。
 // SetupWithManager 注册计算集合，框架在初始同步完成后才调用 Reconcile。
 func New(
 	apiClient client.Client,
-	apiReader client.Reader,
 	publisher Publisher,
-	namespace string,
 ) *Reconciler {
 	return &Reconciler{
 		client:    apiClient,
 		publisher: publisher,
-		aiConfig:  aiConfigWriter{client: apiClient, reader: apiReader, namespace: namespace},
 	}
 }
 
-// SetupWithManager 通过 krt 运行投影合并六类领域资源事件，受管 ConfigMap 保留原生 Watch。
+// SetupWithManager 通过 krt 运行投影合并六类领域资源事件。
 // 所有源完成初始同步后才启动 Worker；空资源集合也主动协调一次。
 func (r *Reconciler) SetupWithManager(manager ctrl.Manager) error {
 	r.sources = newCompilationSource(manager.GetCache())
@@ -71,11 +63,6 @@ func (r *Reconciler) SetupWithManager(manager ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(manager).
 		Named("gateway").
 		WatchesRawSource(r.sources).
-		Watches(
-			&corev1.ConfigMap{},
-			handler.EnqueueRequestsFromMapFunc(sharedRequests),
-			builder.WithPredicates(r.aiConfig.predicate()),
-		).
 		WatchesRawSource(source.Func(enqueueInitialReconcile)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 1}).
 		Complete(r)
@@ -131,27 +118,11 @@ func (r *Reconciler) reconcileAI(ctx context.Context, snapshot publication) erro
 		return fmt.Errorf("compile AI Proxy data plane resources: %w", err)
 	}
 
-	data, err := aidataplane.Encode(config)
-	if err != nil {
-		return fmt.Errorf("encode AI data plane configuration: %w", err)
+	if err := r.publisher.PublishAI(ctx, config, resources); err != nil {
+		return fmt.Errorf("publish AI xDS configuration: %w", err)
 	}
 
-	// 两个输出独立尝试；不把一次 Cache 更新当作 Envoy 已接收，不增加全局 ACK 协调。
-	xdsErr := r.publisher.PublishAI(ctx, config, resources)
-	if xdsErr != nil {
-		xdsErr = fmt.Errorf("publish AI xDS configuration: %w", xdsErr)
-	}
-
-	configErr := r.aiConfig.write(ctx, data)
-	if configErr != nil {
-		configErr = fmt.Errorf("publish AI data plane configuration: %w", configErr)
-	}
-
-	return errors.Join(xdsErr, configErr)
-}
-
-func sharedRequests(_ context.Context, _ client.Object) []reconcile.Request {
-	return []reconcile.Request{sharedRequest()}
+	return nil
 }
 
 // enqueueInitialReconcile 保证空资源集合或 Controller 重启后也会发布一次。

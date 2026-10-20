@@ -105,6 +105,7 @@ message MCPRoute {
   Origin origin = 2 [(buf.validate.field).required = true];
   string path = 3 [(buf.validate.field).string = {
     min_len: 1
+    max_len: 1024
     prefix: "/"
   }];
   oneof outcome {
@@ -119,6 +120,7 @@ message MCPTarget {
   string network_backend_name = 1 [(buf.validate.field).string.min_len = 1];
   string backend_path = 2 [(buf.validate.field).string = {
     min_len: 1
+    max_len: 1024
     prefix: "/"
   }];
   string target_name = 3 [(buf.validate.field).string.min_len = 1];

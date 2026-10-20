@@ -107,11 +107,11 @@ func TestReconcileDoesNotListRawResources(t *testing.T) {
 		},
 	})
 	var publishes int
-	r := New(reads, apiClient, publisherFunc(func(context.Context, dataplane.Config) error {
+	r := New(reads, publisherFunc(func(context.Context, dataplane.Config) error {
 		publishes++
 
 		return nil
-	}), "control-plane")
+	}))
 	setTestResources(t, r, snapshot)
 
 	if _, err := r.Reconcile(t.Context(), sharedRequest()); err != nil {
@@ -120,10 +120,6 @@ func TestReconcileDoesNotListRawResources(t *testing.T) {
 
 	if publishes != 1 {
 		t.Errorf("Reconcile(compiled collections) HTTP publishes = %d, want 1", publishes)
-	}
-
-	if got := storedAIConfigMap(t, apiClient); got.Data[aidataplane.ConfigMapDataKey] != string(aiConfigPayload(t, snapshot)) {
-		t.Errorf("Reconcile(compiled collections) AI payload = %s, want complete compiled payload", got.Data[aidataplane.ConfigMapDataKey])
 	}
 }
 
@@ -140,21 +136,6 @@ func TestReconcileReturnsPublishFailure(t *testing.T) {
 }
 
 func TestSharedRequestSources(t *testing.T) {
-	want := []reconcile.Request{sharedRequest()}
-	for _, object := range []client.Object{
-		&gatewayv1alpha1.Gateway{},
-		&gatewayv1alpha1.HTTPRoute{},
-		&gatewayv1alpha1.Backend{},
-		&gatewayv1alpha1.AIBackend{},
-		&gatewayv1alpha1.ModelRoute{},
-		&gatewayv1alpha1.MCPRoute{},
-		&corev1.ConfigMap{},
-	} {
-		if diff := cmp.Diff(want, sharedRequests(t.Context(), object)); diff != "" {
-			t.Errorf("sharedRequests(%T) mismatch (-want +got):\n%s", object, diff)
-		}
-	}
-
 	queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[reconcile.Request]())
 	t.Cleanup(queue.ShutDown)
 	if err := enqueueInitialReconcile(t.Context(), queue); err != nil {
@@ -271,7 +252,7 @@ func newTestReconciler(
 ) *Reconciler {
 	t.Helper()
 
-	r := New(apiClient, apiClient, publisher, "control-plane")
+	r := New(apiClient, publisher)
 	loadTestCollections(t, r)
 
 	return r

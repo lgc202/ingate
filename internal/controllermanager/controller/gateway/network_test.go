@@ -215,7 +215,7 @@ func TestReconcileReusesDerivedBackends(t *testing.T) {
 			publisherFunc: func(_ context.Context, config dataplane.Config) error { http = config; return nil },
 			publishAI:     func(_ context.Context, config aidataplane.Config) error { ai = config; return nil },
 		}
-		r := New(reads, apiClient, publisher, "control-plane")
+		r := New(reads, publisher)
 		r.sources = sources
 		synctest.Wait()
 		for range 2 {

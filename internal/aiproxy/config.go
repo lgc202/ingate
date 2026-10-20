@@ -3,13 +3,14 @@ package aiproxy
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"buf.build/go/protovalidate"
 	"google.golang.org/protobuf/encoding/protojson"
-	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/yaml"
 
 	"github.com/lgc202/ingate/internal/aiproxy/conf"
@@ -44,12 +45,20 @@ func loadConfig(configFile string) (*conf.Bootstrap, error) {
 	return config, nil
 }
 
-// validateStartupConfig 复用原生 Namespace 与路径语义；不重复 proto 的必填及数值规则。
+// validateStartupConfig 校验发现地址与路径语义；不重复 proto 的必填及数值规则。
 // 路径存在性、Unix 长度限制及目录权限交给后续实际监听阶段，不在这里产生文件副作用。
 func validateStartupConfig(config *conf.Bootstrap) error {
-	namespace := config.GetApiServer().GetAiConfigNamespace()
-	if messages := validation.IsDNS1123Label(namespace); len(messages) != 0 {
-		return fmt.Errorf("AI configuration namespace %q must be a valid DNS label", namespace)
+	host, port, err := net.SplitHostPort(config.GetDiscovery().GetAddress())
+	if err != nil {
+		return fmt.Errorf("parse AI discovery address: %w", err)
+	}
+
+	if host == "" || port == "" {
+		return errors.New("AI discovery address requires a host and port")
+	}
+
+	if value, err := strconv.ParseUint(port, 10, 16); err != nil || value == 0 {
+		return errors.New("AI discovery port must be between 1 and 65535")
 	}
 
 	ingress := config.GetServer().GetSocket()

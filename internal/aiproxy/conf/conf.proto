@@ -11,8 +11,8 @@ option go_package = "github.com/lgc202/ingate/internal/aiproxy/conf;conf";
 message Bootstrap {
   // server 配置受保护的 Go HTTP 入口。
   Server server = 1 [(buf.validate.field).required = true];
-  // api_server 配置 Ingate API 连接及编译配置的读取空间。
-  APIServer api_server = 2 [(buf.validate.field).required = true];
+  // discovery 配置 Controller 的 Delta ADS 连接与数据面实例标识。
+  Discovery discovery = 2 [(buf.validate.field).required = true];
   // envoy 配置模型请求使用的本地 Envoy 出口。
   Envoy envoy = 3 [(buf.validate.field).required = true];
   // log 配置普通运行日志；省略时使用 info、JSON 和 stdout。
@@ -69,12 +69,15 @@ message Server {
   ];
 }
 
-// APIServer 连接 Ingate API，而不是宿主 Kubernetes。
-message APIServer {
-  // kubeconfig 是连接配置路径；为空时沿用 client-go 的集群内配置。
-  string kubeconfig = 1;
-  // ai_config_namespace 是共享编译 ConfigMap 所在的已有 Namespace。
-  string ai_config_namespace = 2 [(buf.validate.field).string.min_len = 1];
+// Discovery 只订阅共享数据面组的 AI 配置资源，不订阅 Envoy 或领域资源。
+// 当前连接与 Envoy 的 ADS 一样依赖受保护的部署网络，不提供 TLS 或服务间认证。
+message Discovery {
+  // address 是 Controller ADS 的 host:port，不接受由业务请求指定的地址。
+  string address = 1 [(buf.validate.field).string.min_len = 1];
+  // node_id 是部署侧分配的副本实例标识；同组副本读取同一份期望配置。
+  string node_id = 2 [(buf.validate.field).string.min_len = 1];
+  // max_response_bytes 限制单个完整初始响应及增量批次，须按部署规模显式选择。
+  int32 max_response_bytes = 3 [(buf.validate.field).int32.gt = 0];
 }
 
 // Envoy 只指定固定的本地出口，不允许请求选择网络地址。
