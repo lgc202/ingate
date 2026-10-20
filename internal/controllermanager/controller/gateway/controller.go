@@ -41,6 +41,8 @@ type Reconciler struct {
 	client    client.Client
 	publisher Publisher
 	sources   *compilationSource
+	// aiResources 与单 Worker 一起串行使用，发布器只读取已完成的消息。
+	aiResources aiResourceTranslation
 }
 
 // New 创建 Reconciler；Controller 的运行生命周期由 Manager 管理。
@@ -113,12 +115,14 @@ func (r *Reconciler) reconcileAI(ctx context.Context, snapshot publication) erro
 		return fmt.Errorf("compile AI data plane configuration: %w", err)
 	}
 
-	resources, err := snapshot.compileAIResources(config)
+	translation, err := r.aiResources.compile(snapshot, config)
 	if err != nil {
 		return fmt.Errorf("compile AI Proxy data plane resources: %w", err)
 	}
 
-	if err := r.publisher.PublishAI(ctx, config, resources); err != nil {
+	// 只登记构建有效的候选；发布失败仍重试最新期望，不回滚可能已安装的缓存。
+	r.aiResources = translation
+	if err := r.publisher.PublishAI(ctx, config, translation.resources); err != nil {
 		return fmt.Errorf("publish AI xDS configuration: %w", err)
 	}
 

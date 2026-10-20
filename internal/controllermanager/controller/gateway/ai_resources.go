@@ -1,13 +1,8 @@
 package gateway
 
 import (
-	"cmp"
 	"fmt"
-	"maps"
-	"slices"
 
-	"buf.build/go/protovalidate"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -18,78 +13,53 @@ import (
 // aiResourceCompilation 将同一份已收敛的入口结果转换为独立 AI Proxy 资源。
 // 目标名称复用 Envoy 出口的计算规则，不从路由名称反解析来源或规则位置。
 type aiResourceCompilation struct {
-	resources    map[string]*aidataplanev1.Resource
-	modelTargets map[string]*aidataplanev1.ModelTarget
-	mcpTargets   map[string]string
+	sources      map[string]aiResourceSource
+	modelTargets map[string]aiModelTargetTranslation
+	mcpTargets   map[string]aiMCPTargetTranslation
 }
 
-// aiResources 只构造候选，不更新分发缓存；失败时不返回可部分发布的结果。
-// 当前仍扫描完整发布结果，后续缓存按资源内容识别更新和删除。
-func (p publication) aiResources() ([]*aidataplanev1.Resource, error) {
-	config, err := p.aiConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	return p.compileAIResources(config)
-}
-
-// compileAIResources 复用同一发布捕获已组装、校验的配置，不重复组装网络与协议绑定。
-func (p publication) compileAIResources(config aidataplane.Config) ([]*aidataplanev1.Resource, error) {
-	c, err := newAIResourceCompilation(config)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, table := range p.tables {
-		if table.ai.Name == "" {
-			continue
-		}
-
-		if err := c.addEntry(table); err != nil {
-			return nil, err
-		}
-	}
-
-	resources := make([]*aidataplanev1.Resource, 0, len(c.resources))
-	for _, name := range slices.Sorted(maps.Keys(c.resources)) {
-		resource := c.resources[name]
-		sortAIEntryReferences(resource)
-		if err := protovalidate.Validate(resource); err != nil {
-			return nil, fmt.Errorf("validate AI Proxy data-plane resource %q: %w", name, err)
-		}
-
-		resources = append(resources, resource)
-	}
-
-	return resources, nil
-}
-
-func newAIResourceCompilation(config aidataplane.Config) (*aiResourceCompilation, error) {
+func newAIResourceCompilation(
+	snapshot publication,
+	config aidataplane.Config,
+	previous *aiResourceTranslation,
+) (*aiResourceCompilation, error) {
 	c := &aiResourceCompilation{
-		resources:    make(map[string]*aidataplanev1.Resource),
-		modelTargets: make(map[string]*aidataplanev1.ModelTarget),
-		mcpTargets:   make(map[string]string),
+		sources:      make(map[string]aiResourceSource),
+		modelTargets: make(map[string]aiModelTargetTranslation, len(config.Backends)),
+		mcpTargets:   make(map[string]aiMCPTargetTranslation, len(config.NetworkBackends)),
 	}
 	networks := make(map[string]aidataplane.NetworkBackend, len(config.NetworkBackends))
 	for _, network := range config.NetworkBackends {
 		networks[network.Name] = network
+		current := snapshot.networks[network.Name]
+		if target := previous.mcpTargets[network.Name]; target.name != "" && target.network == current {
+			c.mcpTargets[network.Name] = target
+			continue
+		}
+
 		name, err := aidataplane.MCPTargetName(network)
 		if err != nil {
 			return nil, err
 		}
 
-		c.mcpTargets[network.Name] = name
+		c.mcpTargets[network.Name] = aiMCPTargetTranslation{network: current, name: name}
 	}
 
 	for _, backend := range config.Backends {
+		current := snapshot.networks[backend.NetworkBackendName]
+		target := previous.modelTargets[backend.Name]
+		if target.resource != nil && target.network == current && target.schema == backend.Schema &&
+			target.modelNameOverride == *backend.ModelNameOverride {
+			c.modelTargets[backend.Name] = target
+			continue
+		}
+
 		name, err := aidataplane.ModelTargetName(backend, networks[backend.NetworkBackendName])
 		if err != nil {
 			return nil, err
 		}
 
-		// aiConfig 已校验当前唯一支持的 OpenAI 协议及默认路径。
-		c.modelTargets[backend.Name] = &aidataplanev1.ModelTarget{
+		resource := &aidataplanev1.ModelTarget{
 			BindingName: backend.Name,
 			Schema: &aidataplanev1.APISchema{
 				Name:   aidataplanev1.APISchemaName_API_SCHEMA_NAME_OPENAI,
@@ -99,20 +69,37 @@ func newAIResourceCompilation(config aidataplane.Config) (*aiResourceCompilation
 			NetworkBackendName: backend.NetworkBackendName,
 			TargetName:         name,
 		}
+		c.modelTargets[backend.Name] = aiModelTargetTranslation{
+			schema:            backend.Schema,
+			modelNameOverride: *backend.ModelNameOverride,
+			network:           current,
+			resource:          resource,
+		}
 	}
 
 	return c, nil
 }
 
+// aiResources 为纯编译调用构造独立消息；生产协调由 Reconciler 保留转换缓存。
+func (p publication) aiResources() ([]*aidataplanev1.Resource, error) {
+	config, err := p.aiConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	var previous aiResourceTranslation
+	translation, err := previous.compile(p, config)
+	if err != nil {
+		return nil, err
+	}
+
+	return translation.resources, nil
+}
+
 func (c *aiResourceCompilation) addEntry(table *entryTable) error {
 	port, hostName := table.entry.listener.Port, table.ai.Name
 	name := fmt.Sprintf("entry/%d/%s", port, hostName)
-	c.resources[name] = &aidataplanev1.Resource{
-		Name: name,
-		Payload: &aidataplanev1.Resource_Entry{Entry: &aidataplanev1.Entry{
-			Port: port, HostName: hostName, Hostname: *table.ai.Hostname,
-		}},
-	}
+	c.sources[name] = aiResourceSource{entry: table.entry}
 
 	models := make(map[string]aidataplane.ModelRoute, len(table.ai.ModelRoutes))
 	for _, match := range table.ai.ModelRoutes {
@@ -149,55 +136,22 @@ func (c *aiResourceCompilation) addModelRule(
 	entry *listenerEntry,
 ) {
 	name := fmt.Sprintf("model/%s/rule/%d", route.ResourceName(), index)
-	resource := c.resources[name]
-	if resource == nil {
-		compiled := &aidataplanev1.ModelRule{Origin: aiResourceOrigin(route.ObjectMeta), RuleIndex: uint32(index)}
-		for _, match := range route.rules[index].matches {
-			condition := &aidataplanev1.ModelMatch{Condition: &aidataplanev1.ModelMatch_All{All: &emptypb.Empty{}}}
-			if len(match.Headers) != 0 {
-				condition.Condition = &aidataplanev1.ModelMatch_Exact{Exact: match.Headers[0].Value}
-			}
-
-			compiled.Matches = append(compiled.Matches, condition)
-		}
-
-		compiled.Outcome = &aidataplanev1.ModelRule_Unavailable{Unavailable: &emptypb.Empty{}}
-		if backendName != "" {
-			compiled.Outcome = &aidataplanev1.ModelRule_Target{Target: c.modelTargets[backendName]}
-		}
-
-		resource = &aidataplanev1.Resource{Name: name, Payload: &aidataplanev1.Resource_ModelRule{ModelRule: compiled}}
-		c.resources[name] = resource
-	}
-
-	compiled := resource.GetModelRule()
-	compiled.EntryRefs = append(compiled.EntryRefs, &aidataplanev1.EntryReference{
-		Port: entry.listener.Port, HostName: entry.ResourceName(),
-	})
+	source := c.sources[name]
+	source.model = route
+	source.ruleIndex = index
+	source.modelTarget = c.modelTargets[backendName].resource
+	source.refs = append(source.refs, aiEntryReference{port: entry.listener.Port, name: entry.ResourceName()})
+	c.sources[name] = source
 }
 
 func (c *aiResourceCompilation) addMCPRoute(route *mcpRoute, match aidataplane.MCPRoute, entry *listenerEntry) {
 	name := "mcp/" + route.ResourceName()
-	resource := c.resources[name]
-	if resource == nil {
-		compiled := &aidataplanev1.MCPRoute{Origin: aiResourceOrigin(route.ObjectMeta), Path: match.Path}
-		compiled.Outcome = &aidataplanev1.MCPRoute_Unavailable{Unavailable: &emptypb.Empty{}}
-		if backendName := *match.BackendName; backendName != "" {
-			compiled.Outcome = &aidataplanev1.MCPRoute_Target{Target: &aidataplanev1.MCPTarget{
-				NetworkBackendName: backendName,
-				BackendPath:        match.BackendPath,
-				TargetName:         c.mcpTargets[backendName],
-			}}
-		}
-
-		resource = &aidataplanev1.Resource{Name: name, Payload: &aidataplanev1.Resource_McpRoute{McpRoute: compiled}}
-		c.resources[name] = resource
-	}
-
-	compiled := resource.GetMcpRoute()
-	compiled.EntryRefs = append(compiled.EntryRefs, &aidataplanev1.EntryReference{
-		Port: entry.listener.Port, HostName: entry.ResourceName(),
-	})
+	source := c.sources[name]
+	source.mcp = route
+	source.mcpBackend = *match.BackendName
+	source.mcpTarget = c.mcpTargets[source.mcpBackend].name
+	source.refs = append(source.refs, aiEntryReference{port: entry.listener.Port, name: entry.ResourceName()})
+	c.sources[name] = source
 }
 
 func aiResourceOrigin(meta metav1.ObjectMeta) *aidataplanev1.Origin {
@@ -206,22 +160,4 @@ func aiResourceOrigin(meta metav1.ObjectMeta) *aidataplanev1.Origin {
 		Name:         meta.Name,
 		CreationTime: timestamppb.New(meta.CreationTimestamp.Time),
 	}
-}
-
-func sortAIEntryReferences(resource *aidataplanev1.Resource) {
-	var refs []*aidataplanev1.EntryReference
-	switch payload := resource.Payload.(type) {
-	case *aidataplanev1.Resource_ModelRule:
-		refs = payload.ModelRule.EntryRefs
-	case *aidataplanev1.Resource_McpRoute:
-		refs = payload.McpRoute.EntryRefs
-	}
-
-	slices.SortFunc(refs, func(a, b *aidataplanev1.EntryReference) int {
-		if order := cmp.Compare(a.Port, b.Port); order != 0 {
-			return order
-		}
-
-		return cmp.Compare(a.HostName, b.HostName)
-	})
 }
