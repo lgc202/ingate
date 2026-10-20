@@ -10,9 +10,9 @@
 
 2026-10-13 编译存储切片补充：用户已确认 [AI 编译配置契约](ai-compiled-config-contract.md)，采用 ConfigMap 替代下文 AIProxyConfig 候选，先保存当前完整非敏感配置，普通 HTTP 不进入 AI payload。原生 ConfigMap API 已通过用户 review 并获准本地提交；内部编码及编译写入尚未实现。Secret、双版本、本地健康准入及撤销仍须独立确认，不因本轮确认而获准实现。
 
-2026-10-15 取舍更新：用户已确认[最终一致性与按请求目标关联](ai-model-operations-and-deployment.md#配置更新最终一致按请求目标关联)，不采用每请求整份配置 revision 相等的强制门槛，也不增加全局实例确认或发布协调系统。下文的整份版本准入、按版本健康检查及双版本发布保留为历史候选，不作为开发前置条件。凭据与实际目标绑定、权限和撤销仍待独立评审；这项更新不批准 Secret、凭据接入或任何候选期限。
+2026-10-15 取舍更新：用户已确认[最终一致性与按请求目标关联](ai-model-operations-and-deployment.md#响应取消与配置更新)，不采用每请求整份配置 revision 相等的强制门槛，也不增加全局实例确认或发布协调系统。下文的整份版本准入、按版本健康检查及双版本发布保留为历史候选，不作为开发前置条件。凭据与实际目标绑定、权限和撤销仍待独立评审；这项更新不批准 Secret、凭据接入或任何候选期限。
 
-2026-10-16 网络能力更新：用户已确认并实现本地 [Backend 内联 TLS 首版](ai-gateway-resource-contract.md#上游-tls-首版2026-10-16本地实现待-review)，
+2026-10-16 网络能力更新：用户已确认并实现本地 [Backend 内联 TLS 首版](ai-gateway-resource-contract.md#上游-tls-首版)，
 固定 DNS SNI 与同身份 SAN 验证，仅 System CA，普通 HTTP/模型/MCP 共用 Envoy 网络出口。
 完整更新主动删除 TLS 恢复明文期望；连接或证书失败绝不隐式降级。TLS 不等于上游认证，
 本轮不实现本稿的 Secret、BackendSecurityPolicy、凭据注入或安全授权系统，也未连接真实提供商。
@@ -178,7 +178,7 @@ ACK/NACK 只在相同 stream、资源类型和响应 nonce 下关联；nonce 不
 
 用户要求先明确 payload，不能先装空载体再补设计。[完整编译配置契约](ai-compiled-config-contract.md) 已经确认，包含固定对象名与 key、显式控制面 Namespace、完整字段和例子、匹配/失效/删除及存储行为。代码分原生 ConfigMap API、内部强类型配置、Controller 编译写入三个小步；不先建空模型服务或只写 Conditions，也不改变现有 Envoy 转发。模型与 MCP 运行协议、凭据、TLS、Proxy Watch 和跨组件版本激活仍不在这三个小步内。
 
-本节设计时按 GoCanon 启动快照 `336a025-dirty` 及已确认的 0010/0013 边界审查。GitHub 页面读取失败后只读取固定提交的原始源码；远端 tag 查询因 HTTP/2 错误失败，未将其记作重新验证成功，没有执行上游组件。原生 ConfigMap 实施采用的新规则快照、来源适配与检查结果记录在 [编译配置契约](ai-compiled-config-contract.md#原生-configmap-实现记录)，不据此宣称凭据或运行能力已经实现。
+本节是历史载体选择记录：当时读取了固定提交源码，没有执行上游组件。原生 ConfigMap 复用范围见 [0014](../decisions/0014-upstream-core-resources.md)；当前分发契约见[编译资源契约](ai-compiled-config-contract.md)。载体与传输实现不证明凭据管理已经完成。
 
 ## 理由与取舍
 
@@ -192,7 +192,7 @@ ACK/NACK 只在相同 stream、资源类型和响应 nonce 下关联；nonce 不
 
 这是新增 AI 能力的设计，不保留旧 AI 契约，也不改变现有 HTTP 转发、管理员 Session 或 MySQL 普通查询语义。集中凭据不等于新增计费、租户、配额或通用策略语言。
 
-以下三项保留凭据与运行阶段的候选拆分，不是本轮编译存储的实施顺序。当前先编译并保存非敏感结果，以 [新契约的实施计划](ai-compiled-config-contract.md#兼容性与实施)为准；真实凭据和接流量仍受下述前置条件限制。每项代码 review 后停下等待提交确认：
+以下三项保留凭据与运行阶段的候选拆分，不是当前实施顺序。非敏感配置已按[编译资源契约](ai-compiled-config-contract.md)接入 Delta ADS；真实凭据接入仍受下述前置条件限制。每项代码 review 后停下等待提交确认：
 
 1. 先确定 Ingate 托管 Secret 的命名空间与身份/授权部署契约，完成受保护存储、密钥管理和正反例。依赖的宿主或身份提供方不能凭参考示例补出；未完成前不接真实 key。
 2. 通过策略与 AIProxyConfig 的正式字段契约后，接入 Controller 编译和原生 List/Watch 加载；只生成明确类型的机械代码，不先建空 Controller、插件接口或新 MySQL 表。

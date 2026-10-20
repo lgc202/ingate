@@ -1,13 +1,15 @@
-# 0010：模型与 MCP 使用统一 Go AI Proxy，由 Controller 编译配置并通过 API Server 下发
+# 0010：模型与 MCP 使用统一 Go AI Proxy
 
-> 2026-10-19：用户确认增量编译与资源级 Delta 下发方案并授权开始实现，Go AI Proxy 不再以单 ConfigMap 为终态。选型、架构、资源组织和分发方案见[控制面增量设计](../design/control-plane-incremental-design.md)，代码按阶段 review；本页 API Server List/Watch 路径仍是当前分发实现与历史依据。
+> 当前决定：模型与 MCP 使用统一 Go HTTP Proxy，Controller 负责领域编译，Envoy 负责网络转发。配置下发部分已由[控制面增量设计](../design/control-plane-incremental-design.md)替代并实现：Controller 分别向 Envoy 和 AI Proxy 提供 Delta ADS，不再通过 API Server/ConfigMap 下发派生配置。当前资源协议见[编译资源契约](../design/ai-compiled-config-contract.md)，当前请求链见[运行设计](../design/ai-model-operations-and-deployment.md)。
+
+以下保留 2026-10-10 起的背景、方案论证与历史候选。API Server 下发、全局确认和整份 revision 准入均不是当前实现，不作为启动指引；其中的分阶段状态也不代表当前完成度。
 
 - 日期：2026-10-10
 - 状态：统一运行组件、配置下发、资源关系及最终一致性取舍已确认；最新实现与待评审边界见后续契约
 - 讨论入口：本仓库文档 review；当前没有对应 Issue 或 PR
-- 当前能力：[API 网关完成度](../api-gateway-readiness.md)
+- 当前能力：[架构与运行文档](../README.md)
 - 图示：[可离线打开的架构与流程图](../diagrams/ai-gateway.html)
-- 后续设计：[资源契约与替换计划](../design/ai-gateway-resource-contract.md)，字段和行为待评审
+- 资源契约：[六类资源与同空间引用](../design/ai-gateway-resource-contract.md)
 - 上游核对：[固定版本契约、实现与测试对照](../design/ai-gateway-upstream-alignment.md)
 
 ## 摘要
@@ -48,7 +50,7 @@ Gateway
   └─ MCPRoute ────────────────────→ Backend
 ```
 
-![已确认的目标资源关系，尚未实现](../diagrams/ai-resource-model.svg)
+![当前已实现的资源引用关系](../diagrams/ai-resource-model.svg)
 
 | 资源 | 职责 | 不放入的内容 |
 | --- | --- | --- |
@@ -101,7 +103,7 @@ MCP 是独立协议模块，不能只转发 `tools/call`。支持哪些传输与
 
 ### 历史候选：全局确认与按整份版本准入（未采用）
 
-2026-10-15 已选择[最终一致性与目标关联](../design/ai-model-operations-and-deployment.md#配置更新最终一致按请求目标关联)。传播期间允许因入口或目标不可用而失败，不接受错误目标或凭据错配；不要求两路整份配置版本相同。下图和本节步骤用于保留原候选的取舍依据，不是当前实施计划；其中实例报告、目标版本准入、持久发布进度和多版本回收均未因此获准实现。
+2026-10-15 已选择[最终一致性与目标关联](../design/ai-model-operations-and-deployment.md#响应取消与配置更新)。传播期间允许因入口或目标不可用而失败，不接受错误目标或凭据错配；不要求两路整份配置版本相同。下图和本节步骤用于保留原候选的取舍依据，不是当前实施计划；其中实例报告、目标版本准入、持久发布进度和多版本回收均未因此获准实现。
 
 ![配置发布候选流程，所有新增阶段待评审](../diagrams/ai-config-flow.svg)
 

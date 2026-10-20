@@ -144,5 +144,5 @@ DNS SubjectAltNameMatcher、TransportSocket 类型与 ValidateAll，以及 proto
 Envoy `v1.39.0` 固定 `8eea3285d6bdb89f8ea34632cfe7ce1608a8f374` 的
 [官方镜像 Dockerfile](https://github.com/envoyproxy/envoy/blob/8eea3285d6bdb89f8ea34632cfe7ce1608a8f374/distribution/docker/Dockerfile-envoy)
 标准 Ubuntu 镜像安装 ca-certificates；此运行前提及 SystemRootCerts 未实现的源码依据见
-[资源契约](ai-gateway-resource-contract.md#上游-tls-首版2026-10-16本地实现待-review)。
+[资源契约](ai-gateway-resource-contract.md#上游-tls-首版)。
 本仓库尚无 Envoy 部署镜像清单，未启动镜像或验证真实握手，不能将 Go API 版本等同于已部署二进制版本。

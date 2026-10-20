@@ -42,7 +42,7 @@ func (s *Store) GetSession(ctx context.Context, id string) (Session, error) {
 	value, err := s.client.Get(ctx, sessionKey(id)).Bytes()
 	if err != nil {
 		if errors.Is(err, goredis.Nil) {
-			return Session{}, ErrNotFound
+			return Session{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 		}
 
 		return Session{}, fmt.Errorf("get session: %w", err)

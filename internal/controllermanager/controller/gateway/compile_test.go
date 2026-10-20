@@ -99,3 +99,13 @@ func TestCompileNormalizesPathPrefix(t *testing.T) {
 		t.Errorf("compile(PathPrefix /api/) listeners mismatch (-want +got):\n%s", diff)
 	}
 }
+
+// compile 为测试组装完整 HTTP 参考结果；生产发布从已收敛的入口集合组装。
+func compile(result resolution) dataplane.Config {
+	config := dataplane.Config{Listeners: compileHTTPListeners(result)}
+	for _, backend := range result.backends {
+		config.Backends = append(config.Backends, backend.httpBackend())
+	}
+
+	return config
+}

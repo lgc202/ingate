@@ -1,6 +1,11 @@
 # 0003：生成供 API Server 调用方使用的类型化客户端
 
-- 状态：待评审
+- 状态：已实现；下文保留首个三资源切片的历史记录。
+
+当前生成范围是六种 Namespace 级资源，调用方包括 Admin API；作用域以
+[0013](0013-namespaced-resources.md)为准。生成源与检查方式仍为
+[generate-api.sh](../../scripts/generate-api.sh)和 CI 重生成差异检查；
+下文的旧资源名、集群级访问和“预期调用方”不描述当前实现。
 
 ## 背景
 

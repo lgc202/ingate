@@ -15,16 +15,6 @@ type listenerRef struct {
 	listenerName string
 }
 
-// compile 只转换已接纳资源；跨资源引用和冲突已由 resolve 处理。
-func compile(result resolution) dataplane.Config {
-	config := dataplane.Config{Listeners: compileHTTPListeners(result)}
-	for _, backend := range result.backends {
-		config.Backends = append(config.Backends, backend.httpBackend())
-	}
-
-	return config
-}
-
 func compileHTTPListeners(result resolution) []dataplane.Listener {
 	routesByListener := make(map[listenerRef][]dataplane.Route)
 	for _, binding := range result.bindings {

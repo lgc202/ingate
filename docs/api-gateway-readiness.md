@@ -1,6 +1,6 @@
-# API 网关完成度与 AI 网关开发条件
+# 历史评估：API 网关完成度与 AI 网关开发条件
 
-> 当前增量实现入口：[设计](design/control-plane-incremental-design.md)、[启动说明](control-plane-initialization.md)。Controller 与 AI Proxy 已改用资源级 Delta ADS；下文日期化的完成度与 ConfigMap 描述保留为历史评估，不能作为当前启动方式。普通测试与原生 ADS 联合回归不替代真实 Envoy、数据库及部署验收。
+> 本文保留 2026-10-10 起的阶段评估，正文中的“当前”“待 review”“尚未实现”和分支均指各段记录时点，不是现状清单。现状以[文档入口](README.md)、[增量设计](design/control-plane-incremental-design.md)和[启动说明](control-plane-initialization.md)为准。Controller 与 AI Proxy 已改用资源级 Delta ADS；历史 ConfigMap 描述不能作为当前操作指引。普通测试与原生 ADS 联合回归不替代真实 Envoy、数据库及部署验收。
 
 - 评估日期：2026-10-10；2026-10-11 同步 ADS 反馈；2026-10-12 同步声明式资源及 AIBackend、ModelRoute、MCPRoute 管理与投影；2026-10-13 同步 Namespace 全链路切换；2026-10-19 同步 Envoy Delta ADS
 - 源码基线：`f054c54b` 已提交 MCPRoute 管理与查询投影；共享协调器及 Namespace 基础设施已提交；当前六种资源 Namespace 全链路切换待用户 review，未提交；HTTP 替换前评估基线为 `56205b84321c60b9e6e73d2b9f2d5664575ea275`
@@ -187,7 +187,7 @@ ADS 当前为明文 gRPC，默认 `:18000`，只适用于隔离可信网络；�
 
 现有单输出 Publisher 接口、完整 Snapshot 和独立类型版本可以复用；但派生对象持久化、Proxy 加载、Envoy ACK、旧流排空均未实现。不能把「同一轮编译」当作两端同时生效，更不能使用 API resourceVersion 数值比较推导跨系统顺序。
 
-这些属于下一阶段 AI 设计的核心内容，见 [0010 配置流程](decisions/0010-unified-ai-proxy-config-delivery.md#候选发布流程必须区分加载ack-和真实生效)。阶段 B 已按确认契约将 HTTPRoute 改为逐父引用的 Accepted/ResolvedRefs；AI 加载与激活契约定稿前，不把这些 Conditions 改成运行就绪承诺，也不增加含义不明的全局 Ready。
+这段保留当时的设计缺口，见 [0010 历史候选](decisions/0010-unified-ai-proxy-config-delivery.md#历史候选全局确认与按整份版本准入未采用)。当前已实现 Delta ADS 加载与目标关联，见[编译资源契约](design/ai-compiled-config-contract.md)。HTTPRoute 的逐父引用 Accepted/ResolvedRefs 仍不表示运行就绪，也不增加含义不明的全局 Ready。
 
 ### 长流、重试、实库与运行恢复需要分别验证
 

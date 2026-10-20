@@ -1,4 +1,4 @@
-// Package aiproxy 装配 AI Proxy 的模型请求链，管理组件启动与配置 Watch 生命周期。
+// Package aiproxy 装配模型与 MCP 请求链，管理组件启动和 Delta ADS 订阅生命周期。
 // 本包不拥有领域资源或配置编译。
 package aiproxy
 
@@ -83,10 +83,10 @@ func Run(ctx context.Context, configFile string) (runErr error) {
 	return nil
 }
 
-// NewHTTPServer 将原生出站 Client、完整模型 Service 和 Handler 装配到 Kratos HTTP Server。
+// NewHTTPServer 将原生出站 Client、模型与 MCP Service 和 Handler 装配到 Kratos HTTP Server。
 // 调用方拥有 Listener 与 Loader：负责保护入口 socket 及目录、运行 Loader，
 // 并在停止接收、排空 Server 后调用返回的清理函数释放出口空闲连接。
-// 构造不开始接受请求或启动 Watch；失败不关闭调用方的 Listener 或 Loader。
+// 构造不开始接受请求或订阅配置；失败不关闭调用方的 Listener 或 Loader。
 // Listener、Loader 与 Logger 由调用方的成功构造链保证有效。
 // Server 从 Envoy 覆盖的内部 Header 恢复入口；入口信任依赖调用方保护 Unix socket。
 func NewHTTPServer(
@@ -151,7 +151,7 @@ func newApp(
 }
 
 func runApp(ctx context.Context, app *kratos.App, loader *aiconfig.Loader) error {
-	// 正常信号退出时，Watch 活到 HTTP 排空结束；其生命周期仍由本次运行拥有。
+	// 正常信号退出时，ADS 订阅活到 HTTP 排空结束；其生命周期仍由本次运行拥有。
 	// WithoutCancel 只解除父取消，下面的显式取消与等待覆盖 App 的正常和失败返回。
 	watchCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancel()

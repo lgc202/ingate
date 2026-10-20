@@ -2,7 +2,7 @@
 
 > 历史决策保留当时的 Route/Upstream 契约；2026-10-10 的 HTTPRoute/Backend 替换和行为变更见 [0011](0011-http-resource-contract.md)。
 
-> 2026-10-19：用户确认增量编译与资源级增量下发方案并授权开始实现，见[控制面增量设计](../design/control-plane-incremental-design.md)；代码按阶段 review。本页全量协调仍描述当前编译路径，不再作为长期计算方式；共享输出所有权、现有裁决和最终一致性边界保留。
+> 全量计算与发布部分已由[控制面增量设计](../design/control-plane-incremental-design.md)替代并实现。当前六类源资源接入 krt，分别向 Envoy 和 AI Proxy 提供 Delta ADS。下文保留初版三资源全量方案，不描述当前计算路径；共享输出所有权、单 Worker 与最终一致性边界仍保留。
 
 - 状态：已确认裁决策略，分步实施中
 

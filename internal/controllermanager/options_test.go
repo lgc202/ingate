@@ -85,6 +85,29 @@ func TestOptionsAISockets(t *testing.T) {
 	}
 }
 
+func TestOptionsConfigRejectsEmptyXDSAddress(t *testing.T) {
+	options := NewOptions()
+	options.Kubeconfig = filepath.Join(t.TempDir(), "kubeconfig")
+	kubeconfig := clientcmdapi.Config{
+		Clusters:       map[string]*clientcmdapi.Cluster{"ingate": {Server: "https://127.0.0.1:6443"}},
+		Contexts:       map[string]*clientcmdapi.Context{"ingate": {Cluster: "ingate"}},
+		CurrentContext: "ingate",
+	}
+	if err := clientcmd.WriteToFile(kubeconfig, options.Kubeconfig); err != nil {
+		t.Fatalf("WriteToFile(temporary kubeconfig) error = %v, want nil", err)
+	}
+
+	for _, address := range []string{"", " \t"} {
+		options.XDSBindAddress = address
+
+		config, err := options.Config()
+
+		if err == nil || config != nil {
+			t.Errorf("Options.Config(xDS address %q) config nil/error = %t/%v, want true and validation error", address, config == nil, err)
+		}
+	}
+}
+
 func TestValidateAISockets(t *testing.T) {
 	for _, tt := range []struct {
 		name    string

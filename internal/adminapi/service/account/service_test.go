@@ -2,7 +2,9 @@ package account
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +17,7 @@ import (
 type fakeAccountRepository struct {
 	account             domain.Account
 	updatePasswordCalls int
+	updatePasswordErr   error
 }
 
 type fakeSessionRepository struct {
@@ -129,6 +132,10 @@ func TestPasswordVerificationRejectsIncorrectPassword(t *testing.T) {
 						t.Errorf("%s(password=%q) error = %v, want ErrInvalidCredentials", operation.name, password, err)
 					}
 
+					if !errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+						t.Errorf("%s(incorrect password) error = %v, want bcrypt mismatch cause", operation.name, err)
+					}
+
 					if errors.Is(err, ErrUnavailable) {
 						t.Errorf("%s(password=%q) error = %v, want no ErrUnavailable", operation.name, password, err)
 					}
@@ -228,6 +235,89 @@ func TestPasswordVerificationRejectsMalformedHash(t *testing.T) {
 	}
 }
 
+func TestMissingAuthenticationRecordsPreserveCause(t *testing.T) {
+	token := base64.RawURLEncoding.EncodeToString(make([]byte, sessionTokenSize))
+	tests := []struct {
+		name      string
+		run       func(context.Context, *Service) error
+		wantErr   error
+		wantCause error
+	}{
+		{
+			name: "login account missing",
+			run: func(ctx context.Context, service *Service) error {
+				_, err := service.Login(ctx, "admin", "password")
+				return err
+			},
+			wantErr:   ErrInvalidCredentials,
+			wantCause: repository.ErrAccountNotFound,
+		},
+		{
+			name: "authenticated account missing",
+			run: func(ctx context.Context, service *Service) error {
+				_, err := service.Authenticate(ctx, token)
+				return err
+			},
+			wantErr:   ErrSessionRequired,
+			wantCause: repository.ErrAccountNotFound,
+		},
+		{
+			name: "session missing",
+			run: func(ctx context.Context, service *Service) error {
+				otherToken := base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("x", sessionTokenSize)))
+				_, err := service.Authenticate(ctx, otherToken)
+
+				return err
+			},
+			wantErr:   ErrSessionRequired,
+			wantCause: repository.ErrSessionNotFound,
+		},
+		{
+			name: "current account missing",
+			run: func(ctx context.Context, service *Service) error {
+				_, err := service.Get(ctx, initialAdminID)
+				return err
+			},
+			wantErr:   ErrSessionRequired,
+			wantCause: repository.ErrAccountNotFound,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accounts := new(fakeAccountRepository)
+			sessions := &fakeSessionRepository{items: map[string]domain.Session{
+				sessionID(token): {AccountID: initialAdminID, AccountVersion: 1},
+			}}
+			service := New(accounts, sessions)
+
+			err := tt.run(t.Context(), service)
+
+			if !errors.Is(err, tt.wantErr) || !errors.Is(err, tt.wantCause) {
+				t.Errorf("%s error = %v, want %v and cause %v", tt.name, err, tt.wantErr, tt.wantCause)
+			}
+		})
+	}
+}
+
+func TestChangePasswordPreservesConflictCause(t *testing.T) {
+	cause := fmt.Errorf("concurrent password update: %w", repository.ErrAccountChanged)
+	accounts := &fakeAccountRepository{
+		account: domain.Account{
+			ID:           initialAdminID,
+			Username:     "admin",
+			PasswordHash: passwordHash(t, "current-password"),
+		},
+		updatePasswordErr: cause,
+	}
+	service := New(accounts, &fakeSessionRepository{items: make(map[string]domain.Session)})
+
+	err := service.ChangePassword(t.Context(), initialAdminID, "current-password", "new-password")
+
+	if !errors.Is(err, ErrInvalidCredentials) || !errors.Is(err, cause) {
+		t.Errorf("ChangePassword(concurrent update) error = %v, want ErrInvalidCredentials and original cause", err)
+	}
+}
+
 func (r *fakeAccountRepository) Create(_ context.Context, account domain.Account) error {
 	if r.account.ID != 0 {
 		return repository.ErrAccountAlreadyExists
@@ -256,6 +346,10 @@ func (r *fakeAccountRepository) GetByUsername(_ context.Context, username string
 
 func (r *fakeAccountRepository) UpdatePassword(_ context.Context, id uint64, oldHash, newHash string) error {
 	r.updatePasswordCalls++
+	if r.updatePasswordErr != nil {
+		return r.updatePasswordErr
+	}
+
 	if r.account.ID != id || r.account.PasswordHash != oldHash {
 		return repository.ErrAccountChanged
 	}

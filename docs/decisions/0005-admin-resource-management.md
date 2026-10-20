@@ -2,7 +2,7 @@
 
 > 历史决策保留当时的 Route/Upstream 契约和 Domain 布局；HTTPRoute/Backend 替换见 [0011](0011-http-resource-contract.md)，当前资源名称、查询表及版本化写入/Repository 查询视图边界见 [0012](0012-resource-names-and-query-schema.md)。
 
-- 状态：待评审
+- 状态：已实现；下文保留首个三资源切片的历史记录。
 - 日期：2026-09-26
 
 Admin API 对 Gateway、Route、Upstream 分别提供创建、读取、列表、更新和删除接口，HTTP 路径位于 `/api/admin/v1` 下；同一协议也提供 gRPC。调用方使用 Admin API 的管理员 Session。创建、更新和删除通过生成的客户端写入声明式 API Server；Controller 将资源同步到 MySQL，Admin API 的读取和列表只查 MySQL。API Server 是期望状态的唯一写入源，MySQL 是可重建的查询模型，不接受 Admin API 直接修改资源。

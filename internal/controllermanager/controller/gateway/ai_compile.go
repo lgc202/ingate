@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"cmp"
-	"fmt"
 	"maps"
 	"path"
 	"slices"
@@ -22,31 +21,6 @@ type aiCompilation struct {
 	mcpRoutes        map[listenerRef][]aidataplane.MCPRoute
 	protocolBackends map[string]aidataplane.Backend
 	networkBackends  map[string]bool
-}
-
-// compileAI 将派生的匹配与后端结果组装为共享配置，不读取 API 或修改输入。
-// 调用方必须等待全部集合初始同步；空输入表示撤销，不能代替未同步的集合。
-// 此处不裁决跨 Kind 的网络入口或发布 xDS。
-func compileAI(snapshot resources) (aidataplane.Config, error) {
-	c, err := resolveAI(snapshot)
-	if err != nil {
-		return aidataplane.Config{}, err
-	}
-
-	config := c.buildConfig()
-	for _, backend := range snapshot.backends {
-		if c.networkBackends[backend.ResourceName()] {
-			config.NetworkBackends = append(config.NetworkBackends, backend.aiBackend())
-		}
-	}
-
-	slices.SortFunc(config.NetworkBackends, func(a, b aidataplane.NetworkBackend) int { return cmp.Compare(a.Name, b.Name) })
-
-	if err := aidataplane.Validate(config); err != nil {
-		return aidataplane.Config{}, fmt.Errorf("validate compiled AI configuration: %w", err)
-	}
-
-	return config, nil
 }
 
 func resolveAI(snapshot resources) (*aiCompilation, error) {

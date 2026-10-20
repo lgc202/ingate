@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 600" role="img" aria-labelledby="title desc">
-  <title id="title">Ingate 已确认的目标资源关系</title>
-  <desc id="desc">HTTPRoute、ModelRoute、MCPRoute 均通过 parentRefs 引用 Gateway。HTTPRoute 和 MCPRoute 直接引用 Backend，ModelRoute 引用 AIBackend，AIBackend 再引用 Backend。箭头是配置引用而非请求转发；具体字段和实现尚未完成。</desc>
+  <title id="title">Ingate 当前资源关系</title>
+  <desc id="desc">HTTPRoute、ModelRoute、MCPRoute 均通过 parentRefs 引用同 Namespace 的 Gateway。HTTPRoute 和 MCPRoute 直接引用 Backend，ModelRoute 引用 AIBackend，AIBackend 再引用 Backend。六种资源均已实现，箭头表示配置引用而非请求转发。</desc>
   <defs>
     <marker id="arrow" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#5B8A72"/></marker>
   </defs>
@@ -16,7 +16,7 @@
     <path marker-end="url(#arrow)" d="M630 445 H1260 V350"/>
   </g>
   <g>
-    <text x="720" y="40">目标资源关系 · 已确认，尚未实现</text>
+    <text x="720" y="40">当前资源关系 · 同 Namespace 引用</text>
     <text x="175" y="215" class="note">三种路由均通过 parentRefs 引用</text>
     <text x="900" y="127" class="note">backendRefs</text>
     <text x="715" y="277" class="note">backendRefs</text>
@@ -35,6 +35,6 @@
     <rect class="box" x="1140" y="240" width="240" height="110" rx="10"/>
     <text x="1260" y="287">Backend</text><text x="1260" y="319" class="note">统一网络目标</text>
     <text x="720" y="540" class="note">箭头表示配置引用，不增加代理跳数；Backend 表示资源类型，不要求所有路由共用同一实例。</text>
-    <text x="720" y="573" class="note">资源分层不改变统一 Go AI Proxy；字段、凭据与策略附着、引用权限及发布协议仍待评审。</text>
+    <text x="720" y="573" class="note">统一 Go AI Proxy 已接入模型与 MCP；凭据管理、跨 Namespace 引用和策略附着不在当前实现内。</text>
   </g>
 </svg>

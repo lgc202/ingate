@@ -1,42 +1,44 @@
 # Ingate 技术文档
 
-阅读顺序：先看当前能力和主链路，再看 AI 网关的已确认方向与待评审设计。
+当前实现的阅读顺序是架构、资源、配置、请求与启动。设计决定、实现范围和验证证据分别阅读，
+历史记录不作为当前端到端验收结果。
 
-- [控制面增量编译与配置分发设计](design/control-plane-incremental-design.md)：方案选型、总体架构、资源结构、增量计算和 Delta 分发；结合 Envoy Gateway、Istio、Agentgateway 的设计说明采用理由及差异。
-  六类资源统一接入 krt；Backend 网络结果、三类 Route 匹配和 AIBackend 协议声明按对象派生，AIBackend 通过按键 Fetch 关联网络后端。
-  协调器读取编译集合，不再逐次 List 六类原对象并重做端点、匹配和协议转换。Gateway 与 HTTPRoute 为状态协调保留实例身份和 Generation，写回前核对当前对象。
-  Gateway 变化驱动集中入口冲突裁决；三类 Route 通过父引用建立附着关系，再按入口索引聚合，匹配变化只重算相关入口，端点变化不重算路由表。
-  发布边界核对异步集合的结果是否收敛，合并入口缓存并从唯一 Backend 集合填充网络结果。最终一致性核对、配置组装和快照发布仍遍历完整结果；Envoy 和 AI Proxy 都通过原生 Delta ADS 接收资源级变化与删除。
-  Envoy 快照使用 go-control-plane 的原生资源版本表，按类型和名称复用内容未变的消息，撤销时同时移除资源及版本；类型级聚合版本仅作 Delta 响应诊断，差异按逐资源版本计算。ADS 不保留 SotW 入口，Envoy 启动配置须使用 `DELTA_GRPC`。
-  HTTP protobuf 按端口缓存 LDS/RDS，按 Backend 身份缓存 CDS/EDS；AI 入口按端口与 Host 缓存固定模型接口和 MCP 路径，合入公共 RDS 的结果按端口缓存。AI 出口按内容寻址目标复用 CDS/EDS 与路由，目标列表未变时复用出口 RDS；UDS 资源独立复用，无入口或出口时清理。
-  缓存只保存当前有效键，校验失败保旧，通知失败保留新期望并重试。最终配置扫描、目标哈希、快照序列化和版本计算仍遍历全量。Delta 的订阅、变化、删除和已知版本重连已由原生 gRPC 客户端验证，尚未进行真实 Envoy 联调。
-  AI Proxy 独立资源已定义为 [protobuf 契约](../api/aidataplane/v1/resource.proto)，由[控制面转换](../internal/controllermanager/controller/gateway/ai_resources.go)输出入口、模型规则和 MCPRoute，保留来源与拒绝语义，复用 Envoy 的内容寻址出口。
-  [共享 xDS 发布器](../internal/controllermanager/dataplane/xds/publisher.go)已接入 AI Proxy LinearCache 和原生 MuxCache；只安装变化及删除，使用原生内容版本，支持合法空配置和已知版本重连，未初始化的 AI Proxy 缓存不提供配置。ADS 服务与反馈处理从 Envoy 包移到共享 xds 包，按类型及数据面组分流；这不提供身份鉴权。[AI Proxy Loader](../internal/aiproxy/pkg/aiconfig/loader.go)已使用 Delta ADS：按批校验资源及引用、仅重建受影响入口、交换不可变视图后 ACK，坏批次 NACK 并携带已接受版本重连。断线保旧，合法空批次可初始化，显式删除撤销路由。Controller 不再写入或 Watch 派生 ConfigMap，两个组件不再需要配置 Namespace；领域 Namespace 与原生 ConfigMap API 保留。转换和发布边界比较、候选 map 复制仍扫描完整状态，不能宣称所有步骤都是 O(变化量)。原生 ADS 联合回归使用内存领域缓存，未进行真实 Envoy、数据库或跨服务部署验收。
+## 当前架构与运行契约
 
-- [GoCanon 模板对齐](decisions/0016-gocanon-template-alignment.md)：本轮规则版本、重构边界、实施顺序与验证进度；不把参考示例覆盖到产品业务。
+| 文档 | 内容 |
+| --- | --- |
+| [架构与流程图](diagrams/ai-gateway.html) | 当前配置流、资源关系、请求链和 Delta 同步，可离线打开 |
+| [控制面增量编译与配置分发](design/control-plane-incremental-design.md) | krt 依赖图、转换缓存、两路 Delta ADS，以及仍需完整遍历的步骤 |
+| [网关资源契约](design/ai-gateway-resource-contract.md) | 六种资源、Namespace、同空间引用、匹配与后端连接语义 |
+| [AI 编译配置契约](design/ai-compiled-config-contract.md) | 独立 protobuf 资源、命名、版本、批次应用、删除和重连 |
+| [AI Proxy 操作与部署](design/ai-model-operations-and-deployment.md) | 两个模型创建接口、MCP、UDS、错误、SSE、TLS 与未实现范围 |
+| [控制面与数据面启动](control-plane-initialization.md) | 组件依赖、参数、实例标识、共享数据面和就绪边界 |
+| [AI 网关上游设计对照](design/ai-gateway-upstream-alignment.md) | 已核对的上游版本、采用范围和明确差异 |
+| [AI Proxy 包布局](decisions/0015-ai-proxy-package-layout.md) | 应用层与能力包的所有权、依赖方向和资源清理 |
 
-- [控制面与数据面启动](control-plane-initialization.md)：领域 Namespace、Manager ADS 和 AI Proxy 启动参数；不再为派生配置创建专有 Namespace。
-- [API 网关完成度与 AI 网关开发条件](api-gateway-readiness.md)：2026-10-10 的源码与验证快照。
-- [HTTP 主链路隔离验证方案](design/http-gateway-validation-plan.md)：留待后续统一测试的实库、Manager/Envoy 转发和 ACK/NACK 清单；不作为当前开发前置条件。
-- [统一 Go AI Proxy 与配置下发](decisions/0010-unified-ai-proxy-config-delivery.md)：已确认运行组件、配置下发和资源关系，及待评审契约与实施建议。
-- [AI Proxy 应用分层与能力包布局](decisions/0015-ai-proxy-package-layout.md)：组件内 pkg 归属及协议能力职责；完整请求编排迁入 modelproxy.Service 的重构与 HTTP 装配已通过 review，并获准本地提交。
-- [AI 网关上游设计对照](design/ai-gateway-upstream-alignment.md)：固定版本的契约、源码、反例测试，以及采用、裁剪和必要差异。
-- [AI 网关资源契约设计稿](design/ai-gateway-resource-contract.md)：六种主资源、策略附着建议、内部模型路由表、引用/冲突/删除语义与完整替换计划；HTTP 子集设计已通过，用户已授权提交阶段 B 当前实现，后续 AI/MCP 契约仍需确认。
-- [AI 模型操作与数据面部署设计](design/ai-model-operations-and-deployment.md)：启动配置已提交为 `0b0eea18`；AI Proxy 命令、Run 与有界退出已通过 review 并获准本地提交，尚未进行真实 Envoy/模型联调。
-- [AI 凭据与运行配置设计](design/ai-credentials-and-runtime-config.md)：Secret 引用与轮转/撤销草案；凭据部分待 review，按整份版本准入与双版本发布已标为未采用的历史候选。
-- [AI 编译配置契约](design/ai-compiled-config-contract.md)：编译契约已确认，协调接线已提交为 `fcc9650b`，原生 Factory 加载器已提交为 `5bf59e98`；AI/MCP 引用说明已对齐同 Namespace 契约并通过 review，当前模型请求和运行装配进度见模型操作与部署设计。
-- [架构与流程图](diagrams/ai-gateway.html)：当前架构、目标资源关系、目标架构、请求流程、配置发布流程；可离线打开。
-- [HTTP 资源替换实现记录](decisions/0011-http-resource-contract.md)：阶段 B 范围、验证与未覆盖项。
-- [Namespace 与同空间引用](decisions/0013-namespaced-resources.md)：编译身份、Namespace 存储、OpenAPI、原生 HTTP API、本地 NamespaceLifecycle 和删除控制器已提交；Backend 默认存储筛选重构已提交；六种资源的存储、管理 API 与查询投影已一起切换 Namespace，并经用户 review 提交为 `cda0478e`。
-- [重构审查记录](refactoring-review.md)：此前重构的验证结果与保留缺口，不代表当前端到端验收。
-- [原生核心资源直接复用](decisions/0014-upstream-core-resources.md)：参考 OneX 接入 Kubernetes Namespace/ConfigMap 类型与存储；实现已通过用户 review 并获准本地提交，不扩展原生 API 集合。
+实现入口为 [Gateway Controller](../internal/controllermanager/controller/gateway/controller.go)、
+[Envoy 适配器](../internal/controllermanager/dataplane/envoy/publisher.go)、
+[共享 ADS 发布器](../internal/controllermanager/dataplane/xds/publisher.go)和
+[AI Proxy Loader](../internal/aiproxy/pkg/aiconfig/loader.go)。
 
-## 已有决策
+当前不再通过 ConfigMap 下发 AI 配置；原生 ConfigMap API 继续保留。
+Envoy 与 AI Proxy 分别确认资源，不提供跨进程原子切换。
+已有普通测试与本地协议测试不等于真实 Envoy、数据库和跨进程部署验收。
+
+## 尚未实施与验证计划
+
+- [AI 凭据与运行配置草案](design/ai-credentials-and-runtime-config.md)：Secret、权限、轮转与撤销尚未实施；不作为当前启动前提。
+- [HTTP 主链路隔离验证方案](design/http-gateway-validation-plan.md)：真实存储、Envoy 转发及故障验收，按用户要求留待统一测试。
+- [重构审查记录](refactoring-review.md)：各轮范围、修复和实际检查；带日期的历史结果不推定为当前结果。
+- [API 网关完成度快照](api-gateway-readiness.md)：2026-10-10 的历史评估，不描述当前 AI/MCP 完成度。
+- [图表维护](diagrams/README.md)：维护源、渲染方式与图形验证边界。
+
+## 设计决策
 
 | 决策 | 主题 |
 | --- | --- |
-| [0001](decisions/0001-gateway-first-slice.md) | Gateway、Route、Upstream 首个功能切片 |
-| [0002](decisions/0002-shared-data-plane-controller.md) | 共享数据面汇总、裁决与 xDS 发布 |
+| [0001](decisions/0001-gateway-first-slice.md) | 首个 Gateway、Route、Upstream 切片，资源名称已被后续契约替代 |
+| [0002](decisions/0002-shared-data-plane-controller.md) | 共享数据面的协调与冲突裁决；全量计算和发布已演进为增量方案 |
 | [0003](decisions/0003-generated-clients.md) | Kubernetes 生成客户端 |
 | [0004](decisions/0004-admin-authentication.md) | 管理端账户和 Session |
 | [0005](decisions/0005-admin-resource-management.md) | 管理端资源操作与异步查询投影 |
@@ -44,10 +46,13 @@
 | [0007](decisions/0007-redis-client-lifecycle.md) | Redis UniversalClient |
 | [0008](decisions/0008-build-version.md) | 构建与版本 |
 | [0009](decisions/0009-logging-initialization.md) | 日志初始化 |
-| [0010](decisions/0010-unified-ai-proxy-config-delivery.md) | 统一 AI Proxy、配置下发与目标资源关系 |
+| [0010](decisions/0010-unified-ai-proxy-config-delivery.md) | 统一 Go AI Proxy；API Server 下发部分已由 Delta ADS 替代 |
 | [0011](decisions/0011-http-resource-contract.md) | HTTPRoute/Backend 替换及标准行为子集 |
-| [0012](decisions/0012-resource-names-and-query-schema.md) | 资源名称、搜索和查询模型修正 |
+| [0012](decisions/0012-resource-names-and-query-schema.md) | 资源名称、搜索和查询模型 |
 | [0013](decisions/0013-namespaced-resources.md) | 显式 Namespace、同空间引用与共享数据面 |
-| [0014](decisions/0014-upstream-core-resources.md) | 原生 Namespace/ConfigMap 的上游直接复用 |
+| [0014](decisions/0014-upstream-core-resources.md) | 直接复用原生 Namespace/ConfigMap |
+| [0015](decisions/0015-ai-proxy-package-layout.md) | AI Proxy 应用分层与能力包 |
+| [0016](decisions/0016-gocanon-template-alignment.md) | GoCanon 对齐与既有验证记录 |
+| [0017](decisions/0017-client-startup-probes.md) | 客户端启动探测 |
 
-各文档保留自己的状态；加入索引不表示草案或历史待评审项已经获得确认。
+开发和代码评审以 [AGENTS.md](../AGENTS.md) 为入口。

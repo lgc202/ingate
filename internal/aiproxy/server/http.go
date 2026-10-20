@@ -19,7 +19,7 @@ func newHTTP(listener *net.UnixListener) *kratoshttp.Server {
 		// 普通 Web 的默认请求期限不适用于 SSE；暂不设置整次请求期限。
 		kratoshttp.Timeout(0),
 		kratoshttp.ErrorEncoder(encodeModelError),
-		// 业务入口只提供显式注册的模型路由，不回退到全局诊断路由。
+		// 业务入口只提供已注册的模型和 MCP 路由，不回退到全局诊断路由。
 		kratoshttp.NotFoundHandler(http.NotFoundHandler()),
 		kratoshttp.MethodNotAllowedHandler(http.NotFoundHandler()),
 	)

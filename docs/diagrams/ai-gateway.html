@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ingate API 网关现状与 AI 网关设计图</title>
+  <title>Ingate 当前架构与数据流</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; padding: 28px; background: #FAF9F6; color: #252525; font: 16px/1.7 Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
@@ -23,35 +23,30 @@
 </head>
 <body>
   <main>
-    <h1>Ingate API 网关现状与 AI 网关设计图</h1>
-    <p class="status">2026-10-10 · 当前源码 56205b84321c · 方向已确认，AI 契约与实现尚未完成</p>
-    <p class="decision">已确认：模型与 MCP 使用统一 Go AI Proxy；Controller 编译后通过 API Server 向 Go 下发配置，Envoy 继续使用 xDS。资源分为 Gateway、HTTPRoute、ModelRoute、AIBackend、MCPRoute、Backend；普通 HTTP 不进入 Go。</p>
-    <p>文字依据与评审边界见 <a href="../decisions/0010-unified-ai-proxy-config-delivery.md">0010 决策</a>；当前完成度与测试证据见 <a href="../api-gateway-readiness.md">API 网关评估</a>。以下 SVG 为独立源文件，无脚本、在线字体或外部渲染服务，可离线查看。</p>
-    <nav aria-label="图示导航"><a href="#current">当前架构</a><a href="#resources">资源关系</a><a href="#target">目标架构</a><a href="#request">请求流程</a><a href="#config">配置发布</a></nav>
+    <h1>Ingate 当前架构与数据流</h1>
+    <p class="status">2026-10-20 · 描述当前代码实现；真实 Envoy、数据库和跨进程部署尚未验收</p>
+    <p class="decision">Controller 使用 krt 计算依赖，通过 Delta ADS 分别向 Envoy 和 Go AI Proxy 下发资源。普通 HTTP 由 Envoy 转发；模型与 MCP 经两段 UDS 交给 Go 处理协议，再由 Envoy 连接后端。不再通过 ConfigMap 下发 AI 配置。</p>
+    <p>设计与边界见 <a href="../design/control-plane-incremental-design.md">增量编译设计</a>、<a href="../design/ai-compiled-config-contract.md">编译资源契约</a>和<a href="../design/ai-model-operations-and-deployment.md">请求与部署契约</a>。本页引用仓库内 SVG，无脚本或外部渲染服务，可离线查看；维护源见<a href="README.md">图表说明</a>。</p>
+    <nav aria-label="图示导航"><a href="#current">配置流转</a><a href="#resources">资源关系</a><a href="#request">请求流程</a><a href="#config">增量同步</a></nav>
     <section id="current">
-      <h2>当前 HTTP 主路径已实现，真实整链路仍待验收</h2>
-      <p>API Server 保存三种资源；Controller 裁决后发布完整 xDS，同时异步维护 MySQL 查询投影。管理端账户数据库和 Redis Session 未在此展开。</p>
-      <img src="api-current-architecture.svg" alt="当前 Ingate API 网关架构">
+      <h2>权威资源、两路配置与查询投影</h2>
+      <p>六类领域资源写入 API Server/etcd。Controller 编译后分别发布 Envoy 和 AI Proxy 资源，并异步维护 MySQL 查询投影。管理端账户和 Redis Session 不参与数据面选路。</p>
+      <img src="ai-current-config-flow.svg" alt="当前配置流转：API Server、Controller、两路 Delta ADS 与 MySQL 查询投影">
     </section>
     <section id="resources">
       <h2>三种路由共享网络 Backend，模型服务契约独立定义</h2>
-      <p>资源关系已确认，字段与实现尚未完成。箭头表示引用，不是请求转发：三种路由通过 parentRefs 引用 Gateway；ModelRoute 经 AIBackend 引用 Backend，HTTPRoute 和 MCPRoute 直接引用 Backend。图中的 Backend 表示统一资源类型，不要求所有业务共用同一个实例。</p>
+      <p>六种资源均已实现。箭头表示引用，不是请求转发：三种路由通过 parentRefs 引用同 Namespace 的 Gateway；ModelRoute 经 AIBackend 引用 Backend，HTTPRoute 和 MCPRoute 直接引用 Backend。统一资源类型不要求所有业务共用同一个实例。</p>
       <img src="ai-resource-model.svg" alt="已确认的 Gateway、三种路由、AIBackend 与 Backend 资源引用关系">
-    </section>
-    <section id="target">
-      <h2>Go 订阅协议配置，Envoy 接收网络配置</h2>
-      <p>紫色虚线为新增设计。Go 经 Envoy 内部出站访问后端是候选拓扑，部署形态、可信标识和资源字段仍待评审；图中的两个 Envoy 角色可以属于同一进程。</p>
-      <img src="ai-target-architecture.svg" alt="统一 Go AI Proxy 的目标架构">
     </section>
     <section id="request">
       <h2>模型与 MCP 共用运行组件，分别处理协议</h2>
-      <p>普通 HTTP 保持原路径。AI 请求捕获配置视图，进入独立协议模块；响应经该模块和入口 Envoy 返回，取消与背压需要全程传播。协议范围尚未选定。</p>
-      <img src="ai-request-flow.svg" alt="普通 HTTP 与 AI 请求及响应流程">
+      <p>下图用 coding → code-v2 说明模型映射。Chat Completions 与 Responses 共用选路与出口；MCP 使用自己的精确路径与信封校验。一次请求只捕获一份 Go 配置，响应流经原链路返回；普通 HTTP 不经过 Go。</p>
+      <img src="ai-current-model-sequence.svg" alt="模型请求时序：客户端、同一 Envoy、Go AI Proxy 与后端">
     </section>
     <section id="config">
-      <h2>候选发布流程先准备，再切换，最后排空回收</h2>
-      <p>整张图均是待评审发布协议。初次配置缺失时拒绝 AI 请求；加载失败、NACK 或超时不能标记全局已生效。Watch 恢复、撤销、实例准入与回滚详见决策文档。</p>
-      <img src="ai-config-flow.svg" alt="运行时配置与 xDS 协调激活候选流程">
+      <h2>独立资源、整批应用与版本重连</h2>
+      <p>首次同步全集，后续下发变化与明确删除。AI Proxy 校验候选并切换不可变视图后 ACK，坏批次 NACK 后按已接受版本重连。断线保旧，不提供两路代理的原子切换或即时撤销。</p>
+      <img src="control-plane-incremental-sequence.svg" alt="AI Proxy Delta ADS 初始同步、更新、ACK 与重连时序">
     </section>
   </main>
 </body>

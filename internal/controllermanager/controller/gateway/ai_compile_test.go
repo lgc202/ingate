@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"slices"
@@ -679,6 +680,29 @@ func aiResourceSnapshot() resourceFixtures {
 			},
 		}}},
 	}
+}
+
+// compileAI 冷编译完整 AI 参考结果，供测试与增量路径比较；生产路径不调用它。
+func compileAI(snapshot resources) (aidataplane.Config, error) {
+	c, err := resolveAI(snapshot)
+	if err != nil {
+		return aidataplane.Config{}, err
+	}
+
+	config := c.buildConfig()
+	for _, backend := range snapshot.backends {
+		if c.networkBackends[backend.ResourceName()] {
+			config.NetworkBackends = append(config.NetworkBackends, backend.aiBackend())
+		}
+	}
+
+	slices.SortFunc(config.NetworkBackends, func(a, b aidataplane.NetworkBackend) int { return strings.Compare(a.Name, b.Name) })
+
+	if err := aidataplane.Validate(config); err != nil {
+		return aidataplane.Config{}, fmt.Errorf("validate compiled AI configuration: %w", err)
+	}
+
+	return config, nil
 }
 
 // encodeTestAI 验证纯编译结果可以按共享契约编码，不在生产编译路径往返 JSON。

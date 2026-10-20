@@ -17,7 +17,7 @@ import (
 	logconfig "github.com/lgc202/ingate/internal/pkg/log"
 )
 
-// loadConfig 只读取、解码和校验启动配置，不创建客户端、监听 socket 或启动 Watch。
+// loadConfig 只读取、解码和校验启动配置，不创建客户端、监听 socket 或订阅动态配置。
 func loadConfig(configFile string) (*conf.Bootstrap, error) {
 	data, err := os.ReadFile(configFile)
 	if err != nil {

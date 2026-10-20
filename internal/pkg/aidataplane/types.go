@@ -1,12 +1,13 @@
-// Package aidataplane 定义 Controller 与 AI Proxy 共享的非敏感编译配置。
-// 配置不依赖 Kubernetes API 类型；领域引用由 Controller 提前解析。
-// 服务启动参数属于 conf，不进入这里的数据面契约。
+// Package aidataplane 定义控制面的 AI 编译中间表示，以及两侧共用的入口和目标约定。
+// 领域引用由 Controller 提前解析；Proxy 通过 api/aidataplane/v1 订阅独立 protobuf 资源，
+// 不接收这里的完整 Config 或网络端点。服务启动参数属于各组件的 conf。
 package aidataplane
 
 // FormatVersionV1 是当前支持的序列化格式，不是软件版本。
 const FormatVersionV1 = "v1"
 
-// Config 是共享数据面的一份完整 AI 配置；空数组表示撤销全部 AI 路由。
+// Config 是发布器使用的完整 AI 中间表示，不是 AI Proxy 的 ADS 消息。
+// 空数组表示撤销全部 AI 路由；Revision 只用于内部 JSON 编解码，不用于代理准入。
 // 字段顺序参与内容哈希，修改顺序必须同时评审格式契约与 golden 用例。
 // 必填但允许为空的字符串使用 *string：nil 非法，指向空字符串的值合法。
 type Config struct {

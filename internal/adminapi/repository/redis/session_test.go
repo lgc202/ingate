@@ -8,6 +8,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	redisclient "github.com/lgc202/ingate/internal/pkg/redis"
+	goredis "github.com/redis/go-redis/v9"
 )
 
 func TestSessionExpiresAndCanBeDeleted(t *testing.T) {
@@ -42,8 +43,8 @@ func TestSessionExpiresAndCanBeDeleted(t *testing.T) {
 		t.Errorf("DeleteSession(first) error = %v, want nil", err)
 	}
 
-	if _, err := store.GetSession(context.Background(), "first"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("GetSession(first) after DeleteSession error = %v, want ErrNotFound", err)
+	if _, err := store.GetSession(context.Background(), "first"); !errors.Is(err, ErrNotFound) || !errors.Is(err, goredis.Nil) {
+		t.Errorf("GetSession(first) after DeleteSession error = %v, want ErrNotFound and Redis nil cause", err)
 	}
 
 	if err := store.CreateSession(context.Background(), "second", want, time.Now().Add(time.Hour)); err != nil {
@@ -51,7 +52,7 @@ func TestSessionExpiresAndCanBeDeleted(t *testing.T) {
 	}
 
 	server.FastForward(2 * time.Hour)
-	if _, err := store.GetSession(context.Background(), "second"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("GetSession(second) after expiry error = %v, want ErrNotFound", err)
+	if _, err := store.GetSession(context.Background(), "second"); !errors.Is(err, ErrNotFound) || !errors.Is(err, goredis.Nil) {
+		t.Errorf("GetSession(second) after expiry error = %v, want ErrNotFound and Redis nil cause", err)
 	}
 }

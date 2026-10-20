@@ -71,6 +71,10 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 
 // Config 根据启动选项创建 Manager 配置。
 func (o *Options) Config() (*Config, error) {
+	if strings.TrimSpace(o.XDSBindAddress) == "" {
+		return nil, errors.New("xDS bind address is required")
+	}
+
 	if err := validateAISockets(o.AIIngressSocket, o.AIEgressSocket); err != nil {
 		return nil, err
 	}

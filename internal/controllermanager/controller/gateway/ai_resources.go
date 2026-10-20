@@ -80,22 +80,6 @@ func newAIResourceCompilation(
 	return c, nil
 }
 
-// aiResources 为纯编译调用构造独立消息；生产协调由 Reconciler 保留转换缓存。
-func (p publication) aiResources() ([]*aidataplanev1.Resource, error) {
-	config, err := p.aiConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	var previous aiResourceTranslation
-	translation, err := previous.compile(p, config)
-	if err != nil {
-		return nil, err
-	}
-
-	return translation.resources, nil
-}
-
 func (c *aiResourceCompilation) addEntry(table *entryTable) error {
 	port, hostName := table.entry.listener.Port, table.ai.Name
 	name := fmt.Sprintf("entry/%d/%s", port, hostName)

@@ -78,3 +78,58 @@ Redis 失败，并检查拒绝后的调用阻断和 Context 身份。本轮保�
 语法检查通过。隔离副本的 API Server 内嵌 etcd 集成测试通过，代码生成前后文件
 哈希一致。真实 MySQL/Redis/Envoy/模型上游联调、生产部署及多副本验证未执行；
 不能据此声称所有运行条件下均达到模板级或生产就绪。
+
+## 2026-10-20：全仓代码与文档整理
+
+本轮基线为 `831d726e`，分支为 `codex/gocanon-template-refactor`。用户要求先全仓 review，
+整理代码与文档；本轮变更留待用户评审，未提交或推送，未扩展业务 API、依赖或资源种类。
+
+GoCanon MCP 当前构建与规则 revision 均为 `1bb46c058fb0febb4354a9324431b1bad2a4f2fe`，
+构建标识为 `1bb46c0`，规则来源为 `/Users/lgc202/workspace/source/lgc202/gocanon`，
+checkout、dirty=false；不是沿用 AGENTS.md 中的历史版本。完整读取开发入口与索引，
+按本轮范围读取函数、错误、存储边界、运行配置、APIServer、Controller 和测试规范，
+并核对 Web 与 Controller Manager 的完整组件参考。Go 评审与重构技能用于检查职责、
+所有权和行为保持；组件文档技能用于整理主路径、确认边界与未验证项。
+
+### 范围与修复
+
+审查覆盖四个组件的启动与关闭、管理端认证及六种资源管理/查询、APIServer 类型与存储、
+Namespace 清理、krt 源与入口依赖、Envoy/AI 转换缓存、Delta 发布与消费、模型/MCP 请求链，
+以及共享基础包、协议源、生成流程、配置示例和文档。按调用关系检查模块及边界，
+本轮修改的手写文件另逐个复查；不把全仓命令通过等同于每行代码不存在缺陷。
+
+| 问题 | 修复与行为影响 |
+| --- | --- |
+| 账户和 Redis 会话错误转换丢失原始原因 | 分类错误与原始错误共同保留在错误链；补充缺失账户/会话、密码错误及并发改密断言。公开认证结果不变，原因仍不序列化给客户端 |
+| 空 xDS 地址被当作有效启动配置 | Options.Config 拒绝空值和纯空白，避免空地址交给 net.Listen 后监听随机端口；默认地址及显式非空地址不变 |
+| 生产文件保留仅供测试使用的冷编译入口 | 将 compile、compileAI 和 publication.aiResources 移入同包测试文件，保留参考结果与现有断言；生产增量路径不变 |
+| 当前文档混有已废弃链路和阶段状态 | 当前配置契约改为独立 protobuf/Delta ADS，说明部分全量遍历、批次应用、恢复和容量边界；整理请求/部署、包布局与入口索引。历史方案保留为明确标注的 ADR 或阶段评估，不作为运行指引 |
+| 图、注释和示例与实现脱节 | 修正资源图、catch-all 已实现状态、启动示例续行和包注释；说明上游 TLS 子集与未实现的入口/ADS TLS 的区别；修复本地文档锚点 |
+
+### 手写代码复查锚点
+
+- 声明顺序：Gateway 编译入口不再夹带测试专用整份组装器；测试入口在前，参考辅助函数在后。
+- 错误路径：account.verifyPassword 保留 bcrypt 原因；Login/Authenticate 和 Redis.GetSession
+  保留依赖错误，不增加重复日志。空地址在 Options.Config 的外部配置边界拒绝，
+  没有为内部成功构造链新增逐层 nil 检查。
+- 语义分段：单独复查本轮 Go 差异，错误赋值与检查相邻；配置准备、被测操作和断言分段。
+  短闭包的赋值与 return 不机械拆开，超过两行的闭包在 return 前分隔；不以 lint 代替人工检查。
+
+空地址回归先在未修复实现上失败，再在修复后通过。错误链断言同时要求公开分类和底层原因，
+仅返回分类 sentinel 无法通过。迁移测试辅助入口没有删除既有行为用例。
+
+### 本轮验证与保留边界
+
+已通过 `make -j4 verify`，包括 gofmt、go vet、普通与 integration 标签下的静态 lint、
+Buf lint、普通测试和四个二进制构建；另通过 `go build ./...` 和 `go test -race ./...`。
+执行 `make generate` 后，protobuf、Kubernetes API 与生成客户端没有跟踪或未跟踪差异。
+同时核对 git status、差异文件与未跟踪清单，执行 git diff --check。
+
+本地 Markdown/HTML 链接及章节锚点、SVG XML 结构另行检查。资源关系图只改文字和状态，
+未改变连线路径；现有已渲染 Mermaid 图未重新生成，不声称完成新的跨阅读器视觉验收。
+
+按用户要求未运行端到端验收、API Server integration 测试或真实组件环境。
+未连接部署中的 etcd、MySQL、Redis、Envoy 或提供商，也未执行 TLS 握手、跨进程取消、
+Namespace 自动删除联动、故障恢复和容量验收。integration 标签 lint 只证明静态检查，
+不是运行该标签的测试。ADS 服务身份、控制面高可用、配置分块与凭据管理仍未实现，
+不能以本轮检查宣称生产就绪。

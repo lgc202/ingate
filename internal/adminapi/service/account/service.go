@@ -117,7 +117,7 @@ func (s *Service) Login(ctx context.Context, username, password string) (LoginRe
 	account, err := s.accounts.GetByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, repository.ErrAccountNotFound) {
-			return LoginResult{}, ErrInvalidCredentials
+			return LoginResult{}, fmt.Errorf("%w: %w", ErrInvalidCredentials, err)
 		}
 
 		return LoginResult{}, fmt.Errorf("%w: read account: %w", ErrUnavailable, err)
@@ -125,7 +125,7 @@ func (s *Service) Login(ctx context.Context, username, password string) (LoginRe
 
 	if err := verifyPassword(account.PasswordHash, password); err != nil {
 		if errors.Is(err, ErrInvalidCredentials) {
-			return LoginResult{}, ErrInvalidCredentials
+			return LoginResult{}, err
 		}
 
 		return LoginResult{}, fmt.Errorf("%w: compare password: %w", ErrUnavailable, err)
@@ -159,7 +159,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Authenticated
 	session, err := s.sessions.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, repository.ErrSessionNotFound) {
-			return AuthenticatedSession{}, ErrSessionRequired
+			return AuthenticatedSession{}, fmt.Errorf("%w: %w", ErrSessionRequired, err)
 		}
 
 		return AuthenticatedSession{}, fmt.Errorf("%w: read session: %w", ErrUnavailable, err)
@@ -168,7 +168,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Authenticated
 	account, err := s.accounts.Get(ctx, session.AccountID)
 	if err != nil {
 		if errors.Is(err, repository.ErrAccountNotFound) {
-			return AuthenticatedSession{}, ErrSessionRequired
+			return AuthenticatedSession{}, fmt.Errorf("%w: %w", ErrSessionRequired, err)
 		}
 
 		return AuthenticatedSession{}, fmt.Errorf("%w: read account: %w", ErrUnavailable, err)
@@ -195,7 +195,7 @@ func (s *Service) Get(ctx context.Context, accountID uint64) (domain.Account, er
 	account, err := s.accounts.Get(ctx, accountID)
 	if err != nil {
 		if errors.Is(err, repository.ErrAccountNotFound) {
-			return domain.Account{}, ErrSessionRequired
+			return domain.Account{}, fmt.Errorf("%w: %w", ErrSessionRequired, err)
 		}
 
 		return domain.Account{}, fmt.Errorf("%w: read account: %w", ErrUnavailable, err)
@@ -213,7 +213,7 @@ func (s *Service) ChangePassword(ctx context.Context, accountID uint64, currentP
 
 	if err := verifyPassword(account.PasswordHash, currentPassword); err != nil {
 		if errors.Is(err, ErrInvalidCredentials) {
-			return ErrInvalidCredentials
+			return err
 		}
 
 		return fmt.Errorf("%w: compare current password: %w", ErrUnavailable, err)
@@ -230,7 +230,7 @@ func (s *Service) ChangePassword(ctx context.Context, accountID uint64, currentP
 
 	if err := s.accounts.UpdatePassword(ctx, accountID, account.PasswordHash, string(hash)); err != nil {
 		if errors.Is(err, repository.ErrAccountChanged) {
-			return ErrInvalidCredentials
+			return fmt.Errorf("%w: %w", ErrInvalidCredentials, err)
 		}
 
 		return fmt.Errorf("%w: update password: %w", ErrUnavailable, err)
@@ -251,7 +251,7 @@ func requireInitialAdmin(account domain.Account) error {
 func verifyPassword(hash, password string) error {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) || errors.Is(err, bcrypt.ErrPasswordTooLong) {
-		return ErrInvalidCredentials
+		return fmt.Errorf("%w: %w", ErrInvalidCredentials, err)
 	}
 
 	return err

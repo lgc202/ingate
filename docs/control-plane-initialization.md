@@ -13,18 +13,20 @@ Envoy 和 AI Proxy 可以是同一共享数据面组的多个副本；当前固�
 每个实例的 Node ID 由部署侧分配，不能用 Node ID 代替身份认证。
 
 当前 ADS 使用明文 gRPC，与现有 Envoy 控制连接一样依赖受保护的部署网络。
-Unix 入口和出口目录必须由部署侧预先创建并限制权限。本轮没有实现 TLS、服务间鉴权或自动安装器。
+Unix 入口和出口目录必须由部署侧预先创建并限制权限。当前没有 ADS 通道 TLS、服务间鉴权或自动安装器；
+Backend 的上游 TLS 是另一段连接，已支持显式 SNI 与系统 CA。
+Manager 未配置可用选主，只能部署一个副本；多个 Envoy/AI Proxy 副本不等于控制面支持多活。
 
 ## 启动接线
 
 先准备 Ingate API 连接和 Manager 的 MySQL 配置。仓库配置只作示例，不包含可直接用于生产的连接凭据。
 
 ```sh
-go run ./cmd/ingate-controller-manager \\
-  --kubeconfig /absolute/path/to/ingate.kubeconfig \\
-  --config /absolute/path/to/controller-manager.yaml \\
-  --xds-bind-address 127.0.0.1:18000 \\
-  --ai-ingress-socket /run/ingate/ingress.sock \\
+go run ./cmd/ingate-controller-manager \
+  --kubeconfig /absolute/path/to/ingate.kubeconfig \
+  --config /absolute/path/to/controller-manager.yaml \
+  --xds-bind-address 127.0.0.1:18000 \
+  --ai-ingress-socket /run/ingate/ingress.sock \
   --ai-egress-socket /run/ingate/egress.sock
 ```
 

@@ -334,6 +334,22 @@ func TestAIResourcesRejectInconsistentEntryResults(t *testing.T) {
 	})
 }
 
+// aiResources 从空转换缓存构建测试参考结果；生产协调复用 Reconciler 的最近有效缓存。
+func (p publication) aiResources() ([]*aidataplanev1.Resource, error) {
+	config, err := p.aiConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	var previous aiResourceTranslation
+	translation, err := previous.compile(p, config)
+	if err != nil {
+		return nil, err
+	}
+
+	return translation.resources, nil
+}
+
 func compiledAIResources(t *testing.T, p publication) map[string]*aidataplanev1.Resource {
 	t.Helper()
 	resources, err := p.aiResources()
