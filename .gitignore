@@ -1,1 +1,4 @@
 /bin/
+/web/console/node_modules/
+/web/console/dist/
+/web/console/*.tsbuildinfo

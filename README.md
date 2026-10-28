@@ -59,6 +59,9 @@ make verify
 
 ## 运行前准备
 
+前端控制台位于 [`web/console`](web/console/README.md)，采用 React/TypeScript。
+本地开发、当前接口接入范围与浏览器认证缺口见其 README；前端构建不属于 `make build`。
+
 完整运行需要 etcd、MySQL、Redis 和 Envoy，以及明确指向 Ingate API Server 的
 kubeconfig；不应把宿主 Kubernetes 集群的连接误用为 Ingate 连接。
 `configs/` 是配置示例，不是可以直接用于生产的安装包。ADS 当前没有通道加密或
