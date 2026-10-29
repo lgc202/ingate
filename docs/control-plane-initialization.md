@@ -1,5 +1,8 @@
 # 控制面与 AI 数据面启动
 
+本机逐进程开发的依赖、证书和启动命令见[开发运行说明](development.md)。
+以下说明组件间的运行契约，不是完整的一键安装入口。
+
 Controller 通过 Ingate API Server 的 List/Watch 读取领域资源，为 Envoy 和 AI Proxy 发布 Delta ADS。
 派生配置不再写入 ConfigMap，因此不需要专有配置 Namespace，也不再有 `--ai-config-namespace` 参数。
 业务 Namespace 仍由管理员通过 Ingate API 创建，Gateway、路由和后端引用仍在同空间解析。

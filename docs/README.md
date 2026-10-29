@@ -13,6 +13,7 @@
 | [AI 编译配置契约](design/ai-compiled-config-contract.md) | 独立 protobuf 资源、命名、版本、批次应用、删除和重连 |
 | [AI Proxy 操作与部署](design/ai-model-operations-and-deployment.md) | 两个模型创建接口、MCP、UDS、错误、SSE、TLS 与未实现范围 |
 | [控制面与数据面启动](control-plane-initialization.md) | 组件依赖、参数、实例标识、共享数据面和就绪边界 |
+| [本地开发运行](development.md) | Compose 依赖、浏览器登录、Envoy/AI Proxy 数据面、一键启动与单组件 IDE 接管 |
 | [AI 网关上游设计对照](design/ai-gateway-upstream-alignment.md) | 已核对的上游版本、采用范围和明确差异 |
 | [AI Proxy 包布局](decisions/0015-ai-proxy-package-layout.md) | 应用层与能力包的所有权、依赖方向和资源清理 |
 

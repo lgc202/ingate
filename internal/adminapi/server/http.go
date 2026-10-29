@@ -14,6 +14,7 @@ func newHTTP(config *conf.Server_HTTP, middlewares ...kratosmiddleware.Middlewar
 		kratoshttp.Address(config.GetAddr()),
 		kratoshttp.Timeout(config.GetTimeout().AsDuration()),
 		kratoshttp.Middleware(middlewares...),
+		kratoshttp.Filter(browserSession),
 		kratoshttp.RequestDecoder(decodeHTTPRequest),
 		kratoshttp.ResponseEncoder(encodeHTTPResponse),
 		kratoshttp.ErrorEncoder(encodeHTTPError),

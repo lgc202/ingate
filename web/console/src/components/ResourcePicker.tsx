@@ -49,31 +49,53 @@ export function ResourcePicker({
 
   return (
     <div className="resource-picker">
-      <div className="picker-search">
-        <input
-          aria-label={label + '名称查询'}
-          placeholder="按名称查找"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
+      <details className="picker-lookup">
+        <summary>按名称查找</summary>
+        <div className="picker-search">
+          <input
+            aria-label={label + '名称查询'}
+            placeholder="按名称查找"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                setPageNum(1);
+                setSearch(query.trim());
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="button"
+            onClick={() => {
               setPageNum(1);
               setSearch(query.trim());
-            }
-          }}
-        />
-        <button
-          type="button"
-          className="button"
-          onClick={() => {
-            setPageNum(1);
-            setSearch(query.trim());
-          }}
-        >
-          查找
-        </button>
-      </div>
+            }}
+          >
+            查找
+          </button>
+        </div>
+        {(pageNum > 1 || (result.page?.total ?? 0) > 20) && (
+          <div className="picker-pages">
+            <button
+              type="button"
+              disabled={result.loading || pageNum <= 1}
+              onClick={() => setPageNum((value) => value - 1)}
+            >
+              上一页
+            </button>
+            <span>第 {pageNum} 页</span>
+            <button
+              type="button"
+              disabled={result.loading || pageNum * 20 >= (result.page?.total ?? 0)}
+              onClick={() => setPageNum((value) => value + 1)}
+            >
+              下一页
+            </button>
+          </div>
+        )}
+      </details>
       <select
         aria-label={label}
         required={required}
@@ -96,25 +118,6 @@ export function ResourcePicker({
         <p className="error" role="alert">
           {errorMessage(result.error)}
         </p>
-      )}
-      {(pageNum > 1 || (result.page?.total ?? 0) > 20) && (
-        <div className="picker-pages">
-          <button
-            type="button"
-            disabled={result.loading || pageNum <= 1}
-            onClick={() => setPageNum((value) => value - 1)}
-          >
-            上一页
-          </button>
-          <span>第 {pageNum} 页</span>
-          <button
-            type="button"
-            disabled={result.loading || pageNum * 20 >= (result.page?.total ?? 0)}
-            onClick={() => setPageNum((value) => value + 1)}
-          >
-            下一页
-          </button>
-        </div>
       )}
     </div>
   );

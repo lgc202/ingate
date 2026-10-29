@@ -15,19 +15,15 @@ export function useResourcePage<K extends Kind>(
     error?: unknown;
   }>({ loading: true });
   const { pageNum, pageSize, displayName, gatewayName } = query;
-  const key = JSON.stringify([
-    namespace,
-    kind,
-    pageNum,
-    pageSize,
-    displayName,
-    gatewayName,
-    revision,
-  ]);
+  const key = JSON.stringify([namespace, kind, pageNum, pageSize, displayName, gatewayName]);
 
   useEffect(() => {
     const controller = new AbortController();
-    setState({ key, loading: true });
+    setState((previous) => ({
+      key,
+      page: previous.key === key ? previous.page : undefined,
+      loading: true,
+    }));
     listResources(
       namespace,
       kind,
@@ -38,7 +34,13 @@ export function useResourcePage<K extends Kind>(
         if (!controller.signal.aborted) setState({ key, page, loading: false });
       },
       (error) => {
-        if (!controller.signal.aborted) setState({ key, error, loading: false });
+        if (!controller.signal.aborted)
+          setState((previous) => ({
+            key,
+            page: previous.key === key ? previous.page : undefined,
+            error,
+            loading: false,
+          }));
       },
     );
 

@@ -5,6 +5,7 @@ include scripts/make-rules/tools.mk
 include scripts/make-rules/version.mk
 include scripts/make-rules/golang.mk
 include scripts/make-rules/generate.mk
+include scripts/make-rules/dev.mk
 
 .PHONY: generate lint verify
 

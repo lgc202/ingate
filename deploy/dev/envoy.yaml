@@ -1,0 +1,30 @@
+node:
+  id: ingate-dev-envoy
+  cluster: ingate-shared-data-plane
+admin:
+  address:
+    socket_address: {address: 0.0.0.0, port_value: 19000}
+dynamic_resources:
+  ads_config:
+    api_type: DELTA_GRPC
+    transport_api_version: V3
+    grpc_services:
+      - envoy_grpc: {cluster_name: ingate_xds}
+  cds_config: {ads: {}, resource_api_version: V3}
+  lds_config: {ads: {}, resource_api_version: V3}
+static_resources:
+  clusters:
+    - name: ingate_xds
+      type: STRICT_DNS
+      connect_timeout: 3s
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          '@type': type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config: {http2_protocol_options: {}}
+      load_assignment:
+        cluster_name: ingate_xds
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: {address: host.docker.internal, port_value: 18000}

@@ -69,6 +69,7 @@ func decodeProtoJSON(r *http.Request, message proto.Message) error {
 }
 
 func encodeHTTPResponse(w http.ResponseWriter, r *http.Request, value any) error {
+	value = browserReply(w, r, value)
 	message, ok := value.(proto.Message)
 	if !ok || r.Header.Get("Accept") == "application/protojson" {
 		return kratoshttp.DefaultResponseEncoder(w, r, value)

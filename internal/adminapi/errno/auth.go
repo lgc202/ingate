@@ -3,6 +3,8 @@ package errno
 import kratoserrors "github.com/go-kratos/kratos/v3/errors"
 
 var (
+	// ErrBrowserRequestForbidden 表示浏览器凭据来源、CSRF 头或凭据组合不符合传输契约。
+	ErrBrowserRequestForbidden = kratoserrors.Forbidden("AUTH_BROWSER_ORIGIN", "浏览器请求来源不被允许")
 	// ErrAuthInvalidCredentials 不区分账户不存在和密码错误。
 	ErrAuthInvalidCredentials = kratoserrors.Unauthorized("AUTH_INVALID_CREDENTIALS", "用户名或密码错误")
 	// ErrAuthSessionRequired 表示凭证缺失、过期或已经撤销。

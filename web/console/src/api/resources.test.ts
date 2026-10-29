@@ -15,6 +15,7 @@ test('分页查询发送明确条件，不引入视觉稿中的未知筛选字�
   const fetch = t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
     assert.equal(options.credentials, 'same-origin');
     assert.equal(new Headers(options.headers).get('Authorization'), null);
+    assert.equal(new Headers(options.headers).get('X-Ingate-Browser'), '1');
     const parsed = new URL(url, 'https://ingate.example');
     assert.equal(parsed.pathname, '/api/admin/v1/namespaces/team-a/http-routes');
     assert.equal(parsed.searchParams.get('displayName'), '订单%');

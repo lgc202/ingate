@@ -13,6 +13,7 @@ export class APIError extends Error {
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set('Accept', 'application/protojson');
+  headers.set('X-Ingate-Browser', '1');
   if (options.body) headers.set('Content-Type', 'application/json');
   let response: Response;
   let text: string;
@@ -49,6 +50,9 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   }
 
   if (!response.ok) {
+    if (response.status === 401 && path !== '/auth/login' && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('ingate:unauthorized'));
+    }
     const error = body as { reason?: string; message?: string } | null;
     throw new APIError(
       response.status,
@@ -61,8 +65,10 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 }
 
 export function errorMessage(error: unknown): string {
+  if (error instanceof APIError && error.reason === 'AUTH_INVALID_CREDENTIALS')
+    return '用户名或密码错误。';
   if (error instanceof APIError && error.status === 401) {
-    return '浏览器登录尚未接通或会话已过期。当前 Admin API 使用 Bearer 认证；前端不会在浏览器存储 Token。';
+    return '会话已过期，请重新登录。';
   }
   if (error instanceof APIError && error.status === 409)
     return '资源版本已变化，请刷新后重新编辑；不会自动覆盖其他人的修改。';

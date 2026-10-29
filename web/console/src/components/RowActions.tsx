@@ -5,10 +5,12 @@ export function RowActions({
   onDetail,
   onEdit,
   onDelete,
+  disabled = false,
 }: {
   onDetail: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -58,14 +60,15 @@ export function RowActions({
 
   return (
     <div className="row-actions">
-      <button className="text-button" onClick={onDetail}>
+      <button className="text-button" disabled={disabled} onClick={onDetail}>
         详情
       </button>
-      <button className="text-button" onClick={onEdit}>
+      <button className="text-button" disabled={disabled} onClick={onEdit}>
         编辑
       </button>
       <button
         ref={trigger}
+        disabled={disabled}
         className="row-more"
         aria-label="更多操作"
         aria-haspopup="menu"

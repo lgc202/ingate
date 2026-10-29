@@ -2,7 +2,8 @@ import { Component, useEffect, useState, type ReactNode, type FormEvent } from '
 import { NavLink, Navigate, Route, Routes, useSearchParams } from 'react-router-dom';
 import { Layers3, GitBranch, Server, Folder, CircleUserRound } from 'lucide-react';
 import { ResourcePage } from '../features/ResourcePage';
-import { request } from '../api/client';
+import { APIError, errorMessage, request } from '../api/client';
+import { Login } from '../features/Login';
 import { StatePanel } from '../components/ui';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -31,6 +32,8 @@ export function App() {
   const namespace = params.get('namespace') ?? '';
   const [draftNamespace, setDraftNamespace] = useState(namespace);
   const [account, setAccount] = useState('');
+  const [checkingAccount, setCheckingAccount] = useState(true);
+  const [accountError, setAccountError] = useState('');
 
   useEffect(() => {
     setDraftNamespace(namespace);
@@ -39,17 +42,40 @@ export function App() {
     const controller = new AbortController();
     request<{ account: { username: string } }>('/accounts/me', {
       signal: controller.signal,
-    }).then(
-      (reply) => {
-        if (!controller.signal.aborted) setAccount(reply.account.username);
-      },
-      () => {
-        if (!controller.signal.aborted) setAccount('');
-      },
-    );
+    })
+      .then(
+        (reply) => {
+          if (!controller.signal.aborted) setAccount(reply.account.username);
+        },
+        (cause) => {
+          if (!controller.signal.aborted && !(cause instanceof APIError && cause.status === 401)) {
+            setAccountError(errorMessage(cause));
+          }
+        },
+      )
+      .finally(() => {
+        if (!controller.signal.aborted) setCheckingAccount(false);
+      });
 
-    return () => controller.abort();
+    const expired = () => setAccount('');
+    window.addEventListener('ingate:unauthorized', expired);
+
+    return () => {
+      controller.abort();
+      window.removeEventListener('ingate:unauthorized', expired);
+    };
   }, []);
+
+  if (checkingAccount) return <StatePanel title="正在验证会话" />;
+  if (accountError)
+    return (
+      <StatePanel
+        title="无法连接管理服务"
+        message={accountError}
+        onRetry={() => window.location.reload()}
+      />
+    );
+  if (!account) return <Login onLogin={setAccount} />;
 
   const selectNamespace = (event: FormEvent) => {
     event.preventDefault();
@@ -82,6 +108,19 @@ export function App() {
           <div className="sidebar-bottom">
             <CircleUserRound aria-hidden="true" />
             <span>{account || '未登录'}</span>
+            <button
+              className="button"
+              onClick={async () => {
+                try {
+                  await request('/auth/logout', { method: 'POST', body: '{}' });
+                  setAccount('');
+                } catch (cause) {
+                  setAccountError(errorMessage(cause));
+                }
+              }}
+            >
+              退出
+            </button>
           </div>
         </aside>
         <div className="workspace">

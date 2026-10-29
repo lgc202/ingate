@@ -1,4 +1,6 @@
 /bin/
+/.dev/
+/.ingate-dev.*/
 /web/console/node_modules/
 /web/console/dist/
 /web/console/*.tsbuildinfo

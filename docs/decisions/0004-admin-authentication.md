@@ -45,7 +45,19 @@ GoCanon 的 User Account 示例已经实现注册、登录和 Redis Session；In
 2. Redis 故障转移下的 Session 撤销语义。
 3. TLS 在进程内还是可信入口终止，以及 Admin API 如何识别直接调用方地址。
 
-当前尚未完成真实 MySQL/Redis 联合验证，登录限流和 TLS 部署也未完成。回环监听仍是临时保护，不能视为生产就绪。
+2026-10-29 接通浏览器直接访问 Admin API：HTTP 请求以 `X-Ingate-Browser: 1` 选择 Cookie
+传输，复用原有 Redis Session；登录响应隐藏 Token，Cookie 固定 HttpOnly、Secure、
+SameSite=Strict，无 Domain，Path 为 `/api/admin/v1`。登出及改密成功删除 Cookie。
+无该头的 CLI 与 gRPC 保留原 Bearer 行为；Cookie 与 Bearer 同时出现会被拒绝。
+
+HTTP Filter 在正文解码前检查 Cookie 请求的重复凭据，并复用 Go 标准库
+`http.CrossOriginProtection` 检查 Fetch Metadata；写操作必须同时
+具备自定义头和同源 Origin；不开放 CORS。校验不信任 X-Forwarded-*，代理必须保留公开
+Host。HTTP Origin 仅允许 loopback 开发地址，外部部署必须 HTTPS；不关闭 Secure。
+依据 OWASP 的自定义头与 Origin 防护方式，不另造 CSRF Token 协议。
+
+本地 MySQL/Redis 联合启动、浏览器登录/刷新/退出与跨源拒绝已验证；不等于完整安全验收。
+登录限流、外部 TLS 终止和生产工作负载权限仍未完成，回环监听不能视为生产就绪。
 
 ## 依据
 

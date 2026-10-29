@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Plus, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { Plus, RefreshCw, Search } from 'lucide-react';
+import { waitForProjection, type SavedChange } from '../api/projection';
 import { useResourcePage } from '../api/useResource';
 import { deleteResource, getResource, type ListQuery } from '../api/resources';
 import { errorMessage } from '../api/client';
@@ -28,9 +29,10 @@ export function ResourcePage({
   const [kind, setKind] = useState<Kind>(pageKinds[page][0]);
   const [draft, setDraft] = useState({ displayName: '', gatewayName: '' });
   const [query, setQuery] = useState<ListQuery>({ pageNum: 1, pageSize: 20 });
-  const [expanded, setExpanded] = useState(true);
   const [revision, setRevision] = useState(0);
   const [notice, setNotice] = useState('');
+  const [noticeTone, setNoticeTone] = useState<'success' | 'warning' | 'error'>('success');
+  const [syncing, setSyncing] = useState(false);
   const [opening, setOpening] = useState(false);
   const [editor, setEditor] = useState<{ resource?: AnyResource }>();
   const [detail, setDetail] = useState<AnyResource>();
@@ -38,10 +40,49 @@ export function ResourcePage({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const openingRequest = useRef<AbortController | undefined>(undefined);
+  const projectionRequest = useRef<AbortController | undefined>(undefined);
   const result = useResourcePage(namespace, kind, query, revision);
   const label = pageLabels[page];
 
-  useEffect(() => () => openingRequest.current?.abort(), []);
+  useEffect(
+    () => () => {
+      openingRequest.current?.abort();
+      projectionRequest.current?.abort();
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!notice || noticeTone !== 'success' || syncing) return;
+    const timer = setTimeout(() => setNotice(''), 5000);
+    return () => clearTimeout(timer);
+  }, [notice, noticeTone, syncing]);
+
+  const refreshAfterChange = async (change: SavedChange, message: string) => {
+    projectionRequest.current?.abort();
+    const controller = new AbortController();
+    projectionRequest.current = controller;
+    setSyncing(true);
+    setNoticeTone('success');
+    setNotice(message);
+    try {
+      const converged = await waitForProjection(namespace, kind, change, controller.signal);
+      if (controller.signal.aborted) return;
+      if (!converged) {
+        setNoticeTone('warning');
+        setNotice(message + '，查询视图同步较慢，请稍后刷新。');
+      }
+    } catch (cause) {
+      if (controller.signal.aborted) return;
+      setNoticeTone('warning');
+      setNotice(message + '，列表刷新失败：' + errorMessage(cause));
+    } finally {
+      if (!controller.signal.aborted) {
+        setSyncing(false);
+        setRevision((value) => value + 1);
+      }
+    }
+  };
 
   const apply = (event: FormEvent) => {
     event.preventDefault();
@@ -55,6 +96,9 @@ export function ResourcePage({
   };
   const changeKind = (next: Kind) => {
     openingRequest.current?.abort();
+    projectionRequest.current?.abort();
+    setSyncing(false);
+    setNotice('');
     setOpening(false);
     setKind(next);
     setQuery({ pageNum: 1, pageSize: query.pageSize });
@@ -73,19 +117,25 @@ export function ResourcePage({
       if (editing) setEditor({ resource: current });
       else setDetail(current);
     } catch (error) {
-      if (!controller.signal.aborted) setNotice(errorMessage(error));
+      if (!controller.signal.aborted) {
+        setNoticeTone('error');
+        setNotice(errorMessage(error));
+      }
     } finally {
       if (!controller.signal.aborted) setOpening(false);
     }
   };
   const remove = async () => {
+    if (deleting || !candidate) return;
     setDeleting(true);
     setDeleteError('');
     try {
-      await deleteResource(namespace, kind, candidate!.name);
+      await deleteResource(namespace, kind, candidate.name);
+      const deleted = candidate.name;
       setCandidate(undefined);
-      setNotice('删除请求已接受，查询列表可能稍后更新。');
-      setRevision((value) => value + 1);
+      if (result.page?.items.length === 1 && query.pageNum > 1)
+        setQuery((current) => ({ ...current, pageNum: current.pageNum - 1 }));
+      void refreshAfterChange({ deleted }, '已删除「' + title(candidate) + '」');
     } catch (error) {
       setDeleteError(errorMessage(error));
     } finally {
@@ -111,7 +161,7 @@ export function ResourcePage({
         <h1>{label}</h1>
         <button
           className="button primary"
-          disabled={opening}
+          disabled={opening || syncing}
           onClick={() => {
             setNotice('');
             setEditor({});
@@ -122,7 +172,7 @@ export function ResourcePage({
         </button>
       </header>
       {notice && (
-        <div className="notice" role="status">
+        <div className={'notice ' + noticeTone} role={noticeTone === 'error' ? 'alert' : 'status'}>
           {notice}
           <button aria-label="关闭提示" onClick={() => setNotice('')}>
             ×
@@ -131,93 +181,93 @@ export function ResourcePage({
       )}
       <section className="panel">
         <form className="filter-panel" onSubmit={apply}>
-          <header className="filter-heading">
-            <strong>
-              <SlidersHorizontal />
-              筛选条件
-            </strong>
-            <button
-              type="button"
-              className="text-button muted"
-              aria-expanded={expanded}
-              onClick={() => setExpanded((value) => !value)}
-            >
-              {expanded ? '收起' : '展开'}
-            </button>
-          </header>
-          {expanded && (
-            <div className="filter-fields">
+          <div className="filter-fields">
+            <label>
+              {label}名称
+              <input
+                aria-label={label + '名称查询'}
+                placeholder={'搜索' + label + '名称'}
+                value={draft.displayName}
+                onChange={(event) => setDraft({ ...draft, displayName: event.target.value })}
+              />
+            </label>
+            {page !== 'gateways' && (
               <label>
-                {label}名称
-                <input
-                  aria-label={label + '名称查询'}
-                  placeholder="按展示名称模糊查询"
-                  value={draft.displayName}
-                  onChange={(event) => setDraft({ ...draft, displayName: event.target.value })}
-                />
-              </label>
-              {page !== 'gateways' && (
-                <label>
-                  {label}类型
-                  <select
-                    aria-label={label + '类型'}
-                    value={kind}
-                    onChange={(event) => changeKind(event.target.value as Kind)}
-                  >
-                    {pageKinds[page].map((value) => (
-                      <option key={value} value={value}>
-                        {labels[value]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              {page === 'routes' && (
-                <div className="filter-reference">
-                  <span>入口网关</span>
-                  <ResourcePicker
-                    namespace={namespace}
-                    kind="gateways"
-                    label="入口网关"
-                    required={false}
-                    value={draft.gatewayName}
-                    onChange={(gatewayName) => setDraft({ ...draft, gatewayName })}
-                  />
-                </div>
-              )}
-              <div className="filter-actions">
-                <button
-                  type="button"
-                  className="button"
-                  onClick={() => {
-                    setDraft({ displayName: '', gatewayName: '' });
-                    setQuery({ pageNum: 1, pageSize: query.pageSize });
-                    setRevision((value) => value + 1);
-                  }}
+                {label}类型
+                <select
+                  aria-label={label + '类型'}
+                  value={kind}
+                  onChange={(event) => changeKind(event.target.value as Kind)}
                 >
-                  重置
-                </button>
-                <button type="submit" className="button primary">
-                  查询
-                </button>
+                  {pageKinds[page].map((value) => (
+                    <option key={value} value={value}>
+                      {labels[value]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {page === 'routes' && (
+              <div className="filter-reference">
+                <span>入口网关</span>
+                <ResourcePicker
+                  namespace={namespace}
+                  kind="gateways"
+                  label="入口网关"
+                  required={false}
+                  value={draft.gatewayName}
+                  onChange={(gatewayName) => setDraft({ ...draft, gatewayName })}
+                />
               </div>
+            )}
+            <div className="filter-actions">
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  setDraft({ displayName: '', gatewayName: '' });
+                  setQuery({ pageNum: 1, pageSize: query.pageSize });
+                  setRevision((value) => value + 1);
+                }}
+              >
+                重置
+              </button>
+              <button type="submit" className="button primary">
+                <Search />
+                查询
+              </button>
             </div>
-          )}
+          </div>
         </form>
         <header className="list-heading">
           <strong>{labels[kind]}列表</strong>
-          <button
-            className="icon-button"
-            aria-label="刷新列表"
-            disabled={result.loading || opening}
-            onClick={() => setRevision((value) => value + 1)}
-          >
-            <RefreshCw />
-          </button>
+          <div className="list-tools">
+            {(syncing || (result.loading && result.page)) && (
+              <span className="refresh-status" role="status">
+                正在更新列表…
+              </span>
+            )}
+            <button
+              className="icon-button"
+              aria-label="刷新列表"
+              disabled={result.loading || opening || syncing}
+              onClick={() => {
+                setNotice('');
+                setRevision((value) => value + 1);
+              }}
+            >
+              <RefreshCw className={result.loading || syncing ? 'spinning' : ''} />
+            </button>
+          </div>
         </header>
-        {result.loading ? (
+        {result.error !== undefined && result.page && (
+          <div className="notice error" role="alert">
+            刷新失败：{errorMessage(result.error)}
+          </div>
+        )}
+        {!result.page && result.loading ? (
           <StatePanel title="正在加载…" />
-        ) : result.error !== undefined ? (
+        ) : !result.page && result.error !== undefined ? (
           <StatePanel
             title="加载失败"
             message={errorMessage(result.error)}
@@ -228,7 +278,10 @@ export function ResourcePage({
             title={query.displayName || query.gatewayName ? '没有匹配的资源' : '暂无资源'}
           />
         ) : (
-          <div className={'table-scroll' + (opening ? ' opening' : '')} aria-busy={opening}>
+          <div
+            className={'table-scroll' + (opening || syncing ? ' opening' : '')}
+            aria-busy={opening || syncing || result.loading}
+          >
             <table>
               <thead>
                 <tr>
@@ -242,12 +295,15 @@ export function ResourcePage({
                 {result.page.items.map((resource) => (
                   <tr key={resource.name}>
                     <ResourceCells
+                      key={revision}
                       kind={kind}
                       resource={resource}
+                      disabled={opening || syncing}
                       onDetail={() => void open(resource, false)}
                     />
                     <td>
                       <RowActions
+                        disabled={opening || syncing}
                         onDetail={() => void open(resource, false)}
                         onEdit={() => void open(resource, true)}
                         onDelete={() => {
@@ -313,9 +369,14 @@ export function ResourcePage({
           onClose={() => setEditor(undefined)}
           onSaved={(resource) => {
             setEditor(undefined);
-            setDetail(resource);
-            setRevision((value) => value + 1);
-            setNotice('配置已保存；列表来自异步查询投影，可能稍后更新。');
+            if (!editor.resource) {
+              setDraft({ displayName: '', gatewayName: '' });
+              setQuery({ pageNum: 1, pageSize: query.pageSize });
+            }
+            void refreshAfterChange(
+              { saved: resource },
+              (editor.resource ? '已保存「' : '已创建「') + title(resource) + '」',
+            );
           }}
         />
       )}

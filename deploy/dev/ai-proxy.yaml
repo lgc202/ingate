@@ -1,0 +1,11 @@
+server:
+  socket: /run/ingate/ingress.sock
+  max_request_body_bytes: 1048576
+  shutdown_timeout: 30s
+discovery:
+  address: host.docker.internal:18000
+  node_id: ingate-dev-ai-proxy
+  max_response_bytes: 16777216
+envoy:
+  egress_socket: /run/ingate/egress.sock
+log: {level: info, format: json, outputs: [stdout]}

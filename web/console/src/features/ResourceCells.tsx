@@ -17,10 +17,12 @@ export function ResourceCells({
   kind,
   resource,
   onDetail,
+  disabled = false,
 }: {
   kind: Kind;
   resource: AnyResource;
   onDetail: () => void;
+  disabled?: boolean;
 }) {
   const Icon =
     kind === 'gateways'
@@ -32,7 +34,7 @@ export function ResourceCells({
           : GitBranch;
   const name = (
     <td>
-      <button className="name-button" onClick={onDetail}>
+      <button className="name-button" disabled={disabled} onClick={onDetail}>
         <Icon />
         <span>{title(resource)}</span>
       </button>

@@ -1,0 +1,107 @@
+# 仅用于本机开发。宿主端口限定回环；数据卷随 Compose 项目隔离。
+services:
+  mysql:
+    image: mysql:8.4.11
+    pull_policy: missing
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?run make dev-init first}
+      MYSQL_DATABASE: ingate
+      MYSQL_USER: ingate
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?run make dev-init first}
+    ports:
+      - "127.0.0.1:13306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # mysqladmin ping 在 Access denied 时仍可能成功；实际执行 SQL 验证初始化已完成。
+      test:
+        - CMD-SHELL
+        - MYSQL_PWD=$$MYSQL_PASSWORD mysql --protocol=TCP -h 127.0.0.1 -u ingate -D ingate -Nse 'SELECT 1'
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 20s
+
+  redis:
+    image: redis:7.4.9-bookworm
+    pull_policy: missing
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:16379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  etcd:
+    image: registry.k8s.io/etcd:3.6.4-0
+    pull_policy: missing
+    command:
+      - /usr/local/bin/etcd
+      - --name=dev
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://127.0.0.1:2379
+      - --listen-peer-urls=http://127.0.0.1:2380
+      - --initial-advertise-peer-urls=http://127.0.0.1:2380
+      - --initial-cluster=dev=http://127.0.0.1:2380
+    ports:
+      - "127.0.0.1:12379:2379"
+    volumes:
+      - etcd-data:/etcd-data
+    healthcheck:
+      test:
+        - CMD
+        - /usr/local/bin/etcdctl
+        - --endpoints=http://127.0.0.1:2379
+        - endpoint
+        - health
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  ai-proxy:
+    profiles: [dataplane]
+    build:
+      context: ../../.dev/image
+      dockerfile: ../../deploy/dev/aiproxy.Dockerfile
+    user: "0:0"
+    entrypoint: [/bin/sh, -c]
+    command: ['chmod 700 /run/ingate && exec /usr/local/bin/ingate-ai-proxy --conf /etc/ingate/ai-proxy.yaml']
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes:
+      - ai-sockets:/run/ingate
+      - ./ai-proxy.yaml:/etc/ingate/ai-proxy.yaml:ro
+    healthcheck:
+      test: [CMD-SHELL, "test -S /run/ingate/ingress.sock"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    stop_grace_period: 35s
+
+  envoy:
+    profiles: [dataplane]
+    image: envoyproxy/envoy:v1.39.1
+    pull_policy: missing
+    user: "0:0"
+    entrypoint: [/usr/local/bin/envoy]
+    command: [-c, /etc/ingate/envoy.yaml, --log-level, info]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      ai-proxy: {condition: service_healthy}
+    ports:
+      - "127.0.0.1:18088:8080"
+      - "127.0.0.1:19000:19000"
+    volumes:
+      - ai-sockets:/run/ingate
+      - ./envoy.yaml:/etc/ingate/envoy.yaml:ro
+    stop_grace_period: 35s
+
+volumes:
+  mysql-data:
+  redis-data:
+  etcd-data:
+  ai-sockets:

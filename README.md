@@ -59,6 +59,10 @@ make verify
 
 ## 运行前准备
 
+本地开发入口见[开发运行说明](docs/development.md)：Compose 管理数据库与 etcd，
+Go 组件和前端在本机运行。`make dev-up` 一键准备并启动，`make dev-down` 停止并保留数据；
+`make dev-up EXCLUDE=admin-api` 可将单个组件留给 IDE。
+
 前端控制台位于 [`web/console`](web/console/README.md)，采用 React/TypeScript。
 本地开发、当前接口接入范围与浏览器认证缺口见其 README；前端构建不属于 `make build`。
 
