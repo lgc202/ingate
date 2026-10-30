@@ -25,6 +25,22 @@ func TestGatewayAPIGroupInfo(t *testing.T) {
 	}
 
 	info := gatewayAPIGroupInfo(scheme, storage)
+	mediaTypes := info.NegotiatedSerializer.SupportedMediaTypes()
+	if _, ok := runtime.SerializerInfoForMediaType(mediaTypes, runtime.ContentTypeProtobuf); ok {
+		t.Error("Gateway SupportedMediaTypes() contains Protobuf, want unsupported business encoding excluded")
+	}
+
+	for _, mediaType := range []string{runtime.ContentTypeJSON, runtime.ContentTypeYAML} {
+		if _, ok := runtime.SerializerInfoForMediaType(mediaTypes, mediaType); !ok {
+			t.Errorf("Gateway SupportedMediaTypes() lacks %q, want supported encoding retained", mediaType)
+		}
+	}
+
+	coreMediaTypes := coreAPIGroupInfo(scheme, nil).NegotiatedSerializer.SupportedMediaTypes()
+	if _, ok := runtime.SerializerInfoForMediaType(coreMediaTypes, runtime.ContentTypeProtobuf); !ok {
+		t.Error("core SupportedMediaTypes() lacks Protobuf, want native encoding retained")
+	}
+
 	if info.Scheme != scheme {
 		t.Errorf("gatewayAPIGroupInfo() scheme = %p, want %p", info.Scheme, scheme)
 	}

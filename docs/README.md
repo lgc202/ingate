@@ -24,12 +24,13 @@
 
 当前不再通过 ConfigMap 下发 AI 配置；原生 ConfigMap API 继续保留。
 Envoy 与 AI Proxy 分别确认资源，不提供跨进程原子切换。
-已有普通测试与本地协议测试不等于真实 Envoy、数据库和跨进程部署验收。
+本轮真实组件验证范围及修复见 [2026-10-29 本地功能验证](functional-testing-2026-10-29.md)，
+其中已通过项不替代尚未覆盖的部署和容量验收。
 
 ## 尚未实施与验证计划
 
 - [AI 凭据与运行配置草案](design/ai-credentials-and-runtime-config.md)：Secret、权限、轮转与撤销尚未实施；不作为当前启动前提。
-- [HTTP 主链路隔离验证方案](design/http-gateway-validation-plan.md)：真实存储、Envoy 转发及故障验收，按用户要求留待统一测试。
+- [HTTP 主链路隔离验证方案](design/http-gateway-validation-plan.md)：验证计划；本轮已执行范围见上述功能记录，未覆盖项继续保留。
 - [重构审查记录](refactoring-review.md)：各轮范围、修复和实际检查；带日期的历史结果不推定为当前结果。
 - [API 网关完成度快照](api-gateway-readiness.md)：2026-10-10 的历史评估，不描述当前 AI/MCP 完成度。
 - [图表维护](diagrams/README.md)：维护源、渲染方式与图形验证边界。

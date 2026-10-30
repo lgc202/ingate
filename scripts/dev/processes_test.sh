@@ -104,4 +104,31 @@ assert_not_managed web
 stop_component controller
 stop_component apiserver
 
+# 用确定的探测次数模拟超过 30 秒的 API Server 排空；不实际等待长超时。
+(
+    probes=0
+    removed=false
+    dev_tmux() {
+        if [[ "$1" == kill-session ]]; then
+            removed=true
+        fi
+    }
+    component_running() {
+        probes=$((probes+1))
+        ((probes<180))
+    }
+    sleep() { :; }
+
+    stop_component apiserver
+    [[ "$removed" == true ]]
+
+    probes=0
+    removed=false
+    if stop_component controller 2>/dev/null; then
+        echo 'FAIL: component exceeding its stop deadline reported stopped' >&2
+        exit 1
+    fi
+    [[ "$removed" == false ]]
+)
+
 echo 'PASS: exact selection, quoted paths, idempotent start/stop, graceful interrupt, failure status/logs, occupied-port refusal, excluded components'

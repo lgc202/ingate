@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"fmt"
+	"slices"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -13,6 +14,18 @@ import (
 	gatewayapi "github.com/lgc202/ingate/pkg/apis/gateway"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
+
+// gatewayNegotiatedSerializer 保留上游版本转换和流式编码，仅排除业务类型未实现的 Protobuf。
+// 核心组仍使用完整 CodecFactory，Namespace、ConfigMap 的原生编码不受影响。
+type gatewayNegotiatedSerializer struct {
+	serializer.CodecFactory
+}
+
+func (s gatewayNegotiatedSerializer) SupportedMediaTypes() []runtime.SerializerInfo {
+	return slices.DeleteFunc(slices.Clone(s.CodecFactory.SupportedMediaTypes()), func(info runtime.SerializerInfo) bool {
+		return info.MediaType == runtime.ContentTypeProtobuf
+	})
+}
 
 func installGatewayAPIGroup(
 	server *genericapiserver.GenericAPIServer,
@@ -40,12 +53,14 @@ func gatewayAPIGroupInfo(
 	scheme *runtime.Scheme,
 	storage map[string]rest.Storage,
 ) genericapiserver.APIGroupInfo {
+	codecs := serializer.NewCodecFactory(scheme)
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(
 		gatewayapi.GroupName,
 		scheme,
 		runtime.NewParameterCodec(scheme),
-		serializer.NewCodecFactory(scheme),
+		codecs,
 	)
+	apiGroupInfo.NegotiatedSerializer = gatewayNegotiatedSerializer{CodecFactory: codecs}
 	apiGroupInfo.VersionedResourcesStorageMap[gatewayv1alpha1.Version] = storage
 
 	return apiGroupInfo

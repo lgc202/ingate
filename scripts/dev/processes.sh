@@ -145,7 +145,12 @@ wait_component() {
 }
 
 stop_component() {
-    local component=$1 attempt
+    local component=$1 attempt timeout_seconds=30
+    # Generic API Server 的默认 HTTP 关闭期限为 60 秒，活跃 Watch 可能用满该期限。
+    if [[ "$component" == apiserver ]]; then
+        timeout_seconds=90
+    fi
+
     if ! dev_tmux has-session -t "=$component" 2>/dev/null; then
         echo "$component 没有托管会话，未操作 IDE 或其他进程。"
         return
@@ -154,14 +159,14 @@ stop_component() {
     if component_running "$component"; then
         # 相当于前台 Ctrl+C，由组件自行排空、关闭连接；不根据端口或历史 PID 发信号。
         dev_tmux send-keys -t "=$component:0.0" C-c
-        for ((attempt=0; attempt<150; attempt++)); do
+        for ((attempt=0; attempt<timeout_seconds*5; attempt++)); do
             if ! component_running "$component"; then
                 break
             fi
             sleep 0.2
         done
         if component_running "$component"; then
-            echo "$component 在 30 秒内未停止，保留会话和依赖，请先排查。" >&2
+            echo "$component 在 ${timeout_seconds} 秒内未停止，保留会话和依赖，请先排查。" >&2
             return 1
         fi
     fi
